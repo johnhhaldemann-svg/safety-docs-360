@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     aiReviewId: optionalText(body?.ai_review_id) ?? optionalText(body?.aiReviewId),
     editedText: optionalText(body?.edited_text) ?? optionalText(body?.editedText),
     reason: optionalText(body?.reason),
+    signalMetadata:
+      body?.signal_metadata && typeof body.signal_metadata === "object" && !Array.isArray(body.signal_metadata)
+        ? (body.signal_metadata as Record<string, unknown>)
+        : body?.signalMetadata && typeof body.signalMetadata === "object" && !Array.isArray(body.signalMetadata)
+          ? (body.signalMetadata as Record<string, unknown>)
+          : null,
     createdBy: auth.user.id,
   });
 

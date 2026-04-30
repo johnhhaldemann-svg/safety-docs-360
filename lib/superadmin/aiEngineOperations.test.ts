@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAiEngineRecommendationCandidates,
   getAiEngineMetrics,
+  sanitizeAiFeedbackSignalMetadata,
 } from "@/lib/superadmin/aiEngineOperations";
 
 class Query {
@@ -104,6 +105,10 @@ describe("AI Engine Operations", () => {
       join(root, "supabase", "migrations", "20260430160000_ai_engine_recommendation_snapshots.sql"),
       "utf8"
     );
+    const feedbackMetadataMigration = readFileSync(
+      join(root, "supabase", "migrations", "20260430170000_ai_feedback_signal_metadata.sql"),
+      "utf8"
+    );
 
     for (const sql of [callLogMigration, feedbackMigration, recommendationMigration]) {
       expect(sql).toContain("revoke all");
@@ -111,6 +116,32 @@ describe("AI Engine Operations", () => {
       expect(sql).toContain("from anon");
       expect(sql).toContain("using (false)");
     }
+    expect(feedbackMetadataMigration).toContain("signal_metadata jsonb");
+  });
+
+  it("sanitizes learning-loop metadata without retaining raw text fields", () => {
+    expect(
+      sanitizeAiFeedbackSignalMetadata({
+        editDistanceRatio: 1.8,
+        regeneratedCount: 3.4,
+        usedInField: true,
+        workflowStep: "permit_copilot_suggestion",
+        documentType: "hot_work",
+        reasonCode: "missing_controls",
+        fallbackUsed: false,
+        prompt: "drop",
+        generatedText: "drop",
+        rawOutput: "drop",
+      })
+    ).toEqual({
+      editDistanceRatio: 1,
+      regeneratedCount: 3,
+      usedInField: true,
+      workflowStep: "permit_copilot_suggestion",
+      documentType: "hot_work",
+      reasonCode: "missing_controls",
+      fallbackUsed: false,
+    });
   });
 
   it("recommends action for fallback spikes, provider failures, and slow latency", () => {

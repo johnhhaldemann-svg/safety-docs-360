@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const supabase = getSupabaseBrowserClient();
@@ -403,6 +404,17 @@ export function PermitCopilotPanel({
                   </ul>
                 </div>
               ) : null}
+
+              <AiFeedbackControls
+                surface="permit-copilot"
+                sourceId={selectedActivity?.id ?? currentDraft.jsaActivityId ?? "permit-draft"}
+                metadata={{
+                  workflowStep: "permit_copilot_suggestion",
+                  documentType: currentDraft.permitType || selectedActivity?.permit_type || "permit",
+                  fallbackUsed,
+                }}
+                className="mt-4 border-t border-[var(--app-border)] pt-3"
+              />
             </div>
           ) : null}
         </div>

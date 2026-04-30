@@ -54,6 +54,39 @@ export type AiEngineFeedbackInput = {
   editedText?: string | null;
   reason?: string | null;
   createdBy?: string | null;
+  signalMetadata?: Record<string, unknown> | null;
+};
+
+export type AiEngineFeedbackSignalMetadata = {
+  editDistanceRatio?: number;
+  regeneratedCount?: number;
+  usedInField?: boolean;
+  workflowStep?: string;
+  documentType?: string;
+  reasonCode?: string;
+  fallbackUsed?: boolean;
+};
+
+export type AiEngineFeedbackSummarySurface = {
+  surface: string;
+  count: number;
+  accepted: number;
+  edited: number;
+  rejected: number;
+  regenerated: number;
+  fieldUsed: number;
+  negativeRate: number;
+  fieldUsedRate: number;
+  current7DayCount: number;
+  previous7DayCount: number;
+  delta7DayCount: number;
+};
+
+export type AiEngineFeedbackSummary = {
+  total: number;
+  outcomeCounts: Record<AiEngineFeedbackOutcome, number>;
+  bySurface: AiEngineFeedbackSummarySurface[];
+  needsReview: AiEngineFeedbackSummarySurface[];
 };
 
 export type AiEngineRecommendationSeverity = "critical" | "warning" | "info";
@@ -178,6 +211,60 @@ function sanitizeNullableText(value: unknown, max = 240) {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
+const SAFE_SIGNAL_METADATA_KEYS = new Set([
+  "editDistanceRatio",
+  "regeneratedCount",
+  "usedInField",
+  "workflowStep",
+  "documentType",
+  "reasonCode",
+  "fallbackUsed",
+]);
+
+export function sanitizeAiFeedbackSignalMetadata(input: unknown): AiEngineFeedbackSignalMetadata {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const source = input as Record<string, unknown>;
+  const sanitized: AiEngineFeedbackSignalMetadata = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (!SAFE_SIGNAL_METADATA_KEYS.has(key)) continue;
+
+    if (key === "editDistanceRatio") {
+      const normalized = normalizeNumber(value);
+      if (normalized != null) {
+        sanitized.editDistanceRatio = Math.min(1, Math.max(0, normalized));
+      }
+      continue;
+    }
+
+    if (key === "regeneratedCount") {
+      const normalized = normalizeNumber(value);
+      if (normalized != null) {
+        sanitized.regeneratedCount = Math.min(50, Math.max(0, Math.round(normalized)));
+      }
+      continue;
+    }
+
+    if (key === "usedInField") {
+      if (typeof value === "boolean") sanitized.usedInField = value;
+      continue;
+    }
+
+    if (key === "fallbackUsed") {
+      if (typeof value === "boolean") sanitized.fallbackUsed = value;
+      continue;
+    }
+
+    const text = sanitizeNullableText(value, 80);
+    if (!text) continue;
+    if (key === "workflowStep") sanitized.workflowStep = text;
+    if (key === "documentType") sanitized.documentType = text;
+    if (key === "reasonCode") sanitized.reasonCode = text;
+  }
+
+  return sanitized;
+}
+
 function normalizeCallRow(row: Record<string, unknown>): AiEngineCallRow {
   return {
     id: typeof row.id === "number" || typeof row.id === "string" ? row.id : "",
@@ -217,6 +304,84 @@ function sortedGroups(
   groups: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }>
 ) {
   return Object.values(groups).sort((a, b) => b.calls - a.calls || a.key.localeCompare(b.key));
+}
+
+function emptyOutcomeCounts(): Record<AiEngineFeedbackOutcome, number> {
+  return {
+    accepted: 0,
+    edited: 0,
+    rejected: 0,
+    regenerated: 0,
+    "field-used": 0,
+  };
+}
+
+function buildFeedbackSummary(rows: unknown[]): AiEngineFeedbackSummary {
+  const outcomeCounts = emptyOutcomeCounts();
+  const bySurface = new Map<string, AiEngineFeedbackSummarySurface>();
+  const now = Date.now();
+  const currentWindowStart = now - 7 * 24 * 60 * 60 * 1000;
+  const previousWindowStart = now - 14 * 24 * 60 * 60 * 1000;
+
+  for (const rawRow of rows) {
+    const row = rawRow as Record<string, unknown>;
+    const outcome = sanitizeNullableText(row.outcome, 40) as AiEngineFeedbackOutcome | null;
+    if (!outcome || !(outcome in outcomeCounts)) continue;
+
+    const surface = sanitizeNullableText(row.surface, 120) ?? "unknown";
+    const surfaceRow =
+      bySurface.get(surface) ??
+      {
+        surface,
+        count: 0,
+        accepted: 0,
+        edited: 0,
+        rejected: 0,
+        regenerated: 0,
+        fieldUsed: 0,
+        negativeRate: 0,
+        fieldUsedRate: 0,
+        current7DayCount: 0,
+        previous7DayCount: 0,
+        delta7DayCount: 0,
+      };
+
+    outcomeCounts[outcome] += 1;
+    surfaceRow.count += 1;
+    if (outcome === "accepted") surfaceRow.accepted += 1;
+    if (outcome === "edited") surfaceRow.edited += 1;
+    if (outcome === "rejected") surfaceRow.rejected += 1;
+    if (outcome === "regenerated") surfaceRow.regenerated += 1;
+    if (outcome === "field-used") surfaceRow.fieldUsed += 1;
+
+    const createdAt = typeof row.created_at === "string" ? new Date(row.created_at).getTime() : Number.NaN;
+    if (Number.isFinite(createdAt) && createdAt >= currentWindowStart) {
+      surfaceRow.current7DayCount += 1;
+    } else if (Number.isFinite(createdAt) && createdAt >= previousWindowStart) {
+      surfaceRow.previous7DayCount += 1;
+    }
+
+    bySurface.set(surface, surfaceRow);
+  }
+
+  const surfaceRows = Array.from(bySurface.values()).map((row) => {
+    const negative = row.edited + row.rejected + row.regenerated;
+    return {
+      ...row,
+      negativeRate: row.count > 0 ? negative / row.count : 0,
+      fieldUsedRate: row.count > 0 ? row.fieldUsed / row.count : 0,
+      delta7DayCount: row.current7DayCount - row.previous7DayCount,
+    };
+  });
+
+  return {
+    total: rows.length,
+    outcomeCounts,
+    bySurface: surfaceRows.sort((a, b) => b.count - a.count || a.surface.localeCompare(b.surface)),
+    needsReview: surfaceRows
+      .filter((row) => row.count >= 3 && row.negativeRate >= 0.3)
+      .sort((a, b) => b.negativeRate - a.negativeRate || b.count - a.count),
+  };
 }
 
 function severityRank(severity: AiEngineRecommendationSeverity) {
@@ -337,6 +502,7 @@ export async function getAiEngineFeedback(
       count: 0,
       unavailable: true,
       reason: "supabase_service_role_unavailable",
+      summary: buildFeedbackSummary([]),
     };
   }
 
@@ -345,7 +511,7 @@ export async function getAiEngineFeedback(
   let query = client
     .from("ai_output_feedback")
     .select(
-      "id,created_at,surface,source_id,ai_review_id,rating,outcome,reason,created_by",
+      "id,created_at,surface,source_id,ai_review_id,rating,outcome,reason,created_by,signal_metadata",
       { count: "exact" }
     )
     .gte("created_at", since)
@@ -361,11 +527,14 @@ export async function getAiEngineFeedback(
     throw new Error(error.message ?? "Unable to read AI feedback.");
   }
 
+  const rows = Array.isArray(data) ? data : [];
+
   return {
-    rows: Array.isArray(data) ? data : [],
-    count: count ?? (Array.isArray(data) ? data.length : 0),
+    rows,
+    count: count ?? rows.length,
     unavailable: false,
     reason: null,
+    summary: buildFeedbackSummary(rows),
   };
 }
 
@@ -390,13 +559,14 @@ export async function recordAiEngineFeedback(
     outcome: input.outcome,
     edited_text: input.editedText?.trim().slice(0, 5000) || null,
     reason: input.reason?.trim().slice(0, 500) || null,
+    signal_metadata: sanitizeAiFeedbackSignalMetadata(input.signalMetadata),
     created_by: input.createdBy ?? null,
   };
 
   const { data, error } = await client
     .from("ai_output_feedback")
     .insert(row)
-    .select("id,created_at,surface,source_id,ai_review_id,rating,outcome,reason,created_by")
+    .select("id,created_at,surface,source_id,ai_review_id,rating,outcome,reason,created_by,signal_metadata")
     .single();
 
   if (error) {
@@ -619,18 +789,42 @@ export function buildAiEngineRecommendationCandidates(input: {
 
   const feedbackRows = Array.isArray(input.feedback.rows) ? input.feedback.rows : [];
   const feedbackCount = feedbackRows.length;
-  const negativeFeedback = feedbackRows.filter((row) => {
-    const outcome = typeof (row as Record<string, unknown>).outcome === "string" ? String((row as Record<string, unknown>).outcome) : "";
-    return outcome === "edited" || outcome === "rejected" || outcome === "regenerated";
-  }).length;
-  if (feedbackCount >= 3 && negativeFeedback / feedbackCount >= 0.3) {
+  const feedbackSummary =
+    "summary" in input.feedback && input.feedback.summary
+      ? input.feedback.summary
+      : buildFeedbackSummary(feedbackRows);
+  const totalNegativeFeedback =
+    feedbackSummary.outcomeCounts.edited +
+    feedbackSummary.outcomeCounts.rejected +
+    feedbackSummary.outcomeCounts.regenerated;
+  if (feedbackCount >= 3 && totalNegativeFeedback / feedbackCount >= 0.3) {
+    const reasonCounts = new Map<string, number>();
+    for (const row of feedbackRows) {
+      const metadata = (row as Record<string, unknown>).signal_metadata;
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
+      const reasonCode = sanitizeNullableText((metadata as Record<string, unknown>).reasonCode, 80);
+      if (reasonCode) reasonCounts.set(reasonCode, (reasonCounts.get(reasonCode) ?? 0) + 1);
+    }
+    const topReason = Array.from(reasonCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
     add({
       severity: "warning",
       surface,
       category: "feedback",
       title: "User feedback shows elevated revision pressure",
-      evidence: `${negativeFeedback} of ${feedbackCount} feedback signal(s) were edited, rejected, or regenerated.`,
+      evidence: `${totalNegativeFeedback} of ${feedbackCount} feedback signal(s) were edited, rejected, or regenerated${topReason ? `; top reason: ${topReason}` : ""}.`,
       suggestedAction: "Turn the most common revision reason into a golden eval before adjusting prompt language.",
+    });
+  }
+
+  for (const feedbackSurface of feedbackSummary.needsReview.slice(0, 4)) {
+    if (surface !== "all" && !surfaceMatches(feedbackSurface.surface, surface)) continue;
+    add({
+      severity: "warning",
+      surface: feedbackSurface.surface,
+      category: "feedback",
+      title: "Surface needs learning-loop review",
+      evidence: `${Math.round(feedbackSurface.negativeRate * 100)}% negative outcome rate across ${feedbackSurface.count} feedback signal(s).`,
+      suggestedAction: "Review accepted versus edited/rejected examples and add an eval fixture before prompt or retrieval tuning.",
     });
   }
 
@@ -779,6 +973,10 @@ export async function refreshAiEngineRecommendationSnapshot(
   });
 
   const deterministicSummary = fallbackRecommendationSummary(recommendations);
+  const feedbackSummary =
+    "summary" in feedback && feedback.summary
+      ? feedback.summary
+      : buildFeedbackSummary(feedback.rows);
   const aggregateSnapshot = {
     generatedFrom: {
       surface,
@@ -791,6 +989,11 @@ export async function refreshAiEngineRecommendationSnapshot(
       totalTokens: metrics.summary.totalTokens,
       feedbackCount: feedback.count,
       evalFixtures: evals.totalFixtures,
+    },
+    feedback: {
+      outcomeCounts: feedbackSummary.outcomeCounts,
+      bySurface: feedbackSummary.bySurface.slice(0, 12),
+      needsReview: feedbackSummary.needsReview.slice(0, 12),
     },
     severityCounts: {
       critical: recommendations.filter((item) => item.severity === "critical").length,

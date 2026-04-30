@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AdminReviewQueue } from "@/components/safety-intelligence/AdminReviewQueue";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import { DocumentGenerationPanel } from "@/components/safety-intelligence/DocumentGenerationPanel";
 import { LiveRiskMatrix } from "@/components/safety-intelligence/LiveRiskMatrix";
 import { PermitTriggerPanel } from "@/components/safety-intelligence/PermitTriggerPanel";
@@ -578,6 +579,14 @@ function EngineOutputsPanel({
             ))}
           </ul>
         ) : null}
+        {briefing ? (
+          <AiFeedbackControls
+            surface="safety-intelligence.briefing"
+            sourceId={briefing.headline}
+            metadata={{ workflowStep: "safety_intelligence_briefing", documentType: "briefing" }}
+            className="mt-3 border-t border-[var(--app-border)] pt-2"
+          />
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-[var(--app-border-strong)] bg-white/88 p-3 shadow-[var(--app-shadow-soft)]">
@@ -596,6 +605,14 @@ function EngineOutputsPanel({
         ) : (
               <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">No checklist ready yet.</p>
         )}
+        {visibleChecklist.length ? (
+          <AiFeedbackControls
+            surface="safety-intelligence.checklist"
+            sourceId={visibleChecklist.map((item) => item.id).join(",").slice(0, 120)}
+            metadata={{ workflowStep: "safety_intelligence_checklist", documentType: "checklist" }}
+            className="mt-3 border-t border-[var(--app-border)] pt-2"
+          />
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-[var(--app-border-strong)] bg-white/88 p-3 shadow-[var(--app-shadow-soft)]">

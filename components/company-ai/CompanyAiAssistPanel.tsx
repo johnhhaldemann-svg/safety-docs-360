@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const supabase = getSupabaseBrowserClient();
@@ -116,6 +117,15 @@ export function CompanyAiAssistPanel({
           {disclaimer ? (
             <p className="mt-3 text-xs leading-5 text-slate-400">{disclaimer}</p>
           ) : null}
+          <AiFeedbackControls
+            surface="company-memory.assist"
+            sourceId={surface}
+            metadata={{
+              workflowStep: "company_memory_assist",
+              documentType: surface,
+            }}
+            className="mt-4 border-t border-slate-700/60 pt-3"
+          />
         </div>
       ) : null}
     </div>

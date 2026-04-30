@@ -97,6 +97,15 @@ type FeedbackRow = {
   outcome: string;
   reason: string | null;
   created_by: string | null;
+  signal_metadata?: {
+    workflowStep?: string;
+    documentType?: string;
+    reasonCode?: string;
+    editDistanceRatio?: number;
+    regeneratedCount?: number;
+    usedInField?: boolean;
+    fallbackUsed?: boolean;
+  } | null;
 };
 
 type FeedbackPayload = {
@@ -104,6 +113,32 @@ type FeedbackPayload = {
   count: number;
   unavailable: boolean;
   reason: string | null;
+  summary?: {
+    total: number;
+    outcomeCounts: Record<string, number>;
+    bySurface: Array<{
+      surface: string;
+      count: number;
+      accepted: number;
+      edited: number;
+      rejected: number;
+      regenerated: number;
+      fieldUsed: number;
+      negativeRate: number;
+      fieldUsedRate: number;
+      current7DayCount: number;
+      previous7DayCount: number;
+      delta7DayCount: number;
+    }>;
+    needsReview: Array<{
+      surface: string;
+      count: number;
+      negativeRate: number;
+      current7DayCount: number;
+      previous7DayCount: number;
+      delta7DayCount: number;
+    }>;
+  };
 };
 
 type EvalPayload = {
@@ -159,6 +194,21 @@ function formatDate(value: string) {
 
 function formatMaybeDate(value: string | null | undefined) {
   return value ? formatDate(value) : "Not generated";
+}
+
+function formatMetadata(row: FeedbackRow) {
+  const metadata = row.signal_metadata;
+  if (!metadata) return row.reason ?? "n/a";
+  const parts = [
+    metadata.workflowStep,
+    metadata.documentType,
+    metadata.reasonCode ?? row.reason,
+    typeof metadata.editDistanceRatio === "number" ? `edit ${Math.round(metadata.editDistanceRatio * 100)}%` : null,
+    typeof metadata.regeneratedCount === "number" ? `rerun ${metadata.regeneratedCount}` : null,
+    metadata.usedInField ? "field used" : null,
+    metadata.fallbackUsed ? "fallback" : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "n/a";
 }
 
 function sinceForWindow(days: number) {
@@ -462,6 +512,7 @@ export default function SuperadminAiEnginePage() {
   }
 
   const summary = metrics?.summary;
+  const feedbackSummary = feedback?.summary;
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
@@ -675,7 +726,59 @@ export default function SuperadminAiEnginePage() {
           </form>
 
           <section className="rounded-md border border-slate-800 bg-slate-950/80 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Recent feedback</h2>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-100">Recent feedback</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Metadata-only learning signals. Raw prompts, outputs, and edited text stay out of telemetry.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-md border border-emerald-500/35 bg-emerald-950/25 p-2 text-emerald-100">
+                  <div className="font-semibold uppercase tracking-wide">Accepted</div>
+                  <div className="mt-1 text-lg font-semibold">{formatNumber(feedbackSummary?.outcomeCounts?.accepted)}</div>
+                </div>
+                <div className="rounded-md border border-amber-500/35 bg-amber-950/25 p-2 text-amber-100">
+                  <div className="font-semibold uppercase tracking-wide">Edited</div>
+                  <div className="mt-1 text-lg font-semibold">{formatNumber(feedbackSummary?.outcomeCounts?.edited)}</div>
+                </div>
+                <div className="rounded-md border border-red-500/35 bg-red-950/25 p-2 text-red-100">
+                  <div className="font-semibold uppercase tracking-wide">Rejected</div>
+                  <div className="mt-1 text-lg font-semibold">{formatNumber(feedbackSummary?.outcomeCounts?.rejected)}</div>
+                </div>
+              </div>
+            </div>
+
+            {(feedbackSummary?.needsReview ?? []).length > 0 ? (
+              <div className="mt-4 grid gap-2 md:grid-cols-2">
+                {feedbackSummary?.needsReview.slice(0, 4).map((row) => (
+                  <div key={row.surface} className="rounded-md border border-amber-500/40 bg-amber-950/25 p-3 text-sm text-amber-100">
+                    <div className="font-semibold">{row.surface}</div>
+                    <div className="mt-1 text-xs">
+                      {formatPercent(row.negativeRate)} revision pressure · 7-day delta {row.delta7DayCount >= 0 ? "+" : ""}
+                      {row.delta7DayCount}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {(feedbackSummary?.bySurface ?? []).length > 0 ? (
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {feedbackSummary?.bySurface.slice(0, 6).map((row) => (
+                  <div key={row.surface} className="rounded-md border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-200">
+                    <div className="font-semibold text-slate-100">{row.surface}</div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      <span>{row.count} signals</span>
+                      <span>{formatPercent(row.negativeRate)} revised</span>
+                      <span>{formatPercent(row.fieldUsedRate)} field-used</span>
+                      <span>7d {row.delta7DayCount >= 0 ? "+" : ""}{row.delta7DayCount}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="text-xs uppercase tracking-wide text-slate-400">
@@ -685,6 +788,7 @@ export default function SuperadminAiEnginePage() {
                     <th className="py-2 pr-4">Outcome</th>
                     <th className="py-2 pr-4">Rating</th>
                     <th className="py-2 pr-4">Source</th>
+                    <th className="py-2 pr-4">Metadata</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -695,11 +799,12 @@ export default function SuperadminAiEnginePage() {
                       <td className="py-2 pr-4">{formatOutcomeLabel(row.outcome)}</td>
                       <td className="py-2 pr-4">{row.rating ?? "n/a"}</td>
                       <td className="py-2 pr-4">{row.source_id ?? row.ai_review_id ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{formatMetadata(row)}</td>
                     </tr>
                   ))}
                   {(feedback?.rows ?? []).length === 0 ? (
                     <tr>
-                      <td className="py-4 text-slate-400" colSpan={5}>
+                      <td className="py-4 text-slate-400" colSpan={6}>
                         No feedback in this window.
                       </td>
                     </tr>

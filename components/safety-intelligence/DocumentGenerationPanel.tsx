@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import type { GeneratedDocumentPayload } from "@/components/safety-intelligence/types";
 import {
   InlineMessage,
@@ -105,6 +106,15 @@ export function DocumentGenerationPanel({
               {generated.document.sections.length - 3 === 1 ? "" : "s"} will appear in the full draft.
             </p>
           ) : null}
+          <AiFeedbackControls
+            surface="safety-intelligence.document"
+            sourceId={generated.aiReviewId ?? generated.document.title}
+            metadata={{
+              workflowStep: "safety_intelligence_document_generation",
+              documentType,
+            }}
+            className="border-t border-[var(--app-border)] pt-3"
+          />
         </div>
       ) : null}
     </div>
