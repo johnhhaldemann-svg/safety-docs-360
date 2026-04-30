@@ -4,6 +4,7 @@ import {
   buildCsepRenderModelFromGeneratedDraft,
   buildCsepTemplateSections,
   buildHazardFlatProgramGroupsForTest,
+  renderCsepRenderModel,
   renderGeneratedCsepDocx,
 } from "@/lib/csepDocxRenderer";
 import { CSEP_SAFETY_PROGRAM_REFERENCE_PACK_KEY } from "@/lib/csepSafetyProgramReferenceRelocation";
@@ -20,6 +21,16 @@ async function unzipDocx(body: Uint8Array | ArrayBuffer) {
       ? await zip.file("word/header1.xml")!.async("string")
       : "",
   };
+}
+
+function paragraphXmlContaining(documentXml: string, text: string) {
+  const textIndex = documentXml.indexOf(text);
+  expect(textIndex).toBeGreaterThan(-1);
+  const paragraphStart = documentXml.lastIndexOf("<w:p", textIndex);
+  const paragraphEnd = documentXml.indexOf("</w:p>", textIndex);
+  expect(paragraphStart).toBeGreaterThan(-1);
+  expect(paragraphEnd).toBeGreaterThan(textIndex);
+  return documentXml.slice(paragraphStart, paragraphEnd + "</w:p>".length);
 }
 
 function createGeneratedDraft(): GeneratedSafetyPlanDraft {
@@ -229,6 +240,39 @@ describe("csepDocxRenderer", () => {
     expect(purposeSlice).toContain("daily JSA/PTP process");
   });
 
+  it("rewrites Section 4 as jurisdiction profile, authority references, and clean citations", () => {
+    const draft = createGeneratedDraft();
+    draft.provenance = {
+      ...draft.provenance,
+      governingState: "WA",
+      jurisdictionLabel: "Washington State Plan",
+      jurisdictionPlanType: "state_plan",
+      jurisdictionStandardsApplied: ["std_wa_state_plan", "std_federal_construction_baseline"],
+    };
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const regulatory = model.sections.find((section) => section.key === "regulatory_basis_and_references");
+
+    expect(regulatory?.subsections.map((subsection) => subsection.title)).toEqual([
+      "Jurisdiction Profile",
+      "Authority References",
+      "Clean OSHA / CFR Citation List",
+    ]);
+    expect(regulatory?.subsections[0]?.table?.rows).toEqual(
+      expect.arrayContaining([
+        ["Governing jurisdiction", "Washington State Plan"],
+        ["Governing state", "WA"],
+        ["Plan type", "State-plan OSHA program with federal OSHA baseline coordination"],
+      ])
+    );
+    expect(regulatory?.subsections[1]?.items?.join(" ")).toContain("most protective requirement");
+    expect(regulatory?.subsections[2]?.table?.rows).toContainEqual([
+      "R10",
+      "OSHA: 29 CFR 1926.59; 29 CFR 1910.1200 - Hazard Communication",
+      "Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.",
+    ]);
+  });
+
   it("centralizes required IIPP program elements in Section 11", async () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.push(
@@ -291,6 +335,62 @@ describe("csepDocxRenderer", () => {
       .join(" ");
     expect(otherSectionText).not.toContain("Post the code at the jobsite office");
     expect(otherSectionText).not.toContain("within five business days");
+  });
+
+  it("keeps Section 6 as role duties even when steel team roster data is sparse", () => {
+    const draft = createGeneratedDraft();
+    draft.steelErectionPlan = {
+      onSiteTeam: [{ name: "JMMC", role: "Superintendent", phone: "JMMC" }],
+    };
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const roles = model.sections.find((section) => section.key === "roles_and_responsibilities");
+    const text = roles?.subsections
+      .flatMap((subsection) => [
+        subsection.title,
+        ...(subsection.paragraphs ?? []),
+        ...(subsection.items ?? []),
+        ...(subsection.table?.rows.flatMap((row) => row) ?? []),
+      ])
+      .join(" ");
+
+    expect(roles?.subsections.map((subsection) => subsection.title)).toContain("Superintendent / Project Manager");
+    expect(text).toContain("Aligns ABC Steel's plan for Steel Erection / Decking");
+    expect(text).toContain("Competent Person");
+    expect(text).toContain("Workers");
+    expect(text).toContain("stop-work authority");
+    expect(text).not.toContain("Project Team Roster");
+    expect(text).not.toContain("Phone: JMMC");
+  });
+
+  it("fills Section 8 when site access content is only the generic placeholder", () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push({
+      key: "site_access_security_laydown_traffic_control",
+      title: "Site Access, Security, Laydown, and Traffic Control",
+      body: "Project-specific information to be completed.",
+    });
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const siteAccess = model.sections.find(
+      (section) => section.key === "site_access_security_laydown_traffic_control"
+    );
+    const text = siteAccess?.subsections
+      .flatMap((subsection) => [
+        subsection.title,
+        ...(subsection.paragraphs ?? []),
+        ...(subsection.items ?? []),
+      ])
+      .join("\n");
+
+    expect(text).toContain("Site Access and Worker Entry");
+    expect(text).toContain("Laydown, Staging, and Material Control");
+    expect(text).toContain("Deliveries, Truck Routing, and Traffic Control");
+    expect(text).toContain("Restricted Areas, Security, and Shift Turnover");
+    expect(text).toContain("Steel Erection Access and Controlled Zones");
+    expect(text).toMatch(/approved project access points/i);
+    expect(text).toMatch(/approved laydown or staging areas/i);
+    expect(text).not.toContain("Project-specific information to be completed.");
   });
 
   it("renders Top 10 Risks as numbered hazard lines without red/yellow callout boxes", async () => {
@@ -493,6 +593,15 @@ describe("csepDocxRenderer", () => {
       title: "Scope Summary",
       body: "Self-performed structural steel for this phase.",
       bullets: ["Unload steel", "Rigging", "Crane picks"],
+    }, {
+      key: "site_specific_notes",
+      title: "Project-Specific Safety Notes",
+      body:
+        "To ensure a safe and efficient work environment during the structural steel erection and decking tasks, all personnel must adhere to the following safety protocols: Personnel engaged in unloading steel, sorting members, rigging, crane picks, column erection, beam setting, connecting, bolting, welding, cutting, grinding, and decking installation must wear the required personal protective equipment (PPE) at all times.",
+    }, {
+      key: "trade_summary",
+      title: "Trade Summary",
+      body: "Planning context for Structural Steel / Metals / Steel erection / decking is summarized below.",
     });
 
     const sections = buildCsepTemplateSections({
@@ -508,6 +617,8 @@ describe("csepDocxRenderer", () => {
     const summarySub = scopeSection?.subsections.find((sub) => /scope summary/i.test(sub.title));
     expect(summarySub?.items ?? []).toEqual([]);
     expect(summarySub?.paragraphs).toContain("Self-performed structural steel for this phase.");
+    expect(scopeSection?.subsections.some((sub) => /project-specific safety notes/i.test(sub.title))).toBe(false);
+    expect(scopeSection?.subsections.some((sub) => /trade and hazard context/i.test(sub.title))).toBe(false);
 
     const activeTasksSub = scopeSection?.subsections.find((sub) => /active tasks/i.test(sub.title));
     expect(activeTasksSub?.plainItemsStyle).toBe("offset_lines");
@@ -518,6 +629,9 @@ describe("csepDocxRenderer", () => {
     const { documentXml } = await unzipDocx(rendered.body);
     expect(documentXml).toContain("Unload steel");
     expect(documentXml).toContain("Receive steel deliveries");
+    expect(documentXml).not.toContain("Project-Specific Safety Notes");
+    expect(documentXml).not.toContain("Trade and hazard context");
+    expect(documentXml).not.toContain("must wear the required personal protective equipment");
     expect(documentXml).not.toContain("3.1.1");
   });
 
@@ -736,22 +850,108 @@ describe("csepDocxRenderer", () => {
     expect(iippText).not.toMatch(/\bSDS|GHS|NFPA|chemical inventory\b/i);
   });
 
+  it("indents Trade Interaction subsection tiers in the DOCX outline", async () => {
+    const draft = createGeneratedDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.sections = model.sections.map((section) =>
+      section.key === "trade_interaction_and_coordination"
+        ? {
+            ...section,
+            subsections: [
+              {
+                title: "Definitions",
+                items: [
+                  "Controlling Contractor: The GC/CM or employer with overall responsibility for site coordination, access, sequencing, and shared-area controls.",
+                ],
+              },
+            ],
+          }
+        : section
+    );
+    const rendered = await renderCsepRenderModel(model, { draft });
+    const { documentXml } = await unzipDocx(rendered.body);
+
+    const subsectionParagraph = paragraphXmlContaining(documentXml, "Definitions");
+    expect(subsectionParagraph).toContain('<w:ind w:left="720" w:hanging="360"/>');
+
+    const itemParagraph = paragraphXmlContaining(documentXml, "overall responsibility for site coordination");
+    expect(itemParagraph).toContain('<w:ind w:left="1080" w:hanging="360"/>');
+  });
+
+  it("renders Appendix E task matrix as readable paragraphs instead of a squeezed table", async () => {
+    const draft = createGeneratedDraft();
+    draft.ruleSummary.trainingRequirements = [
+      "hot_work_training",
+      "qualified_rigger",
+      "signal_person_training",
+    ];
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    const appendixStart = documentXml.lastIndexOf("Appendix E. Task-Hazard-Control Matrix");
+    expect(appendixStart).toBeGreaterThan(-1);
+    const disclaimerStart = documentXml.indexOf("Disclaimer", appendixStart);
+    expect(disclaimerStart).toBeGreaterThan(appendixStart);
+    const appendixSlice = documentXml.slice(appendixStart, disclaimerStart);
+
+    expect(appendixSlice).not.toContain("<w:tbl>");
+    expect(appendixSlice).toContain("Deck placement.");
+    expect(appendixSlice).toContain("Training: ");
+    expect(appendixSlice).toContain("hot work training, qualified rigger, signal person training");
+    expect(appendixSlice).not.toContain("hot_work_training");
+  });
+
+  it("keeps plain bullet lines tied to their list tier with hanging indents", async () => {
+    const draft = createGeneratedDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.sections = model.sections.map((section) =>
+      section.key === "scope_of_work_section"
+        ? {
+            ...section,
+            subsections: [
+              {
+                title: "Active Tasks",
+                plainItemsStyle: "offset_lines",
+                items: [
+                  "Coordinate shared access lanes, crane swing areas, deck bundle staging, and release points before each work shift.",
+                ],
+              },
+            ],
+          }
+        : section
+    );
+
+    const rendered = await renderCsepRenderModel(model, { draft });
+    const { documentXml } = await unzipDocx(rendered.body);
+    const itemParagraph = paragraphXmlContaining(documentXml, "Coordinate shared access lanes");
+
+    expect(itemParagraph).toContain("•");
+    expect(itemParagraph).toContain('<w:ind w:left="1080" w:hanging="360"/>');
+  });
+
   it("renders one table of contents and no duplicate revision-history block", async () => {
     const rendered = await renderGeneratedCsepDocx(createGeneratedDraft());
     const { documentXml, headerXml, footerXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("Title Page");
-    expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(2);
+    expect(documentXml.match(/Table of Contents/g)?.length ?? 0).toBe(1);
     // Legacy builder used "0.1 Revision History" as a free-standing section; the
     // export may still mention "Revision History" inside combined appendix titles.
     expect(documentXml).not.toContain("0.1 Revision History");
 
     const tocBlockStart = documentXml.indexOf("Table of Contents");
     expect(tocBlockStart).toBeGreaterThan(-1);
-    const tocBlockEnd = documentXml.indexOf("1. Purpose", tocBlockStart);
+    const firstPurposeEntry = documentXml.indexOf("1. Purpose", tocBlockStart);
+    expect(firstPurposeEntry).toBeGreaterThan(tocBlockStart);
+    const tocBlockEnd = documentXml.indexOf("1. Purpose", firstPurposeEntry + "1. Purpose".length);
     expect(tocBlockEnd).toBeGreaterThan(tocBlockStart);
     const tocSlice = documentXml.slice(tocBlockStart, tocBlockEnd);
-    expect(tocSlice.indexOf("Title Page")).toBeLessThan(tocSlice.indexOf("Owner Safety Message"));
+    expect(tocSlice).not.toContain("Front Matter");
+    expect(tocSlice).not.toContain("Title Page");
+    expect(tocSlice).not.toContain("Owner Safety Message");
+    expect(tocSlice).not.toContain("Sign-Off Page");
+    expect(tocSlice.match(/Table of Contents/g)?.length ?? 0).toBe(1);
+    expect(tocSlice).not.toContain("Main Plan");
+    expect(tocSlice).toContain("1. Purpose");
 
     const orderedHeadings = [
       "Owner Safety Message",

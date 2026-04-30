@@ -40,7 +40,7 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
     key: "scope_of_work_section",
     kind: "main",
     title: "Scope of Work",
-    descriptor: "Trade, sub-trade, tasks, scope summary, assumptions, exclusions, and work sequence.",
+    descriptor: "Work package covered by this CSEP and the active tasks used for plan controls.",
   },
   {
     key: "regulatory_basis_and_references",

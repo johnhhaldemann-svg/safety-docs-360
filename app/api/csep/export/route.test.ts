@@ -179,7 +179,6 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml, stylesXml, headerXml, footerXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("CONTRACTOR SAFETY &amp; ENVIRONMENTAL PLAN (CSEP)");
-    expect(documentXml).toContain("Title Page");
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("Kitchen Renovation");
     expect(documentXml).toContain("Millwork");
@@ -441,7 +440,6 @@ describe("legacy CSEP DOCX export", () => {
     const { documentXml, headerXml, footerXml } = await unzipDocx(body);
 
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("Title Page");
     expect(documentXml).toContain("Owner Safety Message");
     expect(documentXml).toContain("3. Scope of Work");
     expect(documentXml).toContain("9. Hazard Communication and Environmental Protection");

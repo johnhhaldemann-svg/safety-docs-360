@@ -195,14 +195,14 @@ const COLORS = {
 } as const;
 
 const INDENTS = {
-  numberedLeft: 0,
-  numberedHanging: 0,
-  childLeft: 0,
-  childHanging: 0,
-  childBodyLeft: 0,
-  grandchildLeft: 0,
-  grandchildHanging: 0,
-  grandchildBodyLeft: 0,
+  numberedLeft: 720,
+  numberedHanging: 360,
+  childLeft: 720,
+  childHanging: 360,
+  childBodyLeft: 720,
+  grandchildLeft: 1080,
+  grandchildHanging: 360,
+  grandchildBodyLeft: 1080,
 } as const;
 
 const CSEP_VERSION_C_REFERENCE_MAP = [
@@ -556,6 +556,10 @@ function stripExistingNumberPrefix(value: string) {
     .trim();
 }
 
+function normalizeMatrixDisplayText(value?: string | null) {
+  return cleanFinalText(value)?.replace(/_/g, " ").replace(/\s+/g, " ").trim() ?? null;
+}
+
 function splitSentenceValues(value?: string | null) {
   const normalized = normalizeFinalExportText(value)?.trim();
   if (!normalized) return [];
@@ -563,7 +567,7 @@ function splitSentenceValues(value?: string | null) {
   return uniqueItems(
     normalized
       .split(/\s*[,;]\s*/)
-      .map((item) => item.trim())
+      .map((item) => item.replace(/_/g, " ").replace(/\s+/g, " ").trim())
       .filter(Boolean)
   );
 }
@@ -2126,6 +2130,31 @@ function hasMeaningfulSubsections(subsections: CsepTemplateSubsection[]) {
   return subsections.some((subsection) => subsectionHasContent(subsection));
 }
 
+function subsectionContentText(subsection: CsepTemplateSubsection) {
+  return [
+    ...(subsection.paragraphs ?? []),
+    ...(subsection.items ?? []),
+    ...(subsection.table?.rows.flatMap((row) => row) ?? []),
+  ]
+    .map((value) => value.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function isPlaceholderContentText(value: string) {
+  return /^project specific(?: [a-z0-9 /-]+)? information to be completed$/i.test(
+    normalizeCompareToken(value)
+  );
+}
+
+function hasOnlyPlaceholderSubsections(subsections: CsepTemplateSubsection[]) {
+  const content = subsections.map(subsectionContentText).filter(Boolean);
+  return (
+    content.length > 0 &&
+    content.every((value) => isPlaceholderContentText(value))
+  );
+}
+
 const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo-crop.png"] as const;
 
 function readDefaultCoverLogoFile(): CsepRenderModel["coverLogo"] {
@@ -2542,6 +2571,7 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
     subsections: [
       {
         title: "Task-Hazard-Control Matrix",
+        tableRowsStyle: "offset_lines",
         table: {
           columns: ["Task", "Description", "Hazards", "Controls", "Permits", "Training", "References"],
           rows,
@@ -2855,25 +2885,98 @@ function buildCodexRequirements() {
   ];
 }
 
-function synthesizeRegulatoryReferenceSubsections(): CsepTemplateSubsection[] {
-  const compactRows: string[][] = [];
-  for (let index = 0; index < CSEP_REGULATORY_REFERENCE_INDEX.length; index += 2) {
-    const left = CSEP_REGULATORY_REFERENCE_INDEX[index];
-    const right = CSEP_REGULATORY_REFERENCE_INDEX[index + 1];
-    compactRows.push([
-      left?.code ?? "",
-      left?.citation ?? "",
-      right?.code ?? "",
-      right?.citation ?? "",
-    ]);
+function provenanceString(draft: GeneratedSafetyPlanDraft, key: string) {
+  const value = (draft.provenance as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function provenanceStringList(draft: GeneratedSafetyPlanDraft, key: string) {
+  const value = (draft.provenance as Record<string, unknown>)[key];
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function jurisdictionPlanTypeText(value: string) {
+  return value === "state_plan"
+    ? "State-plan OSHA program with federal OSHA baseline coordination"
+    : "Federal OSHA construction baseline";
+}
+
+function cleanRegulatoryCitation(citation: string) {
+  return citation
+    .replace(/^OSHA\s+29\s+CFR\s+1926\.59\s*\/\s*1910\.1200/i, "OSHA: 29 CFR 1926.59; 29 CFR 1910.1200")
+    .replace(/^OSHA\s+29\s+CFR/i, "OSHA: 29 CFR")
+    .replace(/\s+\/\s+/g, " and ")
+    .replace(/\s+-\s+/g, " - ")
+    .trim();
+}
+
+function referenceScopeUse(code: string) {
+  switch (code) {
+    case "R12":
+      return "Owner, GC / CM, contract, permit, access, and project safety rules.";
+    case "R13":
+      return "Manufacturer instructions, engineered documents, approved plans, and equipment-specific limits.";
+    case "R16":
+      return "Recordkeeping, retention, injury / illness logs, permits, inspections, and closeout records.";
+    case "R17":
+      return "Weather, emergency action, heat, cold, lightning, and project severe-weather controls.";
+    default:
+      return "Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.";
   }
+}
+
+function synthesizeRegulatoryReferenceSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
+  const jurisdictionLabel =
+    provenanceString(draft, "jurisdictionLabel") ||
+    provenanceString(draft, "jurisdictionName") ||
+    "Federal OSHA";
+  const jurisdictionPlanType = provenanceString(draft, "jurisdictionPlanType") || "federal_osha";
+  const governingState = governingStateForDraft(draft);
+  const appliedStandards = provenanceStringList(draft, "jurisdictionStandardsApplied");
+  const appliedStandardsText = appliedStandards.length
+    ? appliedStandards.join(", ")
+    : jurisdictionPlanType === "state_plan"
+      ? "State-plan profile selected; confirm active overlays and project-specific requirements before issue."
+      : "Federal OSHA baseline only; no state-plan overlay IDs recorded.";
 
   return [
     {
-      title: "Condensed OSHA / CFR Reference Register",
+      title: "Jurisdiction Profile",
+      paragraphs: [
+        "This section identifies the compliance baseline used to assemble the CSEP. It does not replace legal review, the controlling contractor's site rules, or a more protective owner / GC / CM requirement.",
+      ],
       table: {
-        columns: ["Ref", "Citation", "Ref", "Citation"],
-        rows: compactRows,
+        columns: ["Profile Item", "Current Basis"],
+        rows: [
+          ["Governing jurisdiction", jurisdictionLabel],
+          ["Governing state", governingState || "N/A"],
+          ["Plan type", jurisdictionPlanTypeText(jurisdictionPlanType)],
+          ["Applied jurisdiction overlays", appliedStandardsText],
+        ],
+      },
+    },
+    {
+      title: "Authority References",
+      items: [
+        withReferences("Apply the most protective requirement when federal OSHA, a state-plan rule, owner / client requirement, GC / CM rule, contract document, permit, manufacturer instruction, engineered plan, or this CSEP overlap", ["R12", "R13"]),
+        withReferences("Owner / client and GC / CM site rules control access, orientation, permitting, security, traffic, notification, and stop-work communication when those rules are stricter than the baseline", ["R12"]),
+        withReferences("Manufacturer instructions, engineered drawings, approved lift / access plans, and permit conditions remain controlling references for the affected task or equipment", ["R13"]),
+        withReferences("Keep citations in the body as R-codes and use the clean citation list below for the full OSHA / CFR title", ["R16"]),
+      ],
+    },
+    {
+      title: "Clean OSHA / CFR Citation List",
+      table: {
+        columns: ["Ref", "Clean Citation", "Scope Use"],
+        rows: CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [
+          entry.code,
+          cleanRegulatoryCitation(entry.citation),
+          referenceScopeUse(entry.code),
+        ]),
       },
     },
   ];
@@ -3022,10 +3125,11 @@ function synthesizeScopeSubsections(
   const data = buildCsepStructuredData(draft);
   const tradeSummary = [tradeLabel, subTradeLabel].filter((value) => value && value !== "N/A").join(" / ");
   const scopeSummaryParts = [
-    contractorName !== "N/A" ? `Contractor: ${contractorName}` : null,
-    tradeSummary ? `Covered trade / discipline: ${tradeSummary}` : null,
+    [contractorName !== "N/A" ? contractorName : null, tradeSummary]
+      .filter(Boolean)
+      .join(" - ") || null,
     steelErectionScope
-      ? "Task-level steel erection, rigging, and decking controls are governed in the Hazards and Controls section and the approved plans referenced there—not in this Scope section."
+      ? "Detailed steel erection, rigging, and decking controls are carried in the high-risk programs and Appendix E matrix."
       : null,
   ].filter((value): value is string => Boolean(value));
 
@@ -3036,7 +3140,7 @@ function synthesizeScopeSubsections(
   const scopeParagraphs = [
     ...scopeSummaryParts,
     data.tasks.length
-      ? `The active tasks below define the work package used to build the high-risk programs and Appendix E matrix.`
+      ? "The active tasks below define the work package for this issue."
       : "Selected tasks shall be confirmed against the issued builder snapshot before field use.",
   ]
     .filter((value): value is string => Boolean(value))
@@ -3062,7 +3166,7 @@ function riskDedupeKey(value: string) {
 }
 
 const SCOPE_NARRATIVE_EXCLUSION =
-  /\b(iipp\b|injury\s+and\s+illness|illness prevention|health and wellness|wellness program|incident report|incident reporting|incident investigation|drug[-\s]?|alcohol testing|substance|fit[-\s]?for[-\s]?duty|enforcement program|corrective action accountability|hazard communication|hazcom|\bsds\b|sanitation|housekeeping program|toolbox|audits?\s|monitoring program|sub[-\s]?tier|training record)\b/i;
+  /\b(iipp\b|injury\s+and\s+illness|illness prevention|health and wellness|wellness program|incident report|incident reporting|incident investigation|drug[-\s]?|alcohol testing|substance|fit[-\s]?for[-\s]?duty|enforcement program|corrective action accountability|hazard communication|hazcom|\bsds\b|sanitation|housekeeping program|toolbox|audits?\s|monitoring program|sub[-\s]?tier|training record|required personal protective equipment|\bppe\b\s+at\s+all\s+times|safety protocols?)\b/i;
 
 const SECURITY_NON_OWNER =
   /(\b(?:final|torque|bolt[-\s]?up|weld|shear connector|steel execution|erection release|ncr|shop drawing)\b)/i;
@@ -3123,6 +3227,7 @@ function filterScopeTemplateSubsections(
 ): CsepTemplateSubsection[] {
   const taskKeys = activeScopeTaskKeys(context);
   return subsections
+    .filter((sub) => normalizeCompareToken(sub.title ?? "") !== "trade and hazard context")
     .map((sub) => ({
       ...sub,
       paragraphs: uniqueItems(
@@ -3361,6 +3466,64 @@ function synthesizeTradeInteractionSubsections(
           : [placeholderParagraphForSection("trade_interaction_and_coordination")],
     },
   ];
+}
+
+function synthesizeSiteAccessSecuritySubsections(context: {
+  draft: GeneratedSafetyPlanDraft;
+  tradeLabel: string;
+  subTradeLabel: string;
+}): CsepTemplateSubsection[] {
+  const steelScope = isStructuralSteelOrDeckingScope(
+    context.draft,
+    context.tradeLabel,
+    context.subTradeLabel
+  );
+  const sections: CsepTemplateSubsection[] = [
+    {
+      title: "Site Access and Worker Entry",
+      items: [
+        withReferences("Workers enter through approved project access points, complete the required site orientation, and follow GC / CM badge, sign-in, and daily access rules before entering the work area", ["R12"]),
+        withReferences("Visitors, inspectors, and off-site support personnel check in before entering controlled work areas and remain escorted unless the project authorizes otherwise", ["R12"]),
+        withReferences("Supervision pauses or redirects work when access routes, gates, stairs, ladders, hoist points, or egress paths change from the approved daily plan", ["R12"]),
+      ],
+    },
+    {
+      title: "Laydown, Staging, and Material Control",
+      items: [
+        withReferences("Store materials only in approved laydown or staging areas shown by the project team, with aisles, emergency access, fire lanes, exits, and utility access kept clear", ["R5", "R12"]),
+        withReferences("Stage loads on stable dunnage or racks and keep stacked material controlled against rolling, sliding, collapse, wind movement, or contact with pedestrians and equipment", ["R5", "R13"]),
+        withReferences("Keep unauthorized personnel out of laydown, loading, and unloading areas while trucks, forklifts, cranes, or hoists are moving material", ["R5", "R12"]),
+      ],
+    },
+    {
+      title: "Deliveries, Truck Routing, and Traffic Control",
+      items: [
+        withReferences("Schedule deliveries with the project team so trucks use approved routes, staging lanes, turnarounds, and unloading windows without blocking emergency access or active crew paths", ["R5", "R12"]),
+        withReferences("Use spotters, barricades, cones, signs, or flaggers where backing, blind corners, pedestrian crossings, crane swing, or equipment travel creates a struck-by exposure", ["R5", "R12"]),
+        withReferences("Drivers remain in the assigned safe location unless directed by supervision and do not enter loading, rigging, or equipment travel zones without permission", ["R5", "R12"]),
+      ],
+    },
+    {
+      title: "Restricted Areas, Security, and Shift Turnover",
+      items: [
+        withReferences("Barricade, sign, or otherwise control restricted areas such as active picks, loading zones, open edges, floor openings, utility work, or areas released only to authorized crews", ["R12"]),
+        withReferences("Secure tools, loose material, gates, temporary barriers, and staged loads at the end of the shift so weather, public access, or after-hours work does not create uncontrolled exposure", ["R12", "R17"]),
+        withReferences("Report unresolved access, security, laydown, or traffic concerns during shift turnover and document corrective actions through the project communication process", ["R12", "R16"]),
+      ],
+    },
+  ];
+
+  if (steelScope) {
+    sections.push({
+      title: "Steel Erection Access and Controlled Zones",
+      items: [
+        withReferences("Coordinate steel deliveries, bundle landings, crane swing, controlled decking zones, and connector access so no unauthorized worker enters the load path or release area", ["R1", "R5", "R6", "R12"]),
+        withReferences("Keep deck bundles, beams, columns, fasteners, and temporary bracing in assigned staging areas until the competent person confirms landing stability, access clearance, and release sequencing", ["R1", "R5", "R12"]),
+      ],
+    });
+  }
+
+  return sections;
 }
 
 function synthesizeRolesAndResponsibilitiesSubsections(context: {
@@ -3988,17 +4151,7 @@ function buildSectionSubsections(
   }
 
   if (definition.key === "regulatory_basis_and_references") {
-    const existingText = subsections.flatMap((subsection) => [
-      ...(subsection.paragraphs ?? []),
-      ...(subsection.items ?? []),
-      ...(subsection.table?.rows.flatMap((row) => row) ?? []),
-    ]).join(" ");
-    if (!/\bR[1-9]\b/.test(existingText) || !/OSHA\s+29\s+CFR/i.test(existingText)) {
-      subsections = [
-        ...subsections,
-        ...synthesizeRegulatoryReferenceSubsections(),
-      ];
-    }
+    subsections = synthesizeRegulatoryReferenceSubsections(context.draft);
   }
 
   if (definition.key === "scope_of_work_section") {
@@ -4043,8 +4196,28 @@ function buildSectionSubsections(
     ];
   }
 
-  if (definition.key === "roles_and_responsibilities" && !hasMeaningfulSubsections(subsections)) {
+  if (definition.key === "roles_and_responsibilities") {
     subsections = synthesizeRolesAndResponsibilitiesSubsections(context);
+  }
+
+  if (definition.key === "site_access_security_laydown_traffic_control") {
+    const synthesized = synthesizeSiteAccessSecuritySubsections(context);
+    const projectSpecific = subsections.filter(
+      (subsection) => !isPlaceholderContentText(subsectionContentText(subsection))
+    );
+    if (!hasMeaningfulSubsections(projectSpecific) || hasOnlyPlaceholderSubsections(subsections)) {
+      subsections = synthesized;
+    } else {
+      const existingTitles = new Set(
+        projectSpecific.map((subsection) => normalizeCompareToken(subsection.title ?? ""))
+      );
+      subsections = dedupeTemplateSubsections([
+        ...projectSpecific,
+        ...synthesized.filter(
+          (subsection) => !existingTitles.has(normalizeCompareToken(subsection.title ?? ""))
+        ),
+      ]);
+    }
   }
 
   if (definition.key === "trade_interaction_and_coordination") {
@@ -4856,6 +5029,41 @@ function numberedParagraph(
   );
 }
 
+function listMarkerParagraph(
+  marker: string,
+  text: string,
+  options?: {
+    indent?: { left?: number; hanging?: number };
+    spacing?: { before?: number; after?: number; line?: number };
+  }
+) {
+  return makeParagraph(
+    [
+      new TextRun({
+        text: `${marker} ${polishCsepDocxNarrativeText(text)}`,
+        font: "Aptos",
+        size: 20,
+        color: COLORS.ink,
+      }),
+    ],
+    {
+      style: STYLE_IDS.body,
+      indent: options?.indent ?? { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+      spacing: options?.spacing,
+    }
+  );
+}
+
+function bulletParagraph(
+  text: string,
+  options?: {
+    indent?: { left?: number; hanging?: number };
+    spacing?: { before?: number; after?: number; line?: number };
+  }
+) {
+  return listMarkerParagraph("•", text, options);
+}
+
 function termDefinitionParagraph(term: string, definition: string) {
   const polishedTerm = polishCsepDocxNarrativeText(term, { skipTerminalPunctuation: true });
   const polishedDefinition = polishCsepDocxNarrativeText(definition);
@@ -5365,7 +5573,7 @@ function buildStructuredTableRow(
     .slice(1)
     .map((column, columnIndex) => ({
       label: cleanFinalText(column) ?? `Detail ${columnIndex + 1}`,
-      value: normalizeFinalExportText(row[columnIndex + 1]),
+      value: normalizeMatrixDisplayText(row[columnIndex + 1]),
     }))
     .filter(
       (entry): entry is { label: string; value: string } =>
@@ -5695,10 +5903,15 @@ function appendFlatSubsectionContent(
     });
     children.push(
       callout ??
-        bodyParagraph(numberedProgramItems ? `${itemIndex + 1}. ${item}` : item, {
-          indent: { left: INDENTS.childBodyLeft },
-          spacing: { before: itemIndex === 0 ? 100 : 50, after: 90, line: 276 },
-        })
+        (numberedProgramItems
+          ? listMarkerParagraph(`${itemIndex + 1}.`, item, {
+              indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+              spacing: { before: itemIndex === 0 ? 100 : 50, after: 90, line: 276 },
+            })
+          : bulletParagraph(item, {
+              indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
+              spacing: { before: itemIndex === 0 ? 100 : 50, after: 90, line: 276 },
+            }))
     );
   });
 
@@ -5812,8 +6025,8 @@ function renderProgramModuleTemplateSection(outlineOrdinal: number, section: Cse
       });
       children.push(
         callout ??
-          bodyParagraph(`${index + 1}. ${stripSourceNumberingLabel(item)}`, {
-            indent: { left: INDENTS.childBodyLeft },
+          listMarkerParagraph(`${index + 1}.`, stripSourceNumberingLabel(item), {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
             spacing: { before: index === 0 ? 80 : 40, after: 90, line: 276 },
           })
       );
@@ -5861,8 +6074,8 @@ function renderHighRiskProgramsSection(outlineOrdinal: number, section: CsepTemp
       });
       const rendered =
         callout ??
-        bodyParagraph(`${index + 1}. ${stripSourceNumberingLabel(item)}`, {
-            indent: { left: INDENTS.childBodyLeft },
+        listMarkerParagraph(`${index + 1}.`, stripSourceNumberingLabel(item), {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
             spacing: { after: 90, line: 276 },
           });
       children.push(rendered);
@@ -5941,9 +6154,6 @@ function pageBreakParagraph() {
 function createContents(model: CsepRenderModel) {
   const plan = buildCsepOutlinePlan(model);
   const tableOfContentsSection = model.frontMatterSections.find((section) => section.key === "table_of_contents");
-  const frontMatter = ["Title Page", ...model.frontMatterSections
-    .filter((section) => section.key !== "table_of_contents")
-    .map((section) => baseTitleForOutlineHeading(section)), "Table of Contents"];
   const mainPlan = model.sections.map((section) =>
     formatOutlineTocLine(plan.find((entry) => entry.kind === "body_section" && entry.section.key === section.key)!)
   );
@@ -5954,10 +6164,7 @@ function createContents(model: CsepRenderModel) {
     ...(tableOfContentsSection?.descriptor?.trim()
       ? [sectionDescriptorParagraph(tableOfContentsSection.descriptor.trim())]
       : []),
-    bodyParagraph("Front Matter", { style: STYLE_IDS.subheading }),
-    ...frontMatter.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
-    bodyParagraph("Main Plan", { style: STYLE_IDS.subheading, spacing: { before: 120, after: 60 } }),
-    ...mainPlan.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry, indent: { left: 240 } })),
+    ...mainPlan.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
     bodyParagraph("Appendices", { style: STYLE_IDS.subheading, spacing: { before: 120, after: 60 } }),
     ...appendices.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
     bodyParagraph("Disclaimer", { style: STYLE_IDS.contentsEntry }),
@@ -6103,8 +6310,8 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
     itemSplit.plain.forEach((item, itemIndex) => {
       if (subsection.plainItemsStyle === "ordered_lines") {
         children.push(
-          bodyParagraph(`${itemIndex + 1}. ${stripSourceNumberingLabel(item)}`, {
-            indent: { left: INDENTS.childBodyLeft },
+          listMarkerParagraph(`${itemIndex + 1}.`, stripSourceNumberingLabel(item), {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
             spacing: { before: itemIndex === 0 ? 120 : 50, after: 90, line: 276 },
           })
         );
@@ -6121,8 +6328,8 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
       }
       if (subsection.plainItemsStyle === "offset_lines") {
         children.push(
-          bodyParagraph(item, {
-            indent: { left: INDENTS.childBodyLeft },
+          bulletParagraph(item, {
+            indent: { left: INDENTS.grandchildLeft, hanging: INDENTS.grandchildHanging },
             spacing: { before: itemIndex === 0 ? 120 : 50, after: 90, line: 276 },
           })
         );
@@ -6146,6 +6353,18 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
     });
 
     if (subsection.table?.rows.length) {
+      if (subsection.tableRowsStyle === "offset_lines") {
+        if (distinctSubheading) {
+          appendTableRowsAsOffsetParagraphs(children, subsection.table, {
+            renderMode,
+            nested: true,
+          });
+        } else {
+          appendTopLevelTableRowsAsOffset(children, subsection.table, { renderMode });
+        }
+        return;
+      }
+
       if (CSEP_EVIDENCE_TABLE_KEYS.has(section.key)) {
         children.push(createDocxTable(subsection.table) as unknown as Paragraph);
         return;
@@ -6156,18 +6375,6 @@ function renderSection(outlineOrdinal: number, section: CsepTemplateSection) {
           subsection.table,
           distinctSubheading ? { indent: { left: INDENTS.childBodyLeft } } : undefined
         );
-        return;
-      }
-
-      if (subsection.tableRowsStyle === "offset_lines") {
-        if (distinctSubheading) {
-          appendTableRowsAsOffsetParagraphs(children, subsection.table, {
-            renderMode,
-            nested: true,
-          });
-        } else {
-          appendTopLevelTableRowsAsOffset(children, subsection.table, { renderMode });
-        }
         return;
       }
 
