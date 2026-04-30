@@ -14,6 +14,7 @@ import {
   companyUserSideSections,
   getDeclaredAppNavHrefs,
   internalAdminAppendedSection,
+  superadminOnlySideSections,
   userQuickLinks,
   userSideSections,
 } from "./appNavigation";
@@ -52,6 +53,7 @@ describe("App Navigation Integrity", () => {
     const allSectionGroups: { group: string; sections: { title: string; items: { href: string }[] }[] }[] = [
       { group: "userSideSections", sections: userSideSections },
       { group: "adminSideSections", sections: adminSideSections },
+      { group: "superadminOnlySideSections", sections: superadminOnlySideSections },
       { group: "companyAdminSideSections", sections: companyAdminSideSections },
       { group: "companyManagerSideSections", sections: companyManagerSideSections },
       { group: "companyUserSideSections", sections: companyUserSideSections },
@@ -69,6 +71,25 @@ describe("App Navigation Integrity", () => {
         ).toBe(hrefs.length);
       }
     }
+  });
+
+  it("keeps AI Engine Operations in the superadmin-only navigation section", () => {
+    const aiEngineHref = "/superadmin/ai-engine";
+    const ordinaryAdminHrefs = adminSideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    const companyHrefs = [
+      ...companyAdminSideSections,
+      ...companyManagerSideSections,
+      ...companyUserSideSections,
+    ].flatMap((section) => section.items.map((item) => item.href));
+    const superadminHrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+
+    expect(superadminHrefs).toContain(aiEngineHref);
+    expect(ordinaryAdminHrefs).not.toContain(aiEngineHref);
+    expect(companyHrefs).not.toContain(aiEngineHref);
   });
 
   it("quick-link rows do not repeat the same href twice in one list", () => {

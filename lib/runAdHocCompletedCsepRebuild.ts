@@ -1,4 +1,4 @@
-import { extractResponsesApiOutputText } from "@/lib/ai/responses";
+import { requestAiResponsesText } from "@/lib/ai/responses";
 import {
   CSEP_FORMAT_SECTION_OPTIONS,
   getCsepFormatDefinition,
@@ -10,7 +10,6 @@ import {
   generateBuilderProgramAiReview,
   type BuilderProgramAiReview,
 } from "@/lib/builderDocumentAiReview";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 import { serverLog } from "@/lib/serverLog";
 import type {
   GeneratedSafetyPlanDraft,
@@ -962,19 +961,15 @@ async function generateCompletedCsepRebuildDraft(params: {
     (model, index, list) => Boolean(model) && list.indexOf(model) === index
   );
 
-  let res: Response | null = null;
-  let errText = "";
+  let response: Awaited<ReturnType<typeof requestAiResponsesText>> | null = null;
 
   for (const candidate of modelCandidates) {
-    res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: resolveOpenAiCompatibleModelId(candidate),
-        input: prompt,
+    response = await requestAiResponsesText({
+      apiKey,
+      model: candidate,
+      input: prompt,
+      surface: "csep.completed-rebuild",
+      body: {
         text: {
           format: {
             type: "json_schema",
@@ -1126,34 +1121,28 @@ async function generateCompletedCsepRebuildDraft(params: {
             },
           },
         },
-      }),
+      },
     });
 
-    if (res.ok) {
+    if (response.text) {
       break;
     }
 
-    errText = await res.text().catch(() => "");
-    const shouldRetryOnFallback =
-      candidate !== DEFAULT_REBUILD_MODEL &&
-      (errText.includes("model_not_found") ||
-        errText.includes("does not have access to model") ||
-        errText.includes("invalid_request_error"));
+    const shouldRetryOnFallback = candidate !== DEFAULT_REBUILD_MODEL && response.meta.fallbackUsed;
     if (!shouldRetryOnFallback) {
       break;
     }
   }
 
-  if (!res || !res.ok) {
+  if (!response?.text) {
     serverLog("warn", "ad_hoc_completed_csep_rebuild_model_fallback", {
       fileName: params.fileName,
-      reason: `OpenAI request failed (${res?.status ?? 502})`,
+      reason: `OpenAI request failed (${response?.meta.fallbackReason ?? "empty_output_text"})`,
     });
     return buildLocalFallback();
   }
 
-  const json: unknown = await res.json();
-  const rawText = extractResponsesApiOutputText(json);
+  const rawText = response.text;
   if (!rawText) {
     throw new Error("Empty model output.");
   }

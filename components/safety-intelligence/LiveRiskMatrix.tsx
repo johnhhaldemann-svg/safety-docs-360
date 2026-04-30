@@ -18,7 +18,7 @@ export function LiveRiskMatrix({
     { label: "Bucket runs", value: summary?.totals.bucketRuns ?? 0 },
     { label: "Intelligence reviews", value: summary?.totals.aiReviews ?? 0 },
     { label: "Open conflicts", value: summary?.totals.openConflicts ?? 0 },
-    { label: "Generated docs", value: summary?.totals.generatedDocuments ?? 0 },
+  { label: "Prepared docs", value: summary?.totals.generatedDocuments ?? 0 },
   ];
 
   return (

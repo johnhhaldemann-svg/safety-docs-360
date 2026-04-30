@@ -13,6 +13,7 @@ import {
   companyUserSideSections,
   flattenNavItemsFromSections,
   internalAdminAppendedSection,
+  superadminOnlySideSections,
   userSideSections,
 } from "@/lib/appNavigation";
 import {
@@ -180,6 +181,9 @@ export default function AppLayout({
       return companyUserSideSections;
     }
     const base = showPlatformAdminShell ? adminSideSections : userSideSections;
+    if (showPlatformAdminShell && userRole === "super_admin") {
+      return [...base, ...superadminOnlySideSections];
+    }
     if (!showPlatformAdminShell && canAccessInternalAdmin) {
       return [...base, internalAdminAppendedSection];
     }

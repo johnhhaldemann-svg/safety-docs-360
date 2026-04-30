@@ -1,10 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { extractResponsesApiOutputText } from "@/lib/ai/responses";
+import { requestAiResponsesText } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { COMPANY_AI_ASSIST_DISCLAIMER, buildSurfaceSystemPrompt } from "@/lib/companyMemory/assist";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
-import { serverLog } from "@/lib/serverLog";
 
 export type PermitCopilotActivityContext = {
   id: string;
@@ -398,29 +396,11 @@ export async function runPermitCopilotAssist(
     .filter(Boolean)
     .join("\n\n");
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return {
-      suggestion: fallback,
-      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
-      retrieval: method,
-      fallbackUsed: true,
-    };
-  }
-
-  const model = resolveOpenAiCompatibleModelId(
-    process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4.1")
-  );
-
-  const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: `${system}\n\n---\n\n${userParts}`,
+  const response = await requestAiResponsesText({
+    model: process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4.1"),
+    input: `${system}\n\n---\n\n${userParts}`,
+    surface: "permit.copilot",
+    body: {
       text: {
         format: {
           type: "json_schema",
@@ -457,26 +437,10 @@ export async function runPermitCopilotAssist(
           },
         },
       },
-    }),
+    },
   });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    serverLog("error", "permit_copilot_openai_failed", {
-      companyId,
-      status: res.status,
-      snippet: errText.slice(0, 200),
-    });
-    return {
-      suggestion: fallback,
-      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
-      retrieval: method,
-      fallbackUsed: true,
-    };
-  }
-
-  const json: unknown = await res.json();
-  const rawText = extractResponsesApiOutputText(json);
+  const rawText = response.text;
   if (!rawText) {
     return {
       suggestion: fallback,

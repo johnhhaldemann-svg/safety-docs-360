@@ -29,9 +29,18 @@ describe("Reorganized tab strips (release contracts)", () => {
     ]);
   });
 
-  it("CSEP builder defines four phase categories", () => {
+  it("CSEP builder defines the current guided workflow steps", () => {
     const src = readFileSync(join(REPO_ROOT, "app/(app)/csep/page.tsx"), "utf8");
-    for (const title of ["Setup", "Scope", "Build", "Review & Submit"] as const) {
+    for (const title of [
+      "Trade selection",
+      "Sub-trade",
+      "Select sections",
+      "Selectable tasks",
+      "Intelligence enrichment",
+      "Task-driven sections",
+      "Draft review",
+      "Submit document",
+    ] as const) {
       expect(src, `missing phase "${title}"`).toContain(`title: "${title}"`);
     }
   });
@@ -65,7 +74,7 @@ describe("Reorganized tab strips (release contracts)", () => {
     const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyIntelligenceWorkflow.tsx"), "utf8");
     expect(src).toContain('["intake", "Intake",');
     expect(src).toContain('["rules", "Rules & conflicts",');
-    expect(src).toContain('["generate", "Generate",');
+    expect(src).toContain('["generate", "Create",');
     expect(src).toContain('["review", "Review",');
   });
 

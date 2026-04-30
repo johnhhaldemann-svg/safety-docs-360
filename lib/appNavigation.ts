@@ -258,6 +258,15 @@ export const adminSideSections: NavSection[] = [
   },
 ];
 
+export const superadminOnlySideSections: NavSection[] = [
+  {
+    title: "AI control plane",
+    items: [
+      { href: "/superadmin/ai-engine", label: "AI Engine Operations", short: "AI" },
+    ],
+  },
+];
+
 export const companyAdminSideSections: NavSection[] = [
   {
     title: "Start here",
@@ -471,6 +480,7 @@ const NAV_ITEM_LISTS: { name: string; items: NavItem[] }[] = [
 const NAV_SECTION_LISTS: { name: string; sections: NavSection[] }[] = [
   { name: "userSideSections", sections: userSideSections },
   { name: "adminSideSections", sections: adminSideSections },
+  { name: "superadminOnlySideSections", sections: superadminOnlySideSections },
   { name: "companyAdminSideSections", sections: companyAdminSideSections },
   { name: "companyManagerSideSections", sections: companyManagerSideSections },
   { name: "companyUserSideSections", sections: companyUserSideSections },

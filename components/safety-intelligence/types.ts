@@ -33,10 +33,22 @@ export type SafetyDashboardPayload = {
 };
 
 export type IntakePayload = {
+  auditLogId?: string | null;
+  bucketId?: string | null;
   bucketRunId: string;
   bucket: BucketedWorkItem;
   rules: RulesEvaluation;
   conflicts: ConflictEvaluation;
+  smartSafetyProvenance?: {
+    version: string;
+    stages: string[];
+    inputHash: string;
+    bucketRunId?: string | null;
+    auditLogId?: string | null;
+    bucketId?: string | null;
+  } | null;
+  validationStatus?: string;
+  removedCompanyTokens?: string[];
 };
 
 export type GeneratedDocumentPayload = {
@@ -59,3 +71,34 @@ export type GeneratedDocumentPayload = {
 };
 
 export type { SafetyReviewPayload };
+
+export type EngineBriefingPayload = {
+  briefing?: {
+    headline: string;
+    lines: Array<{ label: string; detail: string; severity?: string }>;
+    preventionScore?: { value: number; band: string } | null;
+  };
+  smartSafetyProvenance?: IntakePayload["smartSafetyProvenance"];
+  error?: string;
+};
+
+export type PreTaskChecklistPayload = {
+  checklist?: {
+    items?: Array<{ id: string; text: string; source: string; required: boolean }>;
+  } | Array<{ id: string; text: string; source: string; required: boolean }>;
+  smartSafetyProvenance?: IntakePayload["smartSafetyProvenance"];
+  error?: string;
+};
+
+export type LiveConflictPayload = {
+  conflicts: Array<{
+    id: string;
+    conflict_code: string;
+    conflict_type?: string | null;
+    severity: string;
+    status?: string;
+    rationale: string;
+    recommended_controls?: string[] | null;
+  }>;
+  error?: string;
+};
