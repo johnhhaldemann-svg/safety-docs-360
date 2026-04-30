@@ -112,6 +112,35 @@ type EvalPayload = {
   surfaces: Array<{ surface: string; fixtures: number; status: string }>;
 };
 
+type Recommendation = {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  surface: string;
+  category: string;
+  title: string;
+  evidence: string;
+  suggestedAction: string;
+  source: "deterministic";
+};
+
+type RecommendationPayload = {
+  snapshot: unknown | null;
+  stale: boolean;
+  generatedAt: string | null;
+  snapshotDate: string | null;
+  surface: string;
+  windowDays: number;
+  summary: string;
+  summaryMeta: {
+    model: string | null;
+    provider: string | null;
+    promptHash: string | null;
+    fallbackUsed: boolean;
+    fallbackReason: string | null;
+  };
+  recommendations: Recommendation[];
+};
+
 function formatNumber(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value)) return "n/a";
   return new Intl.NumberFormat().format(value);
@@ -126,6 +155,10 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatMaybeDate(value: string | null | undefined) {
+  return value ? formatDate(value) : "Not generated";
 }
 
 function sinceForWindow(days: number) {
@@ -202,6 +235,115 @@ function GroupTable({ title, rows }: { title: string; rows: GroupMetric[] }) {
   );
 }
 
+function severityTone(severity: Recommendation["severity"]) {
+  if (severity === "critical") return "border-red-500/50 bg-red-950/35 text-red-100";
+  if (severity === "warning") return "border-amber-500/50 bg-amber-950/35 text-amber-100";
+  return "border-cyan-500/40 bg-cyan-950/35 text-cyan-100";
+}
+
+function RecommendationsPanel({
+  payload,
+  refreshing,
+  onRefresh,
+}: {
+  payload: RecommendationPayload | null;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const rows = payload?.recommendations ?? [];
+  const severityCounts = {
+    critical: rows.filter((row) => row.severity === "critical").length,
+    warning: rows.filter((row) => row.severity === "warning").length,
+    info: rows.filter((row) => row.severity === "info").length,
+  };
+
+  return (
+    <section className="rounded-md border border-slate-800 bg-slate-950/80 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-200">
+            <Brain className="h-4 w-4" aria-hidden="true" />
+            Daily snapshot
+          </div>
+          <h2 className="mt-1 text-lg font-semibold text-slate-100">AI Engine Recommendations</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-300">
+            {payload?.summary ?? "No recommendation snapshot has been generated for this filter yet."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-cyan-500/50 bg-cyan-950 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+          Refresh snapshot
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-md border border-slate-800 bg-slate-900/70 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Snapshot</div>
+          <div className="mt-1 text-sm font-semibold text-slate-100">{payload?.snapshotDate ?? "None"}</div>
+          {payload?.stale ? <div className="mt-1 text-xs text-amber-200">Stale or missing</div> : <div className="mt-1 text-xs text-emerald-200">Current daily snapshot</div>}
+        </div>
+        <div className="rounded-md border border-slate-800 bg-slate-900/70 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Generated</div>
+          <div className="mt-1 text-sm font-semibold text-slate-100">{formatMaybeDate(payload?.generatedAt)}</div>
+        </div>
+        <div className="rounded-md border border-red-500/40 bg-red-950/25 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-red-200">Critical</div>
+          <div className="mt-1 text-2xl font-semibold text-red-100">{severityCounts.critical}</div>
+        </div>
+        <div className="rounded-md border border-amber-500/40 bg-amber-950/25 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-200">Warnings</div>
+          <div className="mt-1 text-2xl font-semibold text-amber-100">{severityCounts.warning}</div>
+        </div>
+        <div className="rounded-md border border-cyan-500/40 bg-cyan-950/25 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-cyan-200">Info</div>
+          <div className="mt-1 text-2xl font-semibold text-cyan-100">{severityCounts.info}</div>
+        </div>
+      </div>
+
+      {payload?.stale ? (
+        <div className="mt-4 rounded-md border border-amber-500/50 bg-amber-950/35 p-3 text-sm text-amber-100">
+          This view is using the latest stored snapshot. Refresh manually when you need today&apos;s recommendation set.
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {rows.map((row) => (
+          <article key={row.id} className={`rounded-md border p-3 ${severityTone(row.severity)}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-black/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">
+                {row.severity}
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-wide opacity-80">{row.category}</span>
+              <span className="text-xs opacity-70">{row.surface}</span>
+            </div>
+            <h3 className="mt-2 text-sm font-semibold">{row.title}</h3>
+            <p className="mt-1 text-sm opacity-85">{row.evidence}</p>
+            <p className="mt-2 text-sm font-medium">{row.suggestedAction}</p>
+          </article>
+        ))}
+        {rows.length === 0 ? (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-950/25 p-4 text-sm text-emerald-100">
+            No open recommendations in the stored snapshot.
+          </div>
+        ) : null}
+      </div>
+
+      {payload?.summaryMeta ? (
+        <div className="mt-4 text-xs text-slate-400">
+          Summary: {payload.summaryMeta.fallbackUsed ? `deterministic fallback (${payload.summaryMeta.fallbackReason ?? "unknown"})` : "AI summarized"} · Model:{" "}
+          {payload.summaryMeta.model ?? "n/a"} · Provider: {payload.summaryMeta.provider ?? "n/a"} · Prompt hash:{" "}
+          {payload.summaryMeta.promptHash ?? "n/a"}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function SuperadminAiEnginePage() {
   const [surface, setSurface] = useState("all");
   const [windowDays, setWindowDays] = useState(7);
@@ -209,7 +351,9 @@ export default function SuperadminAiEnginePage() {
   const [calls, setCalls] = useState<CallsPayload | null>(null);
   const [feedback, setFeedback] = useState<FeedbackPayload | null>(null);
   const [evals, setEvals] = useState<EvalPayload | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingRecommendations, setRefreshingRecommendations] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedbackDraft, setFeedbackDraft] = useState({
     surface: "safety-intelligence",
@@ -226,18 +370,32 @@ export default function SuperadminAiEnginePage() {
     return params.toString();
   }, [surface, windowDays]);
 
+  const recommendationQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("surface", surface);
+    params.set("windowDays", String(windowDays));
+    return params.toString();
+  }, [surface, windowDays]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metricsResponse, callsResponse, feedbackResponse, evalsResponse] = await Promise.all([
+      const [metricsResponse, callsResponse, feedbackResponse, evalsResponse, recommendationsResponse] = await Promise.all([
         fetch(`/api/superadmin/ai-engine/metrics?${query}`),
         fetch(`/api/superadmin/ai-engine/calls?${query}&limit=50`),
         fetch(`/api/superadmin/ai-engine/feedback?${query}&limit=50`),
         fetch("/api/superadmin/ai-engine/evals"),
+        fetch(`/api/superadmin/ai-engine/recommendations?${recommendationQuery}`),
       ]);
 
-      if (!metricsResponse.ok || !callsResponse.ok || !feedbackResponse.ok || !evalsResponse.ok) {
+      if (
+        !metricsResponse.ok ||
+        !callsResponse.ok ||
+        !feedbackResponse.ok ||
+        !evalsResponse.ok ||
+        !recommendationsResponse.ok
+      ) {
         throw new Error("Superadmin AI Engine data is unavailable.");
       }
 
@@ -245,12 +403,13 @@ export default function SuperadminAiEnginePage() {
       setCalls(await callsResponse.json());
       setFeedback(await feedbackResponse.json());
       setEvals(await evalsResponse.json());
+      setRecommendations(await recommendationsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load AI Engine operations.");
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, recommendationQuery]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -279,6 +438,27 @@ export default function SuperadminAiEnginePage() {
     }
     setFeedbackDraft((draft) => ({ ...draft, sourceId: "", reason: "" }));
     await load();
+  }
+
+  async function refreshRecommendationSnapshot() {
+    setRefreshingRecommendations(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/superadmin/ai-engine/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surface, windowDays }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Unable to refresh recommendations.");
+      }
+      setRecommendations(body);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to refresh recommendations.");
+    } finally {
+      setRefreshingRecommendations(false);
+    }
   }
 
   const summary = metrics?.summary;
@@ -351,6 +531,12 @@ export default function SuperadminAiEnginePage() {
           <Stat icon={BarChart3} label="Avg latency" value={`${formatNumber(summary?.averageLatencyMs)} ms`} />
           <Stat icon={Database} label="Tokens" value={formatNumber(summary?.totalTokens)} tone="green" />
         </section>
+
+        <RecommendationsPanel
+          payload={recommendations}
+          refreshing={refreshingRecommendations}
+          onRefresh={() => void refreshRecommendationSnapshot()}
+        />
 
         <section className="grid gap-4 xl:grid-cols-3">
           <GroupTable title="Calls by surface" rows={metrics?.bySurface ?? []} />
