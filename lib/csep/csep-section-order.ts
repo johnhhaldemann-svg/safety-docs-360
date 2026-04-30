@@ -147,8 +147,8 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
   {
     key: "reviewer_codex_readiness_summary",
     kind: "main",
-    title: "Reviewer / CODEX Readiness Summary",
-    descriptor: "Reviewer-facing matrix identifying where CSEP content addresses CODEX-style requirements and which items remain separate uploads.",
+    title: "Reviewer Readiness Summary",
+    descriptor: "Reviewer-facing matrix identifying where CSEP content addresses project review requirements and which items remain separate uploads.",
   },
   {
     key: "document_control_and_revision_history",
