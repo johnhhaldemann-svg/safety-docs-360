@@ -24,14 +24,14 @@ export function buildSafetyWorkspaceStages(params: {
       complete: params.hasIntake,
     },
     {
-      label: "Generate",
+    label: "Create",
       detail: "Draft risk outputs and safety documents from reviewed context.",
       active: params.hasIntake && !params.hasGenerated,
       complete: params.hasGenerated,
     },
     {
       label: "Review queue",
-      detail: "Hand the generated draft into company review and publication workflows.",
+    detail: "Hand the prepared draft into company review and publication workflows.",
       active: params.hasGenerated,
       complete: params.hasGenerated,
     },

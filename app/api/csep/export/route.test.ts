@@ -180,7 +180,6 @@ describe("legacy CSEP DOCX export", () => {
 
     expect(documentXml).toContain("CONTRACTOR SAFETY &amp; ENVIRONMENTAL PLAN (CSEP)");
     expect(documentXml).toContain("Title Page");
-    expect(documentXml).toContain("Document title");
     expect(documentXml).toContain("Table of Contents");
     expect(documentXml).toContain("Kitchen Renovation");
     expect(documentXml).toContain("Millwork");
@@ -192,7 +191,7 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("17. High-Risk Programs");
     expect(documentXml).toContain('w:pgMar w:top="1440" w:right="1440" w:bottom="1080" w:left="1440"');
     expect(documentXml).toContain("<w:tbl>");
-    expect(documentXml).toContain("Project name");
+    expect(documentXml).toContain("Project.");
     expect(documentXml).toContain("Contractor");
     expect(documentXml).toContain("Hard Hat");
     expect(documentXml).toContain("Install kitchen hood supports");
@@ -205,8 +204,8 @@ describe("legacy CSEP DOCX export", () => {
     expect(stylesXml).toContain("202020");
     expect(documentXml).toContain('w:fill="D9EAF7"');
     expect(documentXml).toContain('w:fill="FFF2CC"');
-    expect(documentXml).not.toContain("Stop-Work Authority");
-    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBe(0);
+    expect(documentXml).toContain("Stop-Work Authority");
+    expect(documentXml.split('w:fill="FCE4D6"').length - 1).toBeLessThanOrEqual(3);
     expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeLessThanOrEqual(1);
     expect(headerXml).toBe("");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");

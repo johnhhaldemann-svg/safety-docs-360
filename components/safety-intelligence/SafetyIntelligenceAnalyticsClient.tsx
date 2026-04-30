@@ -70,7 +70,7 @@ export function SafetyIntelligenceAnalyticsClient() {
 
       <SectionCard
         title="Activity at a glance"
-        description="Counts below are scoped to your company. Pipeline batches and open rule conflicts are early signals; AI-assisted reviews and generated documents show review load and output volume."
+      description="Counts below are scoped to your company. Pipeline batches and open rule conflicts are early signals; AI-assisted reviews and prepared documents show review load and output volume."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
@@ -93,7 +93,7 @@ export function SafetyIntelligenceAnalyticsClient() {
           </div>
           <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/85 p-4">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents generated</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Documents prepared</p>
               <ProvenanceBadge kind="hybrid" />
             </div>
             <p className="mt-2 text-3xl font-bold text-[var(--app-text-strong)]">{summary?.totals.generatedDocuments ?? 0}</p>

@@ -1,9 +1,8 @@
-import { extractResponsesApiOutputText } from "@/lib/ai/responses";
+import { requestAiResponsesText } from "@/lib/ai/responses";
 import { getReviewLayoutGuidance } from "@/lib/documentLayoutGuidance";
 import { buildNoteCoverage, detectDocumentQualityIssues } from "@/lib/documentAiReviewSignals";
 import type { ReviewDocumentAnnotation } from "@/lib/documentReviewExtraction";
 import { extractReviewDocumentText } from "@/lib/documentReviewExtraction";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
 
 export type BuilderProgramAiReviewFinding = {
   sectionLabel: string;
@@ -1383,20 +1382,16 @@ export async function generateBuilderProgramAiReview(params: {
     DEFAULT_BUILDER_REVIEW_MODEL,
   ].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index);
 
-  let res: Response | null = null;
-  let errText = "";
+  let response: Awaited<ReturnType<typeof requestAiResponsesText>> | null = null;
   for (const candidate of modelCandidates) {
     try {
-      res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+      response = await requestAiResponsesText({
+        apiKey,
+        model: candidate,
+        input: prompt,
+        surface: "builder-document.ai-review",
         signal: AbortSignal.timeout(OPENAI_REVIEW_TIMEOUT_MS),
-        body: JSON.stringify({
-          model: resolveOpenAiCompatibleModelId(candidate),
-          input: prompt,
+        body: {
           text: {
             format: {
               type: "json_schema",
@@ -1557,7 +1552,7 @@ export async function generateBuilderProgramAiReview(params: {
               },
             },
           },
-        }),
+        },
       });
     } catch (error) {
       if (
@@ -1572,28 +1567,21 @@ export async function generateBuilderProgramAiReview(params: {
       throw error;
     }
 
-    if (res.ok) {
+    if (response.text) {
       break;
     }
 
-    errText = await res.text().catch(() => "");
-    const shouldRetryOnFallback =
-      candidate !== DEFAULT_BUILDER_REVIEW_MODEL &&
-      (errText.includes("model_not_found") ||
-        errText.includes("does not have access to model") ||
-        errText.includes("invalid_request_error"));
+    const shouldRetryOnFallback = candidate !== DEFAULT_BUILDER_REVIEW_MODEL && response.meta.fallbackUsed;
     if (!shouldRetryOnFallback) {
       break;
     }
   }
 
-  if (!res || !res.ok) {
-    throw new Error(`OpenAI request failed (${res?.status ?? 502}): ${errText.slice(0, 500)}`);
+  if (!response?.text) {
+    throw new Error(`OpenAI request failed: ${response?.meta.fallbackReason ?? "empty_output_text"}`);
   }
-  const successfulResponse = res;
 
-  const json: unknown = await successfulResponse.json();
-  const rawText = extractResponsesApiOutputText(json);
+  const rawText = response.text;
   if (!rawText) {
     throw new Error("Empty model output.");
   }

@@ -11,8 +11,11 @@ import { SafetyReviewPanel } from "@/components/safety-intelligence/SafetyReview
 import { SimOpsMap } from "@/components/safety-intelligence/SimOpsMap";
 import { TradeTaskIntakeForm, type TradeTaskDraft } from "@/components/safety-intelligence/TradeTaskIntakeForm";
 import type {
+  EngineBriefingPayload,
   GeneratedDocumentPayload,
   IntakePayload,
+  LiveConflictPayload,
+  PreTaskChecklistPayload,
   SafetyReviewPayload,
   SafetyDashboardPayload,
 } from "@/components/safety-intelligence/types";
@@ -59,6 +62,10 @@ export function SafetyIntelligenceWorkflow({
   const [latestDraft, setLatestDraft] = useState<TradeTaskDraft | null>(null);
   const [latestIntake, setLatestIntake] = useState<IntakePayload | null>(null);
   const [generated, setGenerated] = useState<GeneratedDocumentPayload | null>(null);
+  const [briefing, setBriefing] = useState<EngineBriefingPayload["briefing"] | null>(null);
+  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; source: string; required: boolean }>>([]);
+  const [liveConflicts, setLiveConflicts] = useState<LiveConflictPayload["conflicts"]>([]);
+  const [aiReviewStatus, setAiReviewStatus] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [loading, setLoading] = useState(true);
@@ -78,17 +85,19 @@ export function SafetyIntelligenceWorkflow({
         fetchWithTimeoutSafe(`/api/company/safety-intelligence/dashboard${jobsiteQuery}`, { headers }, 15000, "Dashboard"),
         fetchWithTimeoutSafe(`/api/company/safety-intelligence/documents/generate${jobsiteQuery}`, { headers }, 15000, "Documents"),
         fetchWithTimeoutSafe(`/api/company/safety-intelligence/review${jobsiteQuery}`, { headers }, 15000, "Review"),
+        fetchWithTimeoutSafe(`/api/company/safety-intelligence/conflicts/live${jobsiteQuery}`, { headers }, 15000, "Live conflicts"),
       ] as const;
       const jobsitesRequest = fixedJobsiteId
         ? Promise.resolve(null)
         : fetchWithTimeoutSafe("/api/company/jobsites", { headers }, 15000, "Jobsites");
-      const [dashboardRes, docsRes, reviewRes, jobsitesRes] = await Promise.all([
+      const [dashboardRes, docsRes, reviewRes, conflictsRes, jobsitesRes] = await Promise.all([
         ...requests,
         jobsitesRequest,
       ]);
       const dashboardJson = (await dashboardRes.json().catch(() => null)) as SafetyDashboardPayload | null;
       const docsJson = (await docsRes.json().catch(() => null)) as { documents?: typeof documents; error?: string } | null;
       const reviewJson = (await reviewRes.json().catch(() => null)) as SafetyReviewPayload | { error?: string } | null;
+      const conflictsJson = (await conflictsRes.json().catch(() => null)) as LiveConflictPayload | null;
       const jobsitesJson = jobsitesRes
         ? ((await jobsitesRes.json().catch(() => null)) as
             | { jobsites?: Array<{ id: string; name: string }>; error?: string }
@@ -112,6 +121,10 @@ export function SafetyIntelligenceWorkflow({
         setReview(null);
       }
 
+      if (conflictsRes.ok) {
+        setLiveConflicts(conflictsJson?.conflicts ?? []);
+      }
+
       if (jobsitesRes?.ok) {
         setJobsites(jobsitesJson?.jobsites ?? []);
       }
@@ -126,6 +139,57 @@ export function SafetyIntelligenceWorkflow({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadEngineOutputs = useCallback(
+    async (headers: Record<string, string>, input: Record<string, unknown>) => {
+      try {
+        const requestInit = {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ input }),
+        };
+        const [briefingRes, checklistRes, aiReviewRes] = await Promise.all([
+          fetchWithTimeoutSafe(
+            "/api/company/safety-intelligence/engine/briefing",
+            requestInit,
+            15000,
+            "Daily briefing"
+          ),
+          fetchWithTimeoutSafe(
+            "/api/company/safety-intelligence/engine/pre-task-checklist",
+            requestInit,
+            15000,
+            "Pre-task checklist"
+          ),
+          fetchWithTimeoutSafe(
+            "/api/company/safety-intelligence/ai/review",
+            requestInit,
+            45000,
+            "Combined AI review"
+          ),
+        ]);
+        const briefingJson = (await briefingRes.json().catch(() => null)) as EngineBriefingPayload | null;
+        const checklistJson = (await checklistRes.json().catch(() => null)) as PreTaskChecklistPayload | null;
+        const aiReviewJson = (await aiReviewRes.json().catch(() => null)) as { aiReviewId?: string; error?: string } | null;
+
+        if (briefingRes.ok) {
+          setBriefing(briefingJson?.briefing ?? null);
+        }
+        if (checklistRes.ok) {
+          const rawChecklist = checklistJson?.checklist ?? [];
+          setChecklist(Array.isArray(rawChecklist) ? rawChecklist : rawChecklist.items ?? []);
+        }
+        if (aiReviewRes.ok) {
+          setAiReviewStatus(aiReviewJson?.aiReviewId ? "Combined AI review recorded" : "Combined AI review completed");
+        } else if (aiReviewJson?.error) {
+          setAiReviewStatus(`Combined AI review fallback: ${aiReviewJson.error}`);
+        }
+      } catch {
+        setAiReviewStatus("Engine outputs will refresh after generation.");
+      }
+    },
+    []
+  );
 
   const handleIntake = useCallback(
     async (draft: TradeTaskDraft & { jobsiteId?: string | null }) => {
@@ -162,21 +226,36 @@ export function SafetyIntelligenceWorkflow({
         setLatestDraft(draft);
         setLatestIntake(json);
         setGenerated(null);
+        setBriefing(null);
+        setChecklist([]);
+        setAiReviewStatus(null);
         setMessage("Intake completed. Rules and conflict evaluation are ready for document generation.");
         setMessageTone("success");
+        void loadEngineOutputs(headers, {
+          companyId: "workspace",
+          jobsiteId: draft.jobsiteId ?? scopedJobsiteId ?? null,
+          sourceModule: "manual",
+          tradeCode: draft.tradeCode,
+          taskTitle: draft.taskTitle,
+          description: draft.description,
+          workAreaLabel: draft.workAreaLabel,
+          startsAt: draft.startsAt ? new Date(draft.startsAt).toISOString() : null,
+          endsAt: draft.endsAt ? new Date(draft.endsAt).toISOString() : null,
+          weatherConditionCode: draft.weatherConditionCode,
+        });
         await load();
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Failed to run intake.");
         setMessageTone("error");
       }
     },
-    [load, scopedJobsiteId]
+    [load, loadEngineOutputs, scopedJobsiteId]
   );
 
   const handleGenerate = useCallback(
     async (documentType: string) => {
       if (!latestDraft) {
-        setMessage("Run intake first so Safety Intelligence has a reviewed work package to generate from.");
+      setMessage("Run intake first so Safety Intelligence has a reviewed work package to use.");
         setMessageTone("warning");
         return;
       }
@@ -212,14 +291,15 @@ export function SafetyIntelligenceWorkflow({
         );
         const json = (await response.json().catch(() => null)) as GeneratedDocumentPayload & { error?: string };
         if (!response.ok) {
-          throw new Error(json?.error || "Failed to generate document.");
+        throw new Error(json?.error || "Failed to create document.");
         }
         setGenerated(json);
-        setMessage("Document draft and risk outputs generated. Review queue is ready for the next handoff.");
+        setAiReviewStatus(json.aiReviewId ? "Combined AI review recorded" : null);
+      setMessage("Document draft and risk outputs are ready. Review queue is ready for the next handoff.");
         setMessageTone("success");
         await load();
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Failed to generate document.");
+      setMessage(error instanceof Error ? error.message : "Failed to create document.");
         setMessageTone("error");
       }
     },
@@ -251,7 +331,7 @@ export function SafetyIntelligenceWorkflow({
               {jobsiteId ? "Jobsite execution workflow" : "Company workflow"}
             </h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-text)]">
-              Start with one work package, review rule-based coverage, then generate a draft. Detailed queue and diagnostics stay grouped by stage so the page feels like a workflow, not a report dump.
+          Start with one work package, review rule-based coverage, then create a draft. Detailed queue and diagnostics stay grouped by stage so the page feels like a workflow, not a report dump.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -288,7 +368,7 @@ export function SafetyIntelligenceWorkflow({
             [
               ["intake", "Intake", latestDraft ? "Captured" : "Start here"],
               ["rules", "Rules & conflicts", latestIntake ? "Evaluated" : "After intake"],
-              ["generate", "Generate", generated ? "Draft ready" : "Create draft"],
+              ["generate", "Create", generated ? "Draft ready" : "Create draft"],
               ["review", "Review", `${documents.length} queued`],
             ] as const
           ).map(([value, label, detail]) => (
@@ -305,7 +385,7 @@ export function SafetyIntelligenceWorkflow({
 
         <WorkflowPath
           title="Workflow progress"
-          description="Four stages - complete intake before generating so outputs stay rule-grounded."
+          description="Four stages - complete intake before creating the draft so outputs stay rule-grounded."
           steps={stages.map((stage) => ({
             label: stage.label,
             detail: stage.detail,
@@ -346,7 +426,7 @@ export function SafetyIntelligenceWorkflow({
           <WorkflowPanel
             eyebrow="Stage 2"
             title="Rules & conflicts"
-            description="Deterministic checks before anything is generated."
+          description="Deterministic checks before any draft is created."
             aside={
               <div className="flex flex-wrap items-center gap-2">
                 <ProvenanceBadge kind="rules" />
@@ -374,6 +454,13 @@ export function SafetyIntelligenceWorkflow({
             <div className="mt-4 space-y-3">
               <SimOpsMap conflicts={dashboard?.liveConflicts ?? []} />
               <PermitTriggerPanel intake={latestIntake} />
+              <EngineOutputsPanel
+                briefing={briefing}
+                checklist={checklist}
+                liveConflicts={liveConflicts}
+                aiReviewStatus={aiReviewStatus}
+                provenance={latestIntake?.smartSafetyProvenance ?? null}
+              />
             </div>
           </WorkflowPanel>
         </Tabs.Content>
@@ -381,8 +468,8 @@ export function SafetyIntelligenceWorkflow({
         <Tabs.Content value="generate" className="outline-none">
           <WorkflowPanel
             eyebrow="Stage 3"
-            title="Generate draft"
-            description="Generate after intake so the draft is tied to the rule context."
+              title="Create draft"
+              description="Create after intake so the draft is tied to the rule context."
             aside={<StatusBadge label={generated ? "Ready" : "Draft"} tone={generated ? "success" : "info"} />}
           >
             <DocumentGenerationPanel onGenerate={handleGenerate} generated={generated} canGenerate={Boolean(latestDraft)} />
@@ -393,7 +480,7 @@ export function SafetyIntelligenceWorkflow({
           <WorkflowPanel
             eyebrow="Stage 4"
             title="Review queue"
-            description="Recent generated drafts waiting for approval."
+            description="Recent prepared drafts waiting for approval."
             aside={<StatusBadge label={`${documents.length}`} tone={documents.length ? "info" : "neutral"} />}
           >
             <AdminReviewQueue documents={documents} />
@@ -453,6 +540,88 @@ function ScopeSummary({
         </div>
       </div>
     </section>
+  );
+}
+
+function EngineOutputsPanel({
+  briefing,
+  checklist,
+  liveConflicts,
+  aiReviewStatus,
+  provenance,
+}: {
+  briefing: EngineBriefingPayload["briefing"] | null;
+  checklist: Array<{ id: string; text: string; source: string; required: boolean }>;
+  liveConflicts: LiveConflictPayload["conflicts"];
+  aiReviewStatus: string | null;
+  provenance: IntakePayload["smartSafetyProvenance"] | null;
+}) {
+  const visibleChecklist = checklist.slice(0, 5);
+  const visibleConflicts = liveConflicts.slice(0, 4);
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-3">
+      <div className="rounded-xl border border-[var(--app-border-strong)] bg-white/88 p-3 shadow-[var(--app-shadow-soft)]">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">Daily briefing</p>
+          <ProvenanceBadge kind="rules" title="Briefing is deterministic engine output from rules, conflicts, and risk memory." />
+        </div>
+        <p className="mt-2 text-sm font-semibold leading-5 text-[var(--app-text-strong)]">
+          {briefing?.headline ?? "Run intake to build a current briefing."}
+        </p>
+        {briefing?.lines?.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {briefing.lines.slice(0, 3).map((line) => (
+              <li key={`${line.label}:${line.detail}`} className="text-xs leading-5 text-[var(--app-text)]">
+                <strong>{line.label}:</strong> {line.detail}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl border border-[var(--app-border-strong)] bg-white/88 p-3 shadow-[var(--app-shadow-soft)]">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">Pre-task checklist</p>
+          <StatusBadge label={`${checklist.length}`} tone={checklist.length ? "info" : "neutral"} />
+        </div>
+        {visibleChecklist.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {visibleChecklist.map((item) => (
+              <li key={item.id} className="rounded-lg bg-[var(--app-panel-soft)] px-2 py-1.5 text-xs leading-5 text-[var(--app-text-strong)]">
+                {item.text}
+              </li>
+            ))}
+          </ul>
+        ) : (
+              <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">No checklist ready yet.</p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-[var(--app-border-strong)] bg-white/88 p-3 shadow-[var(--app-shadow-soft)]">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">Engine status</p>
+          <ProvenanceBadge kind={aiReviewStatus ? "hybrid" : "rules"} />
+        </div>
+        <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">
+          {aiReviewStatus ?? "Combined AI review runs after intake; deterministic outputs remain available if the provider falls back."}
+        </p>
+        {provenance?.stages?.length ? (
+          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted)]">
+            {provenance.stages.join(" / ")}
+          </p>
+        ) : null}
+        {visibleConflicts.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {visibleConflicts.map((conflict) => (
+              <li key={conflict.id} className="text-xs leading-5 text-[var(--app-text)]">
+                <strong>{conflict.severity}:</strong> {conflict.rationale}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

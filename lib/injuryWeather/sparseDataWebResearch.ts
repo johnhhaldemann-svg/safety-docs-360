@@ -1,5 +1,5 @@
 import type { InjuryWeatherDashboardData, InjuryWeatherWebResearchSupplement } from "@/lib/injuryWeather/types";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import { requestAiResponsesText } from "@/lib/ai/responses";
 
 const SPARSE_SIGNAL_MAX = 5;
 
@@ -139,29 +139,21 @@ export async function injuryWeatherWebResearchSupplement(
     "If you cannot verify a fact from search results, omit it.",
   ].join("\n");
 
-  const model = resolveOpenAiCompatibleModelId(
-    process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o"
-  );
-
   try {
-    const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input,
+    const response = await requestAiResponsesText({
+      apiKey,
+      model: process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o",
+      input,
+      surface: "injury-weather.sparse-web-research",
+      body: {
         tools: [{ type: "web_search_preview" }],
         tool_choice: "auto",
         max_output_tokens: 1200,
-      }),
+      },
     });
 
-    if (!res.ok) return null;
-    const json: unknown = await res.json();
-    const text = extractOutputTextFromResponsesBody(json);
+    const json = response.json;
+    const text = response.text ?? extractOutputTextFromResponsesBody(json);
     if (!text || text.length < 80) return null;
 
     const annotations = collectUrlCitationsFromResponse(json);
@@ -176,7 +168,7 @@ export async function injuryWeatherWebResearchSupplement(
 
     return {
       triggeredBySparseData: sparseWorkspace,
-      model,
+      model: response.meta.model ?? process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() ?? "gpt-4o",
       querySummary: `Public safety context for ${month} · ${state} · ${trades}`,
       bullets,
       citations,

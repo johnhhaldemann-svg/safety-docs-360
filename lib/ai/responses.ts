@@ -77,6 +77,8 @@ export async function requestAiResponsesText(params: {
   surface?: string;
   /** Override retry attempts (default 3). Set to 1 to disable retries. */
   maxAttempts?: number;
+  /** Optional abort signal for caller-specific timeouts. */
+  signal?: AbortSignal;
 }): Promise<{
   text: string | null;
   json: unknown | null;
@@ -127,6 +129,7 @@ export async function requestAiResponsesText(params: {
     try {
       const response = await fetch(`${getAiApiBaseUrl()}/responses`, {
         method: "POST",
+        signal: params.signal,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",

@@ -777,7 +777,7 @@ describe("csepDocxRenderer", () => {
       "18. Excavation / Trenching N/A or Program Trigger",
       "19. Inspections, Audits, and Records",
       "20. Project Closeout",
-      "21. Reviewer / CODEX Readiness Summary",
+      "21. Reviewer Readiness Summary",
       "22. Document Control and Revision History",
       "Disclaimer",
     ];

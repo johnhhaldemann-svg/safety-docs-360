@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { extractResponsesApiOutputText } from "@/lib/companyMemory/openaiResponses";
-import { getOpenAiApiBaseUrl, resolveOpenAiCompatibleModelId } from "@/lib/openaiClient";
+import { requestAiResponsesText } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import {
   listCompanyMemoryItems,
@@ -8,7 +7,6 @@ import {
   searchCompanyMemoryKeyword,
 } from "@/lib/companyMemory/repository";
 import type { CompanyMemoryItemRow } from "@/lib/companyMemory/types";
-import { serverLog } from "@/lib/serverLog";
 
 export const COMPANY_AI_ASSIST_DISCLAIMER =
   "This assistant uses AI and your company memory bank. It is not legal advice, does not replace a competent safety professional or the AHJ, and may be wrong. Verify critical requirements against current regulations and your contract documents.";
@@ -343,59 +341,12 @@ export async function runCompanyAiAssist(
     .filter(Boolean)
     .join("\n\n");
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return {
-      text: buildCompanyAiAssistFallback({
-        surface: input.surface,
-        userMessage: msg,
-        structuredContext: input.structuredContext,
-        assistantChunks,
-        apiAvailable: false,
-      }),
-      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
-      retrieval: method,
-    };
-  }
-
-  const model = resolveOpenAiCompatibleModelId(
-    process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4o-mini")
-  );
-
-  const res = await fetch(`${getOpenAiApiBaseUrl()}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: `${system}\n\n---\n\n${userParts}`,
-    }),
+  const response = await requestAiResponsesText({
+    model: process.env.COMPANY_AI_MODEL?.trim() || resolveCompanyAiDefaultModel("gpt-4o-mini"),
+    input: `${system}\n\n---\n\n${userParts}`,
+    surface: `company-memory.assist.${input.surface}`,
   });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    serverLog("error", "company_ai_assist_openai_failed", {
-      companyId,
-      status: res.status,
-      snippet: errText.slice(0, 200),
-    });
-    return {
-      text: buildCompanyAiAssistFallback({
-        surface: input.surface,
-        userMessage: msg,
-        structuredContext: input.structuredContext,
-        assistantChunks,
-        apiAvailable: true,
-      }),
-      disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
-      retrieval: method,
-    };
-  }
-
-  const json: unknown = await res.json();
-  const rawText = extractResponsesApiOutputText(json);
+  const rawText = response.text;
   const text =
     rawText?.trim() ||
     buildCompanyAiAssistFallback({
@@ -403,7 +354,7 @@ export async function runCompanyAiAssist(
       userMessage: msg,
       structuredContext: input.structuredContext,
       assistantChunks,
-      apiAvailable: true,
+      apiAvailable: response.meta.fallbackReason !== "no_openai_api_key",
     });
 
   return { text, disclaimer: COMPANY_AI_ASSIST_DISCLAIMER, retrieval: method };

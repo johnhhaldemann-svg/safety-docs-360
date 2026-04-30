@@ -22,7 +22,7 @@ export function AdminReviewQueue({
       {documents.length === 0 ? (
         <EmptyState
           title="No drafts waiting for review"
-          description="Generate a draft from an evaluated work package and it will appear here for admin review."
+      description="Create a draft from an evaluated work package and it will appear here for admin review."
           align="left"
           className="p-5"
         />
@@ -39,7 +39,7 @@ export function AdminReviewQueue({
                 {formatSafetyBlueprintDocumentType(document.document_type).replace(/_/g, " ")}
               </p>
               <p className="mt-2 text-xs text-[var(--app-muted)]">
-                Generated {new Date(document.generated_at).toLocaleString()}
+                    Prepared {new Date(document.generated_at).toLocaleString()}
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
