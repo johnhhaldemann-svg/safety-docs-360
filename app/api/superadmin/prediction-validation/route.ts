@@ -1,0 +1,389 @@
+import { NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
+import {
+  buildIncidentFacetRow,
+  buildSorRecordFacetRow,
+  upsertRiskMemoryFacetSafe,
+} from "@/lib/riskMemory/facets";
+import {
+  isIncidentInjurySubtype,
+  normalizePredictionReviewRating,
+  normalizePredictionReviewTags,
+  normalizePredictionValidationStatus,
+  type PredictionValidationStatus,
+} from "@/lib/predictionValidation";
+
+export const runtime = "nodejs";
+
+type SourceType = "sor" | "incident" | "injury";
+
+type ReviewItem = {
+  id: string;
+  sourceType: SourceType;
+};
+
+const SOURCE_TYPES = new Set<SourceType>(["sor", "incident", "injury"]);
+
+function canUsePredictionValidation(role: string) {
+  const normalized = normalizeAppRole(role);
+  return (
+    normalized === "platform_admin" ||
+    normalized === "super_admin" ||
+    normalized === "internal_reviewer"
+  );
+}
+
+async function authorizePredictionValidationRequest(request: Request) {
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: ["can_access_internal_admin", "can_review_documents"],
+    allowPending: true,
+    allowSuspended: true,
+  });
+  if ("error" in auth) return auth;
+  if (!canUsePredictionValidation(auth.role)) {
+    return {
+      error: NextResponse.json({ error: "Platform prediction validation access required." }, { status: 403 }),
+    };
+  }
+  return auth;
+}
+
+function optionalText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeSourceType(value: unknown): SourceType | "all" {
+  const next = String(value ?? "all").trim().toLowerCase();
+  if (next === "all") return "all";
+  if (SOURCE_TYPES.has(next as SourceType)) return next as SourceType;
+  return "all";
+}
+
+function parseLimit(value: string | null) {
+  const next = Number(value ?? 100);
+  if (!Number.isFinite(next)) return 100;
+  return Math.min(250, Math.max(1, Math.trunc(next)));
+}
+
+function normalizeItems(body: Record<string, unknown> | null): ReviewItem[] {
+  const rawItems = Array.isArray(body?.items)
+    ? body.items
+    : body?.id
+      ? [{ id: body.id, sourceType: body.sourceType }]
+      : [];
+
+  const out: ReviewItem[] = [];
+  const seen = new Set<string>();
+  for (const raw of rawItems) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const id = optionalText(row.id);
+    const sourceType = normalizeSourceType(row.sourceType);
+    if (!id || sourceType === "all") continue;
+    const key = `${sourceType}:${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id, sourceType });
+  }
+  return out;
+}
+
+function isColumnMissing(error?: { message?: string | null } | null) {
+  const message = (error?.message ?? "").toLowerCase();
+  return message.includes("prediction_validation_status") || message.includes("schema cache");
+}
+
+function formatSorRow(row: Record<string, unknown>, companies: Map<string, string>) {
+  const companyId = String(row.company_id ?? "");
+  return {
+    id: String(row.id),
+    sourceType: "sor" as const,
+    companyId,
+    companyName: companies.get(companyId) ?? "Unknown company",
+    title: String(row.description ?? "SOR record").slice(0, 140),
+    detail: [row.project, row.trade, row.category].map((v) => String(v ?? "").trim()).filter(Boolean).join(" / "),
+    status: row.prediction_validation_status ?? "pending",
+    rating: row.prediction_review_rating ?? null,
+    notes: row.prediction_review_notes ?? null,
+    tags: row.prediction_review_tags ?? [],
+    createdAt: String(row.created_at ?? ""),
+    reviewedAt: row.prediction_reviewed_at ?? null,
+    reviewedBy: row.prediction_reviewed_by ?? null,
+    severity: row.severity ?? null,
+    isInjury: false,
+  };
+}
+
+function formatIncidentRow(row: Record<string, unknown>, companies: Map<string, string>) {
+  const companyId = String(row.company_id ?? "");
+  const isInjury = isIncidentInjurySubtype(row);
+  return {
+    id: String(row.id),
+    sourceType: isInjury ? ("injury" as const) : ("incident" as const),
+    companyId,
+    companyName: companies.get(companyId) ?? "Unknown company",
+    title: String(row.title ?? "Incident record").slice(0, 140),
+    detail: [row.category, row.exposure_event_type, row.injury_type, row.body_part]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join(" / "),
+    status: row.prediction_validation_status ?? "pending",
+    rating: row.prediction_review_rating ?? null,
+    notes: row.prediction_review_notes ?? null,
+    tags: row.prediction_review_tags ?? [],
+    createdAt: String(row.created_at ?? ""),
+    reviewedAt: row.prediction_reviewed_at ?? null,
+    reviewedBy: row.prediction_reviewed_by ?? null,
+    severity: row.severity ?? null,
+    isInjury,
+  };
+}
+
+async function fetchCompanyNames(admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>, companyIds: string[]) {
+  const ids = [...new Set(companyIds.filter(Boolean))];
+  if (ids.length === 0) return new Map<string, string>();
+  const { data } = await admin.from("companies").select("id, name").in("id", ids);
+  return new Map(
+    ((data ?? []) as Array<Record<string, unknown>>).map((row) => [
+      String(row.id),
+      String(row.name ?? "Unknown company"),
+    ])
+  );
+}
+
+async function fetchReviewRows(params: {
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
+  sourceType: SourceType | "all";
+  status: PredictionValidationStatus | "all";
+  companyId: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  rating: number | null;
+  limit: number;
+}) {
+  const { admin, sourceType, status, companyId, dateFrom, dateTo, rating, limit } = params;
+  const includeSor = sourceType === "all" || sourceType === "sor";
+  const includeIncidents = sourceType === "all" || sourceType === "incident" || sourceType === "injury";
+
+  const queries: Array<Promise<{ data: unknown[] | null; error: { message?: string | null } | null; kind: "sor" | "incident" }>> = [];
+
+  if (includeSor) {
+    let q = admin
+      .from("company_sor_records")
+      .select(
+        "id, company_id, project, trade, category, description, severity, created_at, prediction_validation_status, prediction_review_rating, prediction_review_notes, prediction_review_tags, prediction_reviewed_by, prediction_reviewed_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (companyId) q = q.eq("company_id", companyId);
+    if (status !== "all") q = q.eq("prediction_validation_status", status);
+    if (dateFrom) q = q.gte("created_at", dateFrom);
+    if (dateTo) q = q.lte("created_at", dateTo);
+    if (rating != null) q = q.eq("prediction_review_rating", rating);
+    queries.push(Promise.resolve(q).then((res) => ({ ...res, kind: "sor" as const })));
+  }
+
+  if (includeIncidents) {
+    const incidentLimit = sourceType === "injury" ? Math.min(1000, limit * 4) : limit;
+    let q = admin
+      .from("company_incidents")
+      .select(
+        "id, company_id, title, category, severity, created_at, exposure_event_type, injury_type, body_part, days_away_from_work, days_restricted, lost_time, fatality, prediction_validation_status, prediction_review_rating, prediction_review_notes, prediction_review_tags, prediction_reviewed_by, prediction_reviewed_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(incidentLimit);
+    if (companyId) q = q.eq("company_id", companyId);
+    if (status !== "all") q = q.eq("prediction_validation_status", status);
+    if (dateFrom) q = q.gte("created_at", dateFrom);
+    if (dateTo) q = q.lte("created_at", dateTo);
+    if (rating != null) q = q.eq("prediction_review_rating", rating);
+    queries.push(Promise.resolve(q).then((res) => ({ ...res, kind: "incident" as const })));
+  }
+
+  const results = await Promise.all(queries);
+  const firstMissing = results.find((result) => result.error && isColumnMissing(result.error));
+  if (firstMissing?.error) {
+    throw new Error("Prediction validation migration has not been applied yet.");
+  }
+  const firstError = results.find((result) => result.error);
+  if (firstError?.error) {
+    throw new Error(firstError.error.message || "Failed to load prediction validation rows.");
+  }
+
+  const rawSorRows = results.find((result) => result.kind === "sor")?.data ?? [];
+  const rawIncidentRows = results.find((result) => result.kind === "incident")?.data ?? [];
+  const companyIds = [
+    ...rawSorRows.map((row) => String((row as Record<string, unknown>).company_id ?? "")),
+    ...rawIncidentRows.map((row) => String((row as Record<string, unknown>).company_id ?? "")),
+  ];
+  const companies = await fetchCompanyNames(admin, companyIds);
+
+  const rows = [
+    ...rawSorRows.map((row) => formatSorRow(row as Record<string, unknown>, companies)),
+    ...rawIncidentRows
+      .map((row) => formatIncidentRow(row as Record<string, unknown>, companies))
+      .filter((row) => {
+        if (sourceType === "injury") return row.isInjury;
+        if (sourceType === "incident") return !row.isInjury;
+        return true;
+      }),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+
+  const summaryRows = rows;
+  const rated = summaryRows.filter((row) => typeof row.rating === "number");
+  const averageRating =
+    rated.length > 0
+      ? Number((rated.reduce((sum, row) => sum + Number(row.rating ?? 0), 0) / rated.length).toFixed(2))
+      : null;
+
+  return {
+    rows,
+    summary: {
+      pending: summaryRows.filter((row) => row.status === "pending").length,
+      approved: summaryRows.filter((row) => row.status === "approved").length,
+      rejected: summaryRows.filter((row) => row.status === "rejected").length,
+      averageRating,
+    },
+  };
+}
+
+export async function GET(request: Request) {
+  const auth = await authorizePredictionValidationRequest(request);
+  if ("error" in auth) return auth.error;
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "Service role client is required for platform validation." }, { status: 500 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const sourceType = normalizeSourceType(searchParams.get("sourceType"));
+  const statusParam = searchParams.get("status");
+  const status = statusParam === "all" ? "all" : normalizePredictionValidationStatus(statusParam);
+  const rating = normalizePredictionReviewRating(searchParams.get("rating"));
+
+  try {
+    const payload = await fetchReviewRows({
+      admin,
+      sourceType,
+      status,
+      companyId: optionalText(searchParams.get("companyId")),
+      dateFrom: optionalText(searchParams.get("dateFrom")),
+      dateTo: optionalText(searchParams.get("dateTo")),
+      rating,
+      limit: parseLimit(searchParams.get("limit")),
+    });
+    return NextResponse.json(payload);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load prediction validation queue." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  const auth = await authorizePredictionValidationRequest(request);
+  if ("error" in auth) return auth.error;
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "Service role client is required for platform validation." }, { status: 500 });
+  }
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const status = normalizePredictionValidationStatus(body?.status);
+  if (status === "pending") {
+    return NextResponse.json({ error: "Review status must be approved or rejected." }, { status: 400 });
+  }
+  const rating = normalizePredictionReviewRating(body?.rating);
+  if (status === "approved" && rating == null) {
+    return NextResponse.json({ error: "A 1-5 rating is required when approving records." }, { status: 400 });
+  }
+  const items = normalizeItems(body);
+  if (items.length === 0) {
+    return NextResponse.json({ error: "At least one SOR, incident, or injury record is required." }, { status: 400 });
+  }
+
+  const notes = optionalText(body?.notes);
+  const tags = normalizePredictionReviewTags(body?.tags);
+  const reviewedAt = new Date().toISOString();
+  const patch = {
+    prediction_validation_status: status,
+    prediction_review_rating: status === "approved" ? rating : rating,
+    prediction_review_notes: notes,
+    prediction_review_tags: tags,
+    prediction_reviewed_by: auth.user.id,
+    prediction_reviewed_at: reviewedAt,
+    updated_by: auth.user.id,
+  };
+
+  const sorIds = items.filter((item) => item.sourceType === "sor").map((item) => item.id);
+  const incidentIds = items
+    .filter((item) => item.sourceType === "incident" || item.sourceType === "injury")
+    .map((item) => item.id);
+
+  const updates = [];
+  if (sorIds.length > 0) {
+    updates.push(admin.from("company_sor_records").update(patch).in("id", sorIds).select("*"));
+  }
+  if (incidentIds.length > 0) {
+    updates.push(admin.from("company_incidents").update(patch).in("id", incidentIds).select("*"));
+  }
+
+  const results = await Promise.all(updates);
+  const firstMissing = results.find((result) => result.error && isColumnMissing(result.error));
+  if (firstMissing?.error) {
+    return NextResponse.json(
+      { error: "Prediction validation migration has not been applied yet." },
+      { status: 500 }
+    );
+  }
+  const firstError = results.find((result) => result.error);
+  if (firstError?.error) {
+    return NextResponse.json(
+      { error: firstError.error.message || "Failed to update prediction validation status." },
+      { status: 500 }
+    );
+  }
+
+  const updated = results.reduce((sum, result) => sum + (result.data?.length ?? 0), 0);
+  const facetUpdates: Array<Promise<unknown>> = [];
+  for (const result of results) {
+    for (const row of (result.data ?? []) as Array<Record<string, unknown>>) {
+      const companyId = String(row.company_id ?? "");
+      const sourceId = String(row.id ?? "");
+      if (!companyId || !sourceId) continue;
+      const isSor = "project" in row || "hazard_category_code" in row;
+      if (status === "approved") {
+        facetUpdates.push(
+          upsertRiskMemoryFacetSafe(
+            admin,
+            isSor ? buildSorRecordFacetRow(companyId, row) : buildIncidentFacetRow(companyId, row, null)
+          )
+        );
+      } else {
+        facetUpdates.push(
+          Promise.resolve(
+            admin
+              .from("company_risk_memory_facets")
+              .delete()
+              .eq("company_id", companyId)
+              .eq("source_module", isSor ? "sor_record" : "incident")
+              .eq("source_id", sourceId)
+          ).then(() => undefined)
+        );
+      }
+    }
+  }
+  await Promise.allSettled(facetUpdates);
+  return NextResponse.json({
+    success: true,
+    updated,
+    status,
+    reviewedAt,
+  });
+}
+
+export const POST = PATCH;

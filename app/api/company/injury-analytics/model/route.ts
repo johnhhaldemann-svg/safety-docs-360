@@ -67,12 +67,14 @@ export async function GET(request: Request) {
         "title, description, category, severity, recordable, exposure_event_type, injury_type, injury_month, injury_season, injury_day_of_week, injury_time_of_day, days_away_from_work, days_restricted, lost_time, fatality, created_at"
       )
       .eq("company_id", companyScope.companyId)
+      .eq("prediction_validation_status", "approved")
       .gte("created_at", since),
     auth.supabase
       .from("company_sor_records")
       .select("trade, category, severity, created_at, status, hazard_category_code, is_deleted")
       .eq("company_id", companyScope.companyId)
       .gte("created_at", since)
+      .eq("prediction_validation_status", "approved")
       .eq("is_deleted", false),
     auth.supabase
       .from("company_corrective_actions")

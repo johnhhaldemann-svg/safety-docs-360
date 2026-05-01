@@ -891,7 +891,8 @@ async function fetchLiveSignals(
   let sorQuery = admin
     .from("company_sor_records")
     .select("trade, category, severity, created_at, status, hazard_category_code")
-    .eq("is_deleted", false);
+    .eq("is_deleted", false)
+    .eq("prediction_validation_status", "approved");
   let actionQuery = admin
     .from("company_corrective_actions")
     .select("category, severity, created_at, status");
@@ -899,7 +900,8 @@ async function fetchLiveSignals(
     .from("company_incidents")
     .select(
       "title, description, category, severity, created_at, injury_month, injury_season, injury_day_of_week, injury_time_of_day, injury_type, exposure_event_type"
-    );
+    )
+    .eq("prediction_validation_status", "approved");
 
   if (companyId) {
     sorQuery = sorQuery.eq("company_id", companyId);
@@ -1558,6 +1560,7 @@ async function fetchIncidentCreatedAtInRange(
     const { data, error } = await admin
       .from("company_incidents")
       .select("created_at, title, description")
+      .eq("prediction_validation_status", "approved")
       .gte("created_at", start.toISOString())
       .lt("created_at", end.toISOString())
       .order("created_at", { ascending: true })

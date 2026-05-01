@@ -65,6 +65,7 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/superadmin/system-health", label: "Superadmin System Health", short: "SH" },
   { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
   { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
+  { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
   { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
   { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
@@ -229,6 +230,7 @@ export const adminSideSections: NavSection[] = [
       { href: "/superadmin/system-health", label: "Superadmin System Health", short: "SH" },
       { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
       { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
+      { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
       { href: "/superadmin/builder-text", label: "Builder text", short: "BT" },
       {
         href: "/superadmin/jurisdiction-standards",
@@ -263,6 +265,7 @@ export const superadminOnlySideSections: NavSection[] = [
     title: "AI control plane",
     items: [
       { href: "/superadmin/ai-engine", label: "AI Engine Operations", short: "AI" },
+      { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
     ],
   },
 ];

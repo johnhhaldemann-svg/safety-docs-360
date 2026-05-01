@@ -23,6 +23,12 @@ export type SorRecordRow = {
   previous_hash: string | null;
   change_reason: string | null;
   is_deleted: boolean;
+  prediction_validation_status?: "pending" | "approved" | "rejected";
+  prediction_review_rating?: number | null;
+  prediction_review_notes?: string | null;
+  prediction_review_tags?: string[] | null;
+  prediction_reviewed_by?: string | null;
+  prediction_reviewed_at?: string | null;
 };
 
 export type SorAuditLogRow = {

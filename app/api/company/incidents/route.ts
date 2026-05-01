@@ -288,8 +288,6 @@ export async function POST(request: Request) {
     },
     created_by: auth.user.id,
   });
-  const facetRow = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
-  void upsertRiskMemoryFacetSafe(auth.supabase, facetRow);
   return NextResponse.json({ success: true, incident: result.data });
 }
 
@@ -510,7 +508,9 @@ export async function PATCH(request: Request) {
     },
     created_by: auth.user.id,
   });
-  const facetPatch = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
-  void upsertRiskMemoryFacetSafe(auth.supabase, facetPatch);
+  if (result.data.prediction_validation_status === "approved") {
+    const facetPatch = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
+    void upsertRiskMemoryFacetSafe(auth.supabase, facetPatch);
+  }
   return NextResponse.json({ success: true, incident: result.data });
 }
