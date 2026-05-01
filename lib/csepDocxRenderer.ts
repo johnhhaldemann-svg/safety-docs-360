@@ -2837,10 +2837,9 @@ function buildAppendixDFieldReferenceSection(draft: GeneratedSafetyPlanDraft): C
     cleanFinalText(draft.projectOverview.projectAddress) ||
     cleanFinalText(draft.projectOverview.location) ||
     "Confirm project address before field issue";
-  const gcCm = Array.isArray(draft.projectOverview.gcCm)
-    ? draft.projectOverview.gcCm.filter(Boolean).join(", ")
-    : cleanFinalText(typeof draft.projectOverview.gcCm === "string" ? draft.projectOverview.gcCm : null) ||
-      "GC / CM contact to be confirmed";
+  const gcCm =
+    formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(draft.projectOverview.gcCm)) ||
+    "GC / CM contact to be confirmed";
   return {
     key: "appendix_d_field_references_maps_and_contact_inserts",
     title: "Appendix D. Field References, Maps, and Contact Inserts",

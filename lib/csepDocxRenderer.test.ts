@@ -942,6 +942,30 @@ describe("csepDocxRenderer", () => {
     expect(appendixSlice).not.toMatch(/\bunknown\b/i);
   });
 
+  it("sanitizes placeholder GC / CM entries in Appendix D contacts", async () => {
+    const draft = createGeneratedDraft();
+    draft.projectOverview.gcCm = ["test"];
+    draft.sectionMap.push({
+      key: "appendix_d_field_references_maps_and_contact_inserts",
+      kind: "appendix",
+      order: 43,
+      title: "Appendix D. Field References, Maps, and Contact Inserts",
+      numberLabel: "Appendix D",
+      body: "Field references.",
+    });
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    const appendixStart = documentXml.lastIndexOf("Appendix D. Field References, Maps, and Contact Inserts");
+    expect(appendixStart).toBeGreaterThan(-1);
+    const appendixEnd = documentXml.indexOf("Disclaimer", appendixStart);
+    const appendixSlice = documentXml.slice(appendixStart, appendixEnd);
+
+    expect(appendixSlice).toContain("GC / CM");
+    expect(appendixSlice).not.toContain(">test<");
+    expect(appendixSlice).not.toContain("row 3 col 2");
+  });
+
   it("keeps plain bullet lines tied to their list tier with hanging indents", async () => {
     const draft = createGeneratedDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
