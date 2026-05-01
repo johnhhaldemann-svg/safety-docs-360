@@ -38,7 +38,10 @@ export function isCsepWorkspaceProduct(product: WorkspaceProduct): boolean {
 export const csepOnlyCompanySideSections: NavSectionLike[] = [
   {
     title: "Operations",
-    items: [{ href: "/dashboard", label: "Home Dashboard", short: "HM" }],
+    items: [
+      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/training", label: "Platform Training", short: "PT" },
+    ],
   },
   {
     title: "Documents",
@@ -60,7 +63,10 @@ export const csepOnlyCompanySideSections: NavSectionLike[] = [
 const csepReadOnlySideSections: NavSectionLike[] = [
   {
     title: "Operations",
-    items: [{ href: "/dashboard", label: "Home Dashboard", short: "HM" }],
+    items: [
+      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/training", label: "Platform Training", short: "PT" },
+    ],
   },
   {
     title: "Documents",

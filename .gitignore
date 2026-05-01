@@ -16,6 +16,7 @@
 /test-results/
 /blob-report/
 /playwright/.auth/*.json
+/.codex-reference-render/training-previews/
 
 # next.js
 /.next/

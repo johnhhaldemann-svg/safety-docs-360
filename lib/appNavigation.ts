@@ -49,6 +49,7 @@ export function flattenNavItemsFromSections(
 export const userQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/library", label: "Library", short: "LB" },
+  { href: "/training", label: "Training", short: "PT" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
 ];
@@ -99,6 +100,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
+  { href: "/training", label: "Training", short: "PT" },
   { href: "/company-users", label: "Team & Access", short: "TM" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
@@ -139,6 +141,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
+  { href: "/training", label: "Training", short: "PT" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
@@ -155,6 +158,7 @@ export const companyUserQuickLinks: NavItem[] = [
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
+  { href: "/training", label: "Training", short: "PT" },
   { href: "/submit", label: "Submit for Review", short: "SB" },
   { href: "/upload", label: "Upload Documents", short: "UP" },
   { href: "/profile", label: "My Profile", short: "CP" },
@@ -165,6 +169,7 @@ export const userSideSections: NavSection[] = [
     title: "Workspace",
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/training", label: "Training", short: "PT" },
     ],
   },
   {
@@ -314,6 +319,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Team & access",
     items: [
       { href: "/company-users", label: "Team & Access", short: "US" },
+      { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/company-contractors", label: "Contractor compliance", short: "CQ" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/profile", label: "My Profile", short: "CP" },
@@ -347,6 +353,7 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Home Dashboard", short: "HM" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
+      { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "Purchases", short: "MP" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
@@ -445,6 +452,7 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Training & profile",
     items: [
+      { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/profile", label: "My Profile", short: "CP" },
     ],

@@ -20,7 +20,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { FieldMetricBarChart } from "@/components/metrics/FieldMetricBarChart";
@@ -63,7 +63,6 @@ const supabase = getSupabaseBrowserClient();
 
 type FieldIssueLogTab = "board" | "analytics";
 type CorrectionHubView = "consolidated" | "location" | "mine" | "overdue" | "completed";
-
 function fieldIssueLogTabFromSearchParams(searchParams: URLSearchParams): FieldIssueLogTab {
   const raw = (searchParams.get("tab") ?? "").trim().toLowerCase();
   if (raw === "analytics" || raw === "metrics") {
@@ -309,31 +308,6 @@ function isHighPriorityIssue(item: CorrectiveActionRow) {
   );
 }
 
-function isIssueOverdue(item: CorrectiveActionRow, referenceTime: number) {
-  if (!isActiveIssue(item) || !item.due_at) return false;
-  const dueTime = new Date(item.due_at).getTime();
-  return !Number.isNaN(dueTime) && dueTime < referenceTime;
-}
-
-function isDueOnDay(item: CorrectiveActionRow, timestamp: number) {
-  if (!item.due_at) return false;
-  const dueDate = new Date(item.due_at);
-  if (Number.isNaN(dueDate.getTime())) return false;
-  const target = new Date(timestamp);
-  return (
-    dueDate.getFullYear() === target.getFullYear() &&
-    dueDate.getMonth() === target.getMonth() &&
-    dueDate.getDate() === target.getDate()
-  );
-}
-
-function isDueWithinDays(item: CorrectiveActionRow, referenceTime: number, days: number) {
-  if (!isActiveIssue(item) || !item.due_at) return false;
-  const dueTime = new Date(item.due_at).getTime();
-  if (Number.isNaN(dueTime)) return false;
-  return dueTime >= referenceTime && dueTime <= referenceTime + days * 24 * 60 * 60 * 1000;
-}
-
 function getPriorityLabel(item: CorrectiveActionRow) {
   if (isHighPriorityIssue(item)) return "High";
   if (item.severity === "medium") return "Medium";
@@ -538,9 +512,9 @@ export default function FieldIdExchangePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [correctionHubView, setCorrectionHubView] =
-    useState<CorrectionHubView>("consolidated");
+  const [correctionHubView, setCorrectionHubView] = useState<CorrectionHubView>("consolidated");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [openRowActionMenuId, setOpenRowActionMenuId] = useState<string | null>(null);
   const [analyticsStartDate, setAnalyticsStartDate] = useState(() =>
     formatDateInput(subtractDays(Date.now(), 89))
   );
@@ -580,10 +554,13 @@ export default function FieldIdExchangePage() {
   } | null>(null);
 
   useEffect(() => {
-    void (async () => {
-      const result = await supabase.auth.getUser();
-      setCurrentUserId(result.data.user?.id ?? null);
-    })();
+    let mounted = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (mounted) setCurrentUserId(data.user?.id ?? null);
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -793,29 +770,43 @@ export default function FieldIdExchangePage() {
     (item) => isActiveIssue(item) && Boolean(item.sif_potential)
   ).length;
   const awaitingClosureCount = filteredItems.filter((item) => item.status === "corrected").length;
-  const dueTodayCount = filteredItems.filter(
-    (item) => isActiveIssue(item) && isDueOnDay(item, referenceTime)
-  ).length;
-  const dueThisWeekCount = filteredItems.filter((item) =>
-    isDueWithinDays(item, referenceTime, 7)
-  ).length;
+  const todayStart = new Date(referenceTime);
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(todayStart.getDate() + 1);
+  const nextWeekEnd = new Date(todayStart);
+  nextWeekEnd.setDate(todayStart.getDate() + 7);
+  const dueTodayCount = filteredItems.filter((item) => {
+    if (!isActiveIssue(item) || !item.due_at) return false;
+    const dueTime = new Date(item.due_at).getTime();
+    return dueTime >= todayStart.getTime() && dueTime < tomorrowStart.getTime();
+  }).length;
+  const dueThisWeekCount = filteredItems.filter((item) => {
+    if (!isActiveIssue(item) || !item.due_at) return false;
+    const dueTime = new Date(item.due_at).getTime();
+    return dueTime >= todayStart.getTime() && dueTime < nextWeekEnd.getTime();
+  }).length;
   const completedCount = filteredItems.filter((item) => item.status === "verified_closed").length;
-
   const correctionHubItems = useMemo(() => {
+    if (correctionHubView === "mine") {
+      const activeItems = filteredItems.filter(isActiveIssue);
+      return currentUserId
+        ? activeItems.filter((item) => item.assigned_user_id === currentUserId)
+        : activeItems;
+    }
+    if (correctionHubView === "overdue") {
+      return filteredItems.filter(
+        (item) =>
+          isActiveIssue(item) &&
+          Boolean(item.due_at) &&
+          new Date(item.due_at as string).getTime() < referenceTime
+      );
+    }
     if (correctionHubView === "completed") {
       return filteredItems.filter((item) => item.status === "verified_closed");
     }
-    if (correctionHubView === "overdue") {
-      return filteredItems.filter((item) => isIssueOverdue(item, referenceTime));
-    }
-    if (correctionHubView === "mine") {
-      return currentUserId
-        ? filteredItems.filter((item) => item.assigned_user_id === currentUserId)
-        : [];
-    }
     return filteredItems.filter(isActiveIssue);
   }, [correctionHubView, currentUserId, filteredItems, referenceTime]);
-
   const groupedHubItems = useMemo(() => {
     const groups = new Map<string, CorrectiveActionRow[]>();
     for (const item of filteredItems.filter(isActiveIssue)) {
@@ -824,9 +815,8 @@ export default function FieldIdExchangePage() {
         : "General Workspace";
       groups.set(location, [...(groups.get(location) ?? []), item]);
     }
-    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredItems, jobsiteNameById]);
-
   const activityItems = filteredItems.map((item) => ({
     id: item.id,
     title: item.title,
@@ -1667,20 +1657,19 @@ export default function FieldIdExchangePage() {
     },
   ];
 
-  const hubMetrics = [
-    { label: "Overdue", value: overdueCount, color: "text-red-600" },
-    { label: "Due Today", value: dueTodayCount, color: "text-orange-500" },
-    { label: "Due This Week", value: dueThisWeekCount, color: "text-blue-600" },
-    { label: "In Progress", value: inProgressCount, color: "text-blue-700" },
-    { label: "Completed", value: completedCount, color: "text-emerald-600" },
-  ];
-
   const hubTabs: Array<{ id: CorrectionHubView; label: string }> = [
     { id: "consolidated", label: "Consolidated" },
     { id: "location", label: "Grouped by Location" },
     { id: "mine", label: "My Actions" },
     { id: "overdue", label: `Overdue (${overdueCount})` },
     { id: "completed", label: "Completed" },
+  ];
+  const hubMetrics = [
+    { label: "Overdue", value: overdueCount, tone: "text-red-600" },
+    { label: "Due Today", value: dueTodayCount, tone: "text-orange-500" },
+    { label: "Due This Week", value: dueThisWeekCount, tone: "text-blue-600" },
+    { label: "In Progress", value: inProgressCount, tone: "text-blue-700" },
+    { label: "Completed", value: completedCount, tone: "text-emerald-600" },
   ];
 
   function getLocationLabel(item: CorrectiveActionRow) {
@@ -1847,6 +1836,32 @@ export default function FieldIdExchangePage() {
           </div>
         ) : null}
       </>
+    );
+  }
+
+  function renderRowActionPanel(item: CorrectiveActionRow) {
+    return (
+      <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {renderPriorityPill(item)}
+              {renderStatusPill(item)}
+              <span className="font-mono text-[11px] font-semibold text-slate-500">{buildReportId(item)}</span>
+            </div>
+            <div className="mt-2 text-sm font-bold text-slate-950">{item.title}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <span>{getLocationLabel(item)}</span>
+              <span>{getReporterLabel(item)}</span>
+              <span>{item.due_at ? `Due ${formatRelative(item.due_at, referenceTime)}` : "No due date"}</span>
+              <span>Proof photos: {item.evidence_count ?? 0}</span>
+            </div>
+          </div>
+          <div className="lg:max-w-[34rem]">{renderIssueActionButtons(item, true)}</div>
+        </div>
+        {item.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{item.description}</p> : null}
+        {renderProofTools(item)}
+      </div>
     );
   }
 
@@ -2217,34 +2232,43 @@ export default function FieldIdExchangePage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredItems.slice(0, 12).map((item) => (
-                        <tr key={item.id} className="align-top transition hover:bg-blue-50/40">
-                          <td className="px-4 py-3">{renderPriorityPill(item)}</td>
-                          <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-700">{buildReportId(item)}</td>
-                          <td className="px-4 py-3">
-                            <div className="max-w-[16rem] font-semibold text-slate-950">{item.title}</div>
-                            {item.description ? <div className="mt-1 line-clamp-2 max-w-[18rem] text-[11px] leading-5 text-slate-500">{item.description}</div> : null}
-                          </td>
-                          <td className="px-4 py-3 text-slate-700">{getLocationLabel(item)}</td>
-                          <td className="px-4 py-3 text-slate-700">{getReporterLabel(item)}</td>
-                          <td className="px-4 py-3 text-slate-700">{getObservationTypeLabel(item)}</td>
-                          <td className="px-4 py-3 text-slate-600">{formatReportedDate(item.created_at)}</td>
-                          <td className="px-4 py-3">{renderStatusPill(item)}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCorrectionHubView("consolidated");
-                                  document.getElementById(`field-issue-action-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-                                }}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-700"
-                                aria-label={`Open actions for ${item.title}`}
-                              >
-                                <MoreVertical aria-hidden="true" className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                        <Fragment key={item.id}>
+                          <tr className="align-top transition hover:bg-blue-50/40">
+                            <td className="px-4 py-3">{renderPriorityPill(item)}</td>
+                            <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-700">{buildReportId(item)}</td>
+                            <td className="px-4 py-3">
+                              <div className="max-w-[16rem] font-semibold text-slate-950">{item.title}</div>
+                              {item.description ? <div className="mt-1 line-clamp-2 max-w-[18rem] text-[11px] leading-5 text-slate-500">{item.description}</div> : null}
+                            </td>
+                            <td className="px-4 py-3 text-slate-700">{getLocationLabel(item)}</td>
+                            <td className="px-4 py-3 text-slate-700">{getReporterLabel(item)}</td>
+                            <td className="px-4 py-3 text-slate-700">{getObservationTypeLabel(item)}</td>
+                            <td className="px-4 py-3 text-slate-600">{formatReportedDate(item.created_at)}</td>
+                            <td className="px-4 py-3">{renderStatusPill(item)}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenRowActionMenuId((current) => (current === item.id ? null : item.id))
+                                  }
+                                  aria-expanded={openRowActionMenuId === item.id}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-700"
+                                  aria-label={`Open actions for ${item.title}`}
+                                >
+                                  <MoreVertical aria-hidden="true" className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {openRowActionMenuId === item.id ? (
+                            <tr key={`${item.id}-actions`} className="bg-blue-50/20">
+                              <td colSpan={9} className="px-4 pb-4 pt-1">
+                                {renderRowActionPanel(item)}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -2252,10 +2276,23 @@ export default function FieldIdExchangePage() {
                 <div className="space-y-3 p-3 xl:hidden">
                   {filteredItems.slice(0, 12).map((item) => (
                     <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {renderPriorityPill(item)}
-                        {renderStatusPill(item)}
-                        <span className="font-mono text-[11px] font-semibold text-slate-500">{buildReportId(item)}</span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {renderPriorityPill(item)}
+                          {renderStatusPill(item)}
+                          <span className="font-mono text-[11px] font-semibold text-slate-500">{buildReportId(item)}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenRowActionMenuId((current) => (current === item.id ? null : item.id))
+                          }
+                          aria-expanded={openRowActionMenuId === item.id}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-700"
+                          aria-label={`Open actions for ${item.title}`}
+                        >
+                          <MoreVertical aria-hidden="true" className="h-4 w-4" />
+                        </button>
                       </div>
                       <div className="mt-3 font-semibold text-slate-950">{item.title}</div>
                       <div className="mt-2 grid gap-1 text-xs text-slate-600">
@@ -2263,6 +2300,9 @@ export default function FieldIdExchangePage() {
                         <span>{getReporterLabel(item)} · {getObservationTypeLabel(item)}</span>
                         <span>{formatReportedDate(item.created_at)}</span>
                       </div>
+                      {openRowActionMenuId === item.id ? (
+                        <div className="mt-4">{renderRowActionPanel(item)}</div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -2277,10 +2317,15 @@ export default function FieldIdExchangePage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(76,108,161,0.08)]">
+      <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-[0_12px_30px_rgba(76,108,161,0.06)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">Correction Action Hub</h2>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              Workflow
+            </div>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+              Correction Action Hub
+            </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
               Track tasks, assign owners, set due dates, and monitor progress to closure.
             </p>
@@ -2302,14 +2347,16 @@ export default function FieldIdExchangePage() {
             ))}
           </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {hubMetrics.map((metric) => (
-            <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 text-center shadow-sm">
+            <div key={metric.label} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-center">
               <div className="text-xs font-bold text-slate-700">{metric.label}</div>
-              <div className={`mt-2 text-2xl font-black tabular-nums ${metric.color}`}>{metric.value}</div>
+              <div className={`mt-2 text-3xl font-black ${metric.tone}`}>{metric.value}</div>
             </div>
           ))}
         </div>
+
         <div className="mt-5 space-y-3">
           {correctionHubView === "location" ? (
             groupedHubItems.length === 0 ? (
@@ -2326,9 +2373,14 @@ export default function FieldIdExchangePage() {
                       <div key={item.id} id={`field-issue-action-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div>
-                            <div className="flex flex-wrap items-center gap-2">{renderPriorityPill(item)}{renderStatusPill(item)}</div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {renderPriorityPill(item)}
+                              {renderStatusPill(item)}
+                            </div>
                             <div className="mt-2 font-semibold text-slate-950">{item.title}</div>
-                            <div className="mt-1 text-xs text-slate-500">{buildReportId(item)} · {getReporterLabel(item)} · {formatRelative(item.updated_at, referenceTime)}</div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {buildReportId(item)} - {getReporterLabel(item)} - {formatRelative(item.updated_at, referenceTime)}
+                            </div>
                           </div>
                           {renderIssueActionButtons(item, true)}
                         </div>

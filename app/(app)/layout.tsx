@@ -497,7 +497,7 @@ export default function AppLayout({
 
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library", "/search", "/customer/billing"];
+          const readOnlyCsepRoutes = ["/dashboard", "/training", "/profile", "/library", "/search", "/customer/billing"];
           const gatedReadOnlyCsepRoutes = readOnlyCsepRoutes.filter(canOpenCompanyRoute);
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -529,6 +529,7 @@ export default function AppLayout({
       if (workspaceProduct === "csep") {
         const csepRoutes = [
           "/dashboard",
+          "/training",
           "/profile",
           "/library",
           "/search",
@@ -555,7 +556,7 @@ export default function AppLayout({
         return;
       }
 
-      const companyAllowedRoutes = ["/dashboard", "/library", "/search", "/profile"];
+      const companyAllowedRoutes = ["/dashboard", "/training", "/library", "/search", "/profile"];
 
       if (companyId) {
         companyAllowedRoutes.push("/customer/billing");

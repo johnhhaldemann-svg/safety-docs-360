@@ -173,6 +173,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "Start workflow",
   },
   {
+    matcher: (href) => href === "/training",
+    group: "programs",
+    description: "Download platform walkthrough decks for onboarding and role-based training.",
+    primaryActionLabel: "Open training",
+  },
+  {
     matcher: (href) => href === "/company-inductions",
     group: "programs",
     description: "Configure induction programs and jobsite requirements for site access.",
