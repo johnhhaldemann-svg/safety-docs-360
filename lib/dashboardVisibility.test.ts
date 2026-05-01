@@ -23,6 +23,14 @@ const fullPerms: PermissionMap = {
   can_escalate_items: true,
   can_view_dashboards: true,
   can_view_reports: true,
+  can_access_document_library: true,
+  can_access_template_marketplace: true,
+  can_access_jobsites: true,
+  can_access_field_audits: true,
+  can_access_field_work: true,
+  can_access_training: true,
+  can_access_safety_intelligence: true,
+  can_access_billing: true,
 };
 
 describe("getDashboardOverviewSectionVisibility", () => {

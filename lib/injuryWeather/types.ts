@@ -2,6 +2,12 @@ import type { InjuryType } from "@/lib/incidents/injuryType";
 import type { SorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type { OshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 import type { DynamicForecastOutput } from "@/lib/injuryForecast/types";
+import type {
+  ForecastDataBucket,
+  ForecastIntegrityMetadata,
+  ForecastIntegritySummary,
+  ForecastTrustLevel,
+} from "@/lib/injuryWeather/forecastIntegrity";
 
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
@@ -115,6 +121,7 @@ export type AIFinalPrediction = {
 
 /** V2 normalized signal row (SOR trade primary; category inference only as fallback). */
 export type NormalizedLiveSignalRow = {
+  sourceId?: string | null;
   tradeId: string;
   tradeLabel: string;
   categoryId: string | null;
@@ -122,6 +129,10 @@ export type NormalizedLiveSignalRow = {
   severity: "low" | "medium" | "high" | "critical";
   created_at: string;
   source: "sor" | "corrective_action" | "incident";
+  forecastBucket?: ForecastDataBucket;
+  forecastTrustLevel?: ForecastTrustLevel;
+  forecastTrustWeight?: number;
+  forecastIntegrity?: ForecastIntegrityMetadata;
   /** SOR: resolved hazard class for leading-indicator → exposure mapping. */
   sorHazardCategoryCode?: SorHazardCategoryCode | null;
   status?: "open" | "closed";
@@ -143,6 +154,8 @@ export type RiskEngineV2Explainability = {
   excludedRowCount: number;
   tradeNormalizationSummary: string;
   sourceMix: { sor: number; corrective_action: number; incident: number };
+  trustMix: Record<ForecastTrustLevel, number>;
+  meanTrustWeight: number;
   leadingIndicatorWeightedScore: number;
   correctivePressureScore: number;
   laggingIndicatorScore: number;
@@ -390,6 +403,8 @@ export type InjuryWeatherDashboardData = {
   monthlyFocus: InjuryWeatherMonthlyFocusItem[];
   /** Runtime signal path diagnostics for superadmin troubleshooting. */
   engineDiagnostics: InjuryWeatherEngineDiagnostics;
+  /** Forecast data-quality gate: trust levels, exclusions, and missing-field health. */
+  forecastIntegrity?: ForecastIntegritySummary;
   /**
    * Layered Poisson-style hybrid engine (interpretable λ + ML hook placeholder).
    * Legacy headline tiles (`structuralRiskScore`, `increasedIncidentRiskPercent`, etc.) remain unchanged for compatibility.

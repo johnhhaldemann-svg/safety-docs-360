@@ -14,8 +14,16 @@ import {
 } from "@/lib/companyMemory";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
+
+function isDemoMemoryRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
+}
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request);
@@ -25,6 +33,10 @@ export async function GET(request: Request) {
 
   if (!canAccessCompanyMemoryAssist(auth.role)) {
     return NextResponse.json({ error: "You do not have access to company memory." }, { status: 403 });
+  }
+
+  if (isDemoMemoryRequest(auth)) {
+    return NextResponse.json({ items: [], capabilities: { canMutate: true } });
   }
 
   const companyScope = await getCompanyScope({

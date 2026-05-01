@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { buildAiPromptHash, resolveAiProvider } from "@/lib/ai/platform";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildAiPromptHash, getAiApiBaseUrl, resolveAiModelId, resolveAiProvider } from "@/lib/ai/platform";
 
 describe("AI platform helpers", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds a deterministic non-reversible prompt hash", () => {
     const prompt = "secret company hazard context";
     const hash = buildAiPromptHash(prompt);
@@ -18,5 +22,22 @@ describe("AI platform helpers", () => {
     expect(resolveAiProvider("anthropic/claude-3-7-sonnet")).toBe("anthropic");
     expect(resolveAiProvider("gpt-4.1")).toBe("openai");
     expect(resolveAiProvider("")).toBe("unknown");
+  });
+
+  it("defaults to the Vercel AI Gateway when a gateway key is configured", () => {
+    vi.stubEnv("OPENAI_API_KEY", "vck_test_key");
+    vi.stubEnv("OPENAI_BASE_URL", "");
+
+    expect(getAiApiBaseUrl()).toBe("https://ai-gateway.vercel.sh/v1");
+    expect(resolveAiModelId("gpt-4o-mini")).toBe("openai/gpt-4o-mini");
+    expect(resolveAiModelId("openai/gpt-4o-mini")).toBe("openai/gpt-4o-mini");
+  });
+
+  it("honors an explicit OpenAI-compatible base URL", () => {
+    vi.stubEnv("OPENAI_API_KEY", "vck_test_key");
+    vi.stubEnv("OPENAI_BASE_URL", "https://api.openai.com/v1/");
+
+    expect(getAiApiBaseUrl()).toBe("https://api.openai.com/v1");
+    expect(resolveAiModelId("gpt-4o-mini")).toBe("gpt-4o-mini");
   });
 });

@@ -34,6 +34,14 @@ function buildPermissionMap(overrides: Partial<PermissionMap> = {}): PermissionM
     can_escalate_items: false,
     can_view_dashboards: false,
     can_view_reports: false,
+    can_access_document_library: false,
+    can_access_template_marketplace: false,
+    can_access_jobsites: false,
+    can_access_field_audits: false,
+    can_access_field_work: false,
+    can_access_training: false,
+    can_access_safety_intelligence: false,
+    can_access_billing: false,
     ...overrides,
   };
 }
@@ -43,6 +51,8 @@ describe("companyFeatureAccess", () => {
     const permissions = buildPermissionMap({
       can_create_documents: true,
       can_edit_documents: true,
+      can_access_field_work: true,
+      can_access_jobsites: true,
     });
 
     expect(canManageCompanyJsa("project_manager", permissions)).toBe(true);
@@ -58,6 +68,7 @@ describe("companyFeatureAccess", () => {
     const permissions = buildPermissionMap({
       can_create_documents: true,
       can_edit_documents: true,
+      can_access_field_work: true,
     });
 
     expect(canManageCompanyPermits("project_manager", permissions)).toBe(false);
@@ -79,6 +90,8 @@ describe("companyFeatureAccess", () => {
     const permissions = buildPermissionMap({
       can_manage_company_users: true,
       can_view_dashboards: true,
+      can_access_training: true,
+      can_access_jobsites: true,
     });
 
     expect(canViewCompanyTrainingMatrix("field_user", permissions)).toBe(true);
@@ -113,8 +126,42 @@ describe("companyFeatureAccess", () => {
     ];
 
     for (const role of roles) {
-      expect(canAccessCompanyWorkspaceHref("/field-audits", role, buildPermissionMap()), role).toBe(true);
+      expect(
+        canAccessCompanyWorkspaceHref(
+          "/field-audits",
+          role,
+          buildPermissionMap({ can_access_field_audits: true })
+        ),
+        role
+      ).toBe(true);
     }
+  });
+
+  it("lets company-level feature flags hide entire page groups", () => {
+    const permissions = buildPermissionMap({
+      can_create_documents: true,
+      can_edit_documents: true,
+      can_submit_documents: true,
+      can_view_dashboards: true,
+      can_view_reports: true,
+      can_view_analytics: true,
+      can_manage_company_users: true,
+      can_access_document_library: true,
+      can_access_jobsites: false,
+      can_access_field_audits: false,
+      can_access_field_work: false,
+      can_access_training: false,
+      can_access_safety_intelligence: false,
+      can_access_billing: false,
+    });
+
+    expect(canAccessCompanyWorkspaceHref("/library", "company_admin", permissions)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/jobsites", "company_admin", permissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/field-audits", "company_admin", permissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/jsa", "company_admin", permissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/training-matrix", "company_admin", permissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/safety-intelligence", "company_admin", permissions)).toBe(false);
+    expect(canAccessCompanyWorkspaceHref("/customer/billing", "company_admin", permissions)).toBe(false);
   });
 
   it("allows sales demo accounts to showcase company workspace operators", () => {
@@ -126,6 +173,14 @@ describe("companyFeatureAccess", () => {
       can_view_all_company_data: true,
       can_view_dashboards: true,
       can_view_reports: true,
+      can_access_document_library: true,
+      can_access_template_marketplace: true,
+      can_access_jobsites: true,
+      can_access_field_audits: true,
+      can_access_field_work: true,
+      can_access_training: true,
+      can_access_safety_intelligence: true,
+      can_access_billing: true,
     });
 
     expect(canViewCompanyTrainingMatrix("sales_demo", demoPermissions)).toBe(true);

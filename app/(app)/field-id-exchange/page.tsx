@@ -1,6 +1,22 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
+import {
+  BarChart3,
+  CheckCircle2,
+  Eye,
+  Flag,
+  History,
+  ListFilter,
+  Menu,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Upload,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -16,7 +32,6 @@ import {
   ActivityFeed,
   EmptyState,
   InlineMessage,
-  PageHero,
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
@@ -47,6 +62,7 @@ import { fieldIdMatrixTableLayout } from "@/lib/tableDensityLayout";
 const supabase = getSupabaseBrowserClient();
 
 type FieldIssueLogTab = "board" | "analytics";
+type CorrectionHubView = "consolidated" | "location" | "mine" | "overdue" | "completed";
 
 function fieldIssueLogTabFromSearchParams(searchParams: URLSearchParams): FieldIssueLogTab {
   const raw = (searchParams.get("tab") ?? "").trim().toLowerCase();
@@ -92,6 +108,14 @@ type CorrectiveActionRow = {
   manager_override_reason: string | null;
   evidence_count?: number;
   latest_evidence_path?: string | null;
+  priority?: "low" | "medium" | "high" | "critical" | null;
+  observation_type?: "positive" | "negative" | "near_miss" | null;
+  sif_potential?: boolean | null;
+  sif_category?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  immediate_action_required?: boolean | null;
+  time_to_close_hours?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -270,6 +294,78 @@ function getCategoryLabel(category: CorrectiveActionRow["category"]) {
   return labels[category];
 }
 
+function isActiveIssue(item: CorrectiveActionRow) {
+  return item.status !== "verified_closed";
+}
+
+function isHighPriorityIssue(item: CorrectiveActionRow) {
+  return (
+    isActiveIssue(item) &&
+    (item.priority === "high" ||
+      item.priority === "critical" ||
+      item.severity === "high" ||
+      item.severity === "critical" ||
+      Boolean(item.immediate_action_required))
+  );
+}
+
+function isIssueOverdue(item: CorrectiveActionRow, referenceTime: number) {
+  if (!isActiveIssue(item) || !item.due_at) return false;
+  const dueTime = new Date(item.due_at).getTime();
+  return !Number.isNaN(dueTime) && dueTime < referenceTime;
+}
+
+function isDueOnDay(item: CorrectiveActionRow, timestamp: number) {
+  if (!item.due_at) return false;
+  const dueDate = new Date(item.due_at);
+  if (Number.isNaN(dueDate.getTime())) return false;
+  const target = new Date(timestamp);
+  return (
+    dueDate.getFullYear() === target.getFullYear() &&
+    dueDate.getMonth() === target.getMonth() &&
+    dueDate.getDate() === target.getDate()
+  );
+}
+
+function isDueWithinDays(item: CorrectiveActionRow, referenceTime: number, days: number) {
+  if (!isActiveIssue(item) || !item.due_at) return false;
+  const dueTime = new Date(item.due_at).getTime();
+  if (Number.isNaN(dueTime)) return false;
+  return dueTime >= referenceTime && dueTime <= referenceTime + days * 24 * 60 * 60 * 1000;
+}
+
+function getPriorityLabel(item: CorrectiveActionRow) {
+  if (isHighPriorityIssue(item)) return "High";
+  if (item.severity === "medium") return "Medium";
+  return "Low";
+}
+
+function getObservationTypeLabel(item: CorrectiveActionRow) {
+  if (item.observation_type === "positive") return "Good Catch";
+  if (item.observation_type === "near_miss") return "Near Miss";
+  return getCategoryLabel(item.category);
+}
+
+function buildReportId(item: CorrectiveActionRow) {
+  const createdAt = new Date(item.created_at);
+  const year = Number.isNaN(createdAt.getTime()) ? new Date().getFullYear() : createdAt.getFullYear();
+  const shortId = item.id.replace(/-/g, "").slice(0, 4).toUpperCase().padEnd(4, "0");
+  return `OBS-${year}-${shortId}`;
+}
+
+function formatReportedDate(timestamp?: string | null) {
+  if (!timestamp) return "Recently";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 async function getAuthHeaders() {
   const sessionResult = await supabase.auth.getSession();
   const accessToken = sessionResult.data.session?.access_token;
@@ -440,6 +536,11 @@ export default function FieldIdExchangePage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [correctionHubView, setCorrectionHubView] =
+    useState<CorrectionHubView>("consolidated");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [analyticsStartDate, setAnalyticsStartDate] = useState(() =>
     formatDateInput(subtractDays(Date.now(), 89))
   );
@@ -480,6 +581,13 @@ export default function FieldIdExchangePage() {
 
   useEffect(() => {
     void (async () => {
+      const result = await supabase.auth.getUser();
+      setCurrentUserId(result.data.user?.id ?? null);
+    })();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
       try {
         const headers = await getAuthHeaders();
         const res = await fetchWithTimeout("/api/company/contractors", { headers }, 12000);
@@ -512,15 +620,16 @@ export default function FieldIdExchangePage() {
 
     async function loadActions() {
       setLoadingActions(true);
+      setHasLoaded(true);
       try {
         const headers = await getAuthHeaders();
         const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
-          fetchWithTimeout("/api/company/observations", { headers }, 15000),
+          fetchWithTimeout("/api/company/corrective-actions", { headers }, 15000),
           fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
           fetchWithTimeout("/api/company/jsa-activities", { headers }, 15000),
         ]);
         const actionsPayload = (await actionsResponse.json().catch(() => null)) as
-          | { actions?: CorrectiveActionRow[]; error?: string }
+          | { actions?: CorrectiveActionRow[]; observations?: CorrectiveActionRow[]; error?: string }
           | null;
         const submissionsPayload = (await submissionsResponse.json().catch(() => null)) as
           | { submissions?: SafetySubmissionRow[]; error?: string }
@@ -534,7 +643,7 @@ export default function FieldIdExchangePage() {
             setMessage(actionsPayload?.error || "Unable to load corrective actions.");
             setMessageTone("error");
           } else {
-            setActions(actionsPayload?.actions ?? []);
+            setActions(actionsPayload?.actions ?? actionsPayload?.observations ?? []);
             setPendingSubmissions(
               submissionsResponse.ok ? submissionsPayload?.submissions ?? [] : []
             );
@@ -630,14 +739,21 @@ export default function FieldIdExchangePage() {
       const ownerLabel = item.assigned_user_id
         ? (assigneeLabelById.get(item.assigned_user_id) ?? "Assigned User")
         : "Unassigned";
+      const reporterLabel =
+        (item.created_by ? assigneeLabelById.get(item.created_by) : null) ??
+        (item.updated_by ? assigneeLabelById.get(item.updated_by) : null) ??
+        ownerLabel;
       const matchesSearch =
         !normalizedSearch ||
         [
+          buildReportId(item),
           item.title,
           item.description || "",
           ownerLabel,
+          reporterLabel,
           actionJobsite || "General Workspace",
           getSeverityLabel(item.severity),
+          getObservationTypeLabel(item),
           statusLabel,
         ]
           .join(" ")
@@ -671,6 +787,45 @@ export default function FieldIdExchangePage() {
       .map((item) => (item.jobsite_id ? jobsiteNameById.get(item.jobsite_id) ?? "" : "General Workspace"))
       .filter(Boolean)
   ).size;
+  const openObservationsCount = filteredItems.filter(isActiveIssue).length;
+  const highPriorityCount = filteredItems.filter(isHighPriorityIssue).length;
+  const sifPotentialCount = filteredItems.filter(
+    (item) => isActiveIssue(item) && Boolean(item.sif_potential)
+  ).length;
+  const awaitingClosureCount = filteredItems.filter((item) => item.status === "corrected").length;
+  const dueTodayCount = filteredItems.filter(
+    (item) => isActiveIssue(item) && isDueOnDay(item, referenceTime)
+  ).length;
+  const dueThisWeekCount = filteredItems.filter((item) =>
+    isDueWithinDays(item, referenceTime, 7)
+  ).length;
+  const completedCount = filteredItems.filter((item) => item.status === "verified_closed").length;
+
+  const correctionHubItems = useMemo(() => {
+    if (correctionHubView === "completed") {
+      return filteredItems.filter((item) => item.status === "verified_closed");
+    }
+    if (correctionHubView === "overdue") {
+      return filteredItems.filter((item) => isIssueOverdue(item, referenceTime));
+    }
+    if (correctionHubView === "mine") {
+      return currentUserId
+        ? filteredItems.filter((item) => item.assigned_user_id === currentUserId)
+        : [];
+    }
+    return filteredItems.filter(isActiveIssue);
+  }, [correctionHubView, currentUserId, filteredItems, referenceTime]);
+
+  const groupedHubItems = useMemo(() => {
+    const groups = new Map<string, CorrectiveActionRow[]>();
+    for (const item of filteredItems.filter(isActiveIssue)) {
+      const location = item.jobsite_id
+        ? (jobsiteNameById.get(item.jobsite_id) ?? "Jobsite")
+        : "General Workspace";
+      groups.set(location, [...(groups.get(location) ?? []), item]);
+    }
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredItems, jobsiteNameById]);
 
   const activityItems = filteredItems.map((item) => ({
     id: item.id,
@@ -859,7 +1014,7 @@ export default function FieldIdExchangePage() {
     try {
       const headers = await getAuthHeaders();
       const [actionsResponse, submissionsResponse, activitiesResponse] = await Promise.all([
-        fetchWithTimeout("/api/company/observations", { headers }, 15000),
+        fetchWithTimeout("/api/company/corrective-actions", { headers }, 15000),
         fetchWithTimeout("/api/company/safety-submissions?status=pending", { headers }, 15000),
         fetchWithTimeout("/api/company/jsa-activities", { headers }, 15000),
       ]);
@@ -985,13 +1140,19 @@ export default function FieldIdExchangePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const response = await fetchWithTimeout("/api/company/observations", {
+      const response = await fetchWithTimeout("/api/company/corrective-actions", {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
           title: composer.title,
           description: composer.description,
           severity: composer.severity,
+          category:
+            composer.observationType === "positive"
+              ? "good_catch"
+              : composer.observationType === "near_miss"
+                ? "near_miss"
+                : "hazard",
           jobsiteId: composer.jobsiteId,
           assignedUserId: composer.assignedUserId,
           dueAt: composer.dueAt,
@@ -1030,6 +1191,7 @@ export default function FieldIdExchangePage() {
         return;
       }
       setComposer(EMPTY_CREATE_ACTION);
+      setShowCreatePanel(false);
       const okMsg = payload?.message || "Corrective action created.";
       setMessage(okMsg);
       setMessageTone("success");
@@ -1116,7 +1278,7 @@ export default function FieldIdExchangePage() {
         const p = row.payload;
         try {
           const response = await fetchWithTimeout(
-            "/api/company/observations",
+            "/api/company/corrective-actions",
             {
               method: "POST",
               headers,
@@ -1124,6 +1286,7 @@ export default function FieldIdExchangePage() {
                 title: p.title,
                 description: p.description ?? "",
                 severity: p.severity,
+                category: p.category ?? "hazard",
                 jobsiteId: p.jobsiteId ?? "",
                 assignedUserId: p.assignedUserId ?? "",
                 dueAt: p.dueAt ?? "",
@@ -1186,21 +1349,30 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(action.id);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${action.id}`, {
-        method: "PATCH",
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          status: nextStatus,
-          workflowStatus: nextStatus,
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
-      if (!response.ok) {
-        setMessage(payload?.error || "Failed to update action status.");
-        setMessageTone("error");
-        return;
+      const headers = await getAuthHeaders();
+      const statusSequence =
+        action.status === "open" && nextStatus === "in_progress"
+          ? (["assigned", "in_progress"] as const)
+          : action.status === "assigned" && nextStatus === "stop_work"
+            ? (["in_progress", "stop_work"] as const)
+            : ([nextStatus] as const);
+      for (const status of statusSequence) {
+        const response = await fetch(`/api/company/corrective-actions/${action.id}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            status,
+            workflowStatus: status,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+        if (!response.ok) {
+          setMessage(payload?.error || "Failed to update action status.");
+          setMessageTone("error");
+          return;
+        }
       }
-      setMessage(payload?.message || "Action status updated.");
+      setMessage("Action status updated.");
       setMessageTone("success");
       await reloadActions();
     } catch (error) {
@@ -1230,7 +1402,7 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(actionId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${actionId}/close`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/close`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -1261,7 +1433,7 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(action.id);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${action.id}`, {
+      const response = await fetch(`/api/company/corrective-actions/${action.id}`, {
         method: "PATCH",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -1300,7 +1472,7 @@ export default function FieldIdExchangePage() {
     setUpdatingActionId(actionId);
     setMessage(null);
     try {
-      const uploadUrlResponse = await fetch(`/api/company/observations/${actionId}/upload-url`, {
+      const uploadUrlResponse = await fetch(`/api/company/corrective-actions/${actionId}/upload-url`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -1317,16 +1489,18 @@ export default function FieldIdExchangePage() {
         return;
       }
       const bucket = uploadUrlPayload.bucket || "documents";
-      const uploadResult = await supabase.storage
-        .from(bucket)
-        .uploadToSignedUrl(uploadUrlPayload.path, uploadUrlPayload.token, evidenceComposer.file);
-      if (uploadResult.error) {
-        setMessage(`Proof upload failed: ${uploadResult.error.message}`);
-        setMessageTone("error");
-        return;
+      if (uploadUrlPayload.token !== "offline-demo-token") {
+        const uploadResult = await supabase.storage
+          .from(bucket)
+          .uploadToSignedUrl(uploadUrlPayload.path, uploadUrlPayload.token, evidenceComposer.file);
+        if (uploadResult.error) {
+          setMessage(`Proof upload failed: ${uploadResult.error.message}`);
+          setMessageTone("error");
+          return;
+        }
       }
 
-      const response = await fetch(`/api/company/observations/${actionId}/evidence`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: JSON.stringify({
@@ -1422,7 +1596,7 @@ export default function FieldIdExchangePage() {
     setLoadingProofHistoryActionId(actionId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/company/observations/${actionId}/evidence/list`, {
+      const response = await fetch(`/api/company/corrective-actions/${actionId}/evidence/list`, {
         headers: await getAuthHeaders(),
       });
       const payload = (await response.json().catch(() => null)) as
@@ -1462,57 +1636,757 @@ export default function FieldIdExchangePage() {
     { href: "#fiel-analytics-matrix", label: "Matrix" },
   ];
 
+  const workQueueMetrics = [
+    {
+      label: "Open Observations",
+      value: openObservationsCount,
+      note: "Needs review",
+      icon: BarChart3,
+      color: "text-blue-600",
+    },
+    {
+      label: "High Priority",
+      value: highPriorityCount,
+      note: "Priority watch",
+      icon: Flag,
+      color: "text-red-600",
+    },
+    {
+      label: "SIF Potential",
+      value: sifPotentialCount,
+      note: "Serious injury exposure",
+      icon: ShieldAlert,
+      color: "text-orange-600",
+    },
+    {
+      label: "Awaiting Closure",
+      value: awaitingClosureCount,
+      note: "Ready to verify",
+      icon: CheckCircle2,
+      color: "text-emerald-600",
+    },
+  ];
+
+  const hubMetrics = [
+    { label: "Overdue", value: overdueCount, color: "text-red-600" },
+    { label: "Due Today", value: dueTodayCount, color: "text-orange-500" },
+    { label: "Due This Week", value: dueThisWeekCount, color: "text-blue-600" },
+    { label: "In Progress", value: inProgressCount, color: "text-blue-700" },
+    { label: "Completed", value: completedCount, color: "text-emerald-600" },
+  ];
+
+  const hubTabs: Array<{ id: CorrectionHubView; label: string }> = [
+    { id: "consolidated", label: "Consolidated" },
+    { id: "location", label: "Grouped by Location" },
+    { id: "mine", label: "My Actions" },
+    { id: "overdue", label: `Overdue (${overdueCount})` },
+    { id: "completed", label: "Completed" },
+  ];
+
+  function getLocationLabel(item: CorrectiveActionRow) {
+    return item.jobsite_id ? (jobsiteNameById.get(item.jobsite_id) ?? "Jobsite") : "General Workspace";
+  }
+
+  function getReporterLabel(item: CorrectiveActionRow) {
+    return (
+      (item.created_by ? assigneeLabelById.get(item.created_by) : null) ??
+      (item.updated_by ? assigneeLabelById.get(item.updated_by) : null) ??
+      (item.assigned_user_id ? assigneeLabelById.get(item.assigned_user_id) : null) ??
+      "Field User"
+    );
+  }
+
+  function renderPriorityPill(item: CorrectiveActionRow) {
+    const priority = getPriorityLabel(item);
+    const className =
+      priority === "High"
+        ? "border-red-200 bg-red-50 text-red-700"
+        : priority === "Medium"
+          ? "border-orange-200 bg-orange-50 text-orange-700"
+          : "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return (
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${className}`}>
+        {priority}
+      </span>
+    );
+  }
+
+  function renderStatusPill(item: CorrectiveActionRow) {
+    const className =
+      item.status === "verified_closed"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : item.status === "stop_work" || item.status === "escalated"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : item.status === "corrected"
+            ? "border-orange-200 bg-orange-50 text-orange-700"
+            : "border-blue-200 bg-blue-50 text-blue-700";
+    return (
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${className}`}>
+        {getStatusLabel(item.status)}
+      </span>
+    );
+  }
+
+  function renderIssueActionButtons(item: CorrectiveActionRow, compact = false) {
+    const buttonClass = compact
+      ? "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      : "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50";
+    const busy = updatingActionId === item.id;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {item.status === "open" ? (
+          <button type="button" onClick={() => void updateStatus(item, "assigned")} disabled={busy} className={buttonClass}>
+            Assign
+          </button>
+        ) : null}
+        {(item.status === "open" || item.status === "assigned") ? (
+          <button type="button" onClick={() => void updateStatus(item, "in_progress")} disabled={busy} className={buttonClass}>
+            Start
+          </button>
+        ) : null}
+        {item.status === "in_progress" ? (
+          <button type="button" onClick={() => void updateStatus(item, "corrected")} disabled={busy} className={buttonClass}>
+            Corrected
+          </button>
+        ) : null}
+        {(item.status === "open" || item.status === "assigned" || item.status === "in_progress") ? (
+          <button type="button" onClick={() => void updateStatus(item, "stop_work")} disabled={busy} className={buttonClass}>
+            Stop Work
+          </button>
+        ) : null}
+        {item.status !== "verified_closed" ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOpenEvidenceComposerId(openEvidenceComposerId === item.id ? null : item.id);
+              setEvidenceComposer(EMPTY_EVIDENCE_COMPOSER);
+            }}
+            disabled={busy}
+            className={buttonClass}
+          >
+            <Upload aria-hidden="true" className="h-3.5 w-3.5" />
+            Proof
+          </button>
+        ) : null}
+        {(item.evidence_count ?? 0) > 0 ? (
+          <button type="button" onClick={() => void openLatestProof(item)} disabled={openingProofActionId === item.id} className={buttonClass}>
+            <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+            Latest
+          </button>
+        ) : null}
+        {(item.evidence_count ?? 0) > 0 ? (
+          <button type="button" onClick={() => void toggleProofHistory(item.id)} disabled={loadingProofHistoryActionId === item.id} className={buttonClass}>
+            <History aria-hidden="true" className="h-3.5 w-3.5" />
+            History
+          </button>
+        ) : null}
+        {item.status !== "verified_closed" ? (
+          <button type="button" onClick={() => void closeAction(item.id)} disabled={busy} className={`${buttonClass} border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:text-emerald-800`}>
+            Verify
+          </button>
+        ) : null}
+        {(item.category === "near_miss" || item.category === "incident") && item.status !== "verified_closed" ? (
+          <button type="button" onClick={() => void convertToIncident(item)} disabled={busy} className={`${buttonClass} border-orange-200 text-orange-700 hover:border-orange-300 hover:text-orange-800`}>
+            Incident
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderProofTools(item: CorrectiveActionRow) {
+    return (
+      <>
+        {openEvidenceComposerId === item.id ? (
+          <div className="mt-3 space-y-2 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) =>
+                setEvidenceComposer((current) => ({
+                  ...current,
+                  file: event.target.files?.[0] ?? null,
+                }))
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500"
+            />
+            {evidenceComposer.file ? (
+              <div className="text-xs text-slate-500">Selected: {evidenceComposer.file.name}</div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void attachProof(item.id)}
+              disabled={updatingActionId === item.id}
+              className="inline-flex min-h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              Save Proof
+            </button>
+          </div>
+        ) : null}
+        {openProofHistoryActionId === item.id ? (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {loadingProofHistoryActionId === item.id ? (
+              <div className="text-xs text-slate-500">Loading proof history...</div>
+            ) : (proofHistoryByActionId[item.id] ?? []).length === 0 ? (
+              <div className="text-xs text-slate-500">No proof files found for this issue yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {(proofHistoryByActionId[item.id] ?? []).map((proof) => (
+                  <div key={proof.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-800">{proof.file_name}</div>
+                      <div className="text-[11px] text-slate-500">{formatRelative(proof.created_at, referenceTime)}</div>
+                    </div>
+                    <button type="button" onClick={() => void openProofFile(item.id, proof.file_path)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700">
+                      Open
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderCreatePanel() {
+    if (!showCreatePanel) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/35 backdrop-blur-sm">
+        <button
+          type="button"
+          aria-label="Close create observation panel"
+          className="absolute inset-0 cursor-default"
+          onClick={() => setShowCreatePanel(false)}
+        />
+        <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-600">Create Observation</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-950">New field issue</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreatePanel(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+              aria-label="Close panel"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Observation title</span>
+                <input
+                  type="text"
+                  value={composer.title}
+                  onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Exposed rebar in walkway"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500"
+                />
+              </label>
+              <label className="sm:col-span-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Description</span>
+                <textarea
+                  value={composer.description}
+                  onChange={(event) => setComposer((current) => ({ ...current, description: event.target.value }))}
+                  rows={3}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500"
+                />
+              </label>
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Severity</span>
+                <select
+                  value={composer.severity}
+                  onChange={(event) => setComposer((current) => ({ ...current, severity: event.target.value as CreateActionState["severity"] }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </label>
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Observation Type</span>
+                <select
+                  value={composer.observationType}
+                  onChange={(event) => setComposer((current) => ({ ...current, observationType: event.target.value as CreateActionState["observationType"] }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="negative">Negative</option>
+                  <option value="near_miss">Near Miss</option>
+                  <option value="positive">Positive</option>
+                </select>
+              </label>
+              {composer.observationType === "negative" ? (
+                <>
+                  <label>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">SIF Potential</span>
+                    <select
+                      value={composer.sifPotential}
+                      onChange={(event) => setComposer((current) => ({ ...current, sifPotential: event.target.value as CreateActionState["sifPotential"] }))}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">SIF Category</span>
+                    <select
+                      value={composer.sifCategory}
+                      onChange={(event) => setComposer((current) => ({ ...current, sifCategory: event.target.value as CreateActionState["sifCategory"] }))}
+                      disabled={composer.sifPotential !== "yes"}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100"
+                    >
+                      <option value="">Select category</option>
+                      <option value="fall_from_height">fall from height</option>
+                      <option value="struck_by">struck-by</option>
+                      <option value="caught_between">caught-between</option>
+                      <option value="electrical">electrical</option>
+                      <option value="excavation_collapse">excavation collapse</option>
+                      <option value="confined_space">confined space</option>
+                      <option value="hazardous_energy">hazardous energy</option>
+                      <option value="crane_rigging">crane / rigging</option>
+                      <option value="line_of_fire">line of fire</option>
+                    </select>
+                  </label>
+                </>
+              ) : null}
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Jobsite</span>
+                <select
+                  value={composer.jobsiteId}
+                  onChange={(event) => setComposer((current) => ({ ...current, jobsiteId: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="">General Workspace</option>
+                  {jobsites.map((jobsite) => (
+                    <option key={jobsite.id} value={jobsite.id}>{jobsite.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Assign to</span>
+                <select
+                  value={composer.assignedUserId}
+                  onChange={(event) => setComposer((current) => ({ ...current, assignedUserId: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="">Unassigned</option>
+                  {companyUsers.map((user) => (
+                    <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Due date</span>
+                <input
+                  type="date"
+                  value={composer.dueAt}
+                  onChange={(event) => setComposer((current) => ({ ...current, dueAt: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500"
+                />
+              </label>
+              <label>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Workflow status</span>
+                <select
+                  value={composer.workflowStatus}
+                  onChange={(event) => setComposer((current) => ({ ...current, workflowStatus: event.target.value as CreateActionState["workflowStatus"] }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="open">Open</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="corrected">Corrected</option>
+                  <option value="verified_closed">Verified Closed</option>
+                  <option value="escalated">Escalated</option>
+                  <option value="stop_work">Stop Work</option>
+                </select>
+              </label>
+              <label className="sm:col-span-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Link to JSA Activity</span>
+                <select
+                  value={composer.dapActivityId}
+                  onChange={(event) => setComposer((current) => ({ ...current, dapActivityId: event.target.value }))}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+                >
+                  <option value="">Ad-hoc observation</option>
+                  {dapActivities.map((activity) => (
+                    <option key={activity.id} value={activity.id}>{activity.activity_name}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <RiskMemoryFormFields
+                  showOutcomeFields={false}
+                  showPicklistSettingsLink
+                  value={composer.riskMemory}
+                  onChange={(riskMemory) => setComposer((current) => ({ ...current, riskMemory }))}
+                  contractors={contractors}
+                  crews={crews}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 px-5 py-4">
+            <button
+              type="button"
+              onClick={() => {
+                setComposer(EMPTY_CREATE_ACTION);
+                setShowAdvancedComposer(false);
+              }}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => void createAction()}
+              disabled={saving}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {saving ? "Saving..." : "Create Observation"}
+            </button>
+          </div>
+        </aside>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <PageHero
-        eyebrow="Company Board"
-        title="Corrective Action Hub"
-        description={`Track hazards and corrective actions for ${companyName} with assignees, due dates, reminders, and closure controls.`}
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <TableDensityToggle value={density} onChange={setDensity} disabled={loadingActions} />
+      {renderCreatePanel()}
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(76,108,161,0.10)]">
+        <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <nav className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <Link href="/dashboard" className="rounded-full border border-slate-200 px-3 py-1.5 text-blue-700 transition hover:bg-blue-50">
+              Dashboard
+            </Link>
+            <span>/</span>
+            <span>Observations</span>
+            <span>/</span>
+            <span>Corrective Actions</span>
+          </nav>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void reloadActions()}
               aria-busy={loadingActions}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
             >
-              {loadingActions ? "Refreshing..." : hasLoaded ? "Refresh Board" : "Load Board"}
+              <RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${loadingActions ? "animate-spin" : ""}`} />
+              {loadingActions ? "Refreshing" : hasLoaded ? "Refresh" : "Load"}
             </button>
-            <Link
-              href="/safety-submit"
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+            <button
+              type="button"
+              onClick={() => setShowCreatePanel(true)}
+              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
             >
-              Individual Safety Submission
-            </Link>
-            <Link
-              href="/upload"
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-            >
-              Upload Field Photo
-            </Link>
+              <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+              Create Observation
+            </button>
           </div>
-        }
-      />
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CompanyAiAssistPanel
-          surface="corrective_actions"
-          title="Corrective action assistant"
-          structuredContext={JSON.stringify({
-            open: openCount,
-            inProgress: inProgressCount,
-            overdue: overdueCount,
-            company: companyName,
-          })}
-        />
-        <CompanyMemoryBankPanel />
-      </div>
+        <div className="space-y-5 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <label className="relative min-w-0 flex-1">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search observations, locations, people, or tags"
+                aria-label="Search observations, locations, people, or tags"
+                className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void reloadActions()}
+              disabled={loadingActions}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              Search
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowFilterMenu((current) => !current)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-50"
+              >
+                <Menu aria-hidden="true" className="h-4 w-4" />
+                Menu
+              </button>
+              {showFilterMenu ? (
+                <div className="absolute right-0 top-12 z-20 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <ListFilter aria-hidden="true" className="h-4 w-4" />
+                    Filters
+                  </div>
+                  <div className="grid gap-3">
+                    <select value={jobsiteFilter} onChange={(event) => setJobsiteFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                      <option value="all">All jobsites</option>
+                      {jobsites.map((jobsite) => (
+                        <option key={jobsite.name} value={jobsite.name}>{jobsite.name}</option>
+                      ))}
+                    </select>
+                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                      <option value="all">All statuses</option>
+                      <option value="Open">Open</option>
+                      <option value="Assigned">Assigned</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Corrected">Corrected</option>
+                      <option value="Escalated">Escalated</option>
+                      <option value="Stop Work">Stop Work</option>
+                      <option value="Verified Closed">Verified Closed</option>
+                    </select>
+                    <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                      <option value="all">All categories</option>
+                      {categoryCounts.map((category) => (
+                        <option key={category.label} value={category.label}>{category.label}</option>
+                      ))}
+                    </select>
+                    <TableDensityToggle value={density} onChange={setDensity} disabled={loadingActions} />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
 
-      <InlineMessage tone="neutral">
-        This board stays on-demand. Click Refresh Board to load the current field items, then use
-        the cards and filters below to review or update corrective actions.
-      </InlineMessage>
+          {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+
+          <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+            <div className="mb-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700">Work Queue</p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Field Issue Log</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                Review and act on observations, with prioritization based on risk and time.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {workQueueMetrics.map((metric) => {
+                const Icon = metric.icon;
+                return (
+                  <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full border border-current/15 bg-current/5 ${metric.color}`}>
+                        <Icon aria-hidden="true" className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className={`text-2xl font-black tabular-nums ${metric.color}`}>{metric.value}</div>
+                        <div className="text-xs font-bold text-slate-900">{metric.label}</div>
+                        <div className="text-[11px] text-slate-500">{metric.note}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {!hasLoaded ? (
+              <EmptyState title="Loading field issues" description="The work queue is preparing the latest observations." />
+            ) : loadingActions ? (
+              <EmptyState title="Refreshing field issues" description="Please wait while the queue updates." />
+            ) : filteredItems.length === 0 ? (
+              <EmptyState title="No field issues match this view" description="Create an observation or adjust the filters to widen the queue." />
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto xl:block">
+                  <table className="min-w-[1080px] w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Priority</th>
+                        <th className="px-4 py-3">Report ID</th>
+                        <th className="px-4 py-3">Title</th>
+                        <th className="px-4 py-3">Location</th>
+                        <th className="px-4 py-3">Reported By</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Reported</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredItems.slice(0, 12).map((item) => (
+                        <tr key={item.id} className="align-top transition hover:bg-blue-50/40">
+                          <td className="px-4 py-3">{renderPriorityPill(item)}</td>
+                          <td className="px-4 py-3 font-mono text-[11px] font-semibold text-slate-700">{buildReportId(item)}</td>
+                          <td className="px-4 py-3">
+                            <div className="max-w-[16rem] font-semibold text-slate-950">{item.title}</div>
+                            {item.description ? <div className="mt-1 line-clamp-2 max-w-[18rem] text-[11px] leading-5 text-slate-500">{item.description}</div> : null}
+                          </td>
+                          <td className="px-4 py-3 text-slate-700">{getLocationLabel(item)}</td>
+                          <td className="px-4 py-3 text-slate-700">{getReporterLabel(item)}</td>
+                          <td className="px-4 py-3 text-slate-700">{getObservationTypeLabel(item)}</td>
+                          <td className="px-4 py-3 text-slate-600">{formatReportedDate(item.created_at)}</td>
+                          <td className="px-4 py-3">{renderStatusPill(item)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCorrectionHubView("consolidated");
+                                  document.getElementById(`field-issue-action-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-700"
+                                aria-label={`Open actions for ${item.title}`}
+                              >
+                                <MoreVertical aria-hidden="true" className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="space-y-3 p-3 xl:hidden">
+                  {filteredItems.slice(0, 12).map((item) => (
+                    <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {renderPriorityPill(item)}
+                        {renderStatusPill(item)}
+                        <span className="font-mono text-[11px] font-semibold text-slate-500">{buildReportId(item)}</span>
+                      </div>
+                      <div className="mt-3 font-semibold text-slate-950">{item.title}</div>
+                      <div className="mt-2 grid gap-1 text-xs text-slate-600">
+                        <span>{getLocationLabel(item)}</span>
+                        <span>{getReporterLabel(item)} · {getObservationTypeLabel(item)}</span>
+                        <span>{formatReportedDate(item.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {filteredItems.length > 12 ? (
+              <div className="border-t border-slate-100 px-4 py-3 text-sm font-semibold text-blue-700">
+                Showing 12 of {filteredItems.length} observations. Use filters to narrow the queue.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_40px_rgba(76,108,161,0.08)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-950">Correction Action Hub</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+              Track tasks, assign owners, set due dates, and monitor progress to closure.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {hubTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCorrectionHubView(tab.id)}
+                className={`min-h-9 rounded-lg border px-3 py-2 text-xs font-bold shadow-sm transition ${
+                  correctionHubView === tab.id
+                    ? "border-blue-400 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:text-blue-700"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {hubMetrics.map((metric) => (
+            <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <div className="text-xs font-bold text-slate-700">{metric.label}</div>
+              <div className={`mt-2 text-2xl font-black tabular-nums ${metric.color}`}>{metric.value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 space-y-3">
+          {correctionHubView === "location" ? (
+            groupedHubItems.length === 0 ? (
+              <EmptyState title="No grouped actions" description="Active observations will appear grouped by location." />
+            ) : (
+              groupedHubItems.map(([location, items]) => (
+                <div key={location} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="font-bold text-slate-950">{location}</div>
+                    <div className="text-xs font-semibold text-slate-500">{items.length} open item{items.length === 1 ? "" : "s"}</div>
+                  </div>
+                  <div className="space-y-3">
+                    {items.map((item) => (
+                      <div key={item.id} id={`field-issue-action-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">{renderPriorityPill(item)}{renderStatusPill(item)}</div>
+                            <div className="mt-2 font-semibold text-slate-950">{item.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">{buildReportId(item)} · {getReporterLabel(item)} · {formatRelative(item.updated_at, referenceTime)}</div>
+                          </div>
+                          {renderIssueActionButtons(item, true)}
+                        </div>
+                        {renderProofTools(item)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )
+          ) : correctionHubItems.length === 0 ? (
+            <EmptyState title="No actions in this view" description="Choose another segment or adjust filters to see corrective action workflow items." />
+          ) : (
+            correctionHubItems.map((item) => (
+              <div key={item.id} id={`field-issue-action-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {renderPriorityPill(item)}
+                      {renderStatusPill(item)}
+                      <span className="font-mono text-[11px] font-semibold text-slate-500">{buildReportId(item)}</span>
+                    </div>
+                    <div className="mt-2 text-base font-bold text-slate-950">{item.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      <span>{getLocationLabel(item)}</span>
+                      <span>{getReporterLabel(item)}</span>
+                      <span>{item.due_at ? `Due ${formatRelative(item.due_at, referenceTime)}` : "No due date"}</span>
+                      <span>Proof photos: {item.evidence_count ?? 0}</span>
+                    </div>
+                    {item.description ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{item.description}</p> : null}
+                  </div>
+                  {renderIssueActionButtons(item)}
+                </div>
+                {renderProofTools(item)}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <details className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(76,108,161,0.06)]">
+        <summary className="cursor-pointer text-sm font-bold text-slate-900">
+          Advanced tools and analytics
+        </summary>
+        <div className="mt-5 space-y-6">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CompanyAiAssistPanel
+              surface="corrective_actions"
+              title="Corrective action assistant"
+              structuredContext={JSON.stringify({
+                open: openCount,
+                inProgress: inProgressCount,
+                overdue: overdueCount,
+                company: companyName,
+              })}
+            />
+            <CompanyMemoryBankPanel />
+          </div>
 
       <Tabs.Root
         value={fieldIssueLogTab}
@@ -2743,6 +3617,8 @@ export default function FieldIdExchangePage() {
           )}
         </Tabs.Content>
       </Tabs.Root>
+        </div>
+      </details>
     </div>
   );
 }

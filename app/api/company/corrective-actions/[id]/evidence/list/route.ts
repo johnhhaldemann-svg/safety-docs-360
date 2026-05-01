@@ -2,15 +2,29 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
 function canViewCorrectiveActions(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "company_user";
+  return (
+    isAdminRole(role) ||
+    role === "company_admin" ||
+    role === "manager" ||
+    role === "company_user" ||
+    role === "sales_demo"
+  );
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_corrective_action");
+}
+
+function isDemoRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
 }
 
 export async function GET(
@@ -33,6 +47,25 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (isDemoRequest(auth)) {
+    return NextResponse.json({
+      evidence:
+        id === "demo-action-1"
+          ? [
+              {
+                id: "demo-evidence-1",
+                action_id: id,
+                company_id: "demo-company",
+                file_path: "demo/proof/guardrail-gap.jpg",
+                file_name: "guardrail-gap.jpg",
+                mime_type: "image/jpeg",
+                created_at: new Date().toISOString(),
+              },
+            ]
+          : [],
+    });
+  }
+
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,

@@ -14,7 +14,7 @@ import {
 
 type ReviewRow = {
   id: string;
-  sourceType: "sor" | "incident" | "injury";
+  sourceType: "sor" | "incident" | "injury" | "corrective_action";
   companyId: string;
   companyName: string;
   title: string;
@@ -43,6 +43,7 @@ const SOURCE_OPTIONS = [
   { value: "sor", label: "SOR" },
   { value: "incident", label: "Incidents" },
   { value: "injury", label: "Injuries" },
+  { value: "corrective_action", label: "Corrective actions" },
 ];
 
 const STATUS_OPTIONS = [
@@ -62,6 +63,7 @@ function formatDate(value: string | null) {
 function sourceLabel(sourceType: ReviewRow["sourceType"]) {
   if (sourceType === "sor") return "SOR";
   if (sourceType === "injury") return "Injury";
+  if (sourceType === "corrective_action") return "Corrective Action";
   return "Incident";
 }
 
@@ -207,7 +209,7 @@ export default function PredictionValidationPage() {
             </div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Prediction Validation</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-300">
-              Review SOR, incident, and injury records before they become eligible for prediction models.
+              Review SOR, incident, injury, and corrective-action records before they become eligible for prediction models.
             </p>
           </div>
           <button

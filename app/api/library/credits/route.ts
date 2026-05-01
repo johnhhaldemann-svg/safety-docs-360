@@ -17,6 +17,7 @@ import {
   purchasedDocumentIdsFromTransactions,
   sumCreditBalance,
 } from "@/lib/credits";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,22 @@ export async function GET(request: Request) {
   }
 
   const { user, supabase } = auth;
+  if (
+    auth.role === "sales_demo" ||
+    (user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  ) {
+    return NextResponse.json({
+      creditBalance: DEFAULT_DOCUMENT_CREDITS,
+      purchasedDocumentIds: [],
+      subscriptionStatus: "active",
+      transactions: [],
+      ledgerEnabled: false,
+      billingScope: "company",
+      companyId: "demo-company",
+      companyName: "Summit Ridge Constructors",
+    });
+  }
+
   const companyScope = await getCompanyScope({
     supabase,
     userId: user.id,

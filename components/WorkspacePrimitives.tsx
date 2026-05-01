@@ -127,7 +127,7 @@ export function InlineMessage({
       : tone === "warning"
         ? "border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)]"
         : tone === "error"
-          ? "border-[rgba(217,83,79,0.28)] bg-[var(--semantic-danger-bg)] text-[var(--semantic-danger)]"
+          ? "border-[rgba(159,31,28,0.3)] bg-[var(--semantic-danger-bg)] text-[#9f1f1c]"
           : "border-[rgba(138,150,168,0.3)] bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]";
   const label =
     tone === "success"

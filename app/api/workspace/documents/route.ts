@@ -14,6 +14,7 @@ import {
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
 import { isMarketplaceEnabled, normalizePurchasedIds } from "@/lib/marketplace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,18 @@ export async function GET(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  ) {
+    return NextResponse.json({
+      documents: [],
+      marketplaceCatalog: [],
+      viewerRole: auth.role,
+      viewerTeam: auth.team,
+    });
   }
 
   const { data, error } = await auth.supabase

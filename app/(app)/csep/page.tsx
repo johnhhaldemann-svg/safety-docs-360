@@ -40,6 +40,7 @@ import {
   CSEP_REGULATORY_REFERENCE_INDEX,
   mapOshaRefStringsToSortedRCodes,
 } from "@/lib/csepRegulatoryReferenceIndex";
+import { parseContentDispositionFilename, triggerBrowserDownload } from "@/lib/browserDownload";
 import type { PermissionMap } from "@/lib/rbac";
 import {
   CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
@@ -124,6 +125,7 @@ type CsepPreviewState = {
 };
 
 type BuilderAiMessageTone = "success" | "warning" | "error";
+type OfflineDemoPackFileId = "csep" | "pshsep";
 
 type BuilderAiSectionState = {
   loading: boolean;
@@ -497,6 +499,8 @@ export default function CSEPPage() {
   const [checklistLoading, setChecklistLoading] = useState(false);
   const [checklistError, setChecklistError] = useState("");
   const [isOfflineDemoPrefillEnabled, setIsOfflineDemoPrefillEnabled] = useState(false);
+  const [offlineDemoDownloadLoading, setOfflineDemoDownloadLoading] =
+    useState<OfflineDemoPackFileId | null>(null);
   const [csepHandoffComplete, setCsepHandoffComplete] = useState(false);
   const [csepHandoffAt, setCsepHandoffAt] = useState<string | null>(null);
   const checklistRequestRef = useRef(0);
@@ -1596,6 +1600,47 @@ export default function CSEPPage() {
     }
   }
 
+  async function handleDownloadDemoPackFile(fileId: OfflineDemoPackFileId) {
+    setOfflineDemoDownloadLoading(fileId);
+    try {
+      const response = await fetch(
+        `/api/offline/demo-pack/open?file=${encodeURIComponent(fileId)}`,
+        { method: "GET" }
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Could not download demo document.");
+      }
+
+      const blob = await response.blob();
+      const fallbackFileName =
+        fileId === "csep"
+          ? "North_Tower_Issued_CSEP_Summit_Ridge.docx"
+          : "North_Tower_Issued_PSHSEP_Summit_Ridge.docx";
+      const fileName =
+        parseContentDispositionFilename(response.headers.get("content-disposition")) ??
+        fallbackFileName;
+
+      triggerBrowserDownload(blob, fileName);
+      setMessageTone("success");
+      setMessage(
+        fileId === "csep"
+          ? "Issued CSEP demo download started."
+          : "Issued site plan demo download started."
+      );
+    } catch (error) {
+      setMessageTone("warning");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not download demo document."
+      );
+    } finally {
+      setOfflineDemoDownloadLoading(null);
+    }
+  }
+
   const readinessChecklist = [
     { label: "Trade selected", done: Boolean(form.trade.trim()) },
     { label: "Sub-trade selected", done: Boolean(form.subTrade.trim()) },
@@ -1695,7 +1740,34 @@ export default function CSEPPage() {
                   tone={form.tasks.length ? "success" : "warning"}
                 />
               </>
-            ) : null}
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleDownloadDemoPackFile("csep");
+                  }}
+                  disabled={offlineDemoDownloadLoading !== null}
+                  className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                >
+                  {offlineDemoDownloadLoading === "csep"
+                    ? "Downloading CSEP..."
+                    : "Download issued CSEP"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleDownloadDemoPackFile("pshsep");
+                  }}
+                  disabled={offlineDemoDownloadLoading !== null}
+                  className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                >
+                  {offlineDemoDownloadLoading === "pshsep"
+                    ? "Downloading site plan..."
+                    : "Download site plan"}
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={resetBuilder}
@@ -2570,15 +2642,41 @@ export default function CSEPPage() {
                         {previewApproved && previewIsCurrent ? "Draft approved" : "Approve current draft"}
                       </button>
                       {isOfflineDemoPrefillEnabled ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void handleOpenDemoPackFolder();
-                          }}
-                          className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
-                        >
-                          Open demo documents folder
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDownloadDemoPackFile("csep");
+                            }}
+                            disabled={offlineDemoDownloadLoading !== null}
+                            className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                          >
+                            {offlineDemoDownloadLoading === "csep"
+                              ? "Downloading CSEP..."
+                              : "Download issued CSEP"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleDownloadDemoPackFile("pshsep");
+                            }}
+                            disabled={offlineDemoDownloadLoading !== null}
+                            className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                          >
+                            {offlineDemoDownloadLoading === "pshsep"
+                              ? "Downloading site plan..."
+                              : "Download site plan"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleOpenDemoPackFolder();
+                            }}
+                            className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                          >
+                            Open demo documents folder
+                          </button>
+                        </>
                       ) : null}
                     </div>
                     {!csepReady && !previewLoading ? (
@@ -2704,6 +2802,30 @@ export default function CSEPPage() {
                           (use the same handoff you built with the desktop installer).
                           <div className="mt-3">
                             <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleDownloadDemoPackFile("csep");
+                                }}
+                                disabled={offlineDemoDownloadLoading !== null}
+                                className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                              >
+                                {offlineDemoDownloadLoading === "csep"
+                                  ? "Downloading CSEP..."
+                                  : "Download issued CSEP"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleDownloadDemoPackFile("pshsep");
+                                }}
+                                disabled={offlineDemoDownloadLoading !== null}
+                                className="inline-flex rounded-xl border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)] disabled:opacity-60"
+                              >
+                                {offlineDemoDownloadLoading === "pshsep"
+                                  ? "Downloading site plan..."
+                                  : "Download site plan"}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {

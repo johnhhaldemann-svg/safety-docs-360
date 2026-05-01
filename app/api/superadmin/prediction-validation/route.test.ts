@@ -10,6 +10,11 @@ vi.mock("@/lib/supabaseAdmin", () => ({
 }));
 
 vi.mock("@/lib/riskMemory/facets", () => ({
+  buildCorrectiveActionFacetRow: vi.fn((companyId: string, row: Record<string, unknown>) => ({
+    company_id: companyId,
+    source_module: "corrective_action",
+    source_id: row.id,
+  })),
   buildIncidentFacetRow: vi.fn((companyId: string, row: Record<string, unknown>) => ({
     company_id: companyId,
     source_module: "incident",
@@ -113,12 +118,13 @@ describe("/api/superadmin/prediction-validation", () => {
     expect(body.error).toContain("rating is required");
   });
 
-  it("allows platform staff to approve SORs and incidents", async () => {
+  it("allows platform staff to approve SORs, incidents, and corrective actions", async () => {
     mockedAuthorize.mockResolvedValue(authForRole("internal_reviewer"));
     mockedCreateAdmin.mockReturnValue(
       makeAdmin([
         { id: "sor-1", company_id: "company-1", project: "Project A", hazard_category_code: "fall" },
         { id: "incident-1", company_id: "company-1", title: "Incident A" },
+        { id: "capa-1", company_id: "company-1", title: "Corrective Action A", due_at: "2026-05-05" },
       ]) as never
     );
 
@@ -134,6 +140,7 @@ describe("/api/superadmin/prediction-validation", () => {
             items: [
               { id: "sor-1", sourceType: "sor" },
               { id: "incident-1", sourceType: "incident" },
+              { id: "capa-1", sourceType: "corrective_action" },
             ],
           }),
         })
@@ -142,7 +149,7 @@ describe("/api/superadmin/prediction-validation", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body.updated).toBe(2);
-    expect(mockedUpsertFacet).toHaveBeenCalledTimes(2);
+    expect(body.updated).toBe(3);
+    expect(mockedUpsertFacet).toHaveBeenCalledTimes(3);
   });
 });

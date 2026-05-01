@@ -204,6 +204,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "View activity",
   },
   {
+    matcher: (href) => href === "/analytics/predictive-model",
+    group: "insights",
+    description: "Predictive risk model for locations, drivers, trends, and recommended prevention actions.",
+    primaryActionLabel: "Open model",
+  },
+  {
     matcher: (href) => href === "/analytics",
     group: "insights",
     description:

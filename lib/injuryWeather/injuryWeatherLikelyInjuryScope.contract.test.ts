@@ -11,7 +11,7 @@ describe("injuryWeather likely-injury scope (source contract)", () => {
   it("getInjuryWeatherDashboardData feeds likelyInjury from liveSourceRows via rowsMatchingTradeSelection", () => {
     const servicePath = path.join(__dirname, "service.ts");
     const src = readFileSync(servicePath, "utf8");
-    expect(src).toContain("const likelyRowsForInsight = rowsMatchingTradeSelection(liveSourceRows");
+    expect(src).toContain("filterForecastEligibleRows(rowsMatchingTradeSelection(liveSourceRows");
     expect(src).toContain("likelyInjuryInsightFromSignals(likelyRowsForInsight)");
     expect(src).not.toMatch(
       /likelyInjuryInsightFromSignals\(\s*rowsMatchingTradeSelection\(\s*allRows/

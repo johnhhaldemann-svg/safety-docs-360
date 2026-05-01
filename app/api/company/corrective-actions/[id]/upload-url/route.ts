@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -19,12 +20,20 @@ function canUploadEvidence(role: string) {
     role === "safety_manager" ||
     role === "project_manager" ||
     role === "field_supervisor" ||
-    role === "foreman"
+    role === "foreman" ||
+    role === "sales_demo"
   );
 }
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 120);
+}
+
+function isDemoRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
 }
 
 export async function POST(
@@ -39,6 +48,21 @@ export async function POST(
     return NextResponse.json({ error: "You do not have permission to upload evidence." }, { status: 403 });
   }
 
+  const { id } = await params;
+  const body = (await request.json().catch(() => null)) as UploadUrlPayload | null;
+  const rawName = String(body?.fileName ?? "").trim();
+  if (!rawName) return NextResponse.json({ error: "fileName is required." }, { status: 400 });
+  const fileName = sanitizeFileName(rawName);
+  if (isDemoRequest(auth)) {
+    const today = new Date().toISOString().slice(0, 10);
+    return NextResponse.json({
+      bucket: "documents",
+      path: `demo/offline/proof/${today}/${id}/${Date.now()}-${fileName}`,
+      token: "offline-demo-token",
+      mimeType: body?.mimeType ?? null,
+    });
+  }
+
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -51,7 +75,6 @@ export async function POST(
   const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
   if (csepBlock) return csepBlock;
 
-  const { id } = await params;
   const actionResult = await auth.supabase
     .from("company_corrective_actions")
     .select("id, jobsite_id")
@@ -65,10 +88,6 @@ export async function POST(
     return NextResponse.json({ error: "Observation not found." }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as UploadUrlPayload | null;
-  const rawName = String(body?.fileName ?? "").trim();
-  if (!rawName) return NextResponse.json({ error: "fileName is required." }, { status: 400 });
-  const fileName = sanitizeFileName(rawName);
   const today = new Date().toISOString().slice(0, 10);
   const jobsiteSegment = actionResult.data.jobsite_id ?? "unassigned";
   const path = `companies/${companyScope.companyId}/jobsites/${jobsiteSegment}/observations/${today}/${id}/${Date.now()}-${fileName}`;

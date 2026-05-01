@@ -149,6 +149,8 @@ export async function requestAiResponsesText(params: {
           continue;
         }
 
+        const errText =
+          typeof response.text === "function" ? await response.text().catch(() => "") : "";
         const meta: AiExecutionMeta = {
           model,
           provider,
@@ -171,7 +173,7 @@ export async function requestAiResponsesText(params: {
           attempts: attempt,
           fallbackUsed: true,
           fallbackReason: "http_error",
-          errorMessage: `http_${response.status}`,
+          errorMessage: errText.slice(0, 500) || `http_${response.status}`,
         });
         return { text: null, json: null, meta };
       }

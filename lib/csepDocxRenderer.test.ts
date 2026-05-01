@@ -393,6 +393,46 @@ describe("csepDocxRenderer", () => {
     expect(text).not.toContain("Project-specific information to be completed.");
   });
 
+  it("fills emergency response and document control instead of leaving placeholders", () => {
+    const draft = createGeneratedDraft();
+    draft.sectionMap.push(
+      {
+        key: "emergency_response_and_rescue",
+        title: "Emergency Response and Rescue",
+        body: "Project-specific information to be completed.",
+      },
+      {
+        key: "document_control_and_revision_history",
+        title: "Document Control and Revision History",
+        body: "Project-specific information to be completed.",
+      }
+    );
+
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const sectionText = (key: string) =>
+      model.sections
+        .find((section) => section.key === key)
+        ?.subsections.flatMap((subsection) => [
+          subsection.title,
+          ...(subsection.paragraphs ?? []),
+          ...(subsection.items ?? []),
+          ...(subsection.table?.rows.flat() ?? []),
+        ])
+        .join("\n") ?? "";
+
+    const emergency = sectionText("emergency_response_and_rescue");
+    expect(emergency).toContain("Emergency Action Overview");
+    expect(emergency).toContain("Notification and 911 Direction");
+    expect(emergency).toContain("Rescue Readiness");
+    expect(emergency).not.toContain("Project-specific information to be completed.");
+
+    const documentControl = sectionText("document_control_and_revision_history");
+    expect(documentControl).toContain("Issue Control");
+    expect(documentControl).toContain("Revision History");
+    expect(documentControl).toContain("Distribution and Change Control");
+    expect(documentControl).not.toContain("Project-specific information to be completed.");
+  });
+
   it("renders Top 10 Risks as numbered hazard lines without red/yellow callout boxes", async () => {
     const draft = createGeneratedDraft();
     const sections = buildCsepTemplateSections({
@@ -899,6 +939,7 @@ describe("csepDocxRenderer", () => {
     expect(appendixSlice).toContain("Training: ");
     expect(appendixSlice).toContain("hot work training, qualified rigger, signal person training");
     expect(appendixSlice).not.toContain("hot_work_training");
+    expect(appendixSlice).not.toMatch(/\bunknown\b/i);
   });
 
   it("keeps plain bullet lines tied to their list tier with hanging indents", async () => {
@@ -992,7 +1033,10 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain('<w:spacing w:before="160" w:after="80"/>');
     expect(headerXml).toBe("");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
-    expect(footerXml).toContain("Page");
+    expect(footerXml).not.toContain("Page  of");
+    expect(documentXml).not.toContain("27.1 Forms Index");
+    expect(documentXml).toContain("A.1 ");
+    expect(documentXml).toContain("Forms Index");
   });
 
   it("mirrors the reviewer evidence visual style for fonts, tables, and callouts", async () => {

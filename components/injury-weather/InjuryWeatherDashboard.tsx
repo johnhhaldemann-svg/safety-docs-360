@@ -90,6 +90,24 @@ function riskTone(level: RiskLevel) {
   return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40";
 }
 
+function integrityTone(status: NonNullable<InjuryWeatherDashboardData["forecastIntegrity"]>["status"]) {
+  if (status === "green") return "border-emerald-500/45 bg-emerald-950/25 text-emerald-100";
+  if (status === "yellow") return "border-amber-500/45 bg-amber-950/25 text-amber-100";
+  if (status === "red") return "border-red-500/45 bg-red-950/25 text-red-100";
+  return "border-slate-600/60 bg-slate-900/65 text-slate-200";
+}
+
+function pctLabel(value: number) {
+  return `${Math.round(value)}%`;
+}
+
+function trustLabel(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function dynamicForecastBandToRiskLevel(band: string): RiskLevel {
   if (band === "Critical") return "CRITICAL";
   if (band === "High") return "HIGH";
@@ -277,6 +295,127 @@ function ExternalHistoricalSourcesPanel({
       </p>
       {o?.citation ? <p className="mt-2 text-[10px] text-slate-500">{o.citation}</p> : null}
     </div>
+  );
+}
+
+function ForecastIntegrityCheckPanel({ data }: { data: InjuryWeatherDashboardData }) {
+  const integrity = data.forecastIntegrity;
+  if (!integrity) return null;
+  const topExclusions = Object.entries(integrity.exclusionReasonCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const topBuckets = Object.entries(integrity.bucketCounts)
+    .sort((a, b) => Number(b[1] ?? 0) - Number(a[1] ?? 0))
+    .slice(0, 6);
+  const trustRows = Object.entries(integrity.trustLevelCounts);
+  const dataGaps = [
+    ...integrity.dataGapsByTrade.map((gap) => ({ ...gap, kind: "Trade" })),
+    ...integrity.dataGapsByHazard.map((gap) => ({ ...gap, kind: "Hazard" })),
+  ].slice(0, 6);
+
+  return (
+    <section className={`rounded-2xl border p-5 ${integrityTone(integrity.status)}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">Forecast Integrity Check</p>
+          <h3 className="mt-1 text-xl font-black text-white">{integrity.statusLabel}</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed opacity-85">
+            Forecast inputs are screened for approved source buckets, required fields, review status, duplicate signals,
+            stale data, and trust level before they can materially move the injury forecast.
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-right">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Forecast confidence</p>
+          <p className="mt-1 text-3xl font-black text-white">{pctLabel(integrity.forecastConfidencePct)}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Reviewed</p>
+          <p className="mt-1 text-2xl font-black text-white">{integrity.totalRecordsReviewed}</p>
+          <p className="mt-1 text-[11px] opacity-75">
+            {integrity.includedForForecast} eligible / {integrity.excludedFromForecast} excluded
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Verified or high</p>
+          <p className="mt-1 text-2xl font-black text-white">{pctLabel(integrity.verifiedPct)}</p>
+          <p className="mt-1 text-[11px] opacity-75">
+            {integrity.verifiedRecords + integrity.highConfidenceRecords} trusted records
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Missing fields</p>
+          <p className="mt-1 text-2xl font-black text-white">{pctLabel(integrity.missingFieldRate)}</p>
+          <p className="mt-1 text-[11px] opacity-75">Required forecast fields incomplete</p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Duplicate rate</p>
+          <p className="mt-1 text-2xl font-black text-white">{pctLabel(integrity.duplicateRate)}</p>
+          <p className="mt-1 text-[11px] opacity-75">{integrity.blockedRecords} blocked records</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide opacity-75">Trust mix</p>
+          <div className="mt-2 space-y-1.5 text-sm">
+            {trustRows.map(([level, count]) => (
+              <div key={level} className="flex items-center justify-between gap-3">
+                <span>{trustLabel(level)}</span>
+                <span className="font-mono text-white">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide opacity-75">Source buckets</p>
+          <div className="mt-2 space-y-1.5 text-sm">
+            {topBuckets.length ? (
+              topBuckets.map(([bucket, count]) => (
+                <div key={bucket} className="flex items-center justify-between gap-3">
+                  <span>{trustLabel(bucket)}</span>
+                  <span className="font-mono text-white">{Number(count ?? 0)}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm opacity-70">No active data source.</p>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide opacity-75">Data gaps</p>
+          <div className="mt-2 space-y-1.5 text-sm">
+            {dataGaps.length ? (
+              dataGaps.map((gap) => (
+                <div key={`${gap.kind}-${gap.label}`} className="flex items-center justify-between gap-3">
+                  <span>
+                    {gap.kind}: {gap.label}
+                  </span>
+                  <span className="font-mono text-white">{gap.missing}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm opacity-70">No required-field gaps detected.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+        <p className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <span className="font-semibold text-white">Open corrective actions:</span> {integrity.openCorrectiveActions}
+        </p>
+        <p className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <span className="font-semibold text-white">Old/unverified records:</span> {integrity.oldUnverifiedRecords}
+        </p>
+        <p className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+          <span className="font-semibold text-white">Top exclusions:</span>{" "}
+          {topExclusions.length ? topExclusions.map(([reason, count]) => `${trustLabel(reason)} ${count}`).join(", ") : "None"}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -1257,6 +1396,8 @@ export function InjuryWeatherDashboard() {
           </div>
         ) : null}
       </section>
+
+      <ForecastIntegrityCheckPanel data={data} />
 
       <section className="rounded-2xl border border-sky-700/40 bg-slate-900/80 p-5">
         <div className="flex items-center justify-between">

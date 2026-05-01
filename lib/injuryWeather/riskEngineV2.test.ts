@@ -9,10 +9,11 @@ import type { NormalizedLiveSignalRow } from "./types";
 
 describe("recencyWeight", () => {
   it("matches bucket thresholds", () => {
-    expect(recencyWeight(10)).toBe(1.5);
-    expect(recencyWeight(60)).toBe(1.2);
-    expect(recencyWeight(120)).toBe(1.0);
-    expect(recencyWeight(200)).toBe(0.8);
+    expect(recencyWeight(3)).toBe(1.75);
+    expect(recencyWeight(10)).toBe(1.45);
+    expect(recencyWeight(60)).toBe(1.1);
+    expect(recencyWeight(200)).toBe(0.65);
+    expect(recencyWeight(400)).toBe(0.25);
   });
 });
 
@@ -55,5 +56,75 @@ describe("scoreRowsForForecast", () => {
     expect(explainability.bandLabel).toBe("Low");
     expect(bandLabelToRiskLevel(explainability.bandLabel)).toBe("LOW");
     expect(explainability.sourceRiskScoreShare.sor).toBe(0);
+  });
+
+  it("reduces medium-trust rows and excludes blocked rows", () => {
+    const forecast = new Date(2026, 3, 1);
+    const asOf = new Date("2026-04-15T12:00:00.000Z");
+    const verified = scoreRowsForForecast(
+      [
+        base({
+          forecastIntegrity: {
+            bucket: "safety_observation",
+            trustLevel: "verified",
+            trustWeight: 1,
+            eligibleForForecast: true,
+            confidenceScore: 100,
+            validationStatus: "approved",
+            reviewRating: 5,
+            missingRequiredFields: [],
+            exclusionReasons: [],
+            warnings: [],
+            duplicateKey: "verified",
+          },
+        }),
+      ],
+      forecast,
+      asOf
+    );
+    const mixed = scoreRowsForForecast(
+      [
+        base({
+          forecastIntegrity: {
+            bucket: "safety_observation",
+            trustLevel: "medium_confidence",
+            trustWeight: 0.65,
+            eligibleForForecast: true,
+            confidenceScore: 65,
+            validationStatus: "approved",
+            reviewRating: 3,
+            missingRequiredFields: [],
+            exclusionReasons: [],
+            warnings: [],
+            duplicateKey: "medium",
+          },
+        }),
+        base({
+          sourceId: "blocked",
+          forecastIntegrity: {
+            bucket: "safety_observation",
+            trustLevel: "blocked",
+            trustWeight: 0,
+            eligibleForForecast: false,
+            confidenceScore: 0,
+            validationStatus: "rejected",
+            reviewRating: 1,
+            missingRequiredFields: [],
+            exclusionReasons: ["review_rejected"],
+            warnings: [],
+            duplicateKey: "blocked",
+          },
+        }),
+      ],
+      forecast,
+      asOf
+    );
+
+    expect(mixed.scored).toHaveLength(1);
+    expect(mixed.explainability.excludedRowCount).toBe(1);
+    expect(mixed.scored[0]?.rowRiskScore).toBeLessThan(verified.scored[0]?.rowRiskScore ?? 0);
+    expect(mixed.explainability.meanTrustWeight).toBe(0.65);
+    expect(mixed.explainability.trustMix.medium_confidence).toBe(1);
+    expect(mixed.explainability.trustMix.blocked).toBe(1);
   });
 });

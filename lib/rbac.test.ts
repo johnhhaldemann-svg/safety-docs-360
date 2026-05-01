@@ -33,5 +33,11 @@ describe("sales_demo role", () => {
     expect(permissionMap.can_submit_documents).toBe(true);
     expect(permissionMap.can_manage_daps).toBe(true);
     expect(permissionMap.can_manage_observations).toBe(true);
+    expect(permissionMap.can_access_document_library).toBe(true);
+    expect(permissionMap.can_access_jobsites).toBe(true);
+    expect(permissionMap.can_access_field_work).toBe(true);
+    expect(permissionMap.can_access_training).toBe(true);
+    expect(permissionMap.can_access_safety_intelligence).toBe(true);
+    expect(permissionMap.can_access_billing).toBe(true);
   });
 });

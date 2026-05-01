@@ -4,6 +4,8 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { demoWorkspaceSummary } from "@/lib/demoWorkspace";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -31,6 +33,10 @@ const ISSUE_CATEGORIES = new Set([
   "fire_hot_work_concern",
   "corrective_action",
 ]);
+const CANONICAL_ACTION_SELECT =
+  "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at, created_by, updated_by, priority, observation_type, sif_potential, sif_category, immediate_action_required, time_to_close_hours";
+const LEGACY_ACTION_SELECT =
+  "id, company_id, jobsite_id, observation_id, title, description, severity, category, status, due_at, closed_at, created_at, updated_at";
 
 type CorrectiveActionPayload = {
   title?: string;
@@ -51,6 +57,7 @@ type CorrectiveActionPayload = {
 
 function normalizeStatus(status?: string | null) {
   const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "closed") return "verified_closed";
   return ACTION_STATUSES.has(normalized) ? normalized : "open";
 }
 
@@ -103,6 +110,11 @@ function isMissingCompatView(message?: string | null) {
   return (message ?? "").toLowerCase().includes("compat_company_corrective_actions");
 }
 
+function isMissingCanonicalActionColumn(message?: string | null) {
+  const normalized = (message ?? "").toLowerCase();
+  return normalized.includes("column") && normalized.includes("company_corrective_actions");
+}
+
 function canManageCorrectiveActions(role: string) {
   return (
     isAdminRole(role) ||
@@ -113,6 +125,60 @@ function canManageCorrectiveActions(role: string) {
     role === "field_supervisor" ||
     role === "foreman"
   );
+}
+
+function isDemoCorrectiveActionRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
+}
+
+function normalizeDemoCategory(category?: string | null) {
+  const normalized = (category ?? "").trim().toLowerCase();
+  if (normalized === "fall_protection") return "fall_hazard";
+  if (normalized === "material_handling") return "equipment_issue";
+  return ISSUE_CATEGORIES.has(normalized) ? normalized : "hazard";
+}
+
+function buildDemoCorrectiveAction(
+  row: (typeof demoWorkspaceSummary.observations)[number],
+  index: number
+) {
+  const now = new Date().toISOString();
+  const category = normalizeDemoCategory(row.category);
+  const status = row.status === "in_progress" ? "in_progress" : index === 2 ? "corrected" : "open";
+  const severity = index === 0 ? "high" : index === 1 ? "critical" : "medium";
+  const sifPotential = index < 2;
+  return {
+    id: row.id,
+    company_id: "demo-company",
+    jobsite_id: row.jobsite_id ?? null,
+    observation_id: row.id,
+    title: row.title,
+    description: "Demo corrective action seeded for the field issue log.",
+    severity,
+    category,
+    status,
+    assigned_user_id: index % 2 === 0 ? "offline-sales-demo-user" : "demo-user-2",
+    due_at: row.due_at ?? null,
+    started_at: status === "in_progress" ? row.due_at ?? now : null,
+    closed_at: null,
+    manager_override_close: false,
+    manager_override_reason: null,
+    created_at: row.due_at ?? now,
+    updated_at: now,
+    created_by: "demo-user-1",
+    updated_by: "demo-user-2",
+    priority: sifPotential || severity === "critical" ? "high" : severity,
+    observation_type: category === "near_miss" ? "near_miss" : category === "good_catch" ? "positive" : "negative",
+    sif_potential: category === "good_catch" ? null : sifPotential,
+    sif_category: sifPotential ? "fall_from_height" : null,
+    immediate_action_required: sifPotential || severity === "critical",
+    evidence_count: index === 0 ? 1 : 0,
+    latest_evidence_path: null,
+    time_to_close_hours: null,
+  };
 }
 
 export async function GET(request: Request) {
@@ -127,6 +193,14 @@ export async function GET(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (isDemoCorrectiveActionRequest(auth)) {
+    return NextResponse.json({
+      actions: (demoWorkspaceSummary.observations ?? []).map(buildDemoCorrectiveAction),
+      scopeCompanyId: "demo-company",
+      scopeCompanyName: "Summit Ridge Constructors",
+    });
   }
 
   const companyScope = await getCompanyScope({
@@ -150,15 +224,14 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = normalizeStatus(searchParams.get("status"));
+  const legacyStatus = status === "verified_closed" ? "closed" : status;
   const assigneeId = searchParams.get("assigneeId")?.trim();
   const jobsiteId = searchParams.get("jobsiteId")?.trim();
   const overdueOnly = searchParams.get("overdue") === "true";
 
   let query = auth.supabase
-    .from("compat_company_corrective_actions")
-    .select(
-      "id, company_id, jobsite_id, observation_id, title, description, severity, category, status, due_at, closed_at, created_at, updated_at"
-    )
+    .from("company_corrective_actions")
+    .select(CANONICAL_ACTION_SELECT)
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
 
@@ -193,7 +266,7 @@ export async function GET(request: Request) {
     data: Array<Record<string, unknown>> | null;
     error: { message?: string | null } | null;
   };
-  if (actionsResult.error && isMissingCompatView(actionsResult.error.message)) {
+  if (actionsResult.error && isMissingCanonicalActionColumn(actionsResult.error.message)) {
     let fallbackQuery = auth.supabase
       .from("company_corrective_actions")
       .select(
@@ -226,6 +299,62 @@ export async function GET(request: Request) {
       error: { message?: string | null } | null;
     };
   }
+  let legacyRows: Array<Record<string, unknown>> = [];
+  if (actionsResult.error && isMissingCorrectiveActionsTable(actionsResult.error.message)) {
+    let legacyQuery = auth.supabase
+      .from("compat_company_corrective_actions")
+      .select(LEGACY_ACTION_SELECT)
+      .eq("company_id", companyScope.companyId)
+      .order("updated_at", { ascending: false });
+    if (searchParams.has("status")) {
+      legacyQuery = legacyQuery.eq("status", legacyStatus);
+    }
+    if (jobsiteId) {
+      legacyQuery = legacyQuery.eq("jobsite_id", jobsiteId);
+    }
+    if (overdueOnly) {
+      legacyQuery = legacyQuery
+        .lt("due_at", new Date().toISOString())
+        .not("status", "in", "(closed,verified_closed)");
+    }
+    if (jobsiteScope.restricted && !jobsiteId) {
+      if (jobsiteScope.jobsiteIds.length < 1) {
+        return NextResponse.json({ actions: [] });
+      }
+      legacyQuery = legacyQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    }
+    actionsResult = (await legacyQuery) as {
+      data: Array<Record<string, unknown>> | null;
+      error: { message?: string | null } | null;
+    };
+  } else if (!actionsResult.error && !assigneeId) {
+    let legacyQuery = auth.supabase
+      .from("compat_company_corrective_actions")
+      .select(LEGACY_ACTION_SELECT)
+      .eq("company_id", companyScope.companyId)
+      .order("updated_at", { ascending: false });
+    if (searchParams.has("status")) {
+      legacyQuery = legacyQuery.eq("status", legacyStatus);
+    }
+    if (jobsiteId) {
+      legacyQuery = legacyQuery.eq("jobsite_id", jobsiteId);
+    }
+    if (overdueOnly) {
+      legacyQuery = legacyQuery
+        .lt("due_at", new Date().toISOString())
+        .not("status", "in", "(closed,verified_closed)");
+    }
+    if (jobsiteScope.restricted && !jobsiteId) {
+      legacyQuery = legacyQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
+    }
+    const legacyResult = (await legacyQuery) as {
+      data: Array<Record<string, unknown>> | null;
+      error: { message?: string | null } | null;
+    };
+    if (!legacyResult.error || isMissingCompatView(legacyResult.error?.message)) {
+      legacyRows = legacyResult.data ?? [];
+    }
+  }
   if (actionsResult.error) {
     if (isMissingCorrectiveActionsTable(actionsResult.error.message)) {
       return NextResponse.json(
@@ -244,7 +373,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const actionRows = (actionsResult.data ?? []) as Array<Record<string, unknown>>;
+  const actionRowsById = new Map<string, Record<string, unknown>>();
+  for (const row of legacyRows) {
+    const id = typeof row.id === "string" ? row.id : "";
+    if (id) actionRowsById.set(id, row);
+  }
+  for (const row of (actionsResult.data ?? []) as Array<Record<string, unknown>>) {
+    const id = typeof row.id === "string" ? row.id : "";
+    if (id) actionRowsById.set(id, row);
+  }
+  const actionRows = Array.from(actionRowsById.values());
   const actionIds = actionRows
     .map((row) => (typeof row.id === "string" ? row.id : ""))
     .filter(Boolean);
@@ -302,6 +440,9 @@ export async function GET(request: Request) {
       created_by: typeof row.created_by === "string" ? row.created_by : null,
       updated_by: typeof row.updated_by === "string" ? row.updated_by : null,
       ...row,
+      status: normalizeStatus(typeof row.status === "string" ? row.status : null),
+      severity: normalizeSeverity(typeof row.severity === "string" ? row.severity : null),
+      category: normalizeCategory(typeof row.category === "string" ? row.category : null),
       evidence_count: evidenceCountByActionId.get(id) ?? 0,
       latest_evidence_path: latestEvidencePathByActionId.get(id) ?? null,
       immediate_action_required: shouldRequireImmediateAction(
@@ -326,6 +467,73 @@ export async function POST(request: Request) {
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (isDemoCorrectiveActionRequest(auth)) {
+    const body = (await request.json().catch(() => null)) as CorrectiveActionPayload | null;
+    const title = body?.title?.trim() ?? "";
+    const severity = normalizeSeverity(body?.severity);
+    const category = normalizeCategory(body?.category);
+    const observationType = normalizeObservationType(body?.observationType);
+    const hasSifPotential = typeof body?.sifPotential === "boolean";
+    const sifPotential = Boolean(body?.sifPotential);
+    const sifCategory = normalizeSifCategory(body?.sifCategory);
+    if (!title) {
+      return NextResponse.json({ error: "Issue title is required." }, { status: 400 });
+    }
+    if (observationType === "negative" && !hasSifPotential) {
+      return NextResponse.json(
+        { error: "SIF evaluation is required for negative observations." },
+        { status: 400 }
+      );
+    }
+    if (sifPotential && !sifCategory) {
+      return NextResponse.json(
+        { error: "SIF category is required when sif_potential is yes." },
+        { status: 400 }
+      );
+    }
+    const dueAtRaw = body?.dueAt?.trim() ?? "";
+    const dueAtIso = dueAtRaw ? new Date(dueAtRaw).toISOString() : null;
+    if (dueAtRaw && Number.isNaN(new Date(dueAtRaw).getTime())) {
+      return NextResponse.json({ error: "Due date is invalid." }, { status: 400 });
+    }
+    const now = new Date().toISOString();
+    const action = {
+      id: `demo-action-${Date.now()}`,
+      company_id: "demo-company",
+      jobsite_id: body?.jobsiteId?.trim() || null,
+      title,
+      description: body?.description?.trim() || null,
+      severity,
+      category,
+      status: normalizeStatus(body?.status),
+      assigned_user_id: body?.assignedUserId?.trim() || null,
+      due_at: dueAtIso,
+      started_at: null,
+      closed_at: null,
+      manager_override_close: false,
+      manager_override_reason: null,
+      created_at: now,
+      updated_at: now,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+      observation_type: observationType,
+      sif_potential: observationType === "negative" ? sifPotential : null,
+      sif_category: observationType === "negative" && sifPotential ? sifCategory : null,
+      immediate_action_required:
+        shouldRequireImmediateAction(severity, category) ||
+        (observationType === "negative" && sifPotential),
+      priority: sifPotential ? "high" : severity,
+      evidence_count: 0,
+      latest_evidence_path: null,
+      time_to_close_hours: null,
+    };
+    return NextResponse.json({
+      success: true,
+      action,
+      message: "Corrective action created.",
+    });
   }
 
   const companyScope = await getCompanyScope({

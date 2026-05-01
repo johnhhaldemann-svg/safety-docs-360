@@ -7,6 +7,8 @@ import { createHash } from "node:crypto";
 export function getAiApiBaseUrl(): string {
   const raw = process.env.OPENAI_BASE_URL?.trim();
   if (raw) return raw.replace(/\/$/, "");
+  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  if (apiKey.startsWith("vck_")) return "https://ai-gateway.vercel.sh/v1";
   return "https://api.openai.com/v1";
 }
 
@@ -17,7 +19,7 @@ export function getAiApiBaseUrl(): string {
 export function resolveAiModelId(model: string): string {
   const trimmed = model.trim();
   if (!trimmed || trimmed.includes("/")) return trimmed;
-  const base = process.env.OPENAI_BASE_URL?.trim() || "";
+  const base = getAiApiBaseUrl();
   if (base.includes("ai-gateway.vercel.sh")) {
     return `openai/${trimmed}`;
   }

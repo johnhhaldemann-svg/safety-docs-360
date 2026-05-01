@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -13,15 +14,34 @@ type ClosePayload = {
 };
 
 function canManageCorrectiveActions(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
+  return (
+    isAdminRole(role) ||
+    role === "company_admin" ||
+    role === "manager" ||
+    role === "safety_manager" ||
+    role === "sales_demo"
+  );
 }
 
 function canVerifyClosed(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
+  return (
+    isAdminRole(role) ||
+    role === "company_admin" ||
+    role === "manager" ||
+    role === "safety_manager" ||
+    role === "sales_demo"
+  );
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_corrective_action");
+}
+
+function isDemoRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
 }
 
 export async function POST(
@@ -54,6 +74,36 @@ export async function POST(
   const managerOverride = Boolean(body?.managerOverride);
   const managerOverrideReason = body?.managerOverrideReason?.trim() ?? "";
   const closureNote = body?.closureNote?.trim() ?? "";
+
+  if (isDemoRequest(auth)) {
+    if (managerOverride && !managerOverrideReason) {
+      return NextResponse.json(
+        { error: "Manager override reason is required when closing without photo proof." },
+        { status: 400 }
+      );
+    }
+    const now = new Date().toISOString();
+    return NextResponse.json({
+      success: true,
+      action: {
+        id,
+        company_id: "demo-company",
+        status: "verified_closed",
+        workflow_status: "verified_closed",
+        closed_at: now,
+        closure_note: closureNote || null,
+        manager_override_close: managerOverride,
+        manager_override_reason: managerOverride ? managerOverrideReason : null,
+        validation_reviewed_by: auth.user.id,
+        validation_reviewed_at: now,
+        updated_by: auth.user.id,
+        updated_at: now,
+      },
+      message: managerOverride
+        ? "Corrective action closed with manager override."
+        : "Corrective action closed.",
+    });
+  }
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,

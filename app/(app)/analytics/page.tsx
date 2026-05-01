@@ -1256,6 +1256,9 @@ function AnalyticsPageInner() {
             <Link href="/analytics/safety-intelligence" className="analytics-action-primary px-4 py-2 text-xs uppercase tracking-wide">
               Deep dive
             </Link>
+            <Link href="/analytics/predictive-model" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+              Predictive model
+            </Link>
             <Link href="/reports" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
               Reports
             </Link>

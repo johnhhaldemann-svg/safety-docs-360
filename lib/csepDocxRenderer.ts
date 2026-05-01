@@ -233,6 +233,9 @@ const CSEP_EVIDENCE_TABLE_KEYS = new Set([
   "reviewer_codex_readiness_summary",
   "document_control_and_revision_history",
   "appendix_a_forms_and_permit_library",
+  "appendix_b_incident_and_investigation_package",
+  "appendix_c_checklists_and_inspection_sheets",
+  "appendix_d_field_references_maps_and_contact_inserts",
   "appendix_e_task_hazard_control_matrix",
 ]);
 
@@ -1097,7 +1100,7 @@ function validateCsepRenderModel(model: CsepRenderModel) {
     "safetydocs360 ai draft builder",
   ]);
   const placeholderPattern =
-    /tbd by contractor before issue|company logo placement|insert contractor logo|page\s+of/i;
+    /tbd by contractor before issue|company logo placement|insert contractor logo|page\s+of|information to be completed|requirements to be completed|to be completed/i;
   const bannedInternalPhrasePattern =
     /Applicability \/ trigger logic|Included for this scope|Review these sections first|Interfaces to coordinate|selected program hazard|Use this module to align sequence, access, and handoffs with that work|primary exposure|secondary exposure|changing condition risk|task scope\s*&\s*work conditions|main exposure profile|program purpose and applicability/i;
 
@@ -1598,6 +1601,9 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
   }
   if (keyNorm === "common overlapping trades") {
     return "trade_interaction_and_coordination";
+  }
+  if (keyNorm === "selected hazards") {
+    return "top_10_critical_risks";
   }
   if (keyNorm === "roles and responsibilities" || keyNorm === "roles_and_responsibilities") {
     return "roles_and_responsibilities";
@@ -2142,8 +2148,11 @@ function subsectionContentText(subsection: CsepTemplateSubsection) {
 }
 
 function isPlaceholderContentText(value: string) {
-  return /^project specific(?: [a-z0-9 /-]+)? information to be completed$/i.test(
-    normalizeCompareToken(value)
+  const normalized = normalizeCompareToken(value);
+  return (
+    /^project specific(?: [a-z0-9 /-]+)? information to be completed$/i.test(normalized) ||
+    /^(?:project specific )?.*(?:information|requirements) to be completed$/i.test(normalized) ||
+    /^project specific .* to be completed$/i.test(normalized)
   );
 }
 
@@ -2153,6 +2162,22 @@ function hasOnlyPlaceholderSubsections(subsections: CsepTemplateSubsection[]) {
     content.length > 0 &&
     content.every((value) => isPlaceholderContentText(value))
   );
+}
+
+function cleanListItemsForExport(values: string[], fallback: string[] = []) {
+  const cleaned = uniqueItems(values)
+    .map((value) => cleanFinalText(value) ?? "")
+    .map((value) => value.replace(/\s+/g, " ").trim())
+    .filter((value) => {
+      const normalized = normalizeCompareToken(value);
+      return Boolean(
+        normalized &&
+          normalized !== "n a" &&
+          normalized !== "unknown" &&
+          normalized !== "to be verified"
+      );
+    });
+  return cleaned.length ? cleaned : fallback;
 }
 
 const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo-crop.png"] as const;
@@ -2340,13 +2365,57 @@ function synthesizePpeVersionCSubsections(
   ];
 }
 
+function synthesizeWorkerConductSubsections(context: {
+  contractorName: string;
+}): CsepTemplateSubsection[] {
+  const contractor =
+    context.contractorName.trim() && context.contractorName !== "N/A"
+      ? context.contractorName.trim()
+      : "the contractor";
+  return [
+    {
+      title: "Fit-for-Duty Expectations",
+      items: [
+        withReferences("Workers shall report fit for duty, alert, able to understand instructions, and free from impairment that could affect safe performance", ["R12"]),
+        withReferences("Supervision shall remove a worker from exposed work when fatigue, illness, impairment, distraction, or unsafe conduct creates an uncontrolled exposure", ["R12", "R16"]),
+      ],
+    },
+    {
+      title: "Site Conduct Rules",
+      items: [
+        withReferences("Workers shall follow site orientation rules, crew briefings, access controls, stop-work directions, and supervisor instructions for the assigned work area", ["R12"]),
+        withReferences("Horseplay, bypassing controls, entering restricted areas without authorization, fighting, threats, harassment, and unsafe acts are not permitted", ["R12"]),
+        withReferences("Workers shall report unsafe conditions, near misses, incidents, damaged equipment, and changed work conditions to supervision without delay", ["R12", "R16"]),
+      ],
+    },
+    {
+      title: "Drug, Alcohol, and Impairment Response",
+      items: [
+        withReferences(`${contractor} shall follow project, owner, GC / CM, contract, and company requirements for drug and alcohol testing, reasonable-suspicion response, post-incident screening, and return-to-work coordination`, ["R12", "R16"]),
+        withReferences("When impairment is suspected, supervision shall remove the affected worker from safety-sensitive work, protect privacy, notify the designated project contact, and document actions through the company process", ["R12", "R16"]),
+      ],
+    },
+    {
+      title: "Corrective Action and Progressive Discipline",
+      items: [
+        withReferences("Unsafe acts and rule violations shall be corrected promptly using coaching, retraining, written corrective action, removal from task, or disciplinary escalation based on severity and recurrence", ["R12", "R16"]),
+        withReferences("Work may restart only after the unsafe condition or behavior is corrected, affected workers are briefed, and required controls are verified", ["R12", "R16"]),
+      ],
+    },
+  ];
+}
+
 function synthesizeTrainingMatrixSubsections(
   draft: GeneratedSafetyPlanDraft,
   existing: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
+  const activeTasks = cleanListItemsForExport(draft.operations.map((operation) => operation.taskTitle), [
+    "Selected scope",
+  ]);
+  const hazardFamilies = cleanListItemsForExport(draft.ruleSummary.hazardCategories, []);
   const exposures = uniqueItems([
-    ...draft.operations.map((operation) => operation.taskTitle),
-    ...draft.ruleSummary.hazardCategories,
+    ...activeTasks,
+    ...hazardFamilies,
   ]).join("; ") || "Selected scope";
   return [
     {
@@ -2501,6 +2570,120 @@ function synthesizeReviewerCodexReadinessSubsections(draft: GeneratedSafetyPlanD
   ];
 }
 
+function synthesizeEmergencyResponseSubsections(context: {
+  draft: GeneratedSafetyPlanDraft;
+  projectName: string;
+  tradeLabel: string;
+  subTradeLabel: string;
+}): CsepTemplateSubsection[] {
+  const project = context.projectName !== "N/A" ? context.projectName : "the project";
+  const address =
+    cleanFinalText(context.draft.projectOverview.projectAddress) ||
+    cleanFinalText(context.draft.projectOverview.location) ||
+    "the verified project address";
+  const operations =
+    [context.tradeLabel, context.subTradeLabel].filter((value) => value && value !== "N/A").join(" / ") ||
+    "the covered work";
+  return [
+    {
+      title: "Emergency Action Overview",
+      paragraphs: [
+        withReferences(`This emergency response section applies to ${operations} on ${project} and is used with the controlling contractor emergency plan, site orientation, posted emergency contacts, and daily JSA/PTP briefing`, ["R12", "R16"]),
+      ],
+      items: [
+        withReferences("Stop work, secure the scene when safe, warn nearby workers, and protect the injured or exposed person from additional hazards before nonessential work resumes", ["R12"]),
+        withReferences("Keep access routes, gates, elevators, stairs, ladders, hoist points, and emergency vehicle paths open or immediately clear them when an emergency begins", ["R5", "R12"]),
+      ],
+    },
+    {
+      title: "Notification and 911 Direction",
+      items: [
+        withReferences(`Call 911 for life-threatening injury, fall arrest, fire, collapse, electrocution, severe bleeding, loss of consciousness, suspected fracture, environmental release, or any event requiring outside emergency response; provide the project location as ${address}`, ["R12"]),
+        withReferences("Notify the foreman, superintendent, competent person, GC / CM representative, and owner / client contact according to the site emergency communication tree", ["R12", "R16"]),
+        withReferences("Assign one person to meet responders at the access point and guide them to the incident location while another person maintains scene control", ["R12"]),
+      ],
+    },
+    {
+      title: "Rescue Readiness",
+      items: [
+        withReferences("Before elevated work, decking, connector work, crane picks, or MEWP work begins, confirm the rescue method, rescue equipment location, communication method, and assigned rescue roles", ["R2", "R3", "R12", "R16"]),
+        withReferences("Do not rely on an improvised rescue plan for a suspended worker, fall arrest event, trapped worker, or inaccessible elevated location; stop work until a viable rescue plan is confirmed", ["R2", "R3", "R12"]),
+        withReferences("After a rescue or emergency response event, remove affected equipment from service and document inspection, replacement, and restart authorization before work resumes", ["R11", "R12", "R16"]),
+      ],
+    },
+    {
+      title: "Fire, Hot Work, and Medical Response",
+      items: [
+        withReferences("For fire, smoke, uncontrolled sparks, or hot-work exposure, stop hot work, alert nearby workers, use extinguishers only when trained and safe, and evacuate or shelter as directed", ["R4", "R12"]),
+        withReferences("First aid and CPR are provided only by trained personnel within their training; workers shall not move an injured person unless needed to prevent additional harm", ["R12", "R16"]),
+        withReferences("Spills, chemical exposure, or environmental releases shall be isolated and escalated through the site emergency and HazCom process using SDS and project reporting requirements", ["R10", "R12", "R16"]),
+      ],
+    },
+    {
+      title: "Weather, Shelter, and Accountability",
+      items: [
+        withReferences("Severe weather, lightning, high wind, heat, cold, or tornado conditions trigger work stoppage, shelter, accountability, and restart inspection as required by the site plan and high-risk weather controls", ["R12", "R17"]),
+        withReferences("Supervision accounts for assigned workers after evacuation, shelter, rescue, or emergency stop-work and communicates missing-person or injury information through the emergency communication tree", ["R12", "R16"]),
+      ],
+    },
+  ];
+}
+
+function synthesizeDocumentControlSubsections(context: {
+  draft: GeneratedSafetyPlanDraft;
+  projectName: string;
+  contractorName: string;
+}) {
+  const issueDate =
+    cleanFinalText(context.draft.documentControl?.issueDate) ||
+    todayIssueLabel();
+  const revision = cleanFinalText(context.draft.documentControl?.revision) || "1.0";
+  const preparedBy =
+    cleanFinalText(context.draft.documentControl?.preparedBy) ||
+    context.contractorName ||
+    "Contractor representative";
+  const reviewedBy =
+    cleanFinalText(context.draft.documentControl?.reviewedBy) ||
+    "Project management / competent person";
+  const approvedBy =
+    cleanFinalText(context.draft.documentControl?.approvedBy) ||
+    "Authorized company / GC / CM reviewer";
+  return [
+    {
+      title: "Issue Control",
+      table: {
+        columns: ["Field", "Current Value", "Control Requirement"],
+        rows: [
+          ["Project", context.projectName || "Project identified on cover", "Must match cover page and contract records"],
+          ["Contractor", context.contractorName || "Contractor identified on cover", "Must match cover page and sign-off page"],
+          ["Issue Date", issueDate, "Update when the CSEP is reissued for field use"],
+          ["Revision", revision, "Increment when scope, jurisdiction, high-risk work, or approval status changes"],
+          ["Prepared By", preparedBy, "Responsible for assembling the current issue"],
+          ["Reviewed By", reviewedBy, "Confirms content matches scope, site rules, and field controls"],
+          ["Approved By", approvedBy, "Authorizes controlled distribution for project use"],
+        ],
+      },
+    },
+    {
+      title: "Revision History",
+      table: {
+        columns: ["Revision", "Date", "Description", "Prepared / Reviewed By"],
+        rows: [
+          [revision, issueDate, "Initial CSEP issue for review and project field release after required signatures.", `${preparedBy} / ${reviewedBy}`],
+        ],
+      },
+    },
+    {
+      title: "Distribution and Change Control",
+      items: [
+        withReferences("Only the current approved CSEP issue shall be used for field planning, orientation, permits, inspections, and reviewer evidence", ["R12", "R16"]),
+        withReferences("When scope, work area, contractor authority, site access, emergency routing, high-risk work, jurisdiction, or permit requirements change, the CSEP shall be reviewed and reissued or supplemented before affected work proceeds", ["R12", "R16"]),
+        withReferences("Superseded CSEP copies shall be removed from active field use or clearly marked obsolete, while retained records remain available for audit and closeout", ["R12", "R16"]),
+      ],
+    },
+  ] satisfies CsepTemplateSubsection[];
+}
+
 function synthesizeInspectionsAuditsRecordsSubsections(): CsepTemplateSubsection[] {
   return [
     {
@@ -2541,6 +2724,170 @@ function buildAppendixAFormsIndexSection(): CsepTemplateSection {
   };
 }
 
+function buildAppendixBIncidentPackageSection(): CsepTemplateSection {
+  return {
+    key: "appendix_b_incident_and_investigation_package",
+    title: "Appendix B. Incident and Investigation Package",
+    kind: "appendix",
+    numberLabel: null,
+    descriptor: "Incident-response, investigation, corrective-action, and closeout documents.",
+    subsections: [
+      {
+        title: "Immediate Notification and Scene Control",
+        table: {
+          columns: ["Step", "Required Entry", "Notes"],
+          rows: [
+            ["1", "Date, time, location, and work activity", "Record as soon as conditions are stable"],
+            ["2", "Injured / involved person and employer", "Include visitor, driver, subcontractor, or public exposure when applicable"],
+            ["3", "Emergency services notified", "911, clinic, fire, rescue, environmental, GC / CM, owner / client"],
+            ["4", "Immediate controls installed", "Barricades, shutdown, rescue, spill isolation, equipment lockout, weather hold"],
+            ["5", "Scene preserved or released by", "Name, role, time, and reason for release"],
+          ],
+        },
+      },
+      {
+        title: "Initial Incident Report",
+        table: {
+          columns: ["Field", "Entry Requirement"],
+          rows: [
+            ["Event type", "Injury, illness, near miss, property damage, environmental release, fire, vehicle/equipment event, or security event"],
+            ["Narrative", "Plain-language description of what happened, what task was underway, and what changed"],
+            ["Immediate cause indicators", "Unsafe condition, unsafe act, equipment failure, weather, access, communication, training, planning, or cause pending investigation"],
+            ["Notifications", "Supervisor, safety lead, GC / CM, owner / client, insurer, regulator when required"],
+            ["Initial corrective actions", "Controls installed before restart or continued work"],
+          ],
+        },
+      },
+      {
+        title: "Investigation and Corrective Action Tracking",
+        table: {
+          columns: ["Item", "Required Documentation"],
+          rows: [
+            ["Witness statements", "Name, employer, contact, statement date, and signed or acknowledged narrative"],
+            ["Photo / evidence log", "Photo ID, location, direction, description, custodian, and preservation status"],
+            ["Root cause review", "Planning, supervision, training, equipment, site condition, communication, and procedure factors"],
+            ["Corrective action log", "Action, owner, due date, interim control, verification method, and closure date"],
+            ["Restart authorization", "Competent person / superintendent / GC / CM release after controls are verified"],
+          ],
+        },
+      },
+      {
+        title: "Post-Incident Closeout",
+        items: [
+          "Review lessons learned with affected crews before similar work resumes.",
+          "Update the JSA/PTP, permit, inspection checklist, training, or CSEP section when the investigation identifies a document or control gap.",
+          "Retain incident, investigation, medical routing, corrective-action, and closeout records according to company, project, and regulatory requirements.",
+        ],
+      },
+    ],
+    closingTagline: null,
+  };
+}
+
+function buildAppendixCChecklistSection(): CsepTemplateSection {
+  return {
+    key: "appendix_c_checklists_and_inspection_sheets",
+    title: "Appendix C. Checklists and Inspection Sheets",
+    kind: "appendix",
+    numberLabel: null,
+    descriptor: "Recurring inspection and checklist library with trigger/frequency context.",
+    subsections: [
+      {
+        title: "Daily JSA / PTP Checklist",
+        table: {
+          columns: ["Check", "Verification"],
+          rows: [
+            ["Task, location, crew, and sequence reviewed", "Foreman initials / sign-in"],
+            ["Hazards and critical controls confirmed", "Fall, line of fire, rigging, hot work, weather, access, and traffic"],
+            ["Permits / hold points released", "Lift plan, hot work, rescue, access, inspection, or owner / GC / CM approval"],
+            ["Emergency plan reviewed", "Muster point, 911 location, rescue method, first-aid / CPR coverage"],
+            ["Stop-work triggers understood", "Crew briefed before work starts and after conditions change"],
+          ],
+        },
+      },
+      {
+        title: "High-Risk Work Inspection Triggers",
+        table: {
+          columns: ["Inspection", "When Required", "Record"],
+          rows: [
+            ["Fall protection / rescue", "Before elevated work, after modification, after fall event, after weather", "Fall protection / rescue inspection"],
+            ["Crane, rigging, and hoisting", "Before each lift sequence and when pick conditions change", "Lift plan / rigging inspection"],
+            ["Hot work", "Before hot work, during fire watch, after completion", "Hot work permit / fire watch log"],
+            ["MEWP / ladder / access", "Before use and when relocated or damaged", "Pre-use inspection"],
+            ["Laydown / traffic / site access", "Before deliveries, crane setup, route changes, or shift turnover", "Traffic / laydown checklist"],
+          ],
+        },
+      },
+      {
+        title: "Corrective Action Follow-Up",
+        table: {
+          columns: ["Finding", "Owner", "Temporary Control", "Due Date", "Closure Verification"],
+          rows: [
+            ["Describe deficiency or unsafe condition", "Assigned responsible person", "Barrier, hold, repair, retrain, replace, reroute, or remove from service", "Date / shift", "Name, date, and evidence reviewed"],
+          ],
+        },
+      },
+    ],
+    closingTagline: null,
+  };
+}
+
+function buildAppendixDFieldReferenceSection(draft: GeneratedSafetyPlanDraft): CsepTemplateSection {
+  const address =
+    cleanFinalText(draft.projectOverview.projectAddress) ||
+    cleanFinalText(draft.projectOverview.location) ||
+    "Confirm project address before field issue";
+  const gcCm = Array.isArray(draft.projectOverview.gcCm)
+    ? draft.projectOverview.gcCm.filter(Boolean).join(", ")
+    : cleanFinalText(typeof draft.projectOverview.gcCm === "string" ? draft.projectOverview.gcCm : null) ||
+      "GC / CM contact to be confirmed";
+  return {
+    key: "appendix_d_field_references_maps_and_contact_inserts",
+    title: "Appendix D. Field References, Maps, and Contact Inserts",
+    kind: "appendix",
+    numberLabel: null,
+    descriptor: "Field-use maps, emergency contacts, clinic directions, and quick inserts.",
+    subsections: [
+      {
+        title: "Emergency Contacts Insert",
+        table: {
+          columns: ["Contact / Resource", "Number / Location", "Use"],
+          rows: [
+            ["911 / Emergency Services", "911", "Life safety, fire, rescue, medical emergency, collapse, uncontrolled release"],
+            ["Project Address for Responders", address, "Give this location and the nearest access gate / route"],
+            ["GC / CM", gcCm, "Site-wide emergency coordination, access, owner notification"],
+            ["Contractor Superintendent", "Confirm name and phone before field issue", "Crew accountability, stop-work, restart authorization"],
+            ["Competent Person", "Confirm name and phone before field issue", "Hazard correction, inspection, rescue readiness"],
+            ["Nearest Occupational Clinic", "Attach clinic name, address, phone, and route before field issue", "Non-emergency medical routing and treatment authorization"],
+          ],
+        },
+      },
+      {
+        title: "Maps and Routes Insert",
+        table: {
+          columns: ["Map / Route", "Must Show"],
+          rows: [
+            ["Emergency access route", "Responder gate, staging point, building / work area approach, blocked-route alternate"],
+            ["Muster / shelter locations", "Evacuation assembly, severe-weather shelter, accountability lead"],
+            ["Laydown and delivery route", "Truck entrance, turnaround, staging lane, crane setup, pedestrian separation"],
+            ["Hot work / fire response", "Extinguishers, fire watch areas, alarm pull stations when applicable"],
+            ["Clinic route", "Primary clinic, alternate clinic, after-hours care, driving directions"],
+          ],
+        },
+      },
+      {
+        title: "Worker Quick Reference",
+        items: [
+          "Stop work when conditions do not match the plan, controls are missing, or a worker is exposed to uncontrolled fall, struck-by, line-of-fire, fire, weather, or access hazards.",
+          "Report emergencies to 911 first when life safety is involved, then notify the foreman / superintendent and GC / CM contact.",
+          "Keep emergency access, egress, laydown aisles, gates, stairs, ladders, and responder routes clear at all times.",
+        ],
+      },
+    ],
+    closingTagline: null,
+  };
+}
+
 function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateSection {
   const rows = (tasks.length ? tasks : [
     {
@@ -2556,11 +2903,11 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
   ]).map((task) => [
     `${task.taskNumber} ${task.taskName}`,
     task.taskDescription,
-    task.taskHazards.join(", ") || "N/A",
-    task.taskControls.join(", ") || "N/A",
-    task.taskPermits.join(", ") || "None identified",
-    task.taskTraining.join(", ") || "Project orientation / JSA",
-    task.taskReferences.join(", ") || "R12",
+    cleanListItemsForExport(task.taskHazards, ["Hazards to be verified"]).join(", "),
+    cleanListItemsForExport(task.taskControls, ["Controls to be verified"]).join(", "),
+    cleanListItemsForExport(task.taskPermits, ["None identified"]).join(", "),
+    cleanListItemsForExport(task.taskTraining, ["Project orientation / JSA"]).join(", "),
+    cleanListItemsForExport(task.taskReferences, ["R12"]).join(", "),
   ]);
   return {
     key: "appendix_e_task_hazard_control_matrix",
@@ -3184,6 +3531,19 @@ const STRUCTURAL_STEEL_DECKING_TOP_10: string[] = [
   "Congested picks and landings where steel interfaces with other trades, deliveries, and mobile equipment; unclear radio communication, spotter blind spots, or ad hoc staging.",
 ];
 
+const GENERAL_CONSTRUCTION_TOP_10: string[] = [
+  "Falls from ladders, lifts, platforms, edges, openings, or uneven walking-working surfaces when access, guardrails, tie-off, or housekeeping controls are not maintained.",
+  "Struck-by and line-of-fire exposure from moving equipment, deliveries, suspended or shifting loads, overhead work, stored materials, and hand or power tool use.",
+  "Caught-in or caught-between exposure during equipment movement, material handling, installation, demolition, excavation, or work near pinch points and fixed objects.",
+  "Electrical contact, temporary power, damaged cords, energized systems, lighting, or tool-power conditions that require qualified-worker control and inspection before use.",
+  "Fire, hot work, combustible storage, temporary heat, poor housekeeping, or blocked extinguisher and egress access that can delay response or evacuation.",
+  "Airborne dust, fumes, vapors, fuels, adhesives, or spilled liquids that require exposure controls, ventilation, PPE, containment, and cleanup coordination.",
+  "Weather, heat, cold, wind, lightning, poor visibility, or changing site conditions that require reassessment before affected work continues.",
+  "Traffic, pedestrian, delivery, and mobile-equipment interfaces where routes, spotters, barricades, signage, or separation controls are incomplete.",
+  "Permit-required or hold-point work performed before the required review, authorization, competent-person verification, or pre-task briefing is complete.",
+  "Scope changes, overlapping trades, compressed sequencing, or incomplete handoffs that introduce unreviewed hazards and require stop-work, coordination, and updated controls.",
+];
+
 function filterScopeNarrativeParagraph(text: string | null | undefined) {
   const t = (text ?? "").trim();
   if (!t) return null;
@@ -3420,11 +3780,12 @@ function synthesizeTopRiskSubsections(
         ...draft.operations.flatMap((operation) => operation.hazardCategories ?? []),
       ];
   const items = dedupeRiskLabelsPreservingOrder(baseFromDraft, 10);
+  const fallbackItems = useSteel ? STRUCTURAL_STEEL_DECKING_TOP_10 : GENERAL_CONSTRUCTION_TOP_10;
 
   return [
     {
       title: "Top 10 Risks",
-      items: items.length ? items : [placeholderParagraphForSection("top_10_critical_risks")],
+      items: items.length ? items : fallbackItems,
       plainItemsStyle: "ordered_lines",
     },
   ];
@@ -3436,6 +3797,22 @@ const STEEL_TRADE_INTERACTION_DEFAULTS: string[] = [
   "Coordinate delivery and laydown with hoisting: truck routes, outrigger and crane pad access, and traffic control so other crews are not under live picks or in blind rigging pull paths.",
   "Share shift-level changes (weather, out-of-tolerance field conditions, resequenced steel) with GC, crane, and adjacent trade leads before restarting picks or leading-edge work.",
 ];
+
+const GENERAL_TRADE_INTERACTION_DEFAULTS: string[] = [
+  "Review daily work areas with the controlling contractor and adjacent trade leads before crews mobilize into shared access, lift, laydown, or overhead work zones.",
+  "Confirm trade handoffs for access, barricades, housekeeping, penetrations, energization status, and incomplete work before releasing an area to the next crew.",
+  "Coordinate deliveries, equipment movement, and material staging so haul routes, pedestrian paths, and emergency access remain open and clearly controlled.",
+  "Escalate schedule conflicts, changed site conditions, or overlapping hazards through the superintendent and safety lead before work continues in the affected area.",
+];
+
+function tradeInteractionDefaultItems(
+  draft: GeneratedSafetyPlanDraft,
+  options?: { tradeLabel?: string; subTradeLabel?: string }
+) {
+  return isStructuralSteelOrDeckingScope(draft, options?.tradeLabel ?? "", options?.subTradeLabel ?? "")
+    ? STEEL_TRADE_INTERACTION_DEFAULTS
+    : GENERAL_TRADE_INTERACTION_DEFAULTS;
+}
 
 function synthesizeTradeInteractionSubsections(
   draft: GeneratedSafetyPlanDraft,
@@ -3452,18 +3829,12 @@ function synthesizeTradeInteractionSubsections(
     ]),
   ]);
   const filtered = overlaps.length ? filterTradeInteractionItems(overlaps) : [];
-  const useSteelDefaults =
-    !filtered.length &&
-    isStructuralSteelOrDeckingScope(draft, tradeLabel, subTradeLabel);
+  const defaultItems = tradeInteractionDefaultItems(draft, { tradeLabel, subTradeLabel });
 
   return [
     {
       title: "Trade Interaction Info",
-      items: filtered.length
-        ? filtered
-        : useSteelDefaults
-          ? STEEL_TRADE_INTERACTION_DEFAULTS
-          : [placeholderParagraphForSection("trade_interaction_and_coordination")],
+      items: filtered.length ? filtered : defaultItems,
     },
   ];
 }
@@ -3606,7 +3977,7 @@ function synthesizeRolesAndResponsibilitiesSubsections(context: {
 /** Omits HazCom, IIPP, disciplinary, access/security, and recordkeeping from trade overlap bullets. */
 function filterTradeInteractionItems(values: string[]): string[] {
   const noise =
-    /\b(hazard communication|hazcom|sds|safety data sheet|msds|labeling program|emergency response|iipp|injury and illness|disciplinary|enforcement policy|drug[-\s]?free|alcohol|fit[-\s]?for[-\s]?duty|code of conduct)\b/i;
+    /\b(hazard communication|hazcom|sds|safety data sheet|msds|labeling program|emergency response|iipp|injury and illness|disciplinary|enforcement policy|drug[-\s]?free|alcohol|fit[-\s]?for[-\s]?duty|code of conduct|jurisdiction profile|wetlands?|navigable waters?|usace|dnr|regulatory|citation|state plan)\b/i;
   const notTradeOwner =
     /\b(visitor|escort|badge|gate|security\s+admin|sub[-\s]?tier|training\s+record|qualification|driver\s+remain|pedestrian\s+exclusion|spotter\s+use|check-?in\s+at\s+the\s+gate)\b/i;
   return values
@@ -4116,9 +4487,17 @@ function buildSectionSubsections(
   }
 
   if (definition.key === "worker_conduct_fit_for_duty_disciplinary_program") {
-    subsections = filterDisciplinaryTemplateSubsections(
+    const sourceConduct = filterDisciplinaryTemplateSubsections(
       stripSharedContentAcrossSubsections(dedupeTemplateSubsections(subsections))
     );
+    const synthesized = synthesizeWorkerConductSubsections({
+      contractorName: context.contractorName,
+    });
+    const synthesizedTitles = new Set(synthesized.map((subsection) => normalizeCompareToken(subsection.title ?? "")));
+    subsections = dedupeTemplateSubsections([
+      ...synthesized,
+      ...sourceConduct.filter((subsection) => !synthesizedTitles.has(normalizeCompareToken(subsection.title ?? ""))),
+    ]);
   }
 
   if (definition.key === "owner_message" && !hasMeaningfulSubsections(subsections)) {
@@ -4187,10 +4566,17 @@ function buildSectionSubsections(
       flattenTopRiskCandidateStrings(seed, context.draft),
       10
     );
+    const fallbackItems = isStructuralSteelOrDeckingScope(
+      context.draft,
+      context.tradeLabel,
+      context.subTradeLabel
+    )
+      ? STRUCTURAL_STEEL_DECKING_TOP_10
+      : GENERAL_CONSTRUCTION_TOP_10;
     subsections = [
       {
         title: "Top 10 Risks",
-        items: merged.length ? merged : [placeholderParagraphForSection("top_10_critical_risks")],
+        items: merged.length ? merged : fallbackItems,
         plainItemsStyle: "ordered_lines",
       },
     ];
@@ -4222,14 +4608,28 @@ function buildSectionSubsections(
 
   if (definition.key === "trade_interaction_and_coordination") {
     const tradeCtx = { tradeLabel: context.tradeLabel, subTradeLabel: context.subTradeLabel };
-    if (!hasMeaningfulSubsections(subsections)) {
+    if (!hasMeaningfulSubsections(subsections) || hasOnlyPlaceholderSubsections(subsections)) {
       subsections = synthesizeTradeInteractionSubsections(context.draft, tradeCtx);
     } else {
       subsections = filterTradeInteractionSubsections(
         stripSharedContentAcrossSubsections(dedupeTemplateSubsections(subsections))
       );
-      if (!hasMeaningfulSubsections(subsections)) {
+      if (!hasMeaningfulSubsections(subsections) || hasOnlyPlaceholderSubsections(subsections)) {
         subsections = synthesizeTradeInteractionSubsections(context.draft, tradeCtx);
+      } else {
+        const existingItems = subsections.flatMap((subsection) => [
+          ...(subsection.paragraphs ?? []),
+          ...(subsection.items ?? []),
+        ]);
+        if (existingItems.length < 3) {
+          subsections = dedupeTemplateSubsections([
+            ...subsections,
+            {
+              title: "Coordination Requirements",
+              items: tradeInteractionDefaultItems(context.draft, tradeCtx),
+            },
+          ]);
+        }
       }
     }
     subsections = applySectionOwnershipFilter(definition.key, subsections);
@@ -4239,6 +4639,27 @@ function buildSectionSubsections(
     subsections = synthesizeHazcomSubsections();
   }
   if (definition.key === "hazard_communication_and_environmental_protection") {
+    subsections = applySectionOwnershipFilter(definition.key, subsections);
+  }
+
+  if (definition.key === "emergency_response_and_rescue") {
+    const synthesized = synthesizeEmergencyResponseSubsections(context);
+    const projectSpecific = subsections.filter(
+      (subsection) => !isPlaceholderContentText(subsectionContentText(subsection))
+    );
+    if (!hasMeaningfulSubsections(projectSpecific) || hasOnlyPlaceholderSubsections(subsections)) {
+      subsections = synthesized;
+    } else {
+      const existingTitles = new Set(
+        synthesized.map((subsection) => normalizeCompareToken(subsection.title ?? ""))
+      );
+      subsections = dedupeTemplateSubsections([
+        ...synthesized,
+        ...projectSpecific.filter(
+          (subsection) => !existingTitles.has(normalizeCompareToken(subsection.title ?? ""))
+        ),
+      ]);
+    }
     subsections = applySectionOwnershipFilter(definition.key, subsections);
   }
 
@@ -4289,6 +4710,14 @@ function buildSectionSubsections(
 
   if (definition.key === "reviewer_codex_readiness_summary") {
     subsections = synthesizeReviewerCodexReadinessSubsections(context.draft);
+  }
+
+  if (definition.key === "document_control_and_revision_history") {
+    subsections = synthesizeDocumentControlSubsections({
+      draft: context.draft,
+      projectName: context.projectName,
+      contractorName: context.contractorName,
+    });
   }
 
   if (definition.key === "site_access_security_laydown_traffic_control") {
@@ -4519,7 +4948,13 @@ export function buildCsepRenderModelFromGeneratedDraft(
         ? buildAppendixETaskHazardMatrixSection(structuredData.tasks)
         : section.key === "appendix_a_forms_and_permit_library"
           ? buildAppendixAFormsIndexSection()
-          : section
+          : section.key === "appendix_b_incident_and_investigation_package"
+            ? buildAppendixBIncidentPackageSection()
+            : section.key === "appendix_c_checklists_and_inspection_sheets"
+              ? buildAppendixCChecklistSection()
+              : section.key === "appendix_d_field_references_maps_and_contact_inserts"
+                ? buildAppendixDFieldReferenceSection(draft)
+                : section
     );
 
   return {
@@ -5664,6 +6099,10 @@ function outlineOrdinalForKind(
 }
 
 function sectionPrefix(_section: CsepTemplateSection, outlineOrdinal: number) {
+  if (_section.kind === "appendix") {
+    const letter = /^Appendix\s+([A-Z])\b/i.exec(_section.title.trim())?.[1]?.toUpperCase();
+    return letter || "";
+  }
   return _section.numberLabel?.trim() || String(outlineOrdinal);
 }
 

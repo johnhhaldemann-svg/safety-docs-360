@@ -11,6 +11,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -147,6 +148,13 @@ function normalizeSifCategory(input?: string | null) {
   return SIF_CATEGORIES.has(value) ? value : null;
 }
 
+function isDemoCorrectiveActionRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -159,6 +167,60 @@ export async function PATCH(
     return auth.error;
   }
 
+  const { id } = await params;
+  if (isDemoCorrectiveActionRequest(auth)) {
+    const body = (await request.json().catch(() => null)) as ActionUpdatePayload | null;
+    const now = new Date().toISOString();
+    const status = body?.status ? normalizeStatus(body.status) : "open";
+    const severity = normalizeSeverity(body?.severity);
+    const category = normalizeCategory(body?.category);
+    const observationType = normalizeObservationType(body?.observationType);
+    const sifPotential =
+      observationType === "negative" && typeof body?.sifPotential === "boolean"
+        ? Boolean(body.sifPotential)
+        : false;
+    const sifCategory = sifPotential ? normalizeSifCategory(body?.sifCategory) : null;
+    if (sifPotential && !sifCategory) {
+      return NextResponse.json(
+        { error: "SIF category is required when sif_potential is yes." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({
+      success: true,
+      action: {
+        id,
+        company_id: "demo-company",
+        jobsite_id: body?.jobsiteId?.trim() || null,
+        title: body?.title?.trim() || "Demo field issue",
+        description: body?.description?.trim() || null,
+        severity,
+        category,
+        status,
+        assigned_user_id: body?.assignedUserId?.trim() || auth.user.id,
+        due_at: body?.dueAt?.trim() || null,
+        started_at: status === "in_progress" ? now : null,
+        closed_at: status === "verified_closed" ? now : null,
+        manager_override_close: false,
+        manager_override_reason: null,
+        created_at: now,
+        updated_at: now,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+        observation_type: observationType,
+        sif_potential: observationType === "negative" ? sifPotential : null,
+        sif_category: sifCategory,
+        immediate_action_required:
+          shouldRequireImmediateAction(severity, category) ||
+          (observationType === "negative" && sifPotential),
+        priority: sifPotential ? "high" : severity,
+        evidence_count: 0,
+        latest_evidence_path: null,
+      },
+      message: "Corrective action updated.",
+    });
+  }
+
   if (!canManageCorrectiveActions(auth.role)) {
     return NextResponse.json(
       { error: "Only company admins and operations managers can update corrective actions." },
@@ -166,7 +228,6 @@ export async function PATCH(
     );
   }
 
-  const { id } = await params;
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,

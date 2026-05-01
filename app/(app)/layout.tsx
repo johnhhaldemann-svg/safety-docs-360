@@ -492,30 +492,36 @@ export default function AppLayout({
     }
 
     if (isCompanyScopedUser) {
+      const canOpenCompanyRoute = (route: string) =>
+        canAccessCompanyWorkspaceHref(route, userRole, permissionMap);
+
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
           const readOnlyCsepRoutes = ["/dashboard", "/profile", "/library", "/search", "/customer/billing"];
+          const gatedReadOnlyCsepRoutes = readOnlyCsepRoutes.filter(canOpenCompanyRoute);
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
           );
-          if (!inReadOnlyCsep) {
-            router.replace("/dashboard");
+          if (!inReadOnlyCsep || !gatedReadOnlyCsepRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+            router.replace(gatedReadOnlyCsepRoutes[0] ?? "/profile");
           }
           return;
         }
         const readOnlyAllowedRoutes = [
           "/dashboard",
+          "/profile",
           "/reports",
           "/companies",
           "/jobsites",
           "/analytics",
           "/command-center",
         ];
-        const inReadOnlyRoute = readOnlyAllowedRoutes.some(
+        const gatedReadOnlyAllowedRoutes = readOnlyAllowedRoutes.filter(canOpenCompanyRoute);
+        const inReadOnlyRoute = gatedReadOnlyAllowedRoutes.some(
           (route) => pathname === route || pathname.startsWith(`${route}/`)
         );
         if (!inReadOnlyRoute) {
-          router.replace("/dashboard");
+          router.replace(gatedReadOnlyAllowedRoutes[0] ?? "/profile");
         }
         return;
       }
@@ -539,8 +545,12 @@ export default function AppLayout({
         const inCsepRoute = csepRoutes.some(
           (route) => pathname === route || pathname.startsWith(`${route}/`)
         );
-        if (!inCsepRoute) {
-          router.replace("/dashboard");
+        const gatedCsepRoutes = csepRoutes.filter(canOpenCompanyRoute);
+        const inGatedCsepRoute = gatedCsepRoutes.some(
+          (route) => pathname === route || pathname.startsWith(`${route}/`)
+        );
+        if (!inCsepRoute || !inGatedCsepRoute) {
+          router.replace(gatedCsepRoutes[0] ?? "/profile");
         }
         return;
       }
@@ -637,12 +647,13 @@ export default function AppLayout({
         }
       }
 
-      const inAllowedRoute = companyAllowedRoutes.some(
+      const gatedCompanyAllowedRoutes = companyAllowedRoutes.filter(canOpenCompanyRoute);
+      const inAllowedRoute = gatedCompanyAllowedRoutes.some(
         (route) => pathname === route || pathname.startsWith(`${route}/`)
       );
 
       if (!inAllowedRoute) {
-        router.replace("/dashboard");
+        router.replace(gatedCompanyAllowedRoutes[0] ?? "/profile");
       }
       return;
     }

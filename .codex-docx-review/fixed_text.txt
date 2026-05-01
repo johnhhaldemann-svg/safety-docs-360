@@ -1,0 +1,1007 @@
+CONTRACTOR SAFETY & ENVIRONMENTAL PLAN (CSEP)
+Version C - Reviewer / CODEX Evidence Format
+Uses policy mapping, evidence language, and selective matrices for qualification review.
+Structural Steel / Metals / Steel erection / decking.
+Project.
+Germanton.
+Project Address.
+4497 gold medal pt.
+Contractor.
+JMMC
+Trade / Sub-trade.
+Structural Steel / Metals - Steel erection / decking.
+GC / CM.
+JMMC
+Owner / Client.
+JMM Health.
+Governing State.
+WI
+Issue Date.
+April 30, 2026
+Revision.
+1.0
+Prepared as a presentation draft for review. Replace placeholder logo and project data before final field issue.
+Owner Safety Message
+Project leadership commitment and safety expectations for this CSEP issue.
+JMMC expects all work on Germanton to be planned, coordinated, and executed without injury, property damage, or uncontrolled environmental impact.
+Stop-Work Authority: Every supervisor and worker is expected to stop work when conditions change, communicate hazards early, and follow this CSEP before proceeding. For structural steel and decking, do not advance picks, landings, or connection releases when fit-up, temporary bracing, or fall protection no longer match the approved erection and rigging plan; reset controls before the next load moves.
+Sign-Off Page
+The signatures below confirm that this CSEP has been reviewed against the project scope, site rules, applicable regulatory requirements, and project-specific high-risk work before field use.
+Reviewer / Approver.
+Printed Name.
+Signature.
+Date
+Project Manager / Superintendent.
+Competent Person.
+Corporate Safety Director.
+GC / CM Representative.
+Owner / Client Representative, if required.
+Table of Contents
+Document navigation for the issued CSEP package.
+1. Purpose
+2. Project Coordination and Authority
+3. Scope of Work
+4. Regulatory Basis and References
+5. Top 10 Critical Risks
+6. Roles and Responsibilities
+7. Trade Interaction and Coordination
+8. Site Access, Security, Laydown, and Traffic Control
+9. Hazard Communication and Environmental Protection
+10. Emergency Response and Rescue
+11. IIPP / Incident Reporting / Corrective Action
+12. Worker Conduct, Fit-for-Duty, and Disciplinary Program
+13. Training, Competency, and Certifications
+14. Required Permits and Hold Points
+15. PPE and Work Attire
+16. Scope-Specific Policy Evidence Summary
+17. High-Risk Programs
+18. Excavation / Trenching N/A or Program Trigger
+19. Inspections, Audits, and Records
+20. Project Closeout
+21. Reviewer Readiness Summary
+22. Document Control and Revision History
+Appendices.
+Appendix A. Forms and Permit Library.
+Appendix B. Incident and Investigation Package.
+Appendix C. Checklists and Inspection Sheets.
+Appendix D. Field References, Maps, and Contact Inserts.
+Appendix E. Task-Hazard-Control Matrix.
+Disclaimer.
+1. Purpose
+Why the CSEP exists and how it governs project work.
+This CSEP establishes the project-specific safety and environmental requirements that govern work on Germanton. It defines how planning, supervision, permits, training, inspections, and task-level hazard controls are applied from mobilization through closeout so crews can perform assigned work in a consistent and reviewable manner. For structural steel and decking, it ties field execution to pre-planned picks, connection sequencing, fall protection, controlled access, and verified stability before workers rely on the frame or deck for support. Supervisors and crews use this CSEP with the site safety plan, applicable regulations, and the daily JSA/PTP process so changing conditions are coordinated, documented, and corrected before work continues.
+2. Project Coordination and Authority
+Project authority, owner / GC / CM coordination, permit approval paths, and controlling-contractor verification.
+Project information is maintained on the title page to avoid duplication and conflicting information in the body of the plan. R12
+The contractor shall verify the current controlling contractor, GC / CM, owner representative, project safety authority, emergency contact process, and permit approval process before mobilization. R12
+If more than one GC / CM, program partner, or owner representative has active authority, all parties shall be included in coordination, permit approval, access control, and hold-point communication. R12
+Current coordination parties shown on the cover page include owner / client JMM Health and GC / CM JMMC. R12
+3. Scope of Work
+Work package covered by this CSEP and the active tasks used for plan controls.
+3.1 Scope summary.
+JMMC - Structural Steel / Metals / Steel erection / decking Detailed steel erection, rigging, and decking controls are carried in the high-risk programs and Appendix E matrix. The active tasks below define the work package for this issue.
+3.2 Active Tasks.
+3.2.1 Unload steel.
+Receive steel deliveries, control unloading zones, verify load condition, and move members into the approved laydown area.
+3.2.2 Decking install.
+Place and secure metal decking while maintaining fall protection, CDZ boundaries, and controlled access below.
+4. Regulatory Basis and References
+Jurisdiction profile, authority references, and clean OSHA / CFR citation list.
+4.1 Jurisdiction Profile.
+This section identifies the compliance baseline used to assemble the CSEP. It does not replace legal review, the controlling contractor's site rules, or a more protective owner / GC / CM requirement.
+4.1.1 Governing jurisdiction.
+Current Basis: Wisconsin / Federal OSHA baseline.
+4.1.2 Governing state.
+Current Basis: WI
+4.1.3 Plan type.
+Current Basis: Federal OSHA construction baseline.
+4.1.4 Applied jurisdiction overlays.
+Current Basis: Federal OSHA baseline only; no state-plan overlay IDs recorded.
+4.2 Authority References.
+4.2.1 Apply the most protective requirement when federal OSHA, a state-plan rule, owner / client requirement, GC / CM rule, contract document, permit, manufacturer instruction, engineered plan, or this CSEP overlap. R12, R13
+4.2.2 Owner / client and GC / CM site rules control access, orientation, permitting, security, traffic, notification, and stop-work communication when those rules are stricter than the baseline. R12
+4.2.3 Manufacturer instructions, engineered drawings, approved lift / access plans, and permit conditions remain controlling references for the affected task or equipment. R13
+4.2.4 Keep citations in the body as R-codes and use the clean citation list below for the full OSHA / CFR title. R16
+4.3 Clean OSHA / CFR Citation List.
+4.3.1 R1
+Clean Citation: OSHA: 29 CFR 1926 Subpart R - Steel Erection.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.2 R2
+Clean Citation: OSHA: 29 CFR 1926 Subpart M - Fall Protection.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.3 R3
+Clean Citation: OSHA: 29 CFR 1926.502(d)(20) - Fall Rescue and Prompt Rescue.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.4 R4
+Clean Citation: OSHA: 29 CFR 1926 Subpart J - Welding, Cutting, Fire Protection, and Prevention.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.5 R5
+Clean Citation: OSHA: 29 CFR 1926 Subpart O - Motor Vehicles, Mechanized Equipment, and Marine Operations.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.6 R6
+Clean Citation: OSHA: 29 CFR 1926 Subpart CC - Cranes, Derricks, Rigging, and Signal Requirements.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.7 R7
+Clean Citation: OSHA: 29 CFR 1926.453 - Aerial Lifts and MEWPs.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.8 R8
+Clean Citation: OSHA: 29 CFR 1926 Subpart X - Stairways and Ladders.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.9 R9
+Clean Citation: OSHA: 29 CFR 1926 Subpart L - Scaffolds.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.10 R10
+Clean Citation: OSHA: 29 CFR 1926.59; 29 CFR 1910.1200 - Hazard Communication.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.11 R11
+Clean Citation: OSHA: 29 CFR 1926 Subpart E - Personal Protective and Life Saving Equipment.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.12 R12
+Clean Citation: Project-specific owner, GC and CM, contract, permit, access, and site safety requirements.
+Scope Use: Owner, GC / CM, contract, permit, access, and project safety rules.
+4.3.13 R13
+Clean Citation: Manufacturer instructions, equipment manuals, engineered drawings, and approved lift and access plans.
+Scope Use: Manufacturer instructions, engineered documents, approved plans, and equipment-specific limits.
+4.3.14 R14
+Clean Citation: OSHA: 29 CFR 1926 Subpart I - Tools, Hand and Power.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.15 R15
+Clean Citation: OSHA: 29 CFR 1926 Subpart P - Excavations.
+Scope Use: Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.
+4.3.16 R16
+Clean Citation: OSHA: 29 CFR 1904 and project recordkeeping and retention requirements.
+Scope Use: Recordkeeping, retention, injury / illness logs, permits, inspections, and closeout records.
+4.3.17 R17
+Clean Citation: OSHA severe weather, heat, cold, lightning, emergency action, and project weather requirements.
+Scope Use: Weather, emergency action, heat, cold, lightning, and project severe-weather controls.
+5. Top 10 Critical Risks
+Highest project and steel erection exposures requiring leadership attention.
+5.1 Top 10 Risks.
+1. Falls while decking, leading-edge work, or acting as a connector; incomplete guardrails, CDZ boundaries, or fall-arrest/positioning that is not rigged to an approved plan.
+2. Struck-by or caught-in the load path, swing radius, or tag-line zone; shifting bundles; rigging that slips, rolls, or releases before a stable landing.
+3. Crane, hoist, and rigging overload or control failure; multiple-lift rigging, capacity limits, or critical lifts performed without a reviewed lift or rigging plan.
+4. Loss of stability from missing or out-of-sequence bracing, guy lines, or temporary supports; members landed before anchor bolts, templates, and bearing surfaces are plumb, level, and fit-up verified.
+5. Collapse, crush, or deck punch-through from shoring or deck that is overloaded, uninspected, or not walked before loads; unguarded floor openings, shaft jumps, and incomplete barriers.
+6. Ignition, burn, fume, and slag exposure from field welding, cutting, grinding, and hot work on steel and deck (fire watch, line clearance, combustibles below the arc).
+7. Dropped hand tools, bolts, and deck bundles through openings or at elevation; poor housekeeping at deck edges and column lines.
+8. Electrical contact, trip hazards from welding leads, and arc flash when temporary power, stingers, or equipment tie-ins are on active steel or deck.
+9. Lightning, high wind, or icing that changes crane and hoist limits, plumb, fall protection, and unsecured deck or bundle exposure.
+10. Congested picks and landings where steel interfaces with other trades, deliveries, and mobile equipment; unclear radio communication, spotter blind spots, or ad hoc staging.
+6. Roles and Responsibilities
+Role duties, authority, and key definitions for the project team.
+6.1 Overview.
+The responsibilities below are baseline expectations for this CSEP issue on Germanton. They do not replace or remove other duties required by employer policy, contract, OSHA, site-specific procedures, or the controlling contractor. Where this CSEP is silent, follow the hierarchy of controls, the site orientation, and the GC/CM direction of the day.
+6.2 Superintendent / Project Manager.
+Aligns JMMC's plan for Structural Steel / Metals / Steel erection / decking with the project schedule, permits, and interface agreements. Confirms pre-task plans match current hazards and site rules, authorizes stop-work when conditions change, and ensures competent-person coverage and required equipment are in place before production pressure resumes. Escalates trade-to-trade conflicts and records significant safety decisions for turnover and audits.
+6.3 Competent Person.
+Identifies and predicts hazards for the work in progress, implements and documents the measures needed to control them, and has authority to stop unsafe acts. Conducts or participates in inspections tied to critical lifts, fall protection, access changes, and energy isolation when those exposures are in scope. Communicates conditions and handoffs clearly to crews and the superintendent.
+6.4 Foreman / Crew Lead.
+Runs daily briefings for the assigned crew, verifies tools, PPE, and permits before starting, and enforces the work plan at the face. Keeps the competent person informed of field changes, near misses, and subcontractor overlap. Ensures only trained workers perform specialized tasks assigned to the crew.
+6.5 Workers.
+Follow established safe work procedures, attend briefings, use required PPE, and report hazards and near misses immediately. Exercise stop-work authority when a condition is not controlled. Participate in inspections and drills as directed and do not bypass guards, fall protection, or lockout controls.
+6.6 Qualified Rigger.
+Selects and inspects rigging for the loads and configurations in use, rejects damaged or misapplied gear, and follows the lift plan and qualified signaler communication. Keeps exclusion zones respected during hooking, travel, and landing. Coordinates with the crane operator and competent person when pick conditions change.
+6.7 Signal Person.
+Gives standardized signals or radio commands only when qualified for the equipment and lift in progress, maintains continuous visual or voice contact as required, and stops the load when anyone enters the swing or drop zone. Confirms tag line control and landing clearances before movement resumes.
+6.8 Safety Lead / Safety Director.
+Supports the project team with program interpretation, training records, incident notification, and audit readiness. Tracks corrective actions to closure and helps align contractor procedures with owner and GC/CM expectations. Does not replace line supervision but verifies critical controls are implemented in the field.
+6.9 GC / CM / Controlling Contractor Interface.
+Provides site-wide orientation, shared emergency coordination, and rules for shared spaces, traffic, and hot work where the GC/CM is the controlling entity. Confirms contractor plans align with the site safety plan and interfaces on multi-employer exposures. Contractor supervision remains responsible for crew execution and subcontractor oversight.
+7. Trade Interaction and Coordination
+Overlap planning, shared-area coordination, access handoffs, and conflict response.
+Project-specific coordination, overlap, access, and handoff information to be completed.
+8. Site Access, Security, Laydown, and Traffic Control
+Worker access, visitors, deliveries, truck routing, staging, traffic, and restricted areas.
+8.1 Site Access and Worker Entry.
+8.1.1 Workers enter through approved project access points, complete the required site orientation, and follow GC / CM badge, sign-in, and daily access rules before entering the work area. R12
+8.2 Laydown, Staging, and Material Control.
+8.2.1 Store materials only in approved laydown or staging areas shown by the project team, with aisles, emergency access, fire lanes, exits, and utility access kept clear. R5, R12
+8.2.2 Keep unauthorized personnel out of laydown, loading, and unloading areas while trucks, forklifts, cranes, or hoists are moving material. R5, R12
+8.3 Deliveries, Truck Routing, and Traffic Control.
+8.3.1 Schedule deliveries with the project team so trucks use approved routes, staging lanes, turnarounds, and unloading windows without blocking emergency access or active crew paths. R5, R12
+8.4 Restricted Areas, Security, and Shift Turnover.
+8.4.1 Report unresolved access, security, laydown, or traffic concerns during shift turnover and document corrective actions through the project communication process. R12, R16
+8.5 Steel Erection Access and Controlled Zones.
+8.5.1 Coordinate steel deliveries, bundle landings, crane swing, controlled decking zones, and connector access so no unauthorized worker enters the load path or release area. R1, R5, R6, R12
+8.5.2 Keep deck bundles, beams, columns, fasteners, and temporary bracing in assigned staging areas until the competent person confirms landing stability, access clearance, and release sequencing. R1, R5, R12
+9. Hazard Communication and Environmental Protection
+SDS, labels, chemical inventory, spill tie-ins, waste, stormwater, dust, and nuisance controls.
+9.1 Hazard Communication.
+9.1.1 SDS on site: Keep an SDS for every hazardous chemical in use, in the work area and in the master project library (e.g. trailer binder, GC portal, or site app). Make SDS available to the CM and HSE (or their designee) for verification and audits on request.
+9.1.2 Inventory and use communication: A chemical inventory (or other documented process) links introduced products to SDS before first use, including contractor-supplied and owner-supplied materials on multi-employer sites.
+9.1.3 Primary and secondary container labeling: Do not work from or transfer into unmarked containers. Secondary and portable containers show product identity, GHS label elements (pictograms, signal word, hazard and precautionary statements) or a site-approved worker-readable equivalent, consistent with the shipped product class.
+9.1.4 NFPA / site marking: Post or maintain NFPA 704, HMIS, or other owner-mandated markings at fixed chemical storage, fuel points, and yards where the site plan or AHJ require them; align with the SDS and local emergency response pre-plan.
+9.1.5 Worker awareness: Train to label and SDS content at a use level and know how to get help (supervision, site safety, poison control) before non-routine or unfamiliar chemical tasks.
+9.1.6 Damaged, bulging, or leaking containers: Report them immediately, isolate, and manage per the SDS, spill kit, and site/owner release rules. Repackage or decommission containers that are not serviceable; relabel if the label is defaced and the product is verified.
+9.1.7 Spill follow-through: For releases beyond a minor, controlled work-face cleanup, follow site emergency, environmental, and agency-reporting programs as applicable—HazCom still owns SDS, labels, and worker communication.
+10. Emergency Response and Rescue
+Emergency notifications, 911 response, rescue, EMS access, fire response, and sheltering.
+10.1 Emergency Action Overview.
+This emergency response section applies to Structural Steel / Metals / Steel erection / decking on Germanton and is used with the controlling contractor emergency plan, site orientation, posted emergency contacts, and daily JSA/PTP briefing. R12, R16
+10.2 Notification and 911 Direction.
+10.2.1 Call 911 for life-threatening injury, fall arrest, fire, collapse, electrocution, severe bleeding, loss of consciousness, suspected fracture, environmental release, or any event requiring outside emergency response; provide the project location as 4497 gold medal pt. R12
+10.2.2 Assign one person to meet responders at the access point and guide them to the incident location while another person maintains scene control. R12
+10.3 Rescue Readiness.
+Rescue Readiness: Before elevated work, decking, connector work, crane picks, or MEWP work begins, confirm the rescue method, rescue equipment location, communication method, and assigned rescue roles. R2, R3, R12, R16
+10.3.2 Do not rely on an improvised rescue plan for a suspended worker, fall arrest event, trapped worker, or inaccessible elevated location; stop work until a viable rescue plan is confirmed. R2, R3, R12
+10.3.3 After a rescue or emergency response event, remove affected equipment from service and document inspection, replacement, and restart authorization before work resumes. R11, R12, R16
+10.4 Fire, Hot Work, and Medical Response.
+10.4.1 For fire, smoke, uncontrolled sparks, or hot-work exposure, stop hot work, alert nearby workers, use extinguishers only when trained and safe, and evacuate or shelter as directed. R4, R12
+10.4.2 First aid and CPR are provided only by trained personnel within their training; workers shall not move an injured person unless needed to prevent additional harm. R12, R16
+10.5 Weather, Shelter, and Accountability.
+10.5.1 Severe weather, lightning, high wind, heat, cold, or tornado conditions trigger work stoppage, shelter, accountability, and restart inspection as required by the site plan and high-risk weather controls. R12, R17
+10.5.2 Supervision accounts for assigned workers after evacuation, shelter, rescue, or emergency stop-work and communicates missing-person or injury information through the emergency communication tree. R12, R16
+11. IIPP / Incident Reporting / Corrective Action
+Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.
+11.1 Company Safety Policy and Scope.
+JMMC's Injury and Illness Prevention Program (IIPP) applies to Structural Steel / Metals / Steel erection / decking performed on Germanton and to company work practices that support those project activities. The effective date for this CSEP issue is April 30, 2026; the revision date is the latest issue date shown on the cover and document control page. Management is committed to providing a safe and healthy workplace by planning the work, assigning competent supervision, correcting hazards, and giving employees the authority and information needed to work safely. The IIPP applies project-by-project through this CSEP and company-wide where company policy, training, disciplinary, recordkeeping, or corrective-action systems govern the work.
+11.2 Responsible Persons.
+11.2.1 Owner / executive leadership: Provides program authority, resources, and management support for the IIPP.
+11.2.2 Safety manager / safety director: Maintains IIPP requirements, supports training, reviews incidents, and verifies corrective-action closure.
+11.2.3 Superintendent / project manager: Implements the IIPP on the project, coordinates with the owner / GC / CM, and confirms competent-person coverage.
+11.2.4 Foremen / crew leads: Communicate daily hazards, enforce safe work practices, conduct or support toolbox meetings, and escalate unresolved hazards.
+11.2.5 Competent persons: Identify predictable hazards, conduct assigned inspections, correct hazards within their authority, and stop exposed work when needed.
+11.2.6 Employees: Follow safe work practices, attend training and briefings, use required PPE, report hazards, and participate in correction and investigation processes.
+11.3 Employee Compliance System.
+Employees are expected to follow company safety rules, site rules, this CSEP, task plans, permits, manufacturer instructions, and supervisor direction. Compliance is reinforced through supervision, coaching, positive recognition for safe work, documented retraining when expectations are missed, and progressive discipline when unsafe conduct or repeated noncompliance occurs. Discipline and retraining records are retained with the project or company safety file as applicable.
+11.4 Safety Communication.
+Safety information is communicated in a form employees can understand through new-hire orientation, site-specific orientation, toolbox or tailgate meetings, JHAs / PTPs, postings, written notices, text or email alerts where used, safety meetings, SDS access, and bilingual materials or translation when needed. Employees may report hazards, near misses, injuries, and concerns to supervision or safety without fear of retaliation; anonymous reporting may be used when provided by company or project process.
+11.5 Hazard Identification and Jobsite Inspections.
+Hazards are identified and evaluated through pre-job planning, job hazard analyses, daily site walks, competent-person inspections, equipment inspections, scaffold and ladder checks, trench inspections when applicable, and inspections when new equipment, materials, processes, or conditions are introduced. Scheduled periodic inspections and condition-triggered inspections are documented and routed to the responsible person for correction tracking.
+11.6 Accident, Incident, Near-Miss, and Exposure Investigation.
+Injuries, illnesses, property damage, near misses, and hazardous exposures are reported promptly and investigated by supervision, safety, or another assigned responsible person. Investigations identify what happened, who was involved, witness statements, photos or other evidence, contributing factors, root causes, and corrective actions. Reports and corrective actions are completed within the project or company reporting time frame and tracked to closure.
+11.7 Hazard Correction Procedures.
+11.7.1 Correct unsafe conditions and practices as soon as feasible based on severity, exposure, and available controls.
+11.7.2 Assign a responsible person, due date, temporary control, and verification method for each corrective action.
+11.7.3 Use stop-work authority when a hazard creates uncontrolled exposure or when required controls are not in place.
+11.7.4 For imminent hazards that cannot be corrected immediately and safely, remove exposed personnel except those needed to correct the condition with proper safeguards.
+11.7.5 Document completion, communicate the correction to affected employees, and verify conditions before restart.
+11.8 Training and Instruction.
+training is assigned based on the active scope, permits, equipment, and high-risk programs triggered by this CSEP.
+11.9 Employee Access to the IIPP.
+Employees and authorized representatives may examine and receive a copy of the written IIPP through supervision, safety, the project office, the company safety office, or the electronic document location used for this CSEP. For California work, access is provided within five business days of a request unless unobstructed electronic access is already available.
+11.10 Recordkeeping.
+Records are kept for scheduled and periodic inspections, hazard corrections, training records are maintained for at least one year unless a small-employer exception applies; Cal/OSHA injury and illness logs and related records may have separate retention requirements.
+11.11 Written Code of Safe Practices.
+For California construction work, the company maintains a written Code of Safe Practices that applies to the work covered by this CSEP. The Code of Safe Practices is posted at a conspicuous location at each jobsite office or provided to each supervisory employee so it is readily available to affected employees.
+11.12 Toolbox / Tailgate Safety Meetings.
+Supervisors conduct toolbox, tailgate, or equivalent safety meetings with crews at least every 10 working days for California construction work and more frequently when project conditions require. Meeting topics address current work, incidents, corrective actions, upcoming hazardous tasks, seasonal hazards, and lessons learned; attendance and topics are documented.
+11.13 Supervisor Safety Meetings.
+Periodic supervisor safety meetings are conducted under management direction to discuss safety problems, incidents, corrective actions, upcoming hazardous work, coordination needs, inspection findings, and lessons learned. Meeting notes or action items are retained with project or company safety records.
+11.14 Emergency Procedures.
+Site-specific emergency procedures address fire, medical emergencies, serious injuries, evacuation, rescue, earthquakes or severe weather where applicable, utility strikes, hazardous material releases, emergency contacts, access routes, muster points, first-aid locations, fire extinguishers, nearest clinic or hospital, and who calls 911. Emergency procedures are coordinated with the site emergency plan and communicated during orientation and task briefings.
+11.15 Hazard-Specific Programs or Appendices.
+The IIPP includes or cross-references written programs, procedures, forms, and appendices that apply to the work. Common construction appendices include the Code of Safe Practices, JHA / PTP forms, inspection forms, incident and near-miss reports, corrective-action logs, training records, emergency contacts, fall protection and rescue procedures, hot-work permits, lift plans, equipment inspection forms, Hazard Communication / SDS information, excavation procedures when triggered, and the task-hazard-control matrix.
+12. Worker Conduct, Fit-for-Duty, and Disciplinary Program
+Unsafe-act response, stop-work enforcement, impairment, fatigue, wellness, and discipline.
+12.1 Fit-for-Duty Expectations.
+12.1.1 Workers shall report fit for duty, alert, able to understand instructions, and free from impairment that could affect safe performance. R12
+12.1.2 Supervision shall remove a worker from exposed work when fatigue, illness, impairment, distraction, or unsafe conduct creates an uncontrolled exposure. R12, R16
+12.2 Site Conduct Rules.
+12.2.1 Workers shall follow site orientation rules, crew briefings, access controls, stop-work directions, and supervisor instructions for the assigned work area. R12
+12.2.2 Horseplay, bypassing controls, entering restricted areas without authorization, fighting, threats, harassment, and unsafe acts are not permitted. R12
+12.2.3 Workers shall report unsafe conditions, near misses, incidents, damaged equipment, and changed work conditions to supervision without delay. R12, R16
+12.3 Drug, Alcohol, and Impairment Response.
+12.3.1 JMMC shall follow project, owner, GC / CM, contract, and company requirements for drug and alcohol testing, reasonable-suspicion response, post-incident screening, and return-to-work coordination. R12, R16
+12.3.2 When impairment is suspected, supervision shall remove the affected worker from safety-sensitive work, protect privacy, notify the designated project contact, and document actions through the company process. R12, R16
+12.4 Corrective Action and Progressive Discipline.
+12.4.1 Unsafe acts and rule violations shall be corrected promptly using coaching, retraining, written corrective action, removal from task, or disciplinary escalation based on severity and recurrence. R12, R16
+12.4.2 Work may restart only after the unsafe condition or behavior is corrected, affected workers are briefed, and required controls are verified. R12, R16
+13. Training, Competency, and Certifications
+Training records, certifications, qualified roles, and active-scope training requirements.
+13.1 Training Matrix.
+Role / Position.
+Minimum Required Training.
+Task Exposure.
+Verification.
+Frequency.
+Foreman / Superintendent.
+Project orientation; CSEP review; JSA/PTP; stop-work authority.
+Unload steel; Decking install; Fall exposure; Struck-by; Line of fire; Hot work; Crane and lift; Overhead work.
+Sign-in / supervisor verification.
+Before mobilization and when scope changes.
+Competent Person.
+Competent-person designation for assigned exposures.
+Unload steel; Decking install; Fall exposure; Struck-by; Line of fire; Hot work; Crane and lift; Overhead work.
+Designation record / field verification.
+Before assigned oversight.
+Ironworker / Steel Erector.
+Fall protection; steel erection task briefing; hazard recognition.
+Unload steel; Decking install; Fall exposure; Struck-by; Line of fire; Hot work; Crane and lift; Overhead work.
+Training record / daily huddle.
+Before task and as conditions change.
+Connector / Decking Crew.
+Connector/decking authorization; CDZ; fall rescue awareness.
+Leading edge / decking / connector work.
+Authorization record.
+Before special-task work.
+Qualified Rigger / Signal Person.
+Rigging; signaling; lift plan / pick plan communication.
+Crane picks / material handling.
+Qualification record.
+Before lifting assignment.
+MEWP Operator.
+MEWP operator training and equipment authorization.
+MEWP / aerial lift access.
+Operator card / equipment authorization.
+Before operation.
+Welder / Fire Watch.
+Hot work permit; fire watch; extinguisher use; HazCom tie-in.
+Welding / cutting / grinding.
+Permit and training record.
+Before hot work.
+Rescue Personnel.
+Rescue plan, equipment, communication, and role assignment.
+Fall rescue / emergency response.
+Rescue briefing / drill record.
+Before rescue responsibility.
+13.2 Minimum Training Rule.
+Minimum Training Rule: No worker shall be assigned to connector work, decking, rigging, signaling, hot work, MEWP operation, scaffold use, fall rescue responsibility, or other special-task work until the required training, qualification, authorization, or competent-person verification has been documented. R12, R16
+13.3 Lifting Plan Readiness.
+13.3.1 For lifting activities, verify lift plan / pick plan communication and crane permit responsibilities before execution.
+14. Required Permits and Hold Points
+Permit triggers, hold points, verification, and closeout requirements.
+Permit / Hold Point.
+Trigger.
+Release Requirement.
+Record.
+Lift plan / pick plan.
+R6
+Foreman verifies permit or hold-point release before work starts and when conditions change.
+Project permit log / JSA / lift plan / inspection record.
+Hot Work Permit.
+R4, R12
+Foreman verifies permit or hold-point release before work starts and when conditions change.
+Project permit log / JSA / lift plan / inspection record.
+Fall protection / rescue plan.
+R2, R3
+Foreman verifies permit or hold-point release before work starts and when conditions change.
+Project permit log / JSA / lift plan / inspection record.
+14.1 Permit Readiness Rule.
+Work shall not begin or restart when a required permit, rescue plan, lift plan, competent-person inspection, or owner / GC / CM approval is missing or expired. R12, R16
+15. PPE and Work Attire
+Work attire, minimum PPE, task-specific PPE, provider responsibilities, selection, training, inspection, and replacement.
+15.1 Required Work Attire.
+Workers shall report in work attire suitable for construction conditions, weather, climbing, material handling, and the site dress code. R11, R12
+15.1.1 Wear shirts with sleeves; do not work in tank tops, sleeveless shirts, or other apparel that does not protect the upper body in a construction environment. R11, R12
+15.1.2 Wear durable long pants suitable for the task; shorts and non-work footwear are not acceptable unless the project owner or site rules explicitly authorize them for defined conditions. R11, R12
+15.1.3 Dress for weather: add or remove layers, rain gear, and cold-weather clothing so workers stay capable and safe without compromising visibility or mobility where the site requires it. R11, R12
+15.1.4 Avoid loose, torn, or baggy clothing, dangling drawstrings, jewelry, or other items that can catch on rotating equipment, hoist lines, steel edges, or power tools. R11, R12
+15.1.5 Follow owner, GC/CM, and site-specific dress codes (logo shirts, visitor vests, flame-resistant clothing zones, clean-room rules, etc.) when those rules apply to the work area or task. R11, R12
+15.2 Minimum PPE.
+Minimum PPE for this CSEP includes Hard Hat, Safety glasses, High-visibility garment, Gloves, Safety-toe boots, Fall protection harness, Welding hood, Face shield. R11, R12
+15.3 Task-Specific PPE.
+Task-specific PPE shall be selected from the task hazards, SDS, permit, manufacturer instructions, and JSA/PTP for the active work. R10, R11, R12, R13
+15.4 PPE Provider.
+The employer shall provide required protective equipment except personal clothing or personal items specifically allowed by company and project policy; no worker may be assigned exposed work until required PPE is available and serviceable. R11, R12
+15.5 Selection Criteria.
+PPE selection shall consider impact, cut, puncture, chemical, heat, electrical, fall, visibility, weather, and manufacturer limitations for the task. R10, R11, R13, R17
+15.6 Training.
+Workers shall be trained on when PPE is required, how to wear it, limitations, inspection, care, storage, and replacement before assignment. R11, R12, R16
+15.7 Inspection and Replacement.
+Damaged, contaminated, expired, modified, or unsuitable PPE shall be removed from service and replaced before the worker resumes exposed work. R11, R12, R16
+16. Scope-Specific Policy Evidence Summary
+Reviewer-facing matrix showing where scope policy requirements are addressed in this CSEP.
+16.1 Scope-Specific CODEX Evidence Summary.
+Scope Policy / Requirement.
+How This CSEP Addresses It.
+Where to Review.
+Fall Protection.
+Fall protection, fall rescue, leading edge, and stop-work controls are included when triggered.
+High-Risk Programs; PPE; Emergency Response.
+Hand / Power Tools.
+Tool use is tied to access control, inspection, PPE, and R14 references.
+High-Risk Programs; Appendix E.
+Ladder Safety.
+Ladder and access controls are included when ladder or access tasks are selected.
+High-Risk Programs; Training Matrix.
+Trenching / Excavation.
+Excavation is either a triggered program or N/A with a required change trigger.
+Excavation / Trenching N/A or Program Trigger.
+HazCom.
+SDS location, chemical inventory, secondary labels, training, and responsible person are addressed.
+HazCom and Environmental Protection.
+PPE
+Provider, selection, training, maintenance, and replacement language is included.
+PPE and Work Attire.
+Incident Reporting.
+Reporting and investigation steps are included with Appendix B support.
+IIPP / Incident Reporting / Corrective Action; Appendix B.
+Corrective Action.
+Corrective action ownership, verification, and restart expectations are addressed.
+IIPP / Incident Reporting / Corrective Action.
+HSE Orientation.
+Orientation and special-task verification are summarized in the training matrix.
+Training, Competency, and Certifications.
+Severe Weather.
+Wind, lightning, heat, cold, storm/tornado, shelter, restart, and inspection thresholds are included when triggered.
+High-Risk Programs; Emergency Response.
+17. High-Risk Programs
+Triggered written procedures for major hazards, task controls, verification, stop-work triggers, and records.
+17.1 Fall Protection and Fall Rescue.
+17.1.1 Risk.
+Fall Protection and Fall Rescue can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R2, R3, R12, R16
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R2, R3, R12, R16
+17.1.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Fall Protection and Fall Rescue. R2, R3, R12, R16
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R2, R3, R16
+17.1.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.1.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.1.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R2, R3, R12, R16
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R2, R3, R12, R16
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R2, R3, R12, R16
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+Stop-Work Authority: Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R2, R3, R12, R16
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R2, R3, R12, R16
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.1.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R2, R3
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.1.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R2, R3, R16
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R2, R3, R12, R16
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R2, R3
+17.1.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.1.9 Applicable references.
+1. R2, R3, R12, R16
+17.2 Leading Edge, Connector Work, and Controlled Decking Zone.
+17.2.1 Risk.
+Leading Edge, Connector Work, and Controlled Decking Zone can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R1, R2, R12
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R1, R2, R12
+17.2.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Leading Edge, Connector Work, and Controlled Decking Zone. R1, R2, R12
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R1, R2
+17.2.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.2.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.2.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R1, R2, R12
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R1, R2, R12
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R1, R2, R12
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R1, R2, R12
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R1, R2, R12
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.2.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R1, R2
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.2.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R1, R2
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R1, R2, R12
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R1, R2
+17.2.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.2.9 Applicable references.
+1. R1, R2, R12
+17.3 Structural Stability, Temporary Bracing, Column Anchorage, and Initial Connections.
+17.3.1 Risk.
+Structural Stability, Temporary Bracing, Column Anchorage, and Initial Connections can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R1, R6, R12, R16
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R1, R6, R12, R16
+17.3.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Structural Stability, Temporary Bracing, Column Anchorage, and Initial Connections. R1, R6, R12, R16
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R1, R6, R16
+17.3.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.3.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.3.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R1, R6, R12, R16
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R1, R6, R12, R16
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R1, R6, R12, R16
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R1, R6, R12, R16
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R1, R6, R12, R16
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.3.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R1, R6
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.3.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R1, R6, R16
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R1, R6, R12, R16
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R1, R6
+17.3.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.3.9 Applicable references.
+1. R1, R6, R12, R16
+17.4 Hoisting, Rigging, Crane Picks, and Multiple Lift Control.
+17.4.1 Risk.
+Hoisting, Rigging, Crane Picks, and Multiple Lift Control can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R6, R13, R12, R16
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R6, R13, R12, R16
+17.4.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Hoisting, Rigging, Crane Picks, and Multiple Lift Control. R6, R13, R12, R16
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R6, R13, R16
+17.4.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.4.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.4.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R6, R13, R12, R16
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R6, R13, R12, R16
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R6, R13, R12, R16
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R6, R13, R12, R16
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R6, R13, R12, R16
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.4.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R6, R13
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.4.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R6, R13, R16
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R6, R12, R16
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R6, R13
+17.4.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.4.9 Applicable references.
+1. R6, R13, R12, R16
+17.5 Dropped Object / Overhead Work / Controlled Access Zone.
+17.5.1 Risk.
+Dropped Object / Overhead Work / Controlled Access Zone can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R1, R2, R6, R12
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R1, R2, R6, R12
+17.5.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Dropped Object / Overhead Work / Controlled Access Zone. R1, R2, R6, R12
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R1, R2, R6
+17.5.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.5.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.5.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R1, R2, R6, R12
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R1, R2, R6, R12
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R1, R2, R6, R12
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R1, R2, R6, R12
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R1, R2, R6, R12
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.5.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R1, R2, R6
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.5.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R1, R2, R6
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R1, R2, R6, R12
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R1, R2, R6
+17.5.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.5.9 Applicable references.
+1. R1, R2, R6, R12
+17.6 Hot Work, Welding, Cutting, and Fire Prevention.
+17.6.1 Risk.
+Hot Work, Welding, Cutting, and Fire Prevention can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R4, R10, R12, R16
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R4, R10, R12, R16
+17.6.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Hot Work, Welding, Cutting, and Fire Prevention. R4, R10, R12, R16
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R4, R10, R16
+17.6.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.6.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.6.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R4, R10, R12, R16
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R4, R10, R12, R16
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R4, R10, R12, R16
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R4, R10, R12, R16
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R4, R10, R12, R16
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.6.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R4, R10
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.6.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R4, R10, R16
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R4, R10, R12, R16
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R4, R10
+17.6.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.6.9 Applicable references.
+1. R4, R10, R12, R16
+17.7 MEWP, Ladder, Hand Tool, and Access Control.
+17.7.1 Risk.
+MEWP, Ladder, Hand Tool, and Access Control can expose workers to severe injury when the planned controls are missing, misunderstood, or defeated by changing field conditions. R7, R8, R14, R12
+The main failure modes include uncontrolled access, poor communication, missing verification, and continuing work after the task no longer matches the reviewed plan. R7, R8, R14, R12
+17.7.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by MEWP, Ladder, Hand Tool, and Access Control. R7, R8, R14, R12
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R7, R8, R14
+17.7.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.7.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.7.5 Step-by-step control process.
+1. Review the task, location, crew assignments, adjacent work, and expected sequence during the pre-task plan. R7, R8, R14, R12
+2. Confirm the competent person, qualified person, permit holder, or authorized operator assigned to the work. R12, R16
+3. Inspect required equipment, access, PPE, tools, and work surfaces before the task starts. R7, R8, R14, R12
+4. Set boundaries, barricades, communication methods, and access restrictions before exposure is created. R7, R8, R14, R12
+5. Verify required permits, lift plans, rescue plans, inspection logs, and manufacturer limits before release. R12, R13, R16
+6. Start work only after affected workers understand the hazards, controls, stop-work triggers, and handoff conditions. R7, R8, R14, R12
+7. Maintain controls continuously while the work front moves, materials are handled, or adjacent conditions change. R7, R8, R14, R12
+8. Pause and re-brief the crew when weather, equipment, sequence, access, or trade interfaces change. R12, R17
+9. Document inspection, permit, training, and corrective action records needed to prove control verification. R12, R16
+17.7.6 How controls are verified.
+1. The foreman or competent person verifies controls before work starts and when the work front moves. R12, R16, R7, R8, R14
+2. Field verification is documented through the JSA/PTP, permit, inspection checklist, lift plan, rescue plan, or sign-in record as applicable. R12, R16
+3. Supervision verifies corrective actions before restart after a stop-work condition. R12, R16
+17.7.7 Stop-work / hold-point triggers.
+1. Stop work when required controls, permits, inspections, access controls, or trained personnel are missing. R12, R7, R8, R14
+2. Stop work when field conditions no longer match the reviewed plan or manufacturer limits. R13, R7, R8, R14, R12
+3. Stop work when weather, adjacent trades, unstable material, or unclear communication creates uncontrolled exposure. R12, R17, R7, R8, R14
+17.7.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.7.9 Applicable references.
+1. R7, R8, R14, R12
+17.8 Severe Weather, High Wind, Lightning, Heat, Cold, and Restart Control.
+17.8.1 Risk.
+Weather can change crane capacity, load control, elevated access, worker heat/cold exposure, and the stability of unsecured materials. R17
+Wind, lightning, heat, cold, storms, and tornado warnings can quickly turn normal exterior work into an imminent-danger condition if work continues without reassessment. R17, R12
+17.8.2 When this program applies.
+This program applies when Unload steel, Decking install creates the exposure controlled by Severe Weather, High Wind, Lightning, Heat, Cold, and Restart Control. R17, R12, R16
+It also applies when adjacent trades, weather, access changes, equipment changes, or owner / GC / CM requirements add a related hold point. R12, R17, R16
+17.8.3 Minimum training / authorization.
+1. Workers shall receive task-specific orientation before assignment. R12, R16
+2. Supervision shall verify competent-person or qualified-person coverage where required. R12, R16
+3. Special-task workers shall be authorized for the equipment, permit, or exposure assigned. R12, R16
+17.8.4 Required permits / hold points.
+1. Required permits, plans, and owner / GC / CM hold points shall be completed before work starts. R12
+2. The foreman shall verify that permit conditions still match the work location, crew, equipment, and sequence before release. R12, R16
+3. Work shall not proceed when the required approval path is unclear or not documented. R12
+17.8.5 Step-by-step control process.
+1. Review the daily forecast during the morning huddle and identify weather-sensitive work, including steel erection, sheeting, scaffolds, MEWPs, elevated platforms, roofing, cranes, and material handling. R17, R12
+2. Update the JSA/PTP when weather affects access, equipment limits, heat/cold exposure, load control, or work sequencing. R17, R16
+3. Evaluate steel erection, sheeting, scaffolds, MEWPs, and elevated platforms when sustained winds reach 20-25 mph or when gusts affect control. R17
+4. Stop crane operations per manufacturer limits, the lift plan, project restrictions, or any unsafe wind condition. R17, R13, R6, R12
+5. Stop outdoor work and move workers to shelter when lightning is within 10 miles. R17
+6. Resume lightning-affected work only after clearance and 30 minutes after the last lightning strike within the radius. R17, R12
+7. Start heat controls above 80 F ambient temperature or heat index above 85 F, including water, shade, monitoring, and rest adjustments. R17
+8. Start cold stress controls at 32 F and below, escalating at 10 F, 0 F, and -5 F with warming, dry PPE, and exposure-duration controls. R17
+9. Stop crane, lift, and elevated work during severe storm or tornado watches when directed by project leadership, manufacturer limits, or unsafe observed conditions. R17, R12
+10. Fully stop work and shelter during warnings, then require a post-weather restart inspection before work resumes. R17, R12, R16
+17.8.6 How controls are verified.
+1. The foreman verifies the daily weather review and JSA/PTP update before weather-sensitive work begins. R17, R16
+2. The competent person verifies elevated surfaces, crane setup, access, materials, and barricades after weather stoppage. R17, R12, R16
+3. Restart is documented only after affected controls, communications, and work areas are rechecked. R17, R16
+17.8.7 Stop-work / hold-point triggers.
+1. Lightning within 10 miles triggers outdoor work stoppage and shelter. R17
+2. Unsafe wind, manufacturer wind limits, unstable materials, or lift-plan restrictions trigger stop work for cranes, MEWPs, elevated work, and steel/decking activities. R17, R13, R6
+3. Severe storm or tornado warnings trigger full stop, shelter, and accountability. R17, R12
+17.8.8 Required records.
+1. Maintain JSA/PTP records, permits, inspection checklists, training verification, sign-ins, corrective actions, and approval records according to company and project requirements. R12, R16
+17.8.9 Applicable references.
+1. R17, R12, R16
+18. Excavation / Trenching N/A or Program Trigger
+Excavation and trenching status for this CSEP, including change-trigger requirements when the scope changes.
+18.1 Excavation / Trenching N/A.
+Excavation and trenching are not included in the planned structural steel / metals / steel erection / decking scope covered by this CSEP. R15
+If the scope changes to include digging, entering a trench or excavation, daylighting, underground utility exposure, or work adjacent to an excavation greater than four feet, an excavation / trenching program shall be added before the work begins. R15, R12
+19. Inspections, Audits, and Records
+JHA / pre-task review, inspections, audits, permits, corrective action tracking, and records.
+Inspections, audits, permits, training records, incident reports, corrective actions, and restart verifications shall be maintained in a review-ready format. R12, R16
+The foreman or competent person shall verify critical controls before work starts, when conditions change, after weather events, and before restart after a stop-work condition. R12, R16, R17
+20. Project Closeout
+Corrective action closeout, permit closeout, turnover, lessons learned, and final documentation review.
+20.1 Close-Out and Lessons Learned.
+At phase or project close-out, capture lessons learned, unresolved risks, and carry-forward actions to improve future planning and execution.
+21. Reviewer Readiness Summary
+Reviewer-facing matrix identifying where CSEP content addresses project review requirements and which items remain separate uploads.
+21.1 Reviewer / CODEX Readiness Summary.
+This matrix helps a reviewer locate CSEP evidence quickly. Some CODEX items are separate upload items and are not fully replaced by the CSEP, including OSHA 300A logs, the complete company safety program, example forms, scope-specific policies, and chemical inventory / SDS files when chemicals are brought on site.
+Reviewer Item.
+How Addressed.
+Location / Evidence.
+OSHA 300A logs.
+Referenced as a separate upload item Separate upload may be required.
+Reviewer / CODEX Readiness Summary.
+Complete safety program.
+This CSEP summarizes project controls but does not replace the full company program Separate upload may be required.
+Reviewer / CODEX Readiness Summary.
+Corrective action policy.
+IIPP / Incident Reporting / Corrective Action.
+Section 11
+Defined safety responsibilities.
+Roles and Responsibilities.
+Section 6
+Incident reporting and investigation.
+Incident steps and Appendix B package.
+Section 11 / Appendix B.
+HazCom.
+SDS, inventory, labels, training, responsible person.
+Section 9
+HSE orientation.
+Training, Competency, and Certifications.
+Section 13
+PPE
+Provider, selection, training, inspection, replacement.
+Section 15
+Fall protection.
+High-risk fall protection and rescue program.
+Section 17
+Ladder safety.
+High-risk access control or policy evidence summary.
+Section 16 / 17
+Hand/power tools.
+Policy evidence and high-risk access/tool program.
+Section 16 / 17
+Excavation/trenching N/A or trigger.
+N/A/change-trigger or full program.
+Section 18
+Forms.
+Forms and permit library Separate upload may be required.
+Appendix A.
+SDS / chemical inventory.
+HazCom requires location/inventory; SDS uploads are separate when chemicals are brought on site Separate upload may be required.
+Section 9
+Training records.
+Training matrix and recordkeeping requirements Separate upload may be required.
+Section 13 / Section 19
+22. Document Control and Revision History
+Issue control, revision status, and approval record for this CSEP package.
+22.1 Issue Control.
+Field.
+Current Value.
+Control Requirement.
+Project.
+Germanton.
+Must match cover page and contract records.
+Contractor.
+JMMC
+Must match cover page and sign-off page.
+Issue Date.
+April 30, 2026
+Update when the CSEP is reissued for field use.
+Revision.
+1.0
+Increment when scope, jurisdiction, high-risk work, or approval status changes.
+Prepared By.
+JMMC
+Responsible for assembling the current issue.
+Reviewed By.
+Project management / competent person.
+Confirms content matches scope, site rules, and field controls.
+Approved By.
+Authorized company / GC / CM reviewer.
+Authorizes controlled distribution for project use.
+22.2 Revision History.
+Revision.
+Date
+Description.
+Prepared / Reviewed By.
+1.0
+April 30, 2026
+Initial CSEP issue for review and project field release after required signatures.
+JMMC / Project management / competent person.
+22.3 Distribution and Change Control.
+22.3.1 Only the current approved CSEP issue shall be used for field planning, orientation, permits, inspections, and reviewer evidence. R12, R16
+22.3.2 When scope, work area, contractor authority, site access, emergency routing, high-risk work, jurisdiction, or permit requirements change, the CSEP shall be reviewed and reissued or supplemented before affected work proceeds. R12, R16
+22.3.3 Superseded CSEP copies shall be removed from active field use or clearly marked obsolete, while retained records remain available for audit and closeout. R12, R16
+Appendix A. Forms and Permit Library
+Permit, planning-form, and administrative document library.
+A.1 Forms Index.
+Form / Permit.
+Purpose.
+Used For.
+Daily JSA / PTP.
+Daily hazard review and worker briefing.
+All active work.
+Hot Work Permit.
+Ignition-source authorization and fire-watch controls.
+Welding, cutting, grinding.
+Lift Plan / Pick Plan.
+Crane, hoisting, rigging, and load-path review.
+Crane picks and material handling.
+Fall Protection / Rescue Plan.
+Fall prevention and post-fall response readiness.
+Elevated work and decking.
+Incident Report.
+Initial event capture and notification.
+Injury, near miss, property, environmental events.
+Corrective Action Log.
+Action owner, due date, and closure verification.
+Findings, incidents, audits.
+Training / Orientation Sign-In.
+Attendance and competency verification.
+Orientation and special-task training.
+Appendix B. Incident and Investigation Package
+Incident-response, investigation, corrective-action, and closeout documents.
+B.1 Immediate Notification and Scene Control.
+Step
+Required Entry.
+Notes.
+1
+Date, time, location, and work activity.
+Record as soon as conditions are stable.
+2
+Injured / involved person and employer.
+Include visitor, driver, subcontractor, or public exposure when applicable.
+3
+Emergency services notified.
+911, clinic, fire, rescue, environmental, GC / CM, owner / client.
+4
+Immediate controls installed.
+Barricades, shutdown, rescue, spill isolation, equipment lockout, weather hold.
+5
+Scene preserved or released by.
+Name, role, time, and reason for release.
+B.2 Initial Incident Report.
+Field.
+Entry Requirement.
+Event type.
+Injury, illness, near miss, property damage, environmental release, fire, vehicle/equipment event, or security event.
+Narrative.
+Plain-language description of what happened, what task was underway, and what changed.
+Immediate cause indicators.
+Unsafe condition, unsafe act, equipment failure, weather, access, communication, training, planning, or unknown pending investigation.
+Notifications.
+Supervisor, safety lead, GC / CM, owner / client, insurer, regulator when required.
+Initial corrective actions.
+Controls installed before restart or continued work.
+B.3 Investigation and Corrective Action Tracking.
+Item
+Required Documentation.
+Witness statements.
+Name, employer, contact, statement date, and signed or acknowledged narrative.
+Photo / evidence log.
+Photo ID, location, direction, description, custodian, and preservation status.
+Root cause review.
+Planning, supervision, training, equipment, site condition, communication, and procedure factors.
+Corrective action log.
+Action, owner, due date, interim control, verification method, and closure date.
+Restart authorization.
+Competent person / superintendent / GC / CM release after controls are verified.
+B.4 Post-Incident Closeout.
+B.4.1 Review lessons learned with affected crews before similar work resumes.
+B.4.2 Update the JSA/PTP, permit, inspection checklist, training, or CSEP section when the investigation identifies a document or control gap.
+B.4.3 Retain incident, investigation, medical routing, corrective-action, and closeout records according to company, project, and regulatory requirements.
+Appendix C. Checklists and Inspection Sheets
+Recurring inspection and checklist library with trigger/frequency context.
+C.1 Daily JSA / PTP Checklist.
+Check.
+Verification.
+Task, location, crew, and sequence reviewed.
+Foreman initials / sign-in.
+Hazards and critical controls confirmed.
+Fall, line of fire, rigging, hot work, weather, access, and traffic.
+Permits / hold points released.
+Lift plan, hot work, rescue, access, inspection, or owner / GC / CM approval.
+Emergency plan reviewed.
+Muster point, 911 location, rescue method, first-aid / CPR coverage.
+Stop-work triggers understood.
+Crew briefed before work starts and after conditions change.
+C.2 High-Risk Work Inspection Triggers.
+Inspection.
+When Required.
+Record.
+Fall protection / rescue.
+Before elevated work, after modification, after fall event, after weather.
+Fall protection / rescue inspection.
+Crane, rigging, and hoisting.
+Before each lift sequence and when pick conditions change.
+Lift plan / rigging inspection.
+Hot work.
+Before hot work, during fire watch, after completion.
+Hot work permit / fire watch log.
+MEWP / ladder / access.
+Before use and when relocated or damaged.
+Pre-use inspection.
+Laydown / traffic / site access.
+Before deliveries, crane setup, route changes, or shift turnover.
+Traffic / laydown checklist.
+C.3 Corrective Action Follow-Up.
+Finding.
+Owner.
+Temporary Control.
+Due Date.
+Closure Verification.
+Describe deficiency or unsafe condition.
+Assigned responsible person.
+Barrier, hold, repair, retrain, replace, reroute, or remove from service.
+Date / shift.
+Name, date, and evidence reviewed.
+Appendix D. Field References, Maps, and Contact Inserts
+Field-use maps, emergency contacts, clinic directions, and quick inserts.
+D.1 Emergency Contacts Insert.
+Contact / Resource.
+Number / Location.
+Use
+911 / Emergency Services.
+911
+Life safety, fire, rescue, medical emergency, collapse, uncontrolled release.
+Project Address for Responders.
+4497 gold medal pt.
+Give this location and the nearest access gate / route.
+GC / CM.
+JMMC
+Site-wide emergency coordination, access, owner notification.
+Contractor Superintendent.
+Confirm name and phone before field issue.
+Crew accountability, stop-work, restart authorization.
+Competent Person.
+Confirm name and phone before field issue.
+Hazard correction, inspection, rescue readiness.
+Nearest Occupational Clinic.
+Attach clinic name, address, phone, and route before field issue.
+Non-emergency medical routing and treatment authorization.
+D.2 Maps and Routes Insert.
+Map / Route.
+Must Show.
+Emergency access route.
+Responder gate, staging point, building / work area approach, blocked-route alternate.
+Muster / shelter locations.
+Evacuation assembly, severe-weather shelter, accountability lead.
+Laydown and delivery route.
+Truck entrance, turnaround, staging lane, crane setup, pedestrian separation.
+Hot work / fire response.
+Extinguishers, fire watch areas, alarm pull stations when applicable.
+Clinic route.
+Primary clinic, alternate clinic, after-hours care, driving directions.
+D.3 Worker Quick Reference.
+D.3.1 Stop work when conditions do not match the plan, controls are missing, or a worker is exposed to uncontrolled fall, struck-by, line-of-fire, fire, weather, or access hazards.
+D.3.2 Report emergencies to 911 first when life safety is involved, then notify the foreman / superintendent and GC / CM contact.
+D.3.3 Keep emergency access, egress, laydown aisles, gates, stairs, ladders, and responder routes clear at all times.
+Appendix E. Task-Hazard-Control Matrix
+Task, hazard, control, permit, training, and reference matrix reused from the structured scope task data.
+Unload steel.
+Description: Receive steel deliveries, control unloading zones, verify load condition, and move members into the approved laydown area.
+Hazards: Struck-by, Line of fire, Crane and lift, Overhead work.
+Controls: Controlled laydown route, Equipment exclusion zone, Stable dunnage, Tag lines.
+Permits: Lift plan / pick plan.
+Training: Qualified rigger, Signal person, Hot work training, Fall protection, Crane and lift.
+References: R1, R5, R6
+Decking install.
+Description: Place and secure metal decking while maintaining fall protection, CDZ boundaries, and controlled access below.
+Hazards: Fall exposure, Dropped objects, Hot work, Weather.
+Controls: Controlled decking zone, PFAS, Drop zone control, Fire watch, Wind and lightning review.
+Permits: Hot Work Permit, Fall protection / rescue plan.
+Training: Qualified rigger, Signal person, Hot work training, Fall protection, Fall exposure, Hot work.
+References: R1, R2, R3, R4, R6
+Disclaimer
+DISCLAIMER:
+This document was generated by Safety360Docs and is for informational purposes only.
+The user is solely responsible for verifying accuracy, ensuring compliance, and implementing all safety measures.
+Safety360Docs is not liable for any injury, death, damages, or regulatory violations resulting from use of this document.

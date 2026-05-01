@@ -19,6 +19,14 @@ export const APP_PERMISSIONS = [
   "can_escalate_items",
   "can_view_dashboards",
   "can_view_reports",
+  "can_access_document_library",
+  "can_access_template_marketplace",
+  "can_access_jobsites",
+  "can_access_field_audits",
+  "can_access_field_work",
+  "can_access_training",
+  "can_access_safety_intelligence",
+  "can_access_billing",
 ] as const;
 
 export type AppPermission = (typeof APP_PERMISSIONS)[number];

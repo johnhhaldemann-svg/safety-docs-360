@@ -26,6 +26,7 @@ const useStorageState =
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "**/*.spec.ts",
   globalSetup: require.resolve("./playwright-global-setup.ts"),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

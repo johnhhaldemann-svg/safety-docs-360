@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
 import {
+  buildCorrectiveActionFacetRow,
   buildIncidentFacetRow,
   buildSorRecordFacetRow,
   upsertRiskMemoryFacetSafe,
@@ -16,14 +17,14 @@ import {
 
 export const runtime = "nodejs";
 
-type SourceType = "sor" | "incident" | "injury";
+type SourceType = "sor" | "incident" | "injury" | "corrective_action";
 
 type ReviewItem = {
   id: string;
   sourceType: SourceType;
 };
 
-const SOURCE_TYPES = new Set<SourceType>(["sor", "incident", "injury"]);
+const SOURCE_TYPES = new Set<SourceType>(["sor", "incident", "injury", "corrective_action"]);
 
 function canUsePredictionValidation(role: string) {
   const normalized = normalizeAppRole(role);
@@ -140,6 +141,30 @@ function formatIncidentRow(row: Record<string, unknown>, companies: Map<string, 
   };
 }
 
+function formatCorrectiveActionRow(row: Record<string, unknown>, companies: Map<string, string>) {
+  const companyId = String(row.company_id ?? "");
+  return {
+    id: String(row.id),
+    sourceType: "corrective_action" as const,
+    companyId,
+    companyName: companies.get(companyId) ?? "Unknown company",
+    title: String(row.title ?? "Corrective action").slice(0, 140),
+    detail: [row.category, row.status, row.due_at]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean)
+      .join(" / "),
+    status: row.prediction_validation_status ?? "pending",
+    rating: row.prediction_review_rating ?? null,
+    notes: row.prediction_review_notes ?? null,
+    tags: row.prediction_review_tags ?? [],
+    createdAt: String(row.created_at ?? ""),
+    reviewedAt: row.prediction_reviewed_at ?? null,
+    reviewedBy: row.prediction_reviewed_by ?? null,
+    severity: row.severity ?? null,
+    isInjury: false,
+  };
+}
+
 async function fetchCompanyNames(admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>, companyIds: string[]) {
   const ids = [...new Set(companyIds.filter(Boolean))];
   if (ids.length === 0) return new Map<string, string>();
@@ -165,8 +190,9 @@ async function fetchReviewRows(params: {
   const { admin, sourceType, status, companyId, dateFrom, dateTo, rating, limit } = params;
   const includeSor = sourceType === "all" || sourceType === "sor";
   const includeIncidents = sourceType === "all" || sourceType === "incident" || sourceType === "injury";
+  const includeCorrectiveActions = sourceType === "all" || sourceType === "corrective_action";
 
-  const queries: Array<Promise<{ data: unknown[] | null; error: { message?: string | null } | null; kind: "sor" | "incident" }>> = [];
+  const queries: Array<Promise<{ data: unknown[] | null; error: { message?: string | null } | null; kind: "sor" | "incident" | "corrective_action" }>> = [];
 
   if (includeSor) {
     let q = admin
@@ -201,6 +227,22 @@ async function fetchReviewRows(params: {
     queries.push(Promise.resolve(q).then((res) => ({ ...res, kind: "incident" as const })));
   }
 
+  if (includeCorrectiveActions) {
+    let q = admin
+      .from("company_corrective_actions")
+      .select(
+        "id, company_id, jobsite_id, title, description, category, severity, status, due_at, created_at, prediction_validation_status, prediction_review_rating, prediction_review_notes, prediction_review_tags, prediction_reviewed_by, prediction_reviewed_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (companyId) q = q.eq("company_id", companyId);
+    if (status !== "all") q = q.eq("prediction_validation_status", status);
+    if (dateFrom) q = q.gte("created_at", dateFrom);
+    if (dateTo) q = q.lte("created_at", dateTo);
+    if (rating != null) q = q.eq("prediction_review_rating", rating);
+    queries.push(Promise.resolve(q).then((res) => ({ ...res, kind: "corrective_action" as const })));
+  }
+
   const results = await Promise.all(queries);
   const firstMissing = results.find((result) => result.error && isColumnMissing(result.error));
   if (firstMissing?.error) {
@@ -213,9 +255,11 @@ async function fetchReviewRows(params: {
 
   const rawSorRows = results.find((result) => result.kind === "sor")?.data ?? [];
   const rawIncidentRows = results.find((result) => result.kind === "incident")?.data ?? [];
+  const rawCorrectiveActionRows = results.find((result) => result.kind === "corrective_action")?.data ?? [];
   const companyIds = [
     ...rawSorRows.map((row) => String((row as Record<string, unknown>).company_id ?? "")),
     ...rawIncidentRows.map((row) => String((row as Record<string, unknown>).company_id ?? "")),
+    ...rawCorrectiveActionRows.map((row) => String((row as Record<string, unknown>).company_id ?? "")),
   ];
   const companies = await fetchCompanyNames(admin, companyIds);
 
@@ -228,6 +272,7 @@ async function fetchReviewRows(params: {
         if (sourceType === "incident") return !row.isInjury;
         return true;
       }),
+    ...rawCorrectiveActionRows.map((row) => formatCorrectiveActionRow(row as Record<string, unknown>, companies)),
   ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, limit);
@@ -303,7 +348,10 @@ export async function PATCH(request: Request) {
   }
   const items = normalizeItems(body);
   if (items.length === 0) {
-    return NextResponse.json({ error: "At least one SOR, incident, or injury record is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "At least one SOR, incident, injury, or corrective-action record is required." },
+      { status: 400 }
+    );
   }
 
   const notes = optionalText(body?.notes);
@@ -323,6 +371,7 @@ export async function PATCH(request: Request) {
   const incidentIds = items
     .filter((item) => item.sourceType === "incident" || item.sourceType === "injury")
     .map((item) => item.id);
+  const correctiveActionIds = items.filter((item) => item.sourceType === "corrective_action").map((item) => item.id);
 
   const updates = [];
   if (sorIds.length > 0) {
@@ -330,6 +379,9 @@ export async function PATCH(request: Request) {
   }
   if (incidentIds.length > 0) {
     updates.push(admin.from("company_incidents").update(patch).in("id", incidentIds).select("*"));
+  }
+  if (correctiveActionIds.length > 0) {
+    updates.push(admin.from("company_corrective_actions").update(patch).in("id", correctiveActionIds).select("*"));
   }
 
   const results = await Promise.all(updates);
@@ -356,11 +408,16 @@ export async function PATCH(request: Request) {
       const sourceId = String(row.id ?? "");
       if (!companyId || !sourceId) continue;
       const isSor = "project" in row || "hazard_category_code" in row;
+      const isCorrectiveAction = "assigned_user_id" in row || ("due_at" in row && "title" in row && !("injury_type" in row));
       if (status === "approved") {
         facetUpdates.push(
           upsertRiskMemoryFacetSafe(
             admin,
-            isSor ? buildSorRecordFacetRow(companyId, row) : buildIncidentFacetRow(companyId, row, null)
+            isSor
+              ? buildSorRecordFacetRow(companyId, row)
+              : isCorrectiveAction
+                ? buildCorrectiveActionFacetRow(companyId, row, null)
+                : buildIncidentFacetRow(companyId, row, null)
           )
         );
       } else {
@@ -370,7 +427,7 @@ export async function PATCH(request: Request) {
               .from("company_risk_memory_facets")
               .delete()
               .eq("company_id", companyId)
-              .eq("source_module", isSor ? "sor_record" : "incident")
+              .eq("source_module", isSor ? "sor_record" : isCorrectiveAction ? "corrective_action" : "incident")
               .eq("source_id", sourceId)
           ).then(() => undefined)
         );

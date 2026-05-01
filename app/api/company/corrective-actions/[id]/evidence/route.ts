@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
 
@@ -12,11 +13,18 @@ type EvidencePayload = {
 };
 
 function canManageCorrectiveActions(role: string) {
-  return isAdminRole(role) || role === "company_admin" || role === "manager";
+  return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "sales_demo";
 }
 
 function isMissingCorrectiveActionsTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_corrective_action");
+}
+
+function isDemoRequest(auth: { role: string; user: { email?: string | null } }) {
+  return (
+    auth.role === "sales_demo" ||
+    (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
+  );
 }
 
 export async function POST(
@@ -49,6 +57,22 @@ export async function POST(
       { error: "filePath and fileName are required for completion proof." },
       { status: 400 }
     );
+  }
+
+  if (isDemoRequest(auth)) {
+    return NextResponse.json({
+      success: true,
+      evidence: {
+        id: `demo-evidence-${Date.now()}`,
+        action_id: id,
+        company_id: "demo-company",
+        file_path: filePath,
+        file_name: fileName,
+        mime_type: mimeType || null,
+        created_at: new Date().toISOString(),
+      },
+      message: "Completion proof attached.",
+    });
   }
 
   const companyScope = await getCompanyScope({

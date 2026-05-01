@@ -1,4 +1,4 @@
-import type { PermissionMap } from "@/lib/rbac";
+import type { AppPermission, PermissionMap } from "@/lib/rbac";
 
 type RoleInput = string | null | undefined;
 
@@ -40,6 +40,31 @@ function hasDocumentWorkspaceCapability(permissionMap?: PermissionMap | null) {
     permissionMap.can_create_documents ||
       permissionMap.can_edit_documents ||
       permissionMap.can_view_all_company_data
+  );
+}
+
+function hasFeatureAccess(
+  permissionMap: PermissionMap | null | undefined,
+  permission: AppPermission
+) {
+  if (!permissionMap) {
+    return true;
+  }
+
+  return Boolean(permissionMap[permission] || permissionMap.can_view_all_company_data);
+}
+
+function hasAnyFeatureAccess(
+  permissionMap: PermissionMap | null | undefined,
+  permissions: readonly AppPermission[]
+) {
+  if (!permissionMap) {
+    return true;
+  }
+
+  return Boolean(
+    permissionMap.can_view_all_company_data ||
+      permissions.some((permission) => permissionMap[permission])
   );
 }
 
@@ -131,6 +156,7 @@ export function canViewCompanyTrainingMatrix(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_training")) return false;
   if (isAdminLikeRole(role)) return true;
   if (isSalesDemoRole(role)) return true;
 
@@ -151,6 +177,7 @@ export function canMutateCompanyTrainingRequirements(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_training")) return false;
   if (isAdminLikeRole(role)) return true;
   if (isSalesDemoRole(role)) return true;
 
@@ -174,6 +201,7 @@ export function canManageCompanyJsa(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_field_work")) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
@@ -187,6 +215,7 @@ export function canManageCompanyPermits(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_field_work")) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
@@ -203,6 +232,7 @@ export function canManageCompanyIncidents(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_field_work")) return false;
   if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
   const normalized = normalizeRole(role);
@@ -219,6 +249,7 @@ export function canAccessCompanyJobsites(
   permissionMap?: PermissionMap | null
 ) {
   if (!role) return false;
+  if (!hasFeatureAccess(permissionMap, "can_access_jobsites")) return false;
   if (isAdminLikeRole(role)) return true;
   if (isSalesDemoRole(role)) return true;
   const normalized = normalizeRole(role);
@@ -236,45 +267,92 @@ export function canAccessCompanyWorkspaceHref(
   permissionMap?: PermissionMap | null
 ) {
   const normalizedHref = href.split("#")[0] ?? href;
+  const pathOnly = normalizedHref.split("?")[0] ?? normalizedHref;
+  const isMarketplaceTab = normalizedHref.includes("tab=marketplace");
 
-  if (normalizedHref === "/training-matrix") {
+  if (pathOnly === "/library") {
+    if (isMarketplaceTab) {
+      return hasFeatureAccess(permissionMap, "can_access_template_marketplace");
+    }
+    return hasFeatureAccess(permissionMap, "can_access_document_library");
+  }
+  if (pathOnly === "/search") {
+    return hasFeatureAccess(permissionMap, "can_access_document_library");
+  }
+  if (pathOnly === "/purchases" || pathOnly === "/customer/billing") {
+    return hasFeatureAccess(permissionMap, "can_access_billing");
+  }
+  if (pathOnly === "/marketplace-preview-approvals") {
+    return hasFeatureAccess(permissionMap, "can_access_template_marketplace");
+  }
+  if (pathOnly === "/training-matrix" || pathOnly === "/company-contractors") {
     return canViewCompanyTrainingMatrix(role, permissionMap);
   }
-  if (normalizedHref === "/jsa") {
+  if (pathOnly === "/jsa") {
     return canManageCompanyJsa(role, permissionMap);
   }
-  if (normalizedHref === "/permits") {
+  if (pathOnly === "/permits") {
     return canManageCompanyPermits(role, permissionMap);
   }
-  if (normalizedHref === "/incidents") {
+  if (pathOnly === "/incidents") {
     return canManageCompanyIncidents(role, permissionMap);
   }
-  if (normalizedHref === "/field-audits") {
-    const normalized = normalizeRole(role);
+  if (pathOnly === "/field-id-exchange" || pathOnly === "/safety-submit") {
     return (
-      isAdminLikeRole(role) ||
-      isSalesDemoRole(role) ||
-      FIELD_AUDIT_WORKSPACE_ROLES.has(normalized) ||
-      Boolean(permissionMap?.can_view_dashboards || permissionMap?.can_view_all_company_data)
+      hasFeatureAccess(permissionMap, "can_access_field_work") &&
+      hasAnyFeatureAccess(permissionMap, [
+        "can_manage_observations",
+        "can_submit_documents",
+        "can_view_dashboards",
+      ])
     );
   }
-  if (normalizedHref === "/jobsites") {
+  if (pathOnly === "/field-audits" || pathOnly === "/audit-customers") {
+    const normalized = normalizeRole(role);
+    return (
+      hasFeatureAccess(permissionMap, "can_access_field_audits") &&
+      (isAdminLikeRole(role) ||
+        isSalesDemoRole(role) ||
+        FIELD_AUDIT_WORKSPACE_ROLES.has(normalized) ||
+        Boolean(permissionMap?.can_view_dashboards || permissionMap?.can_view_all_company_data))
+    );
+  }
+  if (pathOnly === "/jobsites" || pathOnly === "/companies") {
     return canAccessCompanyJobsites(role, permissionMap);
   }
-  if (normalizedHref === "/submit") {
-    return canSubmitCompanyDocuments(permissionMap);
+  if (pathOnly === "/safety-intelligence" || pathOnly === "/analytics/safety-intelligence") {
+    return hasFeatureAccess(permissionMap, "can_access_safety_intelligence");
+  }
+  if (pathOnly === "/settings/risk-memory") {
+    return hasFeatureAccess(permissionMap, "can_access_safety_intelligence");
   }
   if (
-    normalizedHref === "/upload" ||
-    normalizedHref === "/peshep" ||
-    normalizedHref === "/csep"
+    pathOnly === "/analytics" ||
+    pathOnly === "/analytics/predictive-model" ||
+    pathOnly === "/command-center" ||
+    pathOnly === "/dashboard"
   ) {
-    return canBuildCompanyDocuments(permissionMap);
+    return hasAnyFeatureAccess(permissionMap, ["can_view_dashboards", "can_view_analytics"]);
   }
-  if (normalizedHref === "/company-users") {
+  if (pathOnly === "/reports") {
+    return hasFeatureAccess(permissionMap, "can_view_reports");
+  }
+  if (pathOnly === "/submit") {
+    return (
+      hasFeatureAccess(permissionMap, "can_access_document_library") &&
+      canSubmitCompanyDocuments(permissionMap)
+    );
+  }
+  if (pathOnly === "/upload" || pathOnly === "/peshep" || pathOnly === "/csep") {
+    return (
+      hasFeatureAccess(permissionMap, "can_access_document_library") &&
+      canBuildCompanyDocuments(permissionMap)
+    );
+  }
+  if (pathOnly === "/company-users") {
     return Boolean(permissionMap?.can_manage_company_users || permissionMap?.can_manage_users);
   }
-  if (normalizedHref === "/company-integrations") {
+  if (pathOnly === "/company-integrations") {
     return Boolean(permissionMap?.can_manage_company_users || permissionMap?.can_manage_users);
   }
 

@@ -8,6 +8,7 @@ import type {
   RiskEngineV2Explainability,
   RiskLevel,
 } from "@/lib/injuryWeather/types";
+import type { ForecastTrustLevel } from "@/lib/injuryWeather/forecastIntegrity";
 
 export const RISK_ENGINE_V2_VERSION = "3.0.0" as const;
 
@@ -33,10 +34,11 @@ export function normalizeSeverity(raw: string): NormalizedLiveSignalRow["severit
 }
 
 export function recencyWeight(ageDays: number): number {
-  if (ageDays <= 30) return 1.5;
-  if (ageDays <= 90) return 1.2;
-  if (ageDays <= 180) return 1.0;
-  return 0.8;
+  if (ageDays <= 7) return 1.75;
+  if (ageDays <= 30) return 1.45;
+  if (ageDays <= 90) return 1.1;
+  if (ageDays <= 365) return 0.65;
+  return 0.25;
 }
 
 /** Circular month distance 0 = same month, 1 = adjacent, else other. */
@@ -102,8 +104,23 @@ export function scoreRowsForForecast(
 
   const severityMix = { low: 0, medium: 0, high: 0, critical: 0 };
   const sourceMix = { sor: 0, corrective_action: 0, incident: 0 };
+  const trustMix: Record<ForecastTrustLevel, number> = {
+    verified: 0,
+    high_confidence: 0,
+    medium_confidence: 0,
+    low_confidence: 0,
+    blocked: 0,
+  };
+  let trustWeightMass = 0;
+  let integrityExcluded = 0;
 
   for (const row of rows) {
+    if (row.forecastIntegrity?.eligibleForForecast === false) {
+      integrityExcluded += 1;
+      const trustLevel = row.forecastIntegrity.trustLevel;
+      trustMix[trustLevel] += 1;
+      continue;
+    }
     const created = new Date(row.created_at);
     if (Number.isNaN(created.getTime())) continue;
 
@@ -112,7 +129,8 @@ export function scoreRowsForForecast(
     const age = ageDays(created, asOf);
     const rw = recencyWeight(age);
     const sew = seasonalityWeight(created, forecastMonthStart);
-    const rowRisk = sw * sevW * rw * sew;
+    const tw = row.forecastIntegrity?.trustWeight ?? row.forecastTrustWeight ?? 1;
+    const rowRisk = sw * sevW * rw * sew * tw;
 
     scored.push({
       ...row,
@@ -126,9 +144,11 @@ export function scoreRowsForForecast(
     severityFactorMass += sevW;
     recencyFactorMass += rw;
     seasonalityFactorMass += sew;
+    trustWeightMass += tw;
     rowRiskSum += rowRisk;
     severityMix[row.severity] += 1;
     sourceMix[row.source] += 1;
+    trustMix[row.forecastIntegrity?.trustLevel ?? row.forecastTrustLevel ?? "verified"] += 1;
   }
 
   let totalSignalScore = 0;
@@ -233,15 +253,18 @@ export function scoreRowsForForecast(
   };
   const meanRecencyWeight = scored.length ? recencyFactorMass / scored.length : 1;
   const meanSeasonalityWeight = scored.length ? seasonalityFactorMass / scored.length : 1;
+  const meanTrustWeight = scored.length ? trustWeightMass / scored.length : 1;
 
   return {
     scored,
     explainability: {
       riskEngineVersion: RISK_ENGINE_V2_VERSION,
-      includedRowCount: rows.length,
-      excludedRowCount: options?.excludedRowCount ?? 0,
+      includedRowCount: scored.length,
+      excludedRowCount: (options?.excludedRowCount ?? 0) + integrityExcluded + (rows.length - integrityExcluded - scored.length),
       tradeNormalizationSummary,
       sourceMix,
+      trustMix,
+      meanTrustWeight,
       leadingIndicatorWeightedScore,
       correctivePressureScore,
       laggingIndicatorScore,

@@ -104,6 +104,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+  { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
   { href: "/analytics", label: "Safety analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -142,6 +143,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
   { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+  { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
   { href: "/analytics", label: "Safety analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
@@ -332,6 +334,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+      { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
       { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
@@ -392,6 +395,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
       { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
+      { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
       { href: "/analytics", label: "Safety analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
