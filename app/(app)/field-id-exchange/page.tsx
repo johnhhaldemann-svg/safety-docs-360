@@ -2146,13 +2146,23 @@ export default function FieldIdExchangePage() {
                     Filters
                   </div>
                   <div className="grid gap-3">
-                    <select value={jobsiteFilter} onChange={(event) => setJobsiteFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                    <select
+                      aria-label="Filter work queue by jobsite"
+                      value={jobsiteFilter}
+                      onChange={(event) => setJobsiteFilter(event.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+                    >
                       <option value="all">All jobsites</option>
                       {jobsites.map((jobsite) => (
                         <option key={jobsite.name} value={jobsite.name}>{jobsite.name}</option>
                       ))}
                     </select>
-                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                    <select
+                      aria-label="Filter work queue by status"
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+                    >
                       <option value="all">All statuses</option>
                       <option value="Open">Open</option>
                       <option value="Assigned">Assigned</option>
@@ -2162,7 +2172,12 @@ export default function FieldIdExchangePage() {
                       <option value="Stop Work">Stop Work</option>
                       <option value="Verified Closed">Verified Closed</option>
                     </select>
-                    <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500">
+                    <select
+                      aria-label="Filter work queue by category"
+                      value={categoryFilter}
+                      onChange={(event) => setCategoryFilter(event.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+                    >
                       <option value="all">All categories</option>
                       {categoryCounts.map((category) => (
                         <option key={category.label} value={category.label}>{category.label}</option>
