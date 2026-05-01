@@ -120,18 +120,15 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
   const customEnd = searchParams.get("endDate")?.trim() ?? "";
 
   return (
-    <section className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(241,247,255,0.95)_100%)] p-4 shadow-[var(--app-shadow-soft)] sm:p-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <section className="rounded-xl border border-[var(--app-border)] bg-white/92 px-4 py-3 shadow-[0_8px_20px_rgba(44,58,86,0.04)] sm:px-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-base font-bold text-[var(--app-text-strong)]">Prevention view scope</h2>
-          <p className="text-xs text-[var(--app-muted)]">
-            Filters narrow jobsite, contractor, risk band, and time window. They are saved in the URL and applied to the live
-            overview API so leaders see the same prevention snapshot when sharing a link.
-          </p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">Scope</p>
+          <h2 className="text-sm font-bold tracking-tight text-[var(--app-text-strong)]">Prevention View</h2>
         </div>
       </div>
-      <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+      <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
           Jobsite
           <select
             className={appNativeSelectClassName}
@@ -150,7 +147,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           </select>
         </label>
 
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
           Contractor
           <select
             className={appNativeSelectClassName}
@@ -180,7 +177,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           ) : null}
         </label>
 
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
           Date range
           <select
             className={appNativeSelectClassName}
@@ -202,7 +199,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           </select>
         </label>
 
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
           Risk level
           <select
             className={appNativeSelectClassName}
@@ -218,8 +215,8 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
       </div>
 
       {effectiveRange === "custom" ? (
-        <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
             Start (UTC date)
             <input
               type="date"
@@ -228,7 +225,7 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
               onChange={(e) => pushParams({ startDate: e.target.value || null, range: "custom" })}
             />
           </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--app-text-strong)]">
+          <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">
             End (UTC date)
             <input
               type="date"

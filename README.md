@@ -69,7 +69,7 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, E2E se
 
 **Production launch:** step-by-step checklist in [`docs/production-deployment.md`](docs/production-deployment.md). Operations and go-to-market alignment in [`docs/support-onboarding-runbook.md`](docs/support-onboarding-runbook.md).
 
-**Revenue-ready pilot (1–3 paying customers):** use the pilot pack in order — [`docs/pilot-sku.md`](docs/pilot-sku.md) (scope), [`docs/pilot-staging-and-env.md`](docs/pilot-staging-and-env.md) (staging + env), [`docs/pilot-qa-signoff.md`](docs/pilot-qa-signoff.md) (QA tables), [`docs/pilot-billing-cutover.md`](docs/pilot-billing-cutover.md), [`docs/pilot-notifications-inventory.md`](docs/pilot-notifications-inventory.md), [`docs/pilot-legal-and-agreements.md`](docs/pilot-legal-and-agreements.md), [`docs/pilot-production-cutover.md`](docs/pilot-production-cutover.md). Post-pilot product gaps: [`docs/post-pilot-checklist-backlog.md`](docs/post-pilot-checklist-backlog.md).
+**Revenue-ready pilot (1–3 paying customers):** start with [`docs/test-company-pilot-start.md`](docs/test-company-pilot-start.md), then use the pilot pack in order — [`docs/pilot-sku.md`](docs/pilot-sku.md) (scope), [`docs/pilot-staging-and-env.md`](docs/pilot-staging-and-env.md) (staging + env), [`docs/pilot-qa-signoff.md`](docs/pilot-qa-signoff.md) (QA tables), [`docs/pilot-billing-cutover.md`](docs/pilot-billing-cutover.md), [`docs/pilot-notifications-inventory.md`](docs/pilot-notifications-inventory.md), [`docs/pilot-legal-and-agreements.md`](docs/pilot-legal-and-agreements.md), [`docs/pilot-production-cutover.md`](docs/pilot-production-cutover.md). Post-pilot product gaps: [`docs/post-pilot-checklist-backlog.md`](docs/post-pilot-checklist-backlog.md).
 
 ## Scripts
 
@@ -87,6 +87,7 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, E2E se
 | `npm run stress:platform` | Load test: concurrent requests to public HTML pages plus anonymous GET `/api/legal/config` and `/api/auth/me` (401 OK). Requires a running server. `STRESS_SKIP_API=1` for HTML only. |
 | `npm run test:e2e:ci` | Build + production server + Playwright |
 | `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
+| `npm run seed:pilot-company` | Seed an approved pilot company, admin user, optional field user, and starter jobsite (needs service role) |
 | `npm run db:push` | `supabase db push --yes` (after `supabase link`) |
 | `npm run vercel:prod` | Production deploy (`npx vercel deploy --prod`) |
 | `npm run vercel:preview` | Preview deploy (`npx vercel deploy`) |

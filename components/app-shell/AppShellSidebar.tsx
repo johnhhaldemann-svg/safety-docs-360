@@ -48,27 +48,27 @@ export function AppShellSidebar({
   return (
     <aside
       className={cx(
-        "fixed inset-y-0 left-0 z-50 h-dvh w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[248px] lg:max-w-none lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 h-dvh w-[280px] max-w-[84vw] border-r border-[var(--app-border)] bg-[linear-gradient(180deg,_#fbfdff_0%,_#f3f7fe_58%,_#edf4fb_100%)] text-[var(--app-text-strong)] transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[236px] lg:max-w-none lg:translate-x-0",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="p-4 pb-1">
-          <div className="relative h-[5.8rem] w-full">
+        <div className="p-3.5 pb-1">
+          <div className="relative h-[4.9rem] w-full">
             <Image
               src="/brand/safety360docs-reference-neon-tight.png"
               alt="Safety360Docs by Reliance EHS"
               fill
               priority
-              sizes="248px"
+              sizes="236px"
               className="object-contain object-left"
             />
           </div>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          <div className="px-3 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Menu</div>
-          <div className="mt-4 space-y-0">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
+          <div className="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Menu</div>
+          <div className="mt-3 space-y-0">
             {keyedSideSections.map((section, sectionIndex) => {
               const sectionDescription = (section as { description?: string }).description ?? "";
               const isExpanded = expandedSectionKey === section.key;
@@ -77,7 +77,7 @@ export function AppShellSidebar({
               return (
                 <div
                   key={`nav-section-${sectionIndex}-${section.title}`}
-                  className={sectionIndex > 0 ? "mt-5 border-t border-[var(--app-border)] pt-5" : ""}
+                  className={sectionIndex > 0 ? "mt-4 border-t border-[var(--app-border)] pt-4" : ""}
                 >
                   <button
                     type="button"
@@ -85,26 +85,26 @@ export function AppShellSidebar({
                     aria-controls={sectionContentId}
                     onClick={() => onToggleSection(section.key)}
                     className={cx(
-                      "flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-2 text-left transition duration-150",
+                      "flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition duration-150",
                       isExpanded
-                        ? "bg-white/75 text-[var(--app-text-strong)] shadow-sm ring-1 ring-[var(--app-accent-border-20)]"
-                        : "text-slate-500 hover:bg-white/60 hover:text-[var(--app-text-strong)]"
+                        ? "bg-white/78 text-[var(--app-text-strong)] shadow-sm ring-1 ring-[var(--app-accent-border-20)]"
+                        : "text-slate-500 hover:bg-white/64 hover:text-[var(--app-text-strong)]"
                     )}
                   >
                     <div className="flex min-w-0 gap-2.5">
                       <span
                         className={cx(
-                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--app-border-subtle)] bg-white/80 text-[var(--app-muted)] shadow-sm transition",
+                          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--app-border-subtle)] bg-white/80 text-[var(--app-muted)] shadow-sm transition",
                           isExpanded && "border-[var(--app-accent-border-22)] text-[var(--app-accent-primary)]"
                         )}
                         aria-hidden
                       >
-                        <SectionIcon className="h-4 w-4" strokeWidth={2.25} />
+                        <SectionIcon className="h-3.5 w-3.5" strokeWidth={2.25} />
                       </span>
                       <div className="min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.22em]">{section.title}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em]">{section.title}</div>
                       {sectionDescription ? (
-                        <div className="mt-1 text-[11px] leading-5 text-[var(--app-muted)]">{sectionDescription}</div>
+                        <div className="mt-1 text-[10.5px] leading-4 text-[var(--app-muted)]">{sectionDescription}</div>
                       ) : null}
                       </div>
                     </div>
@@ -121,11 +121,11 @@ export function AppShellSidebar({
                     id={sectionContentId}
                     className={cx(
                       "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
-                      isExpanded ? "mt-2 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+                      isExpanded ? "mt-1.5 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
                     )}
                   >
                     <div className="min-h-0 overflow-hidden">
-                      <div className="space-y-1.5 px-1 pb-1">
+                      <div className="space-y-1 px-1 pb-1">
                         {section.items.map((item) => {
                           const active = isWorkspaceNavActive(pathname, item.href);
                           const navMeta = getWorkspaceNavItemMeta(item);
@@ -134,9 +134,9 @@ export function AppShellSidebar({
                               key={`${section.title}-${item.href}`}
                               href={item.href}
                               className={cx(
-                                "relative flex items-center rounded-2xl border py-3 pl-4 pr-4 transition duration-150",
+                                "relative flex items-center rounded-xl border py-2.5 pl-3.5 pr-3 transition duration-150",
                                 active
-                                  ? "border-[var(--app-accent-border-24)] bg-[linear-gradient(135deg,_var(--app-accent-surface-14)_0%,_var(--app-accent-surface-08)_100%)] text-[var(--app-text-strong)] shadow-[var(--app-shadow-primary-nav)] before:absolute before:inset-y-2.5 before:left-1 before:w-1 before:rounded-full before:bg-[var(--app-accent-primary)] before:shadow-[0_0_14px_rgba(37,99,235,0.45)]"
+                                  ? "border-[var(--app-accent-border-24)] bg-white text-[var(--app-text-strong)] shadow-[0_6px_14px_rgba(37,99,235,0.1)] before:absolute before:inset-y-2.5 before:left-1 before:w-1 before:rounded-full before:bg-[var(--app-accent-primary)]"
                                   : "border-transparent text-[var(--app-text)] hover:bg-white/70 hover:text-[var(--app-text-strong)]"
                               )}
                               onClick={onNavLinkActivate}
@@ -146,7 +146,7 @@ export function AppShellSidebar({
                                   {item.label}
                                 </div>
                                 {!active ? (
-                                  <div className="mt-0.5 truncate text-[11px] text-[var(--app-muted)]">
+                                  <div className="mt-0.5 truncate text-[10px] text-[var(--app-muted)]">
                                     {navMeta.description}
                                   </div>
                                 ) : null}
@@ -163,8 +163,8 @@ export function AppShellSidebar({
           </div>
         </nav>
 
-        <div className="shrink-0 border-t border-white/10 bg-[rgba(237,244,255,0.92)] p-3 backdrop-blur">
-          <div className="rounded-[1.6rem] border border-[var(--app-border)] bg-white/80 p-4">
+        <div className="shrink-0 border-t border-white/10 bg-[rgba(244,248,255,0.92)] p-2.5 backdrop-blur">
+          <div className="rounded-xl border border-[var(--app-border)] bg-white/84 p-3">
             <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Signed In</div>
             <div className="mt-3 flex items-center gap-3">
               <ProfileAvatar profile={profileSummary} email={userEmail} />
@@ -187,7 +187,7 @@ export function AppShellSidebar({
             <button
               type="button"
               onClick={onLogout}
-              className="app-btn-primary app-radius-card mt-4 w-full px-4 py-3 text-sm font-bold app-shadow-action transition"
+              className="app-btn-primary mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-bold app-shadow-action transition"
             >
               Log out
             </button>

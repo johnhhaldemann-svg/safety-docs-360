@@ -48,9 +48,9 @@ export function AppShellHeader({
 }: AppShellHeaderProps) {
   const currentNavMeta = getWorkspaceNavItemMeta(currentNavItem as NavItem);
   return (
-    <header className="border-b border-[var(--app-border)] bg-[rgba(250,252,255,0.96)] backdrop-blur">
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 sm:py-5 xl:px-8">
-        <div className="flex flex-col gap-4 sm:gap-6">
+    <header className="border-b border-[var(--app-border)] bg-[rgba(250,252,255,0.94)] backdrop-blur">
+      <div className="mx-auto w-full max-w-[1560px] px-4 py-3 sm:px-6 sm:py-4 xl:px-7">
+        <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <button
               type="button"
@@ -61,7 +61,7 @@ export function AppShellHeader({
               <MobileMenuIcon />
             </button>
             <div className="min-w-0 flex-1">
-              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-white/80 px-3 py-2 shadow-[0_6px_14px_rgba(44,58,86,0.04)] sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-white/78 px-3 py-2 shadow-[0_4px_10px_rgba(44,58,86,0.035)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--app-muted)]">
                   <span className="truncate">{workspaceLabel}</span>
                   <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
@@ -90,9 +90,9 @@ export function AppShellHeader({
                   </span>
                 </div>
               </div>
-              <div className="mb-3 flex max-w-4xl flex-col gap-2 sm:mb-4 sm:flex-row">
+              <div className="mb-3 flex max-w-4xl flex-col gap-2 sm:flex-row">
                 <form onSubmit={onSearchSubmit} className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 rounded-lg border border-[var(--app-border-strong)] bg-white px-3 py-2.5 shadow-[0_8px_20px_rgba(44,58,86,0.06)] ring-1 ring-[rgba(26,39,68,0.03)]">
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 shadow-[0_5px_14px_rgba(44,58,86,0.04)] ring-1 ring-[rgba(26,39,68,0.03)]">
                     <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--app-muted)]" />
                     <input
                       type="search"
@@ -113,7 +113,7 @@ export function AppShellHeader({
                 <button
                   type="button"
                   onClick={onOpenCommandPalette}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3.5 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--app-accent-primary)] shadow-[0_8px_18px_rgba(44,58,86,0.04)] transition hover:border-[var(--app-accent-border-24)] hover:bg-white"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--app-accent-primary)] shadow-[0_5px_14px_rgba(44,58,86,0.035)] transition hover:border-[var(--app-accent-border-24)] hover:bg-white"
                 >
                   <Command aria-hidden="true" className="h-4 w-4" />
                   Menu
@@ -124,7 +124,7 @@ export function AppShellHeader({
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-3 sm:mt-2">
                 <div>
-                  <h1 className="font-app-display text-2xl font-extrabold tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
+                  <h1 className="font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-[1.7rem]">
                     {currentNavItem.label}
                   </h1>
                   <p className="mt-1 max-w-3xl text-sm text-[var(--app-text)]">
@@ -140,7 +140,7 @@ export function AppShellHeader({
                   </p>
                 </div>
               </div>
-              <p className="mt-2 max-w-3xl text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted)] sm:text-sm">
+              <p className="mt-2 max-w-3xl text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted)]">
                 Enterprise Safety Management Platform
               </p>
             </div>

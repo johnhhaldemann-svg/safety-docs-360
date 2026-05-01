@@ -45,14 +45,14 @@ export function MetricCard({
   const displayLabel = formatTitleCase(label) || label;
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_var(--app-panel-soft)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] ${className}`.trim()}
+      className={`relative min-h-[8.75rem] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white px-4 py-4 shadow-[0_6px_16px_rgba(44,58,86,0.045)] ${className}`.trim()}
     >
-      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${stripeClass}`} aria-hidden="true" />
+      <span className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${stripeClass}`} aria-hidden="true" />
       <div className="pl-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">{displayLabel}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">{displayLabel}</p>
         <div className="mt-1 flex flex-wrap items-end gap-2">
           <p
-            className={`font-app-display break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl ${
+            className={`font-app-display break-words text-2xl font-bold leading-tight tracking-tight sm:text-[2rem] ${
               valueMuted ? "text-[var(--app-muted)]" : "text-[var(--app-text-strong)]"
             }`}
           >
@@ -65,7 +65,7 @@ export function MetricCard({
             </span>
           ) : null}
         </div>
-        {hint ? <p className="mt-2 text-xs leading-relaxed text-[var(--app-text)]">{hint}</p> : null}
+        {hint ? <p className="mt-2 text-xs leading-relaxed text-[var(--app-muted)]">{hint}</p> : null}
       </div>
     </div>
   );

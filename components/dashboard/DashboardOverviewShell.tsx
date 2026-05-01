@@ -112,6 +112,23 @@ function isActiveJobsite(status?: string | null): boolean {
   return normalized === "active" || normalized === "planned" || normalized === "action needed";
 }
 
+function dashboardRangeLabel(value: string | null): string {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "7d") return "Last 7 days";
+  if (normalized === "30d") return "Last 30 days";
+  if (normalized === "ytd") return "Year to date";
+  if (normalized === "custom") return "Custom window";
+  return "Last 90 days";
+}
+
+function dashboardRiskLabel(value: string | null): string {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "high") return "High risk";
+  if (normalized === "medium") return "Medium risk";
+  if (normalized === "low") return "Low risk";
+  return "All risk levels";
+}
+
 type DailyCommandAction = {
   id: string;
   title: string;
@@ -247,7 +264,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   );
 
   useEffect(() => {
-    setActiveTab(readDashboardTab(searchParams.get("tab")));
+    const timeoutId = window.setTimeout(() => {
+      setActiveTab(readDashboardTab(searchParams.get("tab")));
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [searchParams]);
 
   useEffect(() => {
@@ -378,6 +398,12 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const companyName = formatTitleCase(workspace.companyProfile?.name?.trim() || workspace.userTeam || "Workspace");
   const connectedSourceCount = overview.engineHealth.filter((item) => item.status === "green").length;
   const totalSourceCount = overview.engineHealth.length;
+  const selectedScopeLabel = [
+    dashboardRangeLabel(searchParams.get("range")),
+    dashboardRiskLabel(searchParams.get("riskLevel")),
+    searchParams.get("jobsiteId") ? "Filtered jobsite" : "All jobsites",
+    searchParams.get("contractorId") ? "Filtered contractor" : "All contractors",
+  ].join(" / ");
 
   const doc = overview.documentReadiness;
   const pipelineTotal = doc.draft + doc.submitted + doc.underReview + doc.approved + doc.rejected;
@@ -445,64 +471,87 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   return (
     <div className="space-y-8">
       {filters}
-      <section className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(240,246,255,0.88)_100%)] px-4 py-4 text-sm text-[var(--app-text)] shadow-[var(--app-shadow-soft)] sm:px-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
-              Today&apos;s command view
-            </p>
-            <h2 className="mt-1 font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
-              {companyName}
-            </h2>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+      <section className="overflow-hidden rounded-xl border border-[rgba(121,151,196,0.34)] bg-white text-sm text-[var(--app-text)] shadow-[0_18px_38px_rgba(44,58,86,0.08)]">
+        <div className="border-b border-[var(--app-border-subtle)] px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
+                Executive Command View
+              </p>
+              <h2 className="mt-1 font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
+                {companyName}
+              </h2>
+              <p className="mt-1 max-w-3xl text-xs font-semibold uppercase tracking-[0.1em] text-[var(--app-muted)]">
+                {selectedScopeLabel}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
               <StatusBadge
                 label={`${connectedSourceCount}/${totalSourceCount || 0} sources green`}
                 tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
               />
               <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
-              <StatusBadge
-                label={`${overview.summary.openHighRiskItems} high-risk open`}
-                tone={overview.summary.openHighRiskItems > 0 ? "error" : "success"}
-              />
-              <StatusBadge
-                label={`${overview.summary.overdueCorrectiveActions} overdue`}
-                tone={overview.summary.overdueCorrectiveActions > 0 ? "error" : "success"}
-              />
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-xs font-bold text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="w-fit rounded-xl border border-[var(--app-border-strong)] bg-white/86 px-3 py-2 text-xs font-semibold text-[var(--app-text-strong)] shadow-sm transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Refreshing..." : "Refresh hub"}
-          </button>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <div className="rounded-2xl border border-[var(--app-border)] bg-white/88 p-4">
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.42fr)]">
+          <div className="grid gap-3 border-b border-[var(--app-border-subtle)] p-4 sm:grid-cols-3 sm:p-5 xl:border-b-0 xl:border-r">
+            <MetricCard
+              label="Safety health"
+              value={overview.summary.safetyHealthScore}
+              hint="Composite prevention posture"
+              statusBand={healthCompositeBand}
+              className="min-h-[9.25rem]"
+            />
+            <MetricCard
+              label="Training readiness"
+              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
+              valueMuted={!trainingMeasured}
+              statusBand={trainingSummaryBand}
+              hint={trainingMeasured ? "Training and credentials connected." : "Training or credential records needed."}
+              className="min-h-[9.25rem]"
+            />
+            <MetricCard
+              label="Document readiness"
+              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "Not enough data yet"}
+              valueMuted={!documentRateMeasured}
+              statusBand={documentSummaryBand}
+              hint={documentRateMeasured ? "Document workflow connected." : "Document workflow records needed."}
+              className="min-h-[9.25rem]"
+            />
+          </div>
+
+          <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
-                  Top 3 actions today
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+                  Priority Queue
                 </p>
-                <h3 className="mt-1 text-lg font-bold text-[var(--app-text-strong)]">Clear These First</h3>
+                <h3 className="mt-1 text-base font-bold tracking-tight text-[var(--app-text-strong)]">Clear These First</h3>
               </div>
               <StatusBadge label={dailyActions.length ? `${dailyActions.length} active` : "Clear"} tone={dailyActions.length ? "warning" : "success"} />
             </div>
             {dailyActions.length > 0 ? (
-              <div className="mt-4 grid gap-3">
+              <div className="mt-4 divide-y divide-[var(--app-border-subtle)] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white">
                 {dailyActions.map((action) => (
                   <Link
                     key={action.id}
                     href={action.href}
-                    className="group rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 transition hover:border-[var(--app-accent-border-28)]"
+                    className="group block px-3 py-3 transition hover:bg-[var(--app-panel-soft)]"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold text-[var(--app-text-strong)]">{action.title}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-[var(--app-text)]">{action.detail}</p>
+                        <p className="text-sm font-semibold text-[var(--app-text-strong)]">{action.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--app-muted)]">{action.detail}</p>
                       </div>
                       <StatusBadge label={action.meta} tone={action.tone} />
                     </div>
@@ -510,33 +559,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 ))}
               </div>
             ) : (
-              <p className="mt-4 rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-panel-soft)] px-3 py-3 text-sm text-[var(--app-text)]">
-                No high-priority daily actions are visible for this filter. Keep routine field verification active.
+              <p className="mt-4 rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-panel-soft)] px-3 py-3 text-sm text-[var(--app-muted)]">
+                No high-priority daily actions are visible for this scope.
               </p>
             )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-            <MetricCard
-              label="Safety health"
-              value={overview.summary.safetyHealthScore}
-              hint="Composite prevention posture"
-              statusBand={healthCompositeBand}
-            />
-            <MetricCard
-              label="Training readiness"
-              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
-              valueMuted={!trainingMeasured}
-              statusBand={trainingSummaryBand}
-              hint={trainingMeasured ? "Training and credential rows are connected." : "Training or credential records are needed before this rate is meaningful."}
-            />
-            <MetricCard
-              label="Document readiness"
-              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "Not enough data yet"}
-              valueMuted={!documentRateMeasured}
-              statusBand={documentSummaryBand}
-              hint={documentRateMeasured ? "Document workflow volume is connected." : "Document workflow records are needed before this rate is meaningful."}
-            />
           </div>
         </div>
       </section>
@@ -553,8 +579,8 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="elevated"
         description={
           overviewVisibility.preventionHeadlineMode === "field"
-            ? "Field-focused snapshot: open high-risk exposure, overdue follow-ups, and training readiness for your visible work."
-            : "Headline indicators for the selected window. Use them to decide where pre-task review may be needed before high-risk work proceeds."
+            ? "Open exposure, overdue follow-up, and readiness for visible work."
+            : "Headline indicators for the selected window."
         }
       >
         {headlineKpisAreMeaningful(overview) ? (
@@ -659,7 +685,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Forward view"
         title="2. Smart Safety Forecast"
         tone="elevated"
-        description="Incident and near-miss buckets compared across the period. Trending upward suggests risk building—use it to target verification, not as a prediction of a specific event."
+        description="Incident and near-miss buckets compared across the period."
       >
         {incidentsHaveData ? (
           <>
@@ -705,8 +731,8 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         tone="panel"
         description={
           overviewVisibility.showEmergingThemes
-            ? "Ranked themes and field observation mix. A rising negative pattern or concentrated category can signal a repeat issue or potential control gap before harm occurs."
-            : "Positive versus other observation volume for your visible scope—use it to reflect submitted field observations back to the crew."
+            ? "Ranked themes and field observation mix."
+            : "Positive versus other observation volume for your visible scope."
         }
       >
         {overviewVisibility.showEmergingThemes ? (
@@ -783,7 +809,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Closure discipline"
         title="4. Corrective Action Control Center"
         tone="attention"
-        description="Open, overdue, and closed posture plus follow-up list. Overdue items represent unresolved exposure—assign owners and dates before work continues in affected areas."
+        description="Open, overdue, and closed posture plus follow-up list."
       >
         <StatusBarChart
           segments={correctiveSegments}
@@ -837,7 +863,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Partners on site"
         title="6. Contractor Risk Scorecards"
         tone="elevated"
-        description="Ranking from compliance documents and evaluations. Use scorecards to decide where contractor coordination or pre-task review is needed before shared high-risk work."
+        description="Ranking from compliance documents and evaluations."
       >
         <ContractorRiskTable contractors={overview.contractorRiskScores} />
       </SectionCard>
@@ -852,7 +878,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Permits and daily plans"
         title="5. JSA / Permit Compliance"
         tone="panel"
-        description="Type-level permit posture and JSA completion. Missing permits for hot work, cranes, excavation, confined space, or energized work are a missing control until documented."
+        description="Type-level permit posture and JSA completion."
       >
         {overview.permitCompliance.length > 0 || missingPermitsTotal > 0 ? (
           <p className="text-sm text-[var(--app-text)]">
@@ -871,7 +897,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Credentials and roles"
         title="7. Workforce Readiness"
         tone="panel"
-        description="Training coverage and credential timing. Expired or missing credentials should be resolved before task assignment on regulated or high-energy work."
+        description="Training coverage and credential timing."
       >
         {trainingMeasured ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -915,7 +941,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Evidence trail"
         title="8. Document Readiness"
         tone="elevated"
-        description="Lifecycle counts for documents in scope. Gaps here can block verification of programs and contractor packages before work continues."
+        description="Lifecycle counts for documents in scope."
       >
         <DocumentReadinessPanel
           readiness={overview.documentReadiness}
@@ -934,7 +960,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Narrative review"
         title="9. Safety Intelligence Review"
         tone="panel"
-        description="Rules-based takeaways from the same metrics—recommended actions you can assign without automated decision-making. Integration gaps below explain blind spots."
+        description="Rules-based takeaways and assignable recommended actions."
       >
         <AiInsightsPanel
           insights={overview.aiInsights}
@@ -962,7 +988,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Signal pipeline"
         title="10. Smart Safety Engine Health"
         tone="elevated"
-        description="Status of the data paths that feed this overview. Yellow or red rows mean prevention signals may be incomplete until the underlying source is restored."
+        description="Status of the data paths that feed this overview."
       >
         <EngineHealthPanel items={smartEngineFinal} />
       </SectionCard>
@@ -973,7 +999,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           eyebrow="Platform"
           title="11. Superadmin System Health"
           tone="attention"
-          description="Read-only infrastructure checks (session, storage, routes). Use them to restore trustworthy prevention data—not as a substitute for field verification."
+          description="Read-only infrastructure checks for sessions, storage, and routes."
         >
           {platformEngine.length > 0 ? (
             <EngineHealthPanel
@@ -1003,7 +1029,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           ),
         }}
       />
-      <details className="group rounded-2xl border border-[var(--app-border)] bg-white/88 px-4 py-4 shadow-[var(--app-shadow-soft)] sm:px-5">
+      <details className="group rounded-xl border border-[var(--app-border)] bg-white/92 px-4 py-4 shadow-[0_8px_20px_rgba(44,58,86,0.04)] sm:px-5">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">

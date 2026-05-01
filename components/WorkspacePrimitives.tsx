@@ -8,7 +8,7 @@ import { formatTitleCase } from "@/lib/formatTitleCase";
  * (where the OS allows) the dropdown list match the light enterprise shell.
  */
 export const appNativeSelectClassName =
-  "rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.98)] px-4 py-2.5 text-sm text-[var(--app-text-strong)] shadow-[0_8px_18px_rgba(76,108,161,0.06)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
+  "rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2 text-sm text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
 
 export const workspaceEyebrowClassName =
   "text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]";
@@ -27,12 +27,12 @@ export const appButtonQuietClassName =
 
 function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
   if (tone === "elevated") {
-    return "border-[rgba(121,151,196,0.42)] bg-[linear-gradient(180deg,_rgba(255,255,255,1)_0%,_rgba(244,249,255,0.98)_100%)] shadow-[0_18px_36px_rgba(74,106,158,0.11)]";
+    return "border-[rgba(121,151,196,0.34)] bg-white shadow-[0_12px_28px_rgba(44,58,86,0.07)]";
   }
   if (tone === "attention") {
-    return "border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(234,241,255,0.98)_100%)] shadow-[var(--app-shadow-primary-attention)]";
+    return "border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] shadow-[0_14px_30px_rgba(37,99,235,0.08)]";
   }
-  return "border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] shadow-[var(--app-shadow-soft)]";
+  return "border border-[var(--app-border)] bg-white/96 shadow-[0_10px_24px_rgba(44,58,86,0.055)]";
 }
 
 export function PageHero({
@@ -90,21 +90,20 @@ export function SectionCard({
 
   return (
     <section
-      className={`relative overflow-hidden rounded-2xl p-6 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
+      className={`relative overflow-hidden rounded-xl p-5 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,_transparent,_var(--app-accent-surface-35),_transparent)]" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
-          <h2 className="text-xl font-bold text-[var(--app-text-strong)]">{displayTitle}</h2>
-          {description ? <p className="mt-1 text-sm leading-relaxed text-[var(--app-text)]">{description}</p> : null}
+          <h2 className="text-lg font-bold tracking-tight text-[var(--app-text-strong)]">{displayTitle}</h2>
+          {description ? <p className="mt-1 max-w-4xl text-sm leading-relaxed text-[var(--app-muted)]">{description}</p> : null}
         </div>
         <div className="flex flex-wrap items-start gap-3 sm:justify-end">
           {aside}
           {actions}
         </div>
       </div>
-      <div className={`relative mt-6 space-y-5 ${contentClassName}`.trim()}>{children}</div>
+      <div className={`relative mt-5 space-y-5 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
 }

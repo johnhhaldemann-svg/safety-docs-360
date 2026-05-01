@@ -28,29 +28,26 @@ type DashboardDetailsTabsProps = {
 
 export function DashboardDetailsTabs({ activeTab, onTabChange, panels }: DashboardDetailsTabsProps) {
   return (
-    <Tabs.Root value={activeTab} onValueChange={onTabChange} className="space-y-5">
-      <section className="rounded-2xl border border-[var(--app-border)] bg-white/92 px-4 py-3 shadow-[var(--app-shadow-soft)] sm:px-5">
+    <Tabs.Root value={activeTab} onValueChange={onTabChange} className="space-y-4">
+      <section className="rounded-xl border border-[var(--app-border)] bg-white/94 px-3 py-3 shadow-[0_8px_20px_rgba(44,58,86,0.04)] sm:px-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--app-muted)]">
-              Dashboard sections
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+              Detail Console
             </p>
-            <h2 className="mt-0.5 text-lg font-bold tracking-tight text-[var(--app-text-strong)]">
-              Explore the Details
-            </h2>
             <p className="mt-1 text-xs leading-relaxed text-[var(--app-muted)]">
               {dashboardTabs.find((tab) => tab.value === activeTab)?.description}
             </p>
           </div>
           <Tabs.List
             aria-label="Dashboard detail sections"
-            className="flex min-w-0 gap-2 overflow-x-auto rounded-2xl border border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-1.5"
+            className="flex min-w-0 gap-1 overflow-x-auto rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-1"
           >
           {dashboardTabs.map((tab) => (
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              className="min-w-max rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition hover:bg-white data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
+              className="min-w-max rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-text)] transition hover:bg-white data-[state=active]:bg-[var(--app-text-strong)] data-[state=active]:text-white data-[state=active]:shadow-[0_6px_14px_rgba(22,50,79,0.16)]"
             >
               {formatTitleCase(tab.label) || tab.label}
             </Tabs.Trigger>

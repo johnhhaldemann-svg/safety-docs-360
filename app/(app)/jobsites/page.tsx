@@ -86,6 +86,10 @@ type AuditCustomer = {
   status?: string | null;
 };
 
+function getAuthHeaders(accessToken?: string | null): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -132,12 +136,8 @@ export default function JobsitesPage() {
       data: { session },
     } = await supabase.auth.getSession();
     const accessToken = session?.access_token;
-    if (!accessToken) {
-      setAuditCustomers([]);
-      return;
-    }
     const response = await fetchWithTimeout("/api/company/audit-customers", {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: getAuthHeaders(accessToken),
     });
     const payload = (await response.json().catch(() => null)) as
       | { customers?: AuditCustomer[]; error?: string }
@@ -306,18 +306,13 @@ export default function JobsitesPage() {
         data: { session },
       } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
-      if (!accessToken) {
-        setMessage("You need to be signed in to save a jobsite. Try refreshing the page.");
-        setMessageTone("error");
-        return;
-      }
 
       const updatingManagedJobsite = selectedJobsite?.source === "table" && selectedJobsiteId !== "all";
       const response = await fetchWithTimeout(updatingManagedJobsite ? `/api/company/jobsites/${selectedJobsite.id}` : "/api/company/jobsites", {
         method: updatingManagedJobsite ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...getAuthHeaders(accessToken),
         },
         body: JSON.stringify({
           name: composer.name,
@@ -379,17 +374,12 @@ export default function JobsitesPage() {
         data: { session },
       } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
-      if (!accessToken) {
-        setMessage("You need to be signed in to save a customer. Try refreshing the page.");
-        setMessageTone("error");
-        return;
-      }
 
       const response = await fetchWithTimeout("/api/company/audit-customers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...getAuthHeaders(accessToken),
         },
         body: JSON.stringify({
           name: composer.customerCompanyName,
@@ -449,17 +439,12 @@ export default function JobsitesPage() {
         data: { session },
       } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
-      if (!accessToken) {
-        setMessage("You need to be signed in to update a jobsite. Try refreshing the page.");
-        setMessageTone("error");
-        return;
-      }
 
       const response = await fetchWithTimeout(`/api/company/jobsites/${jobsite.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...getAuthHeaders(accessToken),
         },
         body: JSON.stringify({
           status: nextStatus,
