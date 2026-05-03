@@ -539,11 +539,17 @@ describe("csepDocxRenderer", () => {
     });
     const haz = sections.find((s) => s.key === "high_risk_programs");
     const titles = (haz?.subsections ?? []).map((s) => s.title);
-    expect(titles.some((title) => /\.1 Risk$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /\.5 Step-by-step control process$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /\.6 How controls are verified$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /\.7 Stop-work \/ hold-point triggers$/i.test(title))).toBe(true);
-    expect(titles.some((title) => /\.9 Applicable references$/i.test(title))).toBe(true);
+    expect(titles.some((title) => /^17\.1\s+Fall Protection and Fall Rescue$/i.test(title))).toBe(true);
+    const firstProgram = haz?.subsections.find((section) => /^17\.1\s+/.test(section.title));
+    const firstProgramText = [
+      ...(firstProgram?.paragraphs ?? []),
+      ...(firstProgram?.items ?? []),
+    ].join(" ");
+    expect(firstProgramText).toContain("Training / authorization:");
+    expect(firstProgramText).toContain("Critical controls:");
+    expect(firstProgramText).toContain("Verification / record:");
+    expect(firstProgramText).toContain("Stop-work triggers:");
+    expect(firstProgramText).toContain("References:");
   });
 
   it("renders program module subsections with labels and explicit numbered lines", async () => {
@@ -590,18 +596,18 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("17.1.1 Risk");
-    expect(documentXml).toContain("17.1.3 Minimum training / authorization");
-    expect(documentXml).toContain("17.1.5 Step-by-step control process");
-    expect(documentXml).toContain("17.1.6 How controls are verified");
-    expect(documentXml).toMatch(/17\.1\.7 Stop-work[^<]*hold-point triggers/);
-    expect(documentXml).toContain("17.1.9 Applicable references");
+    expect(documentXml).toContain("17.1 Fall Protection and Fall Rescue");
+    expect(documentXml).toContain("Training / authorization:");
+    expect(documentXml).toContain("Critical controls:");
+    expect(documentXml).toContain("Verification / record:");
+    expect(documentXml).toContain("Stop-work triggers:");
+    expect(documentXml).toContain("References:");
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
-    const firstStepBlock = model.sections
+    const firstProgramBlock = model.sections
       .find((section) => section.key === "high_risk_programs")
-      ?.subsections.find((subsection) => /17\.1\.5 Step-by-step control process/.test(subsection.title));
-    expect(firstStepBlock?.items?.length).toBeGreaterThanOrEqual(8);
-    expect(firstStepBlock?.items?.length).toBeLessThanOrEqual(12);
+      ?.subsections.find((subsection) => /^17\.1\s+/.test(subsection.title));
+    expect(firstProgramBlock?.items?.length).toBeGreaterThanOrEqual(5);
+    expect(firstProgramBlock?.items?.length).toBeLessThanOrEqual(6);
     expect(documentXml).toContain("R2, R3, R12, R16");
     expect(documentXml).not.toContain("<w:numPr>");
   });
@@ -1082,7 +1088,7 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).toContain('w:fill="FFF2CC"');
     expect(documentXml).toContain('w:fill="FCE4D6"');
     expect(documentXml).not.toContain("Imminent Danger");
-    expect(documentXml).toContain("Stop-Work Authority");
+    expect(documentXml).toContain("Rescue Readiness");
     expect(documentXml).toContain("Minimum Training Rule");
     expect(documentXml).not.toContain('<w:gridCol w:w="100"/>');
     expect(documentXml).not.toContain("D63A34");

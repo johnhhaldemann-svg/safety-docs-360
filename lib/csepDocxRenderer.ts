@@ -6,7 +6,6 @@ import {
   HeadingLevel,
   ImageRun,
   PageBreak,
-  PageNumber,
   Packer,
   Paragraph,
   ShadingType,
@@ -2180,6 +2179,14 @@ function cleanListItemsForExport(values: string[], fallback: string[] = []) {
   return cleaned.length ? cleaned : fallback;
 }
 
+function compactListForExport(values: string[], fallback: string[] = [], limit = 4) {
+  return cleanListItemsForExport(values, fallback).slice(0, limit);
+}
+
+function compactSentenceRun(values: string[], fallback: string[] = [], limit = 3) {
+  return compactListForExport(values, fallback, limit).join(" ");
+}
+
 const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo-crop.png"] as const;
 
 function readDefaultCoverLogoFile(): CsepRenderModel["coverLogo"] {
@@ -2409,23 +2416,24 @@ function synthesizeTrainingMatrixSubsections(
   draft: GeneratedSafetyPlanDraft,
   existing: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
-  const activeTasks = cleanListItemsForExport(draft.operations.map((operation) => operation.taskTitle), [
+  const activeTasks = compactListForExport(draft.operations.map((operation) => operation.taskTitle), [
     "Selected scope",
-  ]);
-  const hazardFamilies = cleanListItemsForExport(draft.ruleSummary.hazardCategories, []);
+  ], 4);
+  const hazardFamilies = compactListForExport(draft.ruleSummary.hazardCategories, [], 4);
   const exposures = uniqueItems([
     ...activeTasks,
     ...hazardFamilies,
   ]).join("; ") || "Selected scope";
+  const selectedScopeExposure = exposures.length > 150 ? "Selected scope listed in Section 3" : exposures;
   return [
     {
       title: "Training Matrix",
       table: {
         columns: ["Role / Position", "Minimum Required Training", "Task Exposure", "Verification", "Frequency"],
         rows: [
-          ["Foreman / Superintendent", "Project orientation; CSEP review; JSA/PTP; stop-work authority", exposures, "Sign-in / supervisor verification", "Before mobilization and when scope changes"],
-          ["Competent Person", "Competent-person designation for assigned exposures", exposures, "Designation record / field verification", "Before assigned oversight"],
-          ["Ironworker / Steel Erector", "Fall protection; steel erection task briefing; hazard recognition", exposures, "Training record / daily huddle", "Before task and as conditions change"],
+          ["Foreman / Superintendent", "Project orientation; CSEP review; JSA/PTP; stop-work authority", selectedScopeExposure, "Sign-in / supervisor verification", "Before mobilization and when scope changes"],
+          ["Competent Person", "Competent-person designation for assigned exposures", selectedScopeExposure, "Designation record / field verification", "Before assigned oversight"],
+          ["Ironworker / Steel Erector", "Fall protection; steel erection task briefing; hazard recognition", selectedScopeExposure, "Training record / daily huddle", "Before task and as conditions change"],
           ["Connector / Decking Crew", "Connector/decking authorization; CDZ; fall rescue awareness", "Leading edge / decking / connector work", "Authorization record", "Before special-task work"],
           ["Qualified Rigger / Signal Person", "Rigging; signaling; lift plan / pick plan communication", "Crane picks / material handling", "Qualification record", "Before lifting assignment"],
           ["MEWP Operator", "MEWP operator training and equipment authorization", "MEWP / aerial lift access", "Operator card / equipment authorization", "Before operation"],
@@ -2502,17 +2510,37 @@ function synthesizeScopePolicyEvidenceSummarySubsections(): CsepTemplateSubsecti
 
 function programToSubsections(program: CsepHighRiskProgram, index: number): CsepTemplateSubsection[] {
   const prefix = `17.${index + 1}`;
+  const isWeatherProgram = /weather|wind|lightning|heat|cold|restart/i.test(program.name);
+  const items = isWeatherProgram
+    ? [
+        `Training / authorization: ${compactSentenceRun(program.minimumTraining, [], 2)}`,
+        [
+          "Weather thresholds:",
+          "Evaluate steel erection, sheeting, scaffolds, MEWPs, and elevated platforms when sustained winds reach 20-25 mph or when gusts affect control. R17.",
+          "Stop outdoor work and move workers to shelter when lightning is within 10 miles. R17.",
+          "Resume lightning-affected work only after clearance and 30 minutes after the last lightning strike within the radius. R17, R12.",
+          "Start heat controls above 80 F ambient temperature or heat index above 85 F. R17.",
+          "Start cold stress controls at 32 F and below. R17.",
+        ].join(" "),
+        `Critical controls: ${compactSentenceRun(program.stepByStepControls, [], 4)}`,
+        `Verification / record: ${compactSentenceRun([...program.verification, ...program.requiredRecords], [], 3)}`,
+        `Stop-work triggers: ${compactSentenceRun(program.stopWorkTriggers, [], 3)} Require a post-weather restart inspection before work resumes. R17, R12, R16.`,
+        `References: ${program.references.join(", ")}`,
+      ]
+    : [
+        `Training / authorization: ${compactSentenceRun(program.minimumTraining, [], 2)}`,
+        `Permits / hold points: ${compactSentenceRun(program.permitsHoldPoints, [], 2)}`,
+        `Critical controls: ${compactSentenceRun(program.stepByStepControls, [], 3)}`,
+        `Verification / record: ${compactSentenceRun([...program.verification, ...program.requiredRecords], [], 2)}`,
+        `Stop-work triggers: ${compactSentenceRun(program.stopWorkTriggers, [], 2)}`,
+        `References: ${program.references.join(", ")}`,
+      ];
   return [
-    { title: `${prefix} ${program.name}`, paragraphs: [] },
-    { title: `${prefix}.1 Risk`, paragraphs: program.risk },
-    { title: `${prefix}.2 When this program applies`, paragraphs: program.appliesWhen },
-    { title: `${prefix}.3 Minimum training / authorization`, items: program.minimumTraining },
-    { title: `${prefix}.4 Required permits / hold points`, items: program.permitsHoldPoints },
-    { title: `${prefix}.5 Step-by-step control process`, items: program.stepByStepControls },
-    { title: `${prefix}.6 How controls are verified`, items: program.verification },
-    { title: `${prefix}.7 Stop-work / hold-point triggers`, items: program.stopWorkTriggers },
-    { title: `${prefix}.8 Required records`, items: program.requiredRecords },
-    { title: `${prefix}.9 Applicable references`, items: [program.references.join(", ")] },
+    {
+      title: `${prefix} ${program.name}`,
+      paragraphs: compactListForExport([...program.risk, ...program.appliesWhen], [], 2),
+      items,
+    },
   ];
 }
 
@@ -2902,11 +2930,11 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
   ]).map((task) => [
     `${task.taskNumber} ${task.taskName}`,
     task.taskDescription,
-    cleanListItemsForExport(task.taskHazards, ["Hazards to be verified"]).join(", "),
-    cleanListItemsForExport(task.taskControls, ["Controls to be verified"]).join(", "),
-    cleanListItemsForExport(task.taskPermits, ["None identified"]).join(", "),
-    cleanListItemsForExport(task.taskTraining, ["Project orientation / JSA"]).join(", "),
-    cleanListItemsForExport(task.taskReferences, ["R12"]).join(", "),
+    compactListForExport(task.taskHazards, ["Hazards to be verified"], 4).join(", "),
+    compactListForExport(task.taskControls, ["Controls to be verified"], 6).join(", "),
+    compactListForExport(task.taskPermits, ["None identified"], 4).join(", "),
+    compactListForExport(task.taskTraining, ["Project orientation / JSA"], 5).join(", "),
+    compactListForExport(task.taskReferences, ["R12"], 5).join(", "),
   ]);
   return {
     key: "appendix_e_task_hazard_control_matrix",
@@ -5524,32 +5552,13 @@ function termDefinitionParagraph(term: string, definition: string) {
 }
 
 function createRunningFooter(footerCompanyName: string, contractorName: string) {
-  void footerCompanyName;
-  void contractorName;
+  const owner = footerCompanyName?.trim() || contractorName?.trim() || "Safety360Docs";
   return new Footer({
     children: [
       makeParagraph(
         [
           new TextRun({
-            text: "Version C - Reviewer / CODEX Evidence CSEP | Page ",
-            font: "Aptos",
-            size: 18,
-            color: COLORS.gray,
-          }),
-          new TextRun({
-            children: [PageNumber.CURRENT],
-            font: "Aptos",
-            size: 18,
-            color: COLORS.gray,
-          }),
-          new TextRun({
-            text: " of ",
-            font: "Aptos",
-            size: 18,
-            color: COLORS.gray,
-          }),
-          new TextRun({
-            children: [PageNumber.TOTAL_PAGES],
+            text: `${owner} | Version C - Reviewer / CODEX Evidence CSEP`,
             font: "Aptos",
             size: 18,
             color: COLORS.gray,

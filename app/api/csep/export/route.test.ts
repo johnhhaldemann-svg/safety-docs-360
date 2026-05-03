@@ -208,7 +208,7 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml.split('w:fill="FFF2CC"').length - 1).toBeLessThanOrEqual(1);
     expect(headerXml).toBe("");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
-    expect(footerXml).toContain("Page");
+    expect(footerXml).not.toContain("Page  of");
   });
 
   it("uses configured builder text overrides for static CSEP sections", async () => {
