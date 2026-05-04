@@ -7,10 +7,10 @@ export const CSEP_REGULATORY_REFERENCE_INDEX: readonly CsepRegulatoryReferenceEn
   { code: "R1", citation: "OSHA 29 CFR 1926 Subpart R - Steel Erection" },
   { code: "R2", citation: "OSHA 29 CFR 1926 Subpart M - Fall Protection" },
   { code: "R3", citation: "OSHA 29 CFR 1926.502(d)(20) - Fall Rescue / Prompt Rescue" },
-  { code: "R4", citation: "OSHA 29 CFR 1926 Subpart J - Welding, Cutting, Fire Protection, and Prevention" },
+  { code: "R4", citation: "OSHA 29 CFR 1926 Subpart J - Welding and Cutting; 29 CFR 1926 Subpart F - Fire Protection and Prevention" },
   { code: "R5", citation: "OSHA 29 CFR 1926 Subpart O - Motor Vehicles, Mechanized Equipment, and Marine Operations" },
   { code: "R6", citation: "OSHA 29 CFR 1926 Subpart CC - Cranes, Derricks, Rigging, and Signal Requirements" },
-  { code: "R7", citation: "OSHA 29 CFR 1926.453 - Aerial Lifts / MEWPs" },
+  { code: "R7", citation: "OSHA 29 CFR 1926.453 - Aerial Lifts (Subpart L); MEWP use per manufacturer instructions and project requirements where applicable" },
   { code: "R8", citation: "OSHA 29 CFR 1926 Subpart X - Stairways and Ladders" },
   { code: "R9", citation: "OSHA 29 CFR 1926 Subpart L - Scaffolds" },
   { code: "R10", citation: "OSHA 29 CFR 1926.59 / 1910.1200 - Hazard Communication" },
@@ -20,7 +20,7 @@ export const CSEP_REGULATORY_REFERENCE_INDEX: readonly CsepRegulatoryReferenceEn
   { code: "R14", citation: "OSHA 29 CFR 1926 Subpart I - Tools, Hand and Power" },
   { code: "R15", citation: "OSHA 29 CFR 1926 Subpart P - Excavations" },
   { code: "R16", citation: "OSHA 29 CFR 1904 and project recordkeeping / retention requirements" },
-  { code: "R17", citation: "OSHA severe weather, heat, cold, lightning, emergency action, and project weather requirements" },
+  { code: "R17", citation: "Project/site severe-weather, heat, cold, lightning, and tornado controls; OSHA 29 CFR 1926.35 - Employee Emergency Action Plans where an EAP is required" },
 ] as const;
 
 const CODE_ORDER = new Map(CSEP_REGULATORY_REFERENCE_INDEX.map((entry, index) => [entry.code, index]));
@@ -37,7 +37,7 @@ function firstMatchCode(normalized: string): string | null {
   if (/\bsubpart\s+r\b|\bsteel\s+erection\b/.test(normalized)) return "R1";
   if (/\bsubpart\s+m\b|\bfall\s+protection\b/.test(normalized) && !/\b1926\s*502\s*d\s*20\b/.test(normalized)) return "R2";
   if (/\b1926\s*502\s*d\s*20\b|\bprompt\s+rescue\b|\bfall\s+rescue\b/.test(normalized)) return "R3";
-  if (/\bsubpart\s+j\b|\bwelding\b|\bcutting\b|\bhot\s+work\b|\bfire\s+protection\b|\bfire\s+prevention\b/.test(normalized)) return "R4";
+  if (/\bsubpart\s+j\b|\bsubpart\s+f\b|\bwelding\b|\bcutting\b|\bhot\s+work\b|\bfire\s+protection\b|\bfire\s+prevention\b/.test(normalized)) return "R4";
   if (/\bsubpart\s+o\b|\bmotor\s+vehicle\b|\bmechanized\s+equipment\b|\bmarine\s+operations\b|\btraffic\b/.test(normalized)) return "R5";
   if (/\bsubpart\s+cc\b|\bcranes?\b|\bderricks?\b|\brigging\b|\bsignal\b/.test(normalized)) return "R6";
   if (/\b1926\s*453\b|\baerial\s+lifts?\b|\bmewp\b|\bmobile\s+elevating\b/.test(normalized)) return "R7";
@@ -50,7 +50,7 @@ function firstMatchCode(normalized: string): string | null {
   if (/\bsubpart\s+i\b|\bhand\s+tools?\b|\bpower\s+tools?\b|\btools?\b/.test(normalized)) return "R14";
   if (/\bsubpart\s+p\b|\bexcavat|\btrench/.test(normalized)) return "R15";
   if (/\b1904\b|\brecordkeeping\b|\brecords?\b|\bretention\b/.test(normalized)) return "R16";
-  if (/\bweather\b|\blightning\b|\bheat\b|\bcold\b|\bwind\b|\btornado\b|\bstorm\b/.test(normalized)) return "R17";
+  if (/\b1926\s*35\b|\bemergency\s+action\s+plans?\b|\beap\b|\bweather\b|\blightning\b|\bheat\b|\bcold\b|\bwind\b|\btornado\b|\bstorm\b/.test(normalized)) return "R17";
   return null;
 }
 

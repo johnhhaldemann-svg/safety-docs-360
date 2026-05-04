@@ -207,14 +207,14 @@ const FORMAT_SECTION_DEFINITIONS: readonly CsepMainSectionDefinition[] = [
   { key: "purpose", kind: "main", order: 10, title: "1. Purpose", shortTitle: "Purpose", numberLabel: "1", purpose: "Why the CSEP exists and how it governs project work.", aiEligible: true },
   { key: "project_coordination_and_authority", kind: "main", order: 11, title: "2. Project Coordination and Authority", shortTitle: "Project Coordination and Authority", numberLabel: "2", purpose: "Project authority, owner / GC / CM coordination, permit approval paths, and controlling-contractor verification.", aiEligible: true, legacyBlockKeys: ["project_information", "contractor_information"] },
   { key: "scope_of_work_section", kind: "main", order: 12, title: "3. Scope of Work", shortTitle: "Scope of Work", numberLabel: "3", purpose: "Work package covered by this CSEP and the active tasks used for plan controls.", aiEligible: true, legacyBlockKeys: ["trade_summary", "scope_of_work", "site_specific_notes"] },
-  { key: "regulatory_basis_and_references", kind: "main", order: 13, title: "4. Regulatory Basis and References", shortTitle: "Regulatory Basis and References", numberLabel: "4", purpose: "Jurisdiction profile, authority references, and clean OSHA / CFR citation list.", aiEligible: true, legacyBlockKeys: ["osha_references"] },
+  { key: "regulatory_basis_and_references", kind: "main", order: 13, title: "4. Regulatory Basis and References", shortTitle: "Regulatory Basis and References", numberLabel: "4", purpose: "Jurisdiction profile, authority references, and citation / project-control basis.", aiEligible: true, legacyBlockKeys: ["osha_references"] },
   { key: "top_10_critical_risks", kind: "main", order: 14, title: "5. Top 10 Critical Risks", shortTitle: "Top 10 Critical Risks", numberLabel: "5", purpose: "Highest project and steel erection exposures requiring leadership attention.", aiEligible: true, legacyBlockKeys: ["selected_hazards"] },
   { key: "roles_and_responsibilities", kind: "main", order: 15, title: "6. Roles and Responsibilities", shortTitle: "Roles and Responsibilities", numberLabel: "6", purpose: "Role duties, authority, and key definitions for the project team.", aiEligible: true, legacyBlockKeys: ["roles_and_responsibilities"] },
   { key: "trade_interaction_and_coordination", kind: "main", order: 16, title: "7. Trade Interaction and Coordination", shortTitle: "Trade Interaction and Coordination", numberLabel: "7", purpose: "Overlap planning, shared-area coordination, access handoffs, and conflict response.", aiEligible: true, legacyBlockKeys: ["common_overlapping_trades"] },
   { key: "site_access_security_laydown_traffic_control", kind: "main", order: 17, title: "8. Site Access, Security, Laydown, and Traffic Control", shortTitle: "Site Access, Security, Laydown, and Traffic Control", numberLabel: "8", purpose: "Worker access, visitors, deliveries, truck routing, staging, traffic, and restricted areas.", aiEligible: true, legacyBlockKeys: ["security_and_access"] },
   { key: "hazard_communication_and_environmental_protection", kind: "main", order: 18, title: "9. Hazard Communication and Environmental Protection", shortTitle: "Hazard Communication and Environmental Protection", numberLabel: "9", purpose: "SDS, labels, chemical inventory, spill tie-ins, waste, stormwater, dust, and nuisance controls.", aiEligible: true, legacyBlockKeys: ["hazard_communication"] },
   { key: "emergency_response_and_rescue", kind: "main", order: 19, title: "10. Emergency Response and Rescue", shortTitle: "Emergency Response and Rescue", numberLabel: "10", purpose: "Emergency notifications, 911 response, rescue, EMS access, fire response, and sheltering.", aiEligible: true, appendixRefs: ["appendix_d_field_references_maps_and_contact_inserts"], legacyBlockKeys: ["emergency_procedures", "weather_requirements_and_severe_weather_response"] },
-  { key: "iipp_incident_reporting_corrective_action", kind: "main", order: 20, title: "11. IIPP / Incident Reporting / Corrective Action", shortTitle: "IIPP / Incident Reporting / Corrective Action", numberLabel: "11", purpose: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.", aiEligible: true, appendixRefs: ["appendix_b_incident_and_investigation_package"], legacyBlockKeys: ["incident_reporting_and_investigation", "enforcement_and_corrective_action"] },
+  { key: "iipp_incident_reporting_corrective_action", kind: "main", order: 20, title: "11. Safety Program / Incident Reporting / Corrective Action", shortTitle: "Safety Program / Incident Reporting / Corrective Action", numberLabel: "11", purpose: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.", aiEligible: true, appendixRefs: ["appendix_b_incident_and_investigation_package"], legacyBlockKeys: ["incident_reporting_and_investigation", "enforcement_and_corrective_action"] },
   { key: "worker_conduct_fit_for_duty_disciplinary_program", kind: "main", order: 21, title: "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program", shortTitle: "Worker Conduct, Fit-for-Duty, and Disciplinary Program", numberLabel: "12", purpose: "Unsafe-act response, stop-work enforcement, impairment, fatigue, wellness, and discipline.", aiEligible: true, legacyBlockKeys: ["drug_and_alcohol_testing", "health_and_wellness"] },
   { key: "training_competency_and_certifications", kind: "main", order: 22, title: "13. Training, Competency, and Certifications", shortTitle: "Training, Competency, and Certifications", numberLabel: "13", purpose: "Training records, certifications, qualified roles, and active-scope training requirements.", aiEligible: true, legacyBlockKeys: ["training_and_instruction"] },
   { key: "required_permits_and_hold_points", kind: "main", order: 23, title: "14. Required Permits and Hold Points", shortTitle: "Required Permits and Hold Points", numberLabel: "14", purpose: "Permit triggers, hold points, verification, and closeout requirements.", aiEligible: true, appendixRefs: ["appendix_a_forms_and_permit_library"], legacyBlockKeys: ["additional_permits"] },
@@ -283,8 +283,8 @@ const LEGACY_FORMAT_SECTION_DEFINITIONS: readonly CsepFormatSectionDefinition[] 
     key: "contractor_iipp",
     kind: "main",
     order: 14,
-    title: "5.0 Contractor Injury & Illness Prevention Program (IIPP)",
-    shortTitle: "Contractor IIPP",
+    title: "5.0 Contractor Safety and Health Program",
+    shortTitle: "Contractor Safety Program",
     numberLabel: "5.0",
     purpose: "Accountability, communication, incident handling, training, testing, and corrective action.",
     aiEligible: true,
@@ -1839,27 +1839,27 @@ function projectScopeFieldSummary(label: string, value: string) {
 
   if (normalizedLabel.includes("project name")) {
     return isPlaceholder
-      ? "Placeholder for the final project name to be confirmed before release."
+      ? "Final project name must be verified against the project record before release."
       : `Identifies the project name for this contractor CSEP as ${normalizedValue}.`;
   }
   if (normalizedLabel.includes("project number")) {
     return isPlaceholder
-      ? "Placeholder for the project number to be added before issue."
+      ? "Project number must be verified against the project record before issue."
       : `Identifies the project number for this contractor CSEP as ${normalizedValue}.`;
   }
   if (normalizedLabel.includes("project address") || normalizedLabel.includes("project site")) {
     return isPlaceholder
-      ? "Placeholder for the site address to be completed before issue."
+      ? "Project site address must be verified against the project record before issue."
       : `Identifies the project site or address for this contractor CSEP as ${normalizedValue}.`;
   }
   if (normalizedLabel.includes("owner") || normalizedLabel.includes("client")) {
     return isPlaceholder
-      ? "Placeholder for the owner or client name before final issue."
+      ? "Owner or client name must be verified against the project record before final issue."
       : `Identifies the owner or client for this contractor CSEP as ${normalizedValue}.`;
   }
   if (normalizedLabel.includes("gc") || normalizedLabel.includes("cm")) {
     return isPlaceholder
-      ? "Placeholder for the general contractor or construction manager name before issue."
+      ? "General contractor or construction manager must be verified against the project record before issue."
       : `Identifies the general contractor or construction manager for this project as ${normalizedValue}.`;
   }
   if (normalizedLabel.includes("governing state")) {

@@ -30,17 +30,23 @@ describe("csepRegulatoryReferenceIndex", () => {
       "R17",
     ]);
     expect(CSEP_REGULATORY_REFERENCE_INDEX[0]?.citation).toContain("Subpart R");
+    expect(CSEP_REGULATORY_REFERENCE_INDEX[3]?.citation).toContain("Subpart F");
+    expect(CSEP_REGULATORY_REFERENCE_INDEX[6]?.citation).toContain("Aerial Lifts (Subpart L)");
     expect(CSEP_REGULATORY_REFERENCE_INDEX[9]?.citation).toContain("Hazard Communication");
+    expect(CSEP_REGULATORY_REFERENCE_INDEX[16]?.citation).toContain("Project/site severe-weather");
   });
 
   it("maps common program definition strings to stable R-codes", () => {
     expect(mapOshaRefLineToRCode("OSHA 1926 Subpart M - Fall Protection")).toBe("R2");
     expect(mapOshaRefLineToRCode("OSHA 1926 Subpart J - Fire Protection and Prevention")).toBe("R4");
+    expect(mapOshaRefLineToRCode("OSHA 1926 Subpart F - Fire Protection and Prevention")).toBe("R4");
     expect(mapOshaRefLineToRCode("OSHA 1926 Subpart CC - Cranes and Derricks")).toBe("R6");
+    expect(mapOshaRefLineToRCode("OSHA 1926.453 - Aerial Lifts")).toBe("R7");
     expect(mapOshaRefLineToRCode("OSHA 1926.59 - Hazard Communication")).toBe("R10");
     expect(mapOshaRefLineToRCode("Project-specific permit and owner rule")).toBe("R12");
     expect(mapOshaRefLineToRCode("OSHA 1904 recordkeeping")).toBe("R16");
     expect(mapOshaRefLineToRCode("Severe weather lightning wind heat cold controls")).toBe("R17");
+    expect(mapOshaRefLineToRCode("OSHA 1926.35 employee emergency action plan")).toBe("R17");
   });
 
   it("dedupes and sorts R-codes", () => {

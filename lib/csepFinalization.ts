@@ -38,6 +38,7 @@ const EXPORT_TEXT_REMOVALS = [
   /Project\s+.+?\s+is the active contractor planning record for this scope\.?/gi,
   /.+?\s+is the submitting contractor for this CSEP\.?/gi,
   /N\/A\s*\|\s*Contractor Logo\s*\/\s*Letterhead/gi,
+  /Replace placeholder logo and project data before final field issue\.?/gi,
   /\btest at test\b/gi,
   /Primary coordination contact:\s*test(?:,\s*test)+\.?/gi,
   /continuous improvement not only enhances safety outcomes[^.]*\.?/gi,
@@ -112,6 +113,9 @@ const EXPORT_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
 
 const INVALID_EXACT_TOKENS = new Set([
   "test",
+  "test 1",
+  "john doe",
+  "jane doe",
   "pending approval",
   "null",
   "undefined",
@@ -120,7 +124,18 @@ const INVALID_EXACT_TOKENS = new Set([
   "platform generator",
   "safetydocs360 ai draft builder",
   "safetydocs360 draft builder",
+  "confirm name and phone before field issue",
+  "heaviest pick: confirm before issue",
+  "heaviest pick confirm before issue",
 ]);
+
+const INVALID_EXACT_TOKEN_PATTERNS: readonly RegExp[] = [
+  /^test\s+\d+$/i,
+  /^john\s+doe$/i,
+  /^jane\s+doe$/i,
+  /^confirm\s+(?:name|contact|phone|name\s+and\s+phone)\s+before\s+field\s+issue$/i,
+  /^heaviest\s+pick\s*:?\s*confirm\s+before\s+issue$/i,
+];
 
 const PERMIT_DEFINITIONS = [
   { id: "hot_work_permit", label: "Hot Work Permit", aliases: ["hot work", "hot work permit"] },
@@ -303,6 +318,10 @@ export function cleanFinalText(value: string | null | undefined, options?: { all
   if (!cleaned) return options?.allowTbd ? CONTROLLED_TBD : null;
 
   if (INVALID_EXACT_TOKENS.has(cleaned.toLowerCase())) {
+    return options?.allowTbd ? CONTROLLED_TBD : null;
+  }
+
+  if (INVALID_EXACT_TOKEN_PATTERNS.some((pattern) => pattern.test(cleaned))) {
     return options?.allowTbd ? CONTROLLED_TBD : null;
   }
 

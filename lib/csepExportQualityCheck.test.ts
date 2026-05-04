@@ -11,6 +11,35 @@ describe("assertCsepExportQuality", () => {
     expect(() => assertCsepExportQuality(model, { draft })).not.toThrow();
   });
 
+  it("blocks known correction placeholders and obsolete citation labels", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.coverMetadataRows = model.coverMetadataRows.map((row) =>
+      row.label === "Project Name" ? { ...row, value: "Test 1" } : row
+    );
+    model.sections.push({
+      key: "bad_reference",
+      title: "Bad Reference",
+      subsections: [
+        {
+          title: "Old citation",
+          items: ["R7 OSHA 29 CFR 1926.453 - Aerial Lifts / MEWPs"],
+        },
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/forbidden_final_text/);
+  });
+
+  it("blocks street addresses that are missing city/state/ZIP", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.titlePageProjectLocation = "N109W15738 Candler Ct";
+    model.coverMetadataRows = model.coverMetadataRows.map((row) =>
+      row.label === "Project Address" ? { ...row, value: "N109W15738 Candler Ct" } : row
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/project_address_complete/);
+  });
+
   it("blocks export when a task module subsection has no safety content", () => {
     const draft = minimalSteelDraft();
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
@@ -205,7 +234,7 @@ function minimalSteelDraft(): GeneratedSafetyPlanDraft {
     projectOverview: {
       projectName: "QC Tower",
       projectNumber: "QC-1",
-      projectAddress: "1 Test Way",
+      projectAddress: "1 Test Way, Milwaukee, WI 53202",
       ownerClient: "Owner",
       gcCm: "GC",
       contractorCompany: "Contractor",

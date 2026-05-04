@@ -46,7 +46,7 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
     key: "regulatory_basis_and_references",
     kind: "main",
     title: "Regulatory Basis and References",
-    descriptor: "Jurisdiction profile, authority references, and clean OSHA / CFR citation list.",
+    descriptor: "Jurisdiction profile, authority references, and citation / project-control basis.",
   },
   {
     key: "top_10_critical_risks",
@@ -87,7 +87,7 @@ export const CANONICAL_CSEP_SECTION_ORDER: CanonicalCsepSectionDefinition[] = [
   {
     key: "iipp_incident_reporting_corrective_action",
     kind: "main",
-    title: "IIPP / Incident Reporting / Corrective Action",
+    title: "Safety Program / Incident Reporting / Corrective Action",
     descriptor: "Incident and near-miss reporting, investigations, corrective actions, trends, and restart expectations.",
   },
   {

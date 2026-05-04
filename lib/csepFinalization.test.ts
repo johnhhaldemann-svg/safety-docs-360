@@ -44,6 +44,14 @@ describe("csepFinalization", () => {
     );
   });
 
+  it("drops known seed placeholders from final export fields", () => {
+    expect(cleanFinalText("Test 1")).toBeNull();
+    expect(cleanFinalText("John Doe")).toBeNull();
+    expect(cleanFinalText("Confirm name and phone before field issue")).toBeNull();
+    expect(cleanFinalText("Heaviest Pick: Confirm before issue")).toBeNull();
+    expect(normalizeFinalExportText("Replace placeholder logo and project data before final field issue.")).toBeNull();
+  });
+
   it("converts unresolved table placeholders to N/A during final issue cleanup", () => {
     const cleaned = cleanSectionForFinalIssue({
       key: "policy_statement",

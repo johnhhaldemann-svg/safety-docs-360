@@ -208,10 +208,10 @@ const CSEP_VERSION_C_REFERENCE_MAP = [
   { code: "R1", title: "Steel erection", appliesToKeywords: ["steel", "decking", "connector", "column", "bracing"] },
   { code: "R2", title: "Fall protection", appliesToKeywords: ["fall", "edge", "opening", "harness", "rescue"] },
   { code: "R3", title: "Fall rescue", appliesToKeywords: ["rescue", "suspension trauma", "fall arrest"] },
-  { code: "R4", title: "Hot work", appliesToKeywords: ["welding", "cutting", "grinding", "hot work", "fire watch"] },
+  { code: "R4", title: "Welding / cutting / fire prevention", appliesToKeywords: ["welding", "cutting", "grinding", "hot work", "fire watch"] },
   { code: "R5", title: "Equipment and traffic", appliesToKeywords: ["equipment", "traffic", "vehicle", "delivery"] },
   { code: "R6", title: "Rigging", appliesToKeywords: ["rigging", "crane", "hoist", "pick", "lift"] },
-  { code: "R7", title: "MEWP", appliesToKeywords: ["mewp", "aerial lift", "boom lift", "scissor lift"] },
+  { code: "R7", title: "Aerial lifts", appliesToKeywords: ["mewp", "aerial lift", "boom lift", "scissor lift"] },
   { code: "R8", title: "Ladders", appliesToKeywords: ["ladder"] },
   { code: "R9", title: "Scaffolds", appliesToKeywords: ["scaffold"] },
   { code: "R10", title: "HazCom", appliesToKeywords: ["hazcom", "chemical", "sds", "label"] },
@@ -221,7 +221,7 @@ const CSEP_VERSION_C_REFERENCE_MAP = [
   { code: "R14", title: "Hand and power tools", appliesToKeywords: ["hand tool", "power tool", "tool"] },
   { code: "R15", title: "Excavation", appliesToKeywords: ["excavation", "trench", "digging", "utility"] },
   { code: "R16", title: "Recordkeeping", appliesToKeywords: ["record", "document", "log", "inspection", "training record"] },
-  { code: "R17", title: "Weather", appliesToKeywords: ["weather", "wind", "lightning", "heat", "cold", "storm", "tornado"] },
+  { code: "R17", title: "Project weather controls", appliesToKeywords: ["weather", "wind", "lightning", "heat", "cold", "storm", "tornado", "emergency action", "eap"] },
 ] as const;
 
 const CSEP_EVIDENCE_TABLE_KEYS = new Set([
@@ -326,6 +326,121 @@ function taskDescriptionForOperation(operation: GeneratedSafetyPlanDraft["operat
   return summarizeProjectScopeEntry(operation.taskTitle) ?? `${operation.taskTitle} is part of the active work scope and shall be planned before field execution.`;
 }
 
+function operationSafetySearchText(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  return [
+    operation.taskTitle,
+    typeof (operation as { description?: unknown }).description === "string"
+      ? String((operation as { description?: unknown }).description)
+      : "",
+    ...(operation.hazardCategories ?? []),
+    ...(operation.requiredControls ?? []),
+    ...(operation.equipmentUsed ?? []),
+    ...(operation.workConditions ?? []),
+    ...(operation.ppeRequirements ?? []),
+  ].join(" ");
+}
+
+const HOT_WORK_TASK_PATTERN = /\b(weld(?:ing)?|cutting|thermal\s+cut|torch\s+cut|grind(?:ing)?|torch|hot\s+work|fire\s+watch|spark|slag)\b/i;
+const HOISTING_TASK_PATTERN = /\b(rigging|rigger|signal(?:\s+person)?|crane|pick|hoist|lift\s+plan|pick\s+plan|suspended\s+load|column|beam|connecting|deck(?:ing)?|unload|sort\s+members?|material\s+handling)\b/i;
+const ELEVATED_TASK_PATTERN = /\b(fall|edge|opening|deck(?:ing)?|connector|connecting|column|beam|elevated|height|ladder|mewp|aerial|boom\s+lift|scissor\s+lift|roof)\b/i;
+const MEWP_TASK_PATTERN = /\b(mewp|aerial\s+lift|boom\s+lift|scissor\s+lift|mobile\s+elevating)\b/i;
+const EXCAVATION_TASK_PATTERN = /\b(excavat|trench|digging|ground\s+disturbance|utility\s+daylight|below[-\s]?grade)\b/i;
+const ELECTRICAL_TASK_PATTERN = /\b(electrical|energized|temporary\s+power|lockout|tagout|loto)\b/i;
+const CONFINED_SPACE_TASK_PATTERN = /\b(confined\s+space|permit[-\s]?required\s+space)\b/i;
+
+function isHotWorkOperation(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  return HOT_WORK_TASK_PATTERN.test(operationSafetySearchText(operation));
+}
+
+function isHoistingOperation(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  return HOISTING_TASK_PATTERN.test(operationSafetySearchText(operation));
+}
+
+function isElevatedOperation(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  return ELEVATED_TASK_PATTERN.test(operationSafetySearchText(operation));
+}
+
+function isMewpOperation(operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  return MEWP_TASK_PATTERN.test(operationSafetySearchText(operation));
+}
+
+function permitAppliesToOperation(permit: string, operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  const normalized = normalizeToken(permit);
+  if (!normalized) return false;
+  if (normalized.includes("hot work")) return isHotWorkOperation(operation);
+  if (normalized.includes("lift plan") || normalized.includes("pick plan") || normalized.includes("crane")) {
+    return isHoistingOperation(operation);
+  }
+  if (normalized.includes("elevated work")) return isElevatedOperation(operation);
+  if (normalized.includes("mewp") || normalized.includes("aerial")) return isMewpOperation(operation);
+  if (normalized.includes("ground disturbance") || normalized.includes("excavation")) {
+    return EXCAVATION_TASK_PATTERN.test(operationSafetySearchText(operation));
+  }
+  if (normalized.includes("energized electrical")) return ELECTRICAL_TASK_PATTERN.test(operationSafetySearchText(operation));
+  if (normalized.includes("confined space")) return CONFINED_SPACE_TASK_PATTERN.test(operationSafetySearchText(operation));
+  return true;
+}
+
+function taskPermitsForOperation(
+  operation: GeneratedSafetyPlanDraft["operations"][number],
+  draftPermits: readonly string[]
+) {
+  const selected = normalizePermitList([...(operation.permitTriggers ?? []), ...draftPermits]).filter((permit) =>
+    permitAppliesToOperation(permit, operation)
+  );
+  const derived: string[] = [];
+  if (isHotWorkOperation(operation)) derived.push("Hot Work Permit");
+  if (isHoistingOperation(operation)) derived.push("Lift Plan");
+  if (isElevatedOperation(operation)) derived.push("Elevated Work Notice");
+  if (isMewpOperation(operation)) derived.push("AWP/MEWP Permit");
+  if (EXCAVATION_TASK_PATTERN.test(operationSafetySearchText(operation))) derived.push("Ground Disturbance Permit");
+  if (ELECTRICAL_TASK_PATTERN.test(operationSafetySearchText(operation))) derived.push("Energized Electrical Permit");
+  if (CONFINED_SPACE_TASK_PATTERN.test(operationSafetySearchText(operation))) derived.push("Confined Space Permit");
+  return normalizePermitList([...selected, ...derived]);
+}
+
+function displayTrainingRequirement(value: string) {
+  const normalized = normalizeToken(value);
+  if (/hot\s+work|fire\s+watch|weld|cut|grind/.test(normalized)) return "Hot work / fire watch training";
+  if (/qualified\s+rigger|rigging|rigger/.test(normalized)) return "Qualified rigger verification";
+  if (/signal\s+person|signal/.test(normalized)) return "Signal person training";
+  if (/fall|rescue|connector|decking|edge/.test(normalized)) return "Fall protection and rescue briefing";
+  if (/mewp|aerial|boom\s+lift|scissor\s+lift/.test(normalized)) return "Authorized aerial lift operator training";
+  if (/ladder/.test(normalized)) return "Ladder safety training";
+  if (/orientation|csep|jsa|ptp|stop\s+work/.test(normalized)) return value.replace(/_/g, " ");
+  return value.replace(/_/g, " ");
+}
+
+function trainingAppliesToOperation(training: string, operation: GeneratedSafetyPlanDraft["operations"][number]) {
+  const normalized = normalizeToken(training);
+  if (!normalized) return false;
+  if (/hot\s+work|fire\s+watch|weld|cut|grind/.test(normalized)) return isHotWorkOperation(operation);
+  if (/qualified\s+rigger|rigging|rigger|signal\s+person|signal/.test(normalized)) return isHoistingOperation(operation);
+  if (/fall|rescue|connector|decking|edge/.test(normalized)) return isElevatedOperation(operation);
+  if (/mewp|aerial|boom\s+lift|scissor\s+lift/.test(normalized)) return isMewpOperation(operation);
+  if (/ladder/.test(normalized)) return /\bladder\b/i.test(operationSafetySearchText(operation));
+  if (/orientation|csep|jsa|ptp|stop\s+work/.test(normalized)) return true;
+  return operationSafetySearchText(operation).toLowerCase().includes(normalized);
+}
+
+function taskTrainingForOperation(
+  operation: GeneratedSafetyPlanDraft["operations"][number],
+  draftTraining: readonly string[]
+) {
+  const training = ["Project orientation / CSEP review / JSA/PTP"];
+  if (isElevatedOperation(operation)) training.push("Fall protection and rescue briefing");
+  if (isHoistingOperation(operation)) training.push("Qualified rigger / signal person verification");
+  if (isHotWorkOperation(operation)) training.push("Hot work / fire watch training");
+  if (isMewpOperation(operation)) training.push("Authorized aerial lift operator training");
+
+  draftTraining
+    .filter((item) => trainingAppliesToOperation(item, operation))
+    .map(displayTrainingRequirement)
+    .forEach((item) => training.push(item));
+
+  return uniqueItems(training);
+}
+
 function summarizeProjectScopeEntry(title: string) {
   const normalizedTitle = normalizeToken(title);
   const summaries: Record<string, string> = {
@@ -363,25 +478,15 @@ function buildCsepTasks(draft: GeneratedSafetyPlanDraft): CsepTask[] {
       } as GeneratedSafetyPlanDraft["operations"][number]));
 
   return operations.map((operation, index) => {
-    const haystack = [
-      operation.taskTitle,
-      ...(operation.hazardCategories ?? []),
-      ...(operation.requiredControls ?? []),
-      ...(operation.permitTriggers ?? []),
-      ...(operation.equipmentUsed ?? []),
-      ...(operation.workConditions ?? []),
-    ].join(" ");
+    const haystack = [operationSafetySearchText(operation), ...(operation.permitTriggers ?? [])].join(" ");
     return {
       taskNumber: `3.3.${index + 1}`,
       taskName: operation.taskTitle,
       taskDescription: taskDescriptionForOperation(operation),
       taskHazards: uniqueItems(operation.hazardCategories ?? []),
       taskControls: uniqueItems(operation.requiredControls ?? []),
-      taskPermits: normalizePermitList(operation.permitTriggers ?? []),
-      taskTraining: uniqueItems([
-        ...(draft.ruleSummary.trainingRequirements ?? []),
-        ...(operation.hazardCategories ?? []).filter((item) => /fall|rigging|crane|hot work|mewp|ladder/i.test(item)),
-      ]),
+      taskPermits: taskPermitsForOperation(operation, draft.ruleSummary.permitTriggers ?? []),
+      taskTraining: taskTrainingForOperation(operation, draft.ruleSummary.trainingRequirements ?? []),
       taskReferences: referencesForText(haystack),
     };
   });
@@ -1754,6 +1859,7 @@ function mapSourceSectionToFixedSection(section: GeneratedSafetyPlanSection) {
       "near miss",
       "exposure investigation",
       "hazard correction",
+      "employee access to the safety program",
       "employee access to the iipp",
       "code of safe practices",
       "toolbox",
@@ -2498,8 +2604,8 @@ function synthesizeScopePolicyEvidenceSummarySubsections(): CsepTemplateSubsecti
           ["Trenching / Excavation", "Excavation is either a triggered program or N/A with a required change trigger.", "Excavation / Trenching N/A or Program Trigger"],
           ["HazCom", "SDS location, chemical inventory, secondary labels, training, and responsible person are addressed.", "HazCom and Environmental Protection"],
           ["PPE", "Provider, selection, training, maintenance, and replacement language is included.", "PPE and Work Attire"],
-          ["Incident Reporting", "Reporting and investigation steps are included with Appendix B support.", "IIPP / Incident Reporting / Corrective Action; Appendix B"],
-          ["Corrective Action", "Corrective action ownership, verification, and restart expectations are addressed.", "IIPP / Incident Reporting / Corrective Action"],
+          ["Incident Reporting", "Reporting and investigation steps are included with Appendix B support.", "Safety Program / Incident Reporting / Corrective Action; Appendix B"],
+          ["Corrective Action", "Corrective action ownership, verification, and restart expectations are addressed.", "Safety Program / Incident Reporting / Corrective Action"],
           ["HSE Orientation", "Orientation and special-task verification are summarized in the training matrix.", "Training, Competency, and Certifications"],
           ["Severe Weather", "Wind, lightning, heat, cold, storm/tornado, shelter, restart, and inspection thresholds are included when triggered.", "High-Risk Programs; Emergency Response"],
         ],
@@ -2864,7 +2970,7 @@ function buildAppendixDFieldReferenceSection(draft: GeneratedSafetyPlanDraft): C
   const address =
     cleanFinalText(draft.projectOverview.projectAddress) ||
     cleanFinalText(draft.projectOverview.location) ||
-    "Confirm project address before field issue";
+    "Project address listed on signed field issue contact sheet";
   const gcCm =
     formatGcCmPartnersForExport(normalizeGcCmPartnerEntries(draft.projectOverview.gcCm)) ||
     "GC / CM contact to be confirmed";
@@ -2883,9 +2989,9 @@ function buildAppendixDFieldReferenceSection(draft: GeneratedSafetyPlanDraft): C
             ["911 / Emergency Services", "911", "Life safety, fire, rescue, medical emergency, collapse, uncontrolled release"],
             ["Project Address for Responders", address, "Give this location and the nearest access gate / route"],
             ["GC / CM", gcCm, "Site-wide emergency coordination, access, owner notification"],
-            ["Contractor Superintendent", "Confirm name and phone before field issue", "Crew accountability, stop-work, restart authorization"],
-            ["Competent Person", "Confirm name and phone before field issue", "Hazard correction, inspection, rescue readiness"],
-            ["Nearest Occupational Clinic", "Attach clinic name, address, phone, and route before field issue", "Non-emergency medical routing and treatment authorization"],
+            ["Contractor Superintendent", "Listed on signed field issue contact sheet", "Crew accountability, stop-work, restart authorization"],
+            ["Competent Person", "Listed on signed field issue contact sheet", "Hazard correction, inspection, rescue readiness"],
+            ["Nearest Occupational Clinic", "Listed on signed emergency contact sheet with route before field issue", "Non-emergency medical routing and treatment authorization"],
           ],
         },
       },
@@ -2919,10 +3025,10 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
   const rows = (tasks.length ? tasks : [
     {
       taskNumber: "3.3.1",
-      taskName: "Confirm selected task",
-      taskDescription: "Confirm selected task before field use.",
-      taskHazards: ["To be verified"],
-      taskControls: ["To be verified"],
+      taskName: "Selected scope task",
+      taskDescription: "Task details are listed on the signed field issue scope record.",
+      taskHazards: ["Scope-specific hazards listed in JSA/PTP"],
+      taskControls: ["Controls listed in JSA/PTP and applicable permit"],
       taskPermits: ["None identified"],
       taskTraining: ["Project orientation"],
       taskReferences: ["R12", "R16"],
@@ -3243,7 +3349,7 @@ function buildCodexRequirements() {
   return [
     { requirementName: "OSHA 300A logs", addressedBy: "Referenced as a separate upload item", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
     { requirementName: "Complete safety program", addressedBy: "This CSEP summarizes project controls but does not replace the full company program", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
-    { requirementName: "Corrective action policy", addressedBy: "IIPP / Incident Reporting / Corrective Action", documentLocation: "Section 11", separateUploadNeeded: false },
+    { requirementName: "Corrective action policy", addressedBy: "Safety Program / Incident Reporting / Corrective Action", documentLocation: "Section 11", separateUploadNeeded: false },
     { requirementName: "Defined safety responsibilities", addressedBy: "Roles and Responsibilities", documentLocation: "Section 6", separateUploadNeeded: false },
     { requirementName: "Incident reporting and investigation", addressedBy: "Incident steps and Appendix B package", documentLocation: "Section 11 / Appendix B", separateUploadNeeded: false },
     { requirementName: "HazCom", addressedBy: "SDS, inventory, labels, training, responsible person", documentLocation: "Section 9", separateUploadNeeded: false },
@@ -3297,7 +3403,7 @@ function referenceScopeUse(code: string) {
     case "R16":
       return "Recordkeeping, retention, injury / illness logs, permits, inspections, and closeout records.";
     case "R17":
-      return "Weather, emergency action, heat, cold, lightning, and project severe-weather controls.";
+      return "Project/site severe-weather, heat, cold, lightning, tornado, shelter, restart, and EAP-support controls.";
     default:
       return "Use when the selected scope, task, hazard, equipment, or permit trigger matches this topic.";
   }
@@ -3343,9 +3449,9 @@ function synthesizeRegulatoryReferenceSubsections(draft: GeneratedSafetyPlanDraf
       ],
     },
     {
-      title: "Clean OSHA / CFR Citation List",
+      title: "Regulatory Citation and Project Control Basis",
       table: {
-        columns: ["Ref", "Clean Citation", "Scope Use"],
+        columns: ["Ref", "Citation / Control Basis", "Scope Use"],
         rows: CSEP_REGULATORY_REFERENCE_INDEX.map((entry) => [
           entry.code,
           cleanRegulatoryCitation(entry.citation),
@@ -4111,15 +4217,15 @@ function synthesizeIippSubsections(context: {
     {
       title: "Company Safety Policy and Scope",
       paragraphs: [
-        `${company}'s Injury and Illness Prevention Program (IIPP) applies to ${operations} performed on ${project} and to company work practices that support those project activities. The effective date for this CSEP issue is ${effectiveDate}; the revision date is the latest issue date shown on the cover and document control page. Management is committed to providing a safe and healthy workplace by planning the work, assigning competent supervision, correcting hazards, and giving employees the authority and information needed to work safely. The IIPP applies project-by-project through this CSEP and company-wide where company policy, training, disciplinary, recordkeeping, or corrective-action systems govern the work.`,
+        `${company}'s safety and health program applies to ${operations} performed on ${project} and to company work practices that support those project activities. The effective date for this CSEP issue is ${effectiveDate}; the revision date is the latest issue date shown on the cover and document control page. Management is committed to providing a safe and healthy workplace by planning the work, assigning competent supervision, correcting hazards, and giving employees the authority and information needed to work safely. The program applies project-by-project through this CSEP and company-wide where company policy, training, disciplinary, recordkeeping, or corrective-action systems govern the work.`,
       ],
     },
     {
       title: "Responsible Persons",
       items: [
-        "Owner / executive leadership: Provides program authority, resources, and management support for the IIPP.",
-        "Safety manager / safety director: Maintains IIPP requirements, supports training, reviews incidents, and verifies corrective-action closure.",
-        "Superintendent / project manager: Implements the IIPP on the project, coordinates with the owner / GC / CM, and confirms competent-person coverage.",
+        "Owner / executive leadership: Provides program authority, resources, and management support for the company safety and health program.",
+        "Safety manager / safety director: Maintains program requirements, supports training, reviews incidents, and verifies corrective-action closure.",
+        "Superintendent / project manager: Implements the program on the project, coordinates with the owner / GC / CM, and confirms competent-person coverage.",
         "Foremen / crew leads: Communicate daily hazards, enforce safe work practices, conduct or support toolbox meetings, and escalate unresolved hazards.",
         "Competent persons: Identify predictable hazards, conduct assigned inspections, correct hazards within their authority, and stop exposed work when needed.",
         "Employees: Follow safe work practices, attend training and briefings, use required PPE, report hazards, and participate in correction and investigation processes.",
@@ -4162,31 +4268,31 @@ function synthesizeIippSubsections(context: {
     {
       title: "Training and Instruction",
       paragraphs: [
-        "Training and instruction are provided when the IIPP is established, for new employees, for site-specific orientation, for new job assignments, when new hazardous substances, processes, procedures, equipment, or materials are introduced, when newly recognized hazards are identified, and for supervisors regarding hazards under their control. Task-specific construction training is assigned based on the active scope, permits, equipment, and high-risk programs triggered by this CSEP.",
+        "Training and instruction are provided for new employees, site-specific orientation, new job assignments, newly introduced hazardous substances, processes, procedures, equipment, or materials, newly recognized hazards, and supervisors responsible for affected crews. Task-specific construction training is assigned based on the active scope, permits, equipment, and high-risk programs triggered by this CSEP.",
       ],
     },
     {
-      title: "Employee Access to the IIPP",
+      title: "Employee Access to the Safety Program",
       paragraphs: [
-        "Employees and authorized representatives may examine and receive a copy of the written IIPP through supervision, safety, the project office, the company safety office, or the electronic document location used for this CSEP. For California work, access is provided within five business days of a request unless unobstructed electronic access is already available.",
+        "Employees and authorized representatives may examine the written safety and health program through supervision, safety, the project office, the company safety office, or the electronic document location used for this CSEP. Requests are handled through the company or project document-control process and tracked so workers receive the current controlled version.",
       ],
     },
     {
       title: "Recordkeeping",
       paragraphs: [
-        "Records are kept for scheduled and periodic inspections, hazard corrections, training, incidents, investigations, toolbox or tailgate meetings, safety committee or supervisor meetings, discipline, retraining, and corrective-action closure. California IIPP inspection and safety training records are maintained for at least one year unless a small-employer exception applies; Cal/OSHA injury and illness logs and related records may have separate retention requirements.",
+        "Records are kept for scheduled and periodic inspections, hazard corrections, training, incidents, investigations, toolbox or tailgate meetings, safety committee or supervisor meetings, discipline, retraining, and corrective-action closure. Record retention follows federal OSHA recordkeeping, project, contract, company, and governing jurisdiction requirements applicable to the work.",
       ],
     },
     {
-      title: "Written Code of Safe Practices",
+      title: "Written Safe Work Practices",
       paragraphs: [
-        "For California construction work, the company maintains a written Code of Safe Practices that applies to the work covered by this CSEP. The Code of Safe Practices is posted at a conspicuous location at each jobsite office or provided to each supervisory employee so it is readily available to affected employees.",
+        "The company maintains written safe work practices for the work covered by this CSEP. Supervisors communicate the applicable practices through orientation, JSA / PTP briefings, toolbox meetings, permits, and task-specific instructions before affected work starts.",
       ],
     },
     {
       title: "Toolbox / Tailgate Safety Meetings",
       paragraphs: [
-        "Supervisors conduct toolbox, tailgate, or equivalent safety meetings with crews at least every 10 working days for California construction work and more frequently when project conditions require. Meeting topics address current work, incidents, corrective actions, upcoming hazardous tasks, seasonal hazards, and lessons learned; attendance and topics are documented.",
+        "Supervisors conduct toolbox, tailgate, or equivalent safety meetings at the cadence required by company policy, site rules, and the current work risk. Meeting topics address current work, incidents, corrective actions, upcoming hazardous tasks, seasonal hazards, and lessons learned; attendance and topics are documented.",
       ],
     },
     {
@@ -4204,10 +4310,21 @@ function synthesizeIippSubsections(context: {
     {
       title: "Hazard-Specific Programs or Appendices",
       paragraphs: [
-        "The IIPP includes or cross-references written programs, procedures, forms, and appendices that apply to the work. Common construction appendices include the Code of Safe Practices, JHA / PTP forms, inspection forms, incident and near-miss reports, corrective-action logs, training records, emergency contacts, fall protection and rescue procedures, hot-work permits, lift plans, equipment inspection forms, Hazard Communication / SDS information, excavation procedures when triggered, and the task-hazard-control matrix.",
+        "The safety and health program includes or cross-references written programs, procedures, forms, and appendices that apply to the work. Common construction support documents include JHA / PTP forms, inspection forms, incident and near-miss reports, corrective-action logs, training records, emergency contacts, fall protection and rescue procedures, hot-work permits when triggered, lift plans, equipment inspection forms, Hazard Communication / SDS information, excavation procedures when triggered, and the task-hazard-control matrix.",
       ],
     },
   ];
+}
+
+function safetyProgramSourceLines(source: CsepTemplateSubsection, field: "paragraphs" | "items") {
+  if (/\bcode\s+of\s+safe\s+practices\b/i.test(source.title)) return [];
+  const lines = source[field] ?? [];
+  return lines.filter(
+    (line) =>
+      !/\b(california|cal\/osha|cal osha|five business days|10 working days|code of safe practices|injury and illness prevention program|iipp)\b/i.test(
+        line
+      )
+  );
 }
 
 function iippCanonicalSubsectionKey(title: string) {
@@ -4221,9 +4338,9 @@ function iippCanonicalSubsectionKey(title: string) {
   if (normalized.includes("accident") || normalized.includes("incident") || normalized.includes("near miss") || normalized.includes("exposure investigation")) return "accident incident near miss and exposure investigation";
   if (normalized.includes("hazard correction") || normalized.includes("corrective action") || normalized.includes("restart")) return "hazard correction procedures";
   if (normalized.includes("training and instruction") || normalized.includes("training requirement")) return "training and instruction";
-  if (normalized.includes("employee access")) return "employee access to the iipp";
+  if (normalized.includes("employee access")) return "employee access to the safety program";
   if (normalized.includes("recordkeeping") || normalized.includes("records")) return "recordkeeping";
-  if (normalized.includes("code of safe practices")) return "written code of safe practices";
+  if (normalized.includes("safe work practices") || normalized.includes("code of safe practices")) return "written safe work practices";
   if (normalized.includes("toolbox") || normalized.includes("tailgate")) return "toolbox tailgate safety meetings";
   if (normalized.includes("supervisor safety meeting")) return "supervisor safety meetings";
   if (normalized.includes("emergency procedure") || normalized.includes("emergency preparedness")) return "emergency procedures";
@@ -4248,7 +4365,7 @@ function buildHazardCrossReference(value: string) {
     normalized.includes("near miss") ||
     normalized.includes("injury")
   ) {
-    return "Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.";
+    return "Follow the project Safety Program / Emergency Response requirements defined in the Safety Program and Emergency Response sections.";
   }
   if (
     normalized.includes("security") ||
@@ -4270,7 +4387,7 @@ function buildHazardCrossReference(value: string) {
     return "Follow the project-wide Site Access, Laydown, and Traffic Control requirements in the Security at Site section.";
   }
   if (normalized.includes("drug") || normalized.includes("alcohol") || normalized.includes("substance") || normalized.includes("fit for duty")) {
-    return "Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.";
+    return "Follow the project Safety Program / Emergency Response requirements defined in the Safety Program and Emergency Response sections.";
   }
   if (normalized.includes("discipline") || normalized.includes("enforcement") || normalized.includes("unsafe act")) {
     return "Follow the project Disciplinary Program requirements defined in the Disciplinary Program section.";
@@ -4709,8 +4826,8 @@ function buildSectionSubsections(
       if (!sources?.length) return subsection;
       return {
         ...subsection,
-        paragraphs: uniqueItems([...(subsection.paragraphs ?? []), ...sources.flatMap((source) => source.paragraphs ?? [])]),
-        items: uniqueItems([...(subsection.items ?? []), ...sources.flatMap((source) => source.items ?? [])]),
+        paragraphs: uniqueItems([...(subsection.paragraphs ?? []), ...sources.flatMap((source) => safetyProgramSourceLines(source, "paragraphs"))]),
+        items: uniqueItems([...(subsection.items ?? []), ...sources.flatMap((source) => safetyProgramSourceLines(source, "items"))]),
         table: subsection.table ?? sources.find((source) => source.table)?.table,
       };
     });
@@ -5775,7 +5892,7 @@ function createCover(model: CsepRenderModel) {
 
   coverChildren.push(
     bodyParagraph(
-      "Prepared as a presentation draft for review. Replace placeholder logo and project data before final field issue.",
+      "Prepared as a controlled review draft for project verification and signature before field issue.",
       {
         alignment: AlignmentType.CENTER,
         style: STYLE_IDS.coverSubtitle,

@@ -126,6 +126,18 @@ const SECURITY_REFERENCE_ALLOWLIST = [
 const IIPP_REFERENCE_ALLOWLIST = [
   "Follow the project IIPP / Emergency Response requirements defined in the IIPP / Emergency Response section.",
   "Follow the project IIPP, Incident Reporting, and Corrective Action requirements defined in the IIPP, Incident Reporting, and Corrective Action section.",
+  "Follow the project Safety Program / Emergency Response requirements defined in the Safety Program and Emergency Response sections.",
+];
+const FORBIDDEN_FINAL_TEXT_PATTERNS: readonly { label: string; pattern: RegExp }[] = [
+  { label: "placeholder project name Test 1", pattern: /\bTest\s+1\b/i },
+  { label: "placeholder person John Doe", pattern: /\bJohn\s+Doe\b/i },
+  { label: "unresolved contact placeholder", pattern: /Confirm name and phone before field issue/i },
+  { label: "unresolved heaviest pick placeholder", pattern: /Heaviest Pick\s*:?\s*Confirm before issue/i },
+  { label: "cover placeholder instruction", pattern: /replace placeholder logo|replace placeholder project data/i },
+  { label: "California-style IIPP wording", pattern: /\bCal\/OSHA\b|\bCalifornia IIPP\b|\bwithin five business days\b|\bat least every 10 working days\b|\bCode of Safe Practices\b/i },
+  { label: "mislabeled R4 citation", pattern: /Subpart J\s+-\s+Welding,\s*Cutting,\s*Fire Protection/i },
+  { label: "mislabeled R7 citation", pattern: /1926\.453\s+-\s+Aerial Lifts\s*\/\s*MEWPs/i },
+  { label: "mislabeled R17 weather citation", pattern: /OSHA severe weather/i },
 ];
 const OWNERSHIP_COMPANION_KEYS: Record<string, readonly string[]> = {
   hazard_communication_and_environmental_protection: [
@@ -181,7 +193,12 @@ function flattenModelText(model: CsepRenderModel): string {
     model.tradeLabel ?? "",
     model.subTradeLabel ?? "",
     model.titlePageTaskSummary,
+    model.titlePageProjectLocation,
+    model.titlePageGoverningState,
+    model.preparedBy,
     ...model.coverSubtitleLines,
+    ...model.coverMetadataRows.flatMap((row) => [row.label, row.value]),
+    ...model.revisionHistory.flatMap((row) => [row.revision, row.date, row.description, row.preparedBy, row.approvedBy]),
     ...model.approvalLines,
     ...model.disclaimerLines,
     ...flattenSectionTexts(model.frontMatterSections),
@@ -349,7 +366,37 @@ function checkCoverPageBaseline(model: CsepRenderModel): string[] {
       issues.push(`Cover page baseline check failed: required metadata row "${label}" is missing.`);
     }
   }
+  for (const label of ["Project Name", "Project Address", "Contractor"] as const) {
+    const value = model.coverMetadataRows.find((row) => row.label === label)?.value?.trim() ?? "";
+    if (!value || /^N\/A$/i.test(value)) {
+      issues.push(`Cover page baseline check failed: required metadata row "${label}" must use verified project data, not N/A.`);
+    }
+  }
   return issues;
+}
+
+function isStreetAddressLike(value: string) {
+  return (
+    /\b(?:\d{1,6}|[A-Z]\d{2,}[A-Z0-9]*)\s+[A-Za-z0-9]/i.test(value) &&
+    /\b(st|street|rd|road|ave|avenue|ct|court|dr|drive|ln|lane|blvd|boulevard|way|pkwy|parkway|hwy|highway|pl|place)\b/i.test(value)
+  );
+}
+
+function hasCityStateZipSignal(value: string) {
+  return /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/.test(value) || /\b\d{5}(?:-\d{4})?\b/.test(value);
+}
+
+function checkProjectAddressCompleteness(model: CsepRenderModel): string[] {
+  const address =
+    model.coverMetadataRows.find((row) => row.label === "Project Address")?.value ||
+    model.titlePageProjectLocation ||
+    "";
+  const trimmed = address.trim();
+  if (!trimmed || trimmed === "N/A") return [];
+  if (!isStreetAddressLike(trimmed) || hasCityStateZipSignal(trimmed)) return [];
+  return [
+    "Project Address appears to be a street address without city/state/ZIP; use the verified full project record address before field issue.",
+  ];
 }
 
 function checkFrontMatterOrder(model: CsepRenderModel): string[] {
@@ -564,6 +611,16 @@ function checkInternalGeneratorLanguage(model: CsepRenderModel): string[] {
   return [`Internal generator / scaffold wording detected (patterns: ${hits.slice(0, 6).join(", ")}).`];
 }
 
+function checkNoForbiddenFinalText(model: CsepRenderModel): string[] {
+  const haystack = flattenModelText(model);
+  const hits = FORBIDDEN_FINAL_TEXT_PATTERNS
+    .filter((item) => item.pattern.test(haystack))
+    .map((item) => item.label);
+  return hits.length
+    ? [`Forbidden placeholder, obsolete program, or mislabeled citation text detected: ${hits.slice(0, 8).join("; ")}.`]
+    : [];
+}
+
 function checkTaskModuleSafetyControls(model: CsepRenderModel): string[] {
   const issues: string[] = [];
   const allSections = [...model.frontMatterSections, ...model.sections, ...model.appendixSections];
@@ -751,6 +808,7 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
   add("toc_consistency", checkTocInternalConsistency(model));
   add("toc_not_table", checkTocIsNotTable(model));
   add("cover_page_baseline", checkCoverPageBaseline(model));
+  add("project_address_complete", checkProjectAddressCompleteness(model));
   add("project_info_cover_only", checkProjectInfoOnlyOnCover(model));
   add("version_c_required_sections", checkVersionCCoverage(model));
   add("broad_references", checkNoBroadReferences(model));
@@ -765,6 +823,7 @@ export function assertCsepExportQuality(model: CsepRenderModel, options?: { draf
   add("hazard_ppe_duplicates", checkDuplicatePpeAcrossHazards(model));
   add("ppe_duplicates", checkPpeDuplicates(model));
   add("internal_generator_language", checkInternalGeneratorLanguage(model));
+  add("forbidden_final_text", checkNoForbiddenFinalText(model));
   add(
     "hazcom_isolation",
     checkOwnedTopicIsolation(

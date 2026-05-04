@@ -41,7 +41,7 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
     projectOverview: {
       projectName: "Riverfront Tower",
       projectNumber: "RT-100",
-      projectAddress: "100 River Rd",
+      projectAddress: "100 River Rd, Seattle, WA 98101",
       ownerClient: "Owner Group",
       gcCm: "GC Partners",
       contractorCompany: "ABC Steel",
@@ -256,7 +256,7 @@ describe("csepDocxRenderer", () => {
     expect(regulatory?.subsections.map((subsection) => subsection.title)).toEqual([
       "Jurisdiction Profile",
       "Authority References",
-      "Clean OSHA / CFR Citation List",
+      "Regulatory Citation and Project Control Basis",
     ]);
     expect(regulatory?.subsections[0]?.table?.rows).toEqual(
       expect.arrayContaining([
@@ -273,7 +273,7 @@ describe("csepDocxRenderer", () => {
     ]);
   });
 
-  it("centralizes required IIPP program elements in Section 11", async () => {
+  it("centralizes required safety program elements in Section 11", async () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.push(
       {
@@ -294,7 +294,7 @@ describe("csepDocxRenderer", () => {
     );
 
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
-    const iipp = model.sections.find((section) => section.key === "iipp_incident_reporting_corrective_action");
+    const safetyProgram = model.sections.find((section) => section.key === "iipp_incident_reporting_corrective_action");
     const expectedTitles = [
       "Company Safety Policy and Scope",
       "Responsible Persons",
@@ -304,24 +304,25 @@ describe("csepDocxRenderer", () => {
       "Accident, Incident, Near-Miss, and Exposure Investigation",
       "Hazard Correction Procedures",
       "Training and Instruction",
-      "Employee Access to the IIPP",
+      "Employee Access to the Safety Program",
       "Recordkeeping",
-      "Written Code of Safe Practices",
+      "Written Safe Work Practices",
       "Toolbox / Tailgate Safety Meetings",
       "Supervisor Safety Meetings",
       "Emergency Procedures",
       "Hazard-Specific Programs or Appendices",
     ];
-    expect(iipp?.subsections.map((subsection) => subsection.title)).toEqual(expectedTitles);
+    expect(safetyProgram?.subsections.map((subsection) => subsection.title)).toEqual(expectedTitles);
 
-    const iippText = iipp?.subsections
+    const safetyProgramText = safetyProgram?.subsections
       .flatMap((subsection) => [...(subsection.paragraphs ?? []), ...(subsection.items ?? [])])
       .join(" ") ?? "";
-    expect(iippText).toMatch(/management is committed to providing a safe and healthy workplace/i);
-    expect(iippText).toContain("Cal/OSHA");
-    expect(iippText).toContain("at least every 10 working days");
-    expect(iippText).toContain("within five business days");
-    expect(iippText).toContain("Post the code at the jobsite office");
+    expect(safetyProgramText).toMatch(/management is committed to providing a safe and healthy workplace/i);
+    expect(safetyProgramText).toContain("company safety and health program");
+    expect(safetyProgramText).not.toContain("Cal/OSHA");
+    expect(safetyProgramText).not.toContain("at least every 10 working days");
+    expect(safetyProgramText).not.toContain("within five business days");
+    expect(safetyProgramText).not.toContain("Post the code at the jobsite office");
 
     const otherSectionText = model.sections
       .filter((section) => section.key !== "iipp_incident_reporting_corrective_action")
@@ -864,7 +865,7 @@ describe("csepDocxRenderer", () => {
       },
       {
         key: "incident_reporting_and_investigation",
-        title: "IIPP / Emergency Response",
+        title: "Safety Program / Emergency Response",
         bullets: [
           "Report incidents and coordinate emergency medical response.",
           "Keep GHS/NFPA labels updated on all chemicals.",
@@ -891,9 +892,9 @@ describe("csepDocxRenderer", () => {
     expect(hazcomText.length).toBeGreaterThan(0);
     expect(hazcomText).not.toMatch(/\btrucking|traffic control|laydown\b/i);
 
-    const iippText = asText("emergency_response_and_rescue");
-    expect(iippText.length).toBeGreaterThan(0);
-    expect(iippText).not.toMatch(/\bSDS|GHS|NFPA|chemical inventory\b/i);
+    const emergencyText = asText("emergency_response_and_rescue");
+    expect(emergencyText.length).toBeGreaterThan(0);
+    expect(emergencyText).not.toMatch(/\bSDS|GHS|NFPA|chemical inventory\b/i);
   });
 
   it("indents Trade Interaction subsection tiers in the DOCX outline", async () => {
@@ -943,7 +944,9 @@ describe("csepDocxRenderer", () => {
     expect(appendixSlice).not.toContain("<w:tbl>");
     expect(appendixSlice).toContain("Deck placement.");
     expect(appendixSlice).toContain("Training: ");
-    expect(appendixSlice).toContain("hot work training, qualified rigger, signal person training");
+    expect(appendixSlice).toContain("Qualified rigger / signal person verification");
+    expect(appendixSlice).not.toContain("Hot Work Permit");
+    expect(appendixSlice).not.toContain("Hot work / fire watch training");
     expect(appendixSlice).not.toContain("hot_work_training");
     expect(appendixSlice).not.toMatch(/\bunknown\b/i);
   });
@@ -1038,7 +1041,7 @@ describe("csepDocxRenderer", () => {
       "8. Site Access, Security, Laydown, and Traffic Control",
       "9. Hazard Communication and Environmental Protection",
       "10. Emergency Response and Rescue",
-      "11. IIPP / Incident Reporting / Corrective Action",
+      "11. Safety Program / Incident Reporting / Corrective Action",
       "12. Worker Conduct, Fit-for-Duty, and Disciplinary Program",
       "13. Training, Competency, and Certifications",
       "14. Required Permits and Hold Points",
