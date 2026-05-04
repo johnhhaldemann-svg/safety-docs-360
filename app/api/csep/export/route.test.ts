@@ -36,7 +36,7 @@ function createGeneratedDraft(): GeneratedSafetyPlanDraft {
     projectOverview: {
       projectName: "Kitchen Renovation",
       projectNumber: "KR-001",
-      projectAddress: "100 Main St",
+      projectAddress: "100 Main St, Springfield, IL 62701",
       ownerClient: "Owner Group",
       gcCm: "GC Partners",
       contractorCompany: "Kitchen Installers LLC",
@@ -128,7 +128,7 @@ describe("legacy CSEP DOCX export", () => {
     const response = await generateCsepDocx({
       project_name: "Kitchen Renovation",
       project_number: "KR-001",
-      project_address: "100 Main St",
+      project_address: "100 Main St, Springfield, IL 62701",
       owner_client: "Owner Group",
       gc_cm: "GC Partners",
       contractor_company: "Kitchen Installers LLC",
@@ -230,7 +230,7 @@ describe("legacy CSEP DOCX export", () => {
     const response = await generateCsepDocx({
       project_name: "Kitchen Renovation",
       project_number: "KR-001",
-      project_address: "100 Main St",
+      project_address: "100 Main St, Springfield, IL 62701",
       owner_client: "Owner Group",
       gc_cm: "GC Partners",
       contractor_company: "Kitchen Installers LLC",
@@ -270,14 +270,14 @@ describe("legacy CSEP DOCX export", () => {
     expect(documentXml).toContain("Custom scope fallback from super admin.");
     expect(documentXml).toContain("Custom training requirement from super admin.");
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("11. IIPP / Incident Reporting / Corrective Action");
+    expect(documentXml).toContain("11. Safety Program / Incident Reporting / Corrective Action");
   });
 
   it("renders weather content in shared baseline, project overlay, then contractor order", async () => {
     const response = await generateCsepDocx({
       project_name: "Weather Tower",
       project_number: "WT-100",
-      project_address: "100 Main St",
+      project_address: "100 Main St, Springfield, IL 62701",
       owner_client: "Owner Group",
       gc_cm: "GC Partners",
       contractor_company: "Wind Safe LLC",
@@ -354,7 +354,7 @@ describe("legacy CSEP DOCX export", () => {
     const response = await generateCsepDocx({
       project_name: "Empty Optional Sections",
       project_number: "EO-001",
-      project_address: "100 Main St",
+      project_address: "100 Main St, Springfield, IL 62701",
       owner_client: "Owner Group",
       gc_cm: "GC Partners",
       contractor_company: "Legacy Contracting",
@@ -402,7 +402,7 @@ describe("legacy CSEP DOCX export", () => {
     const response = await generateCsepDocx({
       project_name: "Legacy Build",
       project_number: "LG-001",
-      project_address: "100 Main St",
+      project_address: "100 Main St, Springfield, IL 62701",
       owner_client: "Owner Group",
       gc_cm: "GC Partners",
       contractor_company: "Legacy Contracting",
@@ -427,7 +427,7 @@ describe("legacy CSEP DOCX export", () => {
 
     expect(documentXml).toContain("Legacy Build");
     expect(documentXml).toContain("Table of Contents");
-    expect(documentXml).toContain("11. IIPP / Incident Reporting / Corrective Action");
+    expect(documentXml).toContain("11. Safety Program / Incident Reporting / Corrective Action");
   });
 
   it("renders generated draft exports through the shared CSEP renderer", async () => {

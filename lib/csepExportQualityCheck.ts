@@ -114,8 +114,12 @@ const HAZCOM_REFERENCE_ALLOWLIST = [
   "Follow the project Hazard Communication requirements defined in the Hazard Communication and Environmental Protection section.",
   "Follow the project Hazard Communication requirements for sealants.",
   "Task-specific PPE shall be selected from the task hazards, SDS, permit, manufacturer instructions, and JSA/PTP",
-  "Some CODEX items are separate upload items",
-  "SDS uploads are separate when chemicals are brought on site",
+  "Each subcontractor performing covered work shall identify an on-site safety representative",
+  "Subcontractors shall provide SDS and chemical-use information",
+  "New-hire and site-specific orientation shall include emergency procedures, SDS / HazCom access",
+  "This matrix helps a reviewer locate baseline HSE checklist evidence",
+  "SDS / chemical inventory",
+  "HazCom requires on-site SDS access",
 ];
 const SECURITY_REFERENCE_ALLOWLIST = [
   "Follow the project Security at Site requirements defined in the Security at Site section.",

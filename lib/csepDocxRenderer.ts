@@ -2504,14 +2504,24 @@ function synthesizeWorkerConductSubsections(context: {
     {
       title: "Drug, Alcohol, and Impairment Response",
       items: [
-        withReferences(`${contractor} shall follow project, owner, GC / CM, contract, and company requirements for drug and alcohol testing, reasonable-suspicion response, post-incident screening, and return-to-work coordination`, ["R12", "R16"]),
-        withReferences("When impairment is suspected, supervision shall remove the affected worker from safety-sensitive work, protect privacy, notify the designated project contact, and document actions through the company process", ["R12", "R16"]),
+        withReferences(`${contractor} maintains a drug-free workforce policy that prohibits reporting to work or performing safety-sensitive duties while impaired by alcohol, controlled substances, misused prescription medication, or any substance that could affect safe performance`, ["R12", "R16"]),
+        withReferences(`${contractor} shall follow project, owner, GC / CM, contract, and company requirements for pre-assignment, random, reasonable-suspicion, post-incident, return-to-duty, and follow-up drug or alcohol testing when those requirements apply`, ["R12", "R16"]),
+        withReferences("When impairment is suspected, supervision shall remove the affected worker from safety-sensitive work, protect privacy, notify the designated project contact, arrange required testing or evaluation through the company process, and document actions taken before the worker returns to duty", ["R12", "R16"]),
+      ],
+    },
+    {
+      title: "Return-to-Work / Light-Duty Coordination",
+      items: [
+        withReferences(`${contractor} maintains a return-to-work / light-duty process for work-related injury or illness when medically appropriate work restrictions can be accommodated without creating a new hazard`, ["R12", "R16"]),
+        withReferences("Work restrictions, release notes, modified-duty assignments, privacy-sensitive medical information, supervisor communication, and return-to-duty clearance shall be coordinated through the designated company representative and retained in the applicable medical or personnel record", ["R12", "R16"]),
       ],
     },
     {
       title: "Corrective Action and Progressive Discipline",
       items: [
         withReferences("Unsafe acts and rule violations shall be corrected promptly using coaching, retraining, written corrective action, removal from task, or disciplinary escalation based on severity and recurrence", ["R12", "R16"]),
+        withReferences("Progressive discipline may include verbal coaching, written warning, retraining, suspension or removal from the task, removal from the project, or further employment action according to company policy, contract rules, and severity of exposure", ["R12", "R16"]),
+        withReferences("Disciplinary corrective action, retraining, and related acknowledgements are documented and retained in the employee personnel file or controlled company safety record as applicable", ["R12", "R16"]),
         withReferences("Work may restart only after the unsafe condition or behavior is corrected, affected workers are briefed, and required controls are verified", ["R12", "R16"]),
       ],
     },
@@ -2545,6 +2555,7 @@ function synthesizeTrainingMatrixSubsections(
           ["MEWP Operator", "MEWP operator training and equipment authorization", "MEWP / aerial lift access", "Operator card / equipment authorization", "Before operation"],
           ["Welder / Fire Watch", "Hot work permit; fire watch; extinguisher use; HazCom tie-in", "Welding / cutting / grinding", "Permit and training record", "Before hot work"],
           ["Rescue Personnel", "Rescue plan, equipment, communication, and role assignment", "Fall rescue / emergency response", "Rescue briefing / drill record", "Before rescue responsibility"],
+          ["Supervisors / Line Management", "Company safety policy; leadership safety responsibilities; incident escalation; corrective action; OSHA 10-hour construction for field supervisors or stricter project-required credential", "Crew oversight / day-to-day work direction", "Training record / OSHA card / management acknowledgement", "Before assigned supervision and per refresher cycle"],
         ],
       },
     },
@@ -2554,6 +2565,10 @@ function synthesizeTrainingMatrixSubsections(
         withReferences(
           "No worker shall be assigned to connector work, decking, rigging, signaling, hot work, MEWP operation, scaffold use, fall rescue responsibility, or other special-task work until the required training, qualification, authorization, or competent-person verification has been documented",
           ["R12", "R16"]
+        ),
+        withReferences(
+          "New-hire and site-specific orientation shall include emergency procedures, SDS / HazCom access, PPE expectations, hazard reporting, stop-work authority, fit-for-duty rules, and the corrective-action / progressive-discipline policy before employees perform work",
+          ["R10", "R11", "R12", "R16"]
         ),
       ],
     },
@@ -2607,6 +2622,11 @@ function synthesizeScopePolicyEvidenceSummarySubsections(): CsepTemplateSubsecti
           ["Incident Reporting", "Reporting and investigation steps are included with Appendix B support.", "Safety Program / Incident Reporting / Corrective Action; Appendix B"],
           ["Corrective Action", "Corrective action ownership, verification, and restart expectations are addressed.", "Safety Program / Incident Reporting / Corrective Action"],
           ["HSE Orientation", "Orientation and special-task verification are summarized in the training matrix.", "Training, Competency, and Certifications"],
+          ["Subcontractor Controls", "Subcontractor safety representative, crew oversight, SDS, and multi-employer coordination duties are included.", "Roles and Responsibilities; Safety Program"],
+          ["Drug-Free Workforce / Fit-for-Duty", "Drug-free workforce, testing triggers, impairment removal, and return-to-duty coordination are included.", "Worker Conduct, Fit-for-Duty, and Disciplinary Program"],
+          ["Light Duty / Return-to-Work", "Work restrictions, modified duty, and return-to-duty coordination are included.", "Worker Conduct, Fit-for-Duty, and Disciplinary Program"],
+          ["Medical Facility Posting", "Designated occupational clinic, emergency department, and route posting is required before mobilization.", "Safety Program; Appendix D"],
+          ["Environmental Compliance", "Spill prevention, stormwater protection, waste controls, and environmental permit triggers are included.", "HazCom and Environmental Protection"],
           ["Severe Weather", "Wind, lightning, heat, cold, storm/tornado, shelter, restart, and inspection thresholds are included when triggered.", "High-Risk Programs; Emergency Response"],
         ],
       },
@@ -2690,13 +2710,13 @@ function synthesizeReviewerCodexReadinessSubsections(draft: GeneratedSafetyPlanD
     {
       title: "Reviewer / CODEX Readiness Summary",
       paragraphs: [
-        "This matrix helps a reviewer locate CSEP evidence quickly. Some CODEX items are separate upload items and are not fully replaced by the CSEP, including OSHA 300A logs, the complete company safety program, example forms, scope-specific policies, and chemical inventory / SDS files when chemicals are brought on site.",
+        "This matrix helps a reviewer locate baseline HSE checklist evidence in the CSEP. External records such as OSHA logs, employee-specific training files, live SDS binders, and signed company records must still be kept available when requested, but the policy language and project controls are carried in this issued document.",
       ],
       table: {
         columns: ["Reviewer Item", "How Addressed", "Location / Evidence"],
         rows: data.codexRequirements.map((item) => [
           item.requirementName,
-          `${item.addressedBy}${item.separateUploadNeeded ? " Separate upload may be required." : ""}`,
+          `${item.addressedBy}${item.separateUploadNeeded ? " External controlled record required when requested." : ""}`,
           item.documentLocation,
         ]),
       },
@@ -3347,21 +3367,29 @@ function buildTriggeredHighRiskPrograms(draft: GeneratedSafetyPlanDraft, tasks: 
 
 function buildCodexRequirements() {
   return [
-    { requirementName: "OSHA 300A logs", addressedBy: "Referenced as a separate upload item", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
-    { requirementName: "Complete safety program", addressedBy: "This CSEP summarizes project controls but does not replace the full company program", documentLocation: "Reviewer / CODEX Readiness Summary", separateUploadNeeded: true },
-    { requirementName: "Corrective action policy", addressedBy: "Safety Program / Incident Reporting / Corrective Action", documentLocation: "Section 11", separateUploadNeeded: false },
+    { requirementName: "Formal safety policy statement", addressedBy: "Formal project safety policy statement with executive sign-off row", documentLocation: "Owner Safety Message / Sign-Off Page / Section 11", separateUploadNeeded: false },
+    { requirementName: "OSHA 300A logs", addressedBy: "Maintain OSHA 300A logs as controlled company records and furnish when requested", documentLocation: "Reviewer Readiness Summary / Recordkeeping", separateUploadNeeded: true },
+    { requirementName: "Complete safety program", addressedBy: "Baseline company safety program language is embedded in this CSEP for the issued project scope", documentLocation: "Sections 6, 9, 10, 11, 12, 13, 15, 17, 19", separateUploadNeeded: false },
+    { requirementName: "Corrective action policy", addressedBy: "Corrective action, progressive discipline, personnel-file retention, and restart rules", documentLocation: "Section 11 / Section 12", separateUploadNeeded: false },
     { requirementName: "Defined safety responsibilities", addressedBy: "Roles and Responsibilities", documentLocation: "Section 6", separateUploadNeeded: false },
+    { requirementName: "Subcontractor responsibilities", addressedBy: "On-site subcontractor safety representative and subcontractor SDS obligations", documentLocation: "Section 6 / Section 11", separateUploadNeeded: false },
     { requirementName: "Incident reporting and investigation", addressedBy: "Incident steps and Appendix B package", documentLocation: "Section 11 / Appendix B", separateUploadNeeded: false },
     { requirementName: "HazCom", addressedBy: "SDS, inventory, labels, training, responsible person", documentLocation: "Section 9", separateUploadNeeded: false },
-    { requirementName: "HSE orientation", addressedBy: "Training, Competency, and Certifications", documentLocation: "Section 13", separateUploadNeeded: false },
+    { requirementName: "Environmental spill, stormwater, waste, and permit triggers", addressedBy: "Environmental compliance, spill control, stormwater protection, regulated waste, and permit-trigger rules", documentLocation: "Section 9 / Section 10", separateUploadNeeded: false },
+    { requirementName: "HSE orientation", addressedBy: "Orientation topics include emergency procedures, SDS / HazCom, PPE, hazard reporting, stop-work, fit-for-duty, and discipline", documentLocation: "Section 13", separateUploadNeeded: false },
     { requirementName: "PPE", addressedBy: "Provider, selection, training, inspection, replacement", documentLocation: "Section 15", separateUploadNeeded: false },
+    { requirementName: "Leadership safety training", addressedBy: "Management and line supervision safety-policy training is required", documentLocation: "Section 11 / Section 13", separateUploadNeeded: false },
+    { requirementName: "Supervisor OSHA 10-hour", addressedBy: "Field supervisors must hold OSHA 10-hour construction or stricter project credential", documentLocation: "Section 11 / Section 13", separateUploadNeeded: false },
+    { requirementName: "Return-to-work / light-duty policy", addressedBy: "Return-to-work / light-duty coordination and medical restriction process", documentLocation: "Section 12", separateUploadNeeded: false },
+    { requirementName: "Substance abuse / drug-free workforce policy", addressedBy: "Drug-free workforce, testing triggers, impairment removal, and return-to-duty process", documentLocation: "Section 12", separateUploadNeeded: false },
+    { requirementName: "Designated occupational physician or facility", addressedBy: "Project must identify and post occupational clinic / medical facility information before mobilization", documentLocation: "Section 11 / Appendix D", separateUploadNeeded: false },
     { requirementName: "Fall protection", addressedBy: "High-risk fall protection and rescue program", documentLocation: "Section 17", separateUploadNeeded: false },
     { requirementName: "Ladder safety", addressedBy: "High-risk access control or policy evidence summary", documentLocation: "Section 16 / 17", separateUploadNeeded: false },
     { requirementName: "Hand/power tools", addressedBy: "Policy evidence and high-risk access/tool program", documentLocation: "Section 16 / 17", separateUploadNeeded: false },
     { requirementName: "Excavation/trenching N/A or trigger", addressedBy: "N/A/change-trigger or full program", documentLocation: "Section 18", separateUploadNeeded: false },
-    { requirementName: "Forms", addressedBy: "Forms and permit library", documentLocation: "Appendix A", separateUploadNeeded: true },
-    { requirementName: "SDS / chemical inventory", addressedBy: "HazCom requires location/inventory; SDS uploads are separate when chemicals are brought on site", documentLocation: "Section 9", separateUploadNeeded: true },
-    { requirementName: "Training records", addressedBy: "Training matrix and recordkeeping requirements", documentLocation: "Section 13 / Section 19", separateUploadNeeded: true },
+    { requirementName: "Forms", addressedBy: "Forms and permit library plus incident, JSA, inspection, and corrective-action appendices", documentLocation: "Appendix A / Appendix B / Appendix C", separateUploadNeeded: false },
+    { requirementName: "SDS / chemical inventory", addressedBy: "HazCom requires on-site SDS access and chemical inventory before first use", documentLocation: "Section 9", separateUploadNeeded: true },
+    { requirementName: "Training records", addressedBy: "Training matrix, verification method, and recordkeeping requirements", documentLocation: "Section 13 / Section 19", separateUploadNeeded: true },
   ];
 }
 
@@ -3495,6 +3523,7 @@ function synthesizeSignOffSubsections(): CsepTemplateSubsection[] {
       table: {
         columns: ["Reviewer / Approver", "Printed Name", "Signature", "Date"],
         rows: [
+          ["Company President / Executive Authority", "", "", ""],
           ["Project Manager / Superintendent", "", "", ""],
           ["Competent Person", "", "", ""],
           ["Corporate Safety Director", "", "", ""],
@@ -4099,6 +4128,12 @@ function synthesizeRolesAndResponsibilitiesSubsections(context: {
       ],
     },
     {
+      title: "Subcontractor Safety Representative",
+      paragraphs: [
+        `Each subcontractor performing covered work shall identify an on-site safety representative or competent contact before starting work. The representative coordinates SDS for materials brought on site, verifies crew orientation and task training, participates in JSA / PTP planning, reports incidents and near misses, and has authority to stop subcontractor work when controls are missing or conditions change.`,
+      ],
+    },
+    {
       title: "GC / CM / Controlling Contractor Interface",
       paragraphs: [
         `Provides site-wide orientation, shared emergency coordination, and rules for shared spaces, traffic, and hot work where the GC/CM is the controlling entity. Confirms contractor plans align with the site safety plan and interfaces on multi-employer exposures. Contractor supervision remains responsible for crew execution and subcontractor oversight.`,
@@ -4198,6 +4233,16 @@ function synthesizeHazcomSubsections(): CsepTemplateSubsection[] {
         "Spill follow-through: For releases beyond a minor, controlled work-face cleanup, follow site emergency, environmental, and agency-reporting programs as applicable—HazCom still owns SDS, labels, and worker communication.",
       ],
     },
+    {
+      title: "Environmental Compliance, Spill Control, and Waste",
+      items: [
+        "Hazardous chemical handling: Use good housekeeping, compatible storage, secondary containment where required, closed containers, protected transfer areas, and SDS-based controls for fuel, oil, coatings, welding gases, cleaning products, and other regulated materials.",
+        "Spill prevention and response: Maintain spill kits suitable for the materials in use; stop the source when safe, protect drains and soil, isolate the area, notify supervision and the GC / CM, and complete owner, agency, and company notifications when reportable thresholds or site rules require them.",
+        "Stormwater and drainage protection: Keep sediment, debris, wash water, fuels, oils, slag, concrete residue, and other pollutants out of storm drains, ditches, waterways, and unprotected soil; maintain housekeeping and BMPs assigned by the site stormwater plan.",
+        "Regulated waste management: Label, store, segregate, and dispose of waste streams through approved containers and vendors; do not mix hazardous waste, universal waste, used oil, wastewater, or general construction debris unless the waste profile and site procedure allow it.",
+        "Environmental permit triggers: If work introduces air emissions, wastewater discharge, stormwater exposure, hazardous waste generation, regulated material shipping, remediation, refrigerants, pesticide application, radiation sources, potable-water tie-ins, or backflow-prevention work, stop and obtain the applicable project, local, state, or federal permit direction before proceeding.",
+      ],
+    },
   ];
 }
 
@@ -4217,7 +4262,7 @@ function synthesizeIippSubsections(context: {
     {
       title: "Company Safety Policy and Scope",
       paragraphs: [
-        `${company}'s safety and health program applies to ${operations} performed on ${project} and to company work practices that support those project activities. The effective date for this CSEP issue is ${effectiveDate}; the revision date is the latest issue date shown on the cover and document control page. Management is committed to providing a safe and healthy workplace by planning the work, assigning competent supervision, correcting hazards, and giving employees the authority and information needed to work safely. The program applies project-by-project through this CSEP and company-wide where company policy, training, disciplinary, recordkeeping, or corrective-action systems govern the work.`,
+        `${company}'s safety and health program applies to ${operations} performed on ${project} and to company work practices that support those project activities. The effective date for this CSEP issue is ${effectiveDate}; the revision date is the latest issue date shown on the cover and document control page. This section serves as the formal project safety policy statement for the issued CSEP and is to be reviewed and signed by company executive authority before field release. Management is committed to providing a safe and healthy workplace by planning the work, assigning competent supervision, correcting hazards, and giving employees the authority and information needed to work safely. The program applies project-by-project through this CSEP and company-wide where company policy, training, disciplinary, recordkeeping, or corrective-action systems govern the work.`,
       ],
     },
     {
@@ -4232,9 +4277,18 @@ function synthesizeIippSubsections(context: {
       ],
     },
     {
+      title: "Subcontractor Responsibilities",
+      items: [
+        "Each subcontractor and lower-tier subcontractor shall designate an on-site safety representative or competent contact with authority to coordinate hazards, stop unsafe work, and communicate with project supervision.",
+        "Subcontractors remain responsible for supervising their employees, enforcing PPE and training requirements, conducting pre-task planning, reporting incidents and near misses, and correcting unsafe conditions created by their work.",
+        "Subcontractors shall provide SDS and chemical-use information for hazardous materials they bring on site before first use, and shall update the project chemical inventory or GC / CM HazCom process when products change.",
+        "Subcontractors shall participate in site orientation, toolbox meetings, JSA / PTP coordination, inspections, emergency planning, and multi-employer hazard communication when their work can affect other crews.",
+      ],
+    },
+    {
       title: "Employee Compliance System",
       paragraphs: [
-        "Employees are expected to follow company safety rules, site rules, this CSEP, task plans, permits, manufacturer instructions, and supervisor direction. Compliance is reinforced through supervision, coaching, positive recognition for safe work, documented retraining when expectations are missed, and progressive discipline when unsafe conduct or repeated noncompliance occurs. Discipline and retraining records are retained with the project or company safety file as applicable.",
+        "Employees are expected to follow company safety rules, site rules, this CSEP, task plans, permits, manufacturer instructions, and supervisor direction. Compliance is reinforced through supervision, coaching, positive recognition for safe work, documented retraining when expectations are missed, and progressive discipline when unsafe conduct or repeated noncompliance occurs. The disciplinary policy is reviewed during new-hire orientation and site orientation where applicable. Discipline, retraining records, and acknowledgements are retained in the employee personnel file or controlled company safety record as applicable.",
       ],
     },
     {
@@ -4268,7 +4322,13 @@ function synthesizeIippSubsections(context: {
     {
       title: "Training and Instruction",
       paragraphs: [
-        "Training and instruction are provided for new employees, site-specific orientation, new job assignments, newly introduced hazardous substances, processes, procedures, equipment, or materials, newly recognized hazards, and supervisors responsible for affected crews. Task-specific construction training is assigned based on the active scope, permits, equipment, and high-risk programs triggered by this CSEP.",
+        "Training and instruction are provided for new employees, site-specific orientation, new job assignments, newly introduced hazardous substances, processes, procedures, equipment, or materials, newly recognized hazards, and supervisors responsible for affected crews. Task-specific construction training is assigned based on the active scope, permits, equipment, and high-risk programs triggered by this CSEP. Management and line supervision shall be trained on the company safety policy, their written safety responsibilities, incident escalation, corrective-action expectations, and the authority to stop work. Field supervisors shall hold OSHA 10-hour construction training or the stricter owner / GC / CM credential required for the project.",
+      ],
+    },
+    {
+      title: "Designated Medical Facility and Occupational Provider",
+      paragraphs: [
+        "Before mobilization, the project team shall identify and post the designated occupational medical facility or clinic for non-emergency work-related evaluation, the nearest emergency department for life-safety events, after-hours instructions, and transportation / route information. The posted information shall be included in the field contact insert and reviewed during orientation.",
       ],
     },
     {
