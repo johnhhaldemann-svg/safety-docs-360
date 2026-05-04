@@ -33,6 +33,27 @@ function paragraphXmlContaining(documentXml: string, text: string) {
   return documentXml.slice(paragraphStart, paragraphEnd + "</w:p>".length);
 }
 
+function decodeXmlText(value: string) {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function documentParagraphTexts(documentXml: string) {
+  return Array.from(documentXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g))
+    .map((match) =>
+      Array.from(match[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g))
+        .map((textMatch) => decodeXmlText(textMatch[1] ?? ""))
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
 function createGeneratedDraft(): GeneratedSafetyPlanDraft {
   return {
     documentType: "csep",
@@ -468,6 +489,26 @@ describe("csepDocxRenderer", () => {
     expect(topRiskSlice).not.toContain('w:fill="FFF2CC"');
   });
 
+  it("keeps local ordered bullets separate from section outline numbering", async () => {
+    const draft = createGeneratedDraft();
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    const paragraphs = documentParagraphTexts(documentXml);
+    const topRiskHeadingIndex = paragraphs.lastIndexOf("5. Top 10 Critical Risks");
+    expect(topRiskHeadingIndex).toBeGreaterThan(-1);
+    const rolesHeadingIndex = paragraphs.indexOf("6. Roles and Responsibilities", topRiskHeadingIndex);
+    expect(rolesHeadingIndex).toBeGreaterThan(topRiskHeadingIndex);
+    const topRiskParagraphs = paragraphs.slice(topRiskHeadingIndex, rolesHeadingIndex);
+
+    expect(topRiskParagraphs.some((text) => text.startsWith("1. Falls while decking"))).toBe(true);
+    expect(topRiskParagraphs.some((text) => text.startsWith("10. Congested picks and landings"))).toBe(true);
+    expect(topRiskParagraphs.some((text) => /^5\.1\.\d+\s+Falls while decking/.test(text))).toBe(false);
+    expect(topRiskParagraphs.some((text) => /^5\.1\.\d+\s+Struck-by or caught-in/.test(text))).toBe(false);
+    expect(paragraphXmlContaining(documentXml, "1. Falls while decking")).toContain(
+      '<w:ind w:left="1080" w:hanging="360"/>'
+    );
+  });
+
   it("keeps routine caution language normal while rendering attached-style laydown notes", async () => {
     const draft = createGeneratedDraft();
     draft.sectionMap.push(
@@ -542,17 +583,22 @@ describe("csepDocxRenderer", () => {
     });
     const haz = sections.find((s) => s.key === "high_risk_programs");
     const titles = (haz?.subsections ?? []).map((s) => s.title);
-    expect(titles.some((title) => /^17\.1\s+Fall Protection and Fall Rescue$/i.test(title))).toBe(true);
-    const firstProgram = haz?.subsections.find((section) => /^17\.1\s+/.test(section.title));
-    const firstProgramText = [
-      ...(firstProgram?.paragraphs ?? []),
-      ...(firstProgram?.items ?? []),
+    expect(titles).toContain("High-Risk Program Matrix");
+    const matrix = haz?.subsections.find((section) => section.title === "High-Risk Program Matrix");
+    const matrixText = [
+      ...(matrix?.paragraphs ?? []),
+      ...(matrix?.table?.columns ?? []),
+      ...(matrix?.table?.rows.flatMap((row) => row) ?? []),
     ].join(" ");
-    expect(firstProgramText).toContain("Training / authorization:");
-    expect(firstProgramText).toContain("Critical controls:");
-    expect(firstProgramText).toContain("Verification / record:");
-    expect(firstProgramText).toContain("Stop-work triggers:");
-    expect(firstProgramText).toContain("References:");
+    expect(matrixText).toContain("Fall Protection and Fall Rescue");
+    expect(matrixText).toContain("Critical Controls");
+    expect(matrixText).toContain("Verification / Stop-Work");
+    expect(matrixText).toContain("References:");
+    expect(matrixText).toContain("Shared release rules are verified once");
+    expect(matrixText).not.toContain("The main failure modes include uncontrolled access");
+    expect(matrixText).not.toContain("It also applies when adjacent trades");
+    expect(matrixText).not.toContain("Required permits, plans, and owner / GC / CM hold points shall be completed");
+    expect(matrixText).not.toContain("Field verification is documented through the JSA/PTP");
   });
 
   it("renders program module subsections with labels and explicit numbered lines", async () => {
@@ -599,18 +645,16 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
 
-    expect(documentXml).toContain("17.1 Fall Protection and Fall Rescue");
-    expect(documentXml).toContain("Training / authorization:");
-    expect(documentXml).toContain("Critical controls:");
-    expect(documentXml).toContain("Verification / record:");
-    expect(documentXml).toContain("Stop-work triggers:");
+    expect(documentXml).toContain("High-Risk Program Matrix");
+    expect(documentXml).toContain("Fall Protection and Fall Rescue");
+    expect(documentXml).toContain("Critical Controls");
+    expect(documentXml).toContain("Verification / Stop-Work");
     expect(documentXml).toContain("References:");
     const model = buildCsepRenderModelFromGeneratedDraft(draft);
-    const firstProgramBlock = model.sections
+    const highRiskMatrix = model.sections
       .find((section) => section.key === "high_risk_programs")
-      ?.subsections.find((subsection) => /^17\.1\s+/.test(subsection.title));
-    expect(firstProgramBlock?.items?.length).toBeGreaterThanOrEqual(5);
-    expect(firstProgramBlock?.items?.length).toBeLessThanOrEqual(6);
+      ?.subsections.find((subsection) => subsection.title === "High-Risk Program Matrix");
+    expect(highRiskMatrix?.table?.rows.length).toBeGreaterThanOrEqual(5);
     expect(documentXml).toContain("R2, R3, R12, R16");
     expect(documentXml).not.toContain("<w:numPr>");
   });
@@ -739,8 +783,59 @@ describe("csepDocxRenderer", () => {
     const rendered = await renderGeneratedCsepDocx(draft);
     const { documentXml } = await unzipDocx(rendered.body);
     expect(documentXml).toContain("17. High-Risk Programs");
-    expect(documentXml).toContain("17.1 Fall Protection and Fall Rescue");
+    expect(documentXml).toContain("High-Risk Program Matrix");
+    expect(documentXml).toContain("Fall Protection and Fall Rescue");
+    expect(documentXml).not.toContain("17.1 Fall Protection and Fall Rescue");
     expect(documentXml).not.toMatch(/17\.(?:8[0-9]|9[0-9]|1[0-9]{2})\s/);
+  });
+
+  it("renders triggered excavation controls as a table instead of repeated program labels", async () => {
+    const draft = createGeneratedDraft();
+    draft.operations = [
+      {
+        ...draft.operations[0]!,
+        taskTitle: "Excavation and utility trenching",
+        hazardCategories: ["Excavation cave-in", "Underground utility exposure"],
+        requiredControls: ["Competent person excavation inspection", "Protective system verification"],
+      },
+    ];
+
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    const excavationStart = documentXml.lastIndexOf("18. Excavation / Trenching N/A or Program Trigger");
+    expect(excavationStart).toBeGreaterThan(-1);
+    const inspectionStart = documentXml.indexOf("19. Inspections, Audits, and Records", excavationStart);
+    expect(inspectionStart).toBeGreaterThan(excavationStart);
+    const excavationSlice = documentXml.slice(excavationStart, inspectionStart);
+
+    expect(excavationSlice).toContain("Excavation / Trenching Program Matrix");
+    expect(excavationSlice).toContain("<w:tbl>");
+    expect(excavationSlice).toContain("Critical Controls");
+    expect(excavationSlice).toContain("Verification / Stop-Work");
+    expect(excavationSlice).not.toContain("Training / authorization:");
+    expect(excavationSlice).not.toContain("Permits / hold points:");
+    expect(excavationSlice).not.toContain("Verification / record:");
+
+    const highRiskStart = documentXml.lastIndexOf("17. High-Risk Programs");
+    expect(highRiskStart).toBeGreaterThan(-1);
+    const highRiskSlice = documentXml.slice(highRiskStart, excavationStart);
+    expect(highRiskSlice).not.toContain("Excavation and Trenching Safety Program");
+  });
+
+  it("renders regulatory references as tables instead of repeated scope-use labels", async () => {
+    const draft = createGeneratedDraft();
+    const rendered = await renderGeneratedCsepDocx(draft);
+    const { documentXml } = await unzipDocx(rendered.body);
+    const regulatoryStart = documentXml.lastIndexOf("4. Regulatory Basis and References");
+    expect(regulatoryStart).toBeGreaterThan(-1);
+    const riskStart = documentXml.indexOf("5. Top 10 Critical Risks", regulatoryStart);
+    expect(riskStart).toBeGreaterThan(regulatoryStart);
+    const regulatorySlice = documentXml.slice(regulatoryStart, riskStart);
+
+    expect(regulatorySlice).toContain("Regulatory Citation and Project Control Basis");
+    expect(regulatorySlice).toContain("<w:tbl>");
+    expect(regulatorySlice).toContain("Scope Use");
+    expect(regulatorySlice).not.toContain("Scope Use:");
   });
 
   it("keeps one instance of each required section and supplies placeholders where needed", () => {
@@ -927,7 +1022,7 @@ describe("csepDocxRenderer", () => {
     expect(itemParagraph).toContain('<w:ind w:left="1080" w:hanging="360"/>');
   });
 
-  it("renders Appendix E task matrix as readable paragraphs instead of a squeezed table", async () => {
+  it("renders Appendix E task matrix as a compact table without repeated training lines", async () => {
     const draft = createGeneratedDraft();
     draft.ruleSummary.trainingRequirements = [
       "hot_work_training",
@@ -943,12 +1038,11 @@ describe("csepDocxRenderer", () => {
     expect(disclaimerStart).toBeGreaterThan(appendixStart);
     const appendixSlice = documentXml.slice(appendixStart, disclaimerStart);
 
-    expect(appendixSlice).not.toContain("<w:tbl>");
+    expect(appendixSlice).toContain("<w:tbl>");
     expect(appendixSlice).toContain("Deck placement.");
-    expect(appendixSlice).toContain("Training: ");
+    expect(appendixSlice).toContain("Matrix row credential verification includes");
     expect(appendixSlice).toContain("Qualified rigger / signal person verification");
     expect(appendixSlice).not.toContain("Hot Work Permit");
-    expect(appendixSlice).not.toContain("Hot work / fire watch training");
     expect(appendixSlice).not.toContain("hot_work_training");
     expect(appendixSlice).not.toMatch(/\bunknown\b/i);
   });
@@ -1111,7 +1205,7 @@ describe("csepDocxRenderer", () => {
     expect(documentXml).not.toContain('w:color="BF9000"');
     expect(documentXml).toContain('w:color="BFBFBF"');
     expect(documentXml).toContain("Training record / daily huddle");
-    expect(documentXml).toContain("Field verification is documented");
+    expect(documentXml).toContain("Shared release rules are verified once");
     expect(footerXml).toContain("Version C - Reviewer / CODEX Evidence CSEP");
   });
 });

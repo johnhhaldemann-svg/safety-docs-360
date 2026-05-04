@@ -226,10 +226,12 @@ const CSEP_VERSION_C_REFERENCE_MAP = [
 
 const CSEP_EVIDENCE_TABLE_KEYS = new Set([
   "sign_off_page",
+  "regulatory_basis_and_references",
   "training_competency_and_certifications",
   "required_permits_and_hold_points",
   "scope_specific_policy_evidence_summary",
   "reviewer_codex_readiness_summary",
+  "excavation_trenching_na_or_program_trigger",
   "document_control_and_revision_history",
   "appendix_a_forms_and_permit_library",
   "appendix_b_incident_and_investigation_package",
@@ -2634,40 +2636,64 @@ function synthesizeScopePolicyEvidenceSummarySubsections(): CsepTemplateSubsecti
   ];
 }
 
-function programToSubsections(program: CsepHighRiskProgram, index: number): CsepTemplateSubsection[] {
-  const prefix = `17.${index + 1}`;
-  const isWeatherProgram = /weather|wind|lightning|heat|cold|restart/i.test(program.name);
-  const items = isWeatherProgram
-    ? [
-        `Training / authorization: ${compactSentenceRun(program.minimumTraining, [], 2)}`,
-        [
-          "Weather thresholds:",
-          "Evaluate steel erection, sheeting, scaffolds, MEWPs, and elevated platforms when sustained winds reach 20-25 mph or when gusts affect control. R17.",
-          "Stop outdoor work and move workers to shelter when lightning is within 10 miles. R17.",
-          "Resume lightning-affected work only after clearance and 30 minutes after the last lightning strike within the radius. R17, R12.",
-          "Start heat controls above 80 F ambient temperature or heat index above 85 F. R17.",
-          "Start cold stress controls at 32 F and below. R17.",
-        ].join(" "),
-        `Critical controls: ${compactSentenceRun(program.stepByStepControls, [], 4)}`,
-        `Verification / record: ${compactSentenceRun([...program.verification, ...program.requiredRecords], [], 3)}`,
-        `Stop-work triggers: ${compactSentenceRun(program.stopWorkTriggers, [], 3)} Require a post-weather restart inspection before work resumes. R17, R12, R16.`,
-        `References: ${program.references.join(", ")}`,
-      ]
-    : [
-        `Training / authorization: ${compactSentenceRun(program.minimumTraining, [], 2)}`,
-        `Permits / hold points: ${compactSentenceRun(program.permitsHoldPoints, [], 2)}`,
-        `Critical controls: ${compactSentenceRun(program.stepByStepControls, [], 3)}`,
-        `Verification / record: ${compactSentenceRun([...program.verification, ...program.requiredRecords], [], 2)}`,
-        `Stop-work triggers: ${compactSentenceRun(program.stopWorkTriggers, [], 2)}`,
-        `References: ${program.references.join(", ")}`,
-      ];
-  return [
-    {
-      title: `${prefix} ${program.name}`,
-      paragraphs: compactListForExport([...program.risk, ...program.appliesWhen], [], 2),
-      items,
+const COMMON_PROGRAM_MATRIX_PATTERNS = [
+  /\bmain failure modes include uncontrolled access\b/i,
+  /\balso applies when adjacent trades\b/i,
+  /\brequired permits, plans, and owner \/ GC \/ CM hold points\b/i,
+  /\bforeman shall verify that permit conditions still match\b/i,
+  /\brequired approval path is unclear\b/i,
+  /\breview the task, location, crew assignments\b/i,
+  /\bconfirm the competent person, qualified person\b/i,
+  /\binspect required equipment, access, PPE, tools\b/i,
+  /\bstart work only after affected workers understand\b/i,
+  /\bmaintain controls continuously while the work front moves\b/i,
+  /\bpause and re-brief the crew when weather\b/i,
+  /\bdocument inspection, permit, training, and corrective action records\b/i,
+  /\bfield verification is documented through the JSA\/PTP\b/i,
+  /\bsupervision verifies corrective actions before restart\b/i,
+  /\bstop work when required controls, permits\b/i,
+  /\bstop work when field conditions no longer match\b/i,
+  /\bstop work when weather, adjacent trades\b/i,
+  /\bmaintain JSA\/PTP records, permits\b/i,
+];
+
+function programSpecificMatrixText(values: string[], fallback: string, limit: number) {
+  return compactSentenceRun(
+    values.filter((value) => !COMMON_PROGRAM_MATRIX_PATTERNS.some((pattern) => pattern.test(value))),
+    [fallback],
+    limit
+  );
+}
+
+function programMatrixSubsection(
+  programs: CsepHighRiskProgram[],
+  title: string,
+  intro: string
+): CsepTemplateSubsection {
+  const hasWeatherProgram = programs.some((program) => /weather|wind|lightning|heat|cold|restart/i.test(program.name));
+  return {
+    title,
+    paragraphs: [
+      intro,
+      "Shared release rules are verified once through the JSA/PTP, permit log, inspection record, training record, or sign-in record: required orientation, competent-person or qualified-person coverage, permits / hold points, corrective-action restart, and stop-work authority.",
+      ...(hasWeatherProgram
+        ? ["Weather-sensitive work requires the stated weather thresholds and a post-weather restart inspection before affected work resumes."]
+        : []),
+    ],
+    table: {
+      columns: ["Program", "Risk / Applies When", "Critical Controls", "Verification / Stop-Work", "Records / References"],
+      rows: programs.map((program) => {
+        const weatherProgram = /weather|wind|lightning|heat|cold|restart/i.test(program.name);
+        return [
+          program.name,
+          programSpecificMatrixText([...program.risk, ...program.appliesWhen], `${program.name} exposure controlled by the JSA/PTP and applicable permit release.`, weatherProgram ? 4 : 2),
+          programSpecificMatrixText([...program.permitsHoldPoints, ...program.stepByStepControls], `${program.name} controls verified through the JSA/PTP, applicable permits, and pre-task inspection records.`, weatherProgram ? 12 : 4),
+          programSpecificMatrixText([...program.verification, ...program.stopWorkTriggers], `${program.name} stop-work and restart controls verified by foreman or competent person.`, weatherProgram ? 8 : 4),
+          programSpecificMatrixText([...program.requiredRecords, `References: ${program.references.join(", ")}`], `References: ${program.references.join(", ")}`, 3),
+        ];
+      }),
     },
-  ];
+  };
 }
 
 function synthesizeHighRiskProgramSubsections(
@@ -2675,8 +2701,15 @@ function synthesizeHighRiskProgramSubsections(
   existing: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
   const data = buildCsepStructuredData(draft);
-  const generated = data.highRiskPrograms.flatMap(programToSubsections);
-  if (generated.length) return generated;
+  if (data.highRiskPrograms.length) {
+    return [
+      programMatrixSubsection(
+        data.highRiskPrograms,
+        "High-Risk Program Matrix",
+        "For every high-risk row below, supervision verifies task-specific orientation, competent-person or qualified-person coverage, required permits, required equipment, and stop-work authority before release. Rows may be reordered or removed without renumbering the program."
+      ),
+    ];
+  }
   return hasMeaningfulSubsections(existing)
     ? normalizeHazardModuleBlueprintSubsections(existing)
     : synthesizeNamedModuleSubsections(
@@ -2688,10 +2721,13 @@ function synthesizeHighRiskProgramSubsections(
 function synthesizeExcavationSubsections(draft: GeneratedSafetyPlanDraft): CsepTemplateSubsection[] {
   if (hasExcavationScope(draft)) {
     const program = makeProgram("Excavation and Trenching Safety Program", ["R15", "R12", "R16"], buildCsepTasks(draft).map((task) => task.taskName));
-    return programToSubsections(program, 0).map((sub) => ({
-      ...sub,
-      title: sub.title.replace(/^17\./, "18."),
-    }));
+    return [
+      programMatrixSubsection(
+        [program],
+        "Excavation / Trenching Program Matrix",
+        "Excavation and trenching controls are listed in a single matrix row so the section can be revised without manual subsection renumbering."
+      ),
+    ];
   }
   return [
     {
@@ -3058,10 +3094,27 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
     task.taskDescription,
     compactListForExport(task.taskHazards, ["Hazards to be verified"], 4).join(", "),
     compactListForExport(task.taskControls, ["Controls to be verified"], 6).join(", "),
-    compactListForExport(task.taskPermits, ["None identified"], 4).join(", "),
-    compactListForExport(task.taskTraining, ["Project orientation / JSA"], 5).join(", "),
-    compactListForExport(task.taskReferences, ["R12"], 5).join(", "),
+    [
+      `Permits: ${compactListForExport(task.taskPermits, ["None identified"], 4).join(", ")}`,
+      `References: ${compactListForExport(task.taskReferences, ["R12"], 5).join(", ")}`,
+    ].join("; "),
   ]);
+  const commonTraining = compactListForExport(
+    uniqueItems(
+      (tasks.length ? tasks : [{
+        taskNumber: "3.3.1",
+        taskName: "Selected scope task",
+        taskDescription: "Task details are listed on the signed field issue scope record.",
+        taskHazards: ["Scope-specific hazards listed in JSA/PTP"],
+        taskControls: ["Controls listed in JSA/PTP and applicable permit"],
+        taskPermits: ["None identified"],
+        taskTraining: ["Project orientation"],
+        taskReferences: ["R12", "R16"],
+      }]).flatMap((task) => task.taskTraining)
+    ),
+    ["Project orientation / CSEP review / JSA/PTP"],
+    8
+  ).join(", ");
   return {
     key: "appendix_e_task_hazard_control_matrix",
     title: "Appendix E. Task-Hazard-Control Matrix",
@@ -3071,9 +3124,11 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
     subsections: [
       {
         title: "Task-Hazard-Control Matrix",
-        tableRowsStyle: "offset_lines",
+        paragraphs: [
+          `Matrix row credential verification includes ${commonTraining}. Task-specific credentials, permits, and owner / GC / CM approvals are verified before the row is released for work.`,
+        ],
         table: {
-          columns: ["Task", "Description", "Hazards", "Controls", "Permits", "Training", "References"],
+          columns: ["Task", "Description", "Hazards", "Controls", "Permits / References"],
           rows,
         },
       },
@@ -3223,7 +3278,7 @@ function hasExcavationScope(draft: GeneratedSafetyPlanDraft) {
     ...(draft.ruleSummary.hazardCategories ?? []),
     ...(draft.ruleSummary.permitTriggers ?? []),
   ].join(" ");
-  return /\b(excavat|trench|digging|ground disturbance|utility daylight|below[-\s]?grade)\b/i.test(hay);
+  return /\b(excavat\w*|trench\w*|digging|ground disturbance|utility daylight\w*|below[-\s]?grade)\b/i.test(hay);
 }
 
 function hasWeatherSensitiveScope(draft: GeneratedSafetyPlanDraft) {
@@ -3358,9 +3413,6 @@ function buildTriggeredHighRiskPrograms(draft: GeneratedSafetyPlanDraft, tasks: 
   }
   if (hasWeatherSensitiveScope(draft)) {
     add(buildWeatherProgram(taskNames));
-  }
-  if (hasExcavationScope(draft)) {
-    add(makeProgram("Excavation and Trenching Safety Program", ["R15", "R12", "R16"], taskNames));
   }
   return programs;
 }
@@ -5357,6 +5409,12 @@ function distributeColumnWidths(weights: number[], total = 9360) {
 
 function columnWidthsForDocxTable(columns: string[]) {
   const keys = columns.map((column) => normalizeCompareToken(column));
+  if (keys.join("|") === "task|description|hazards|controls|permits references") {
+    return [1300, 2100, 1500, 2600, 1860];
+  }
+  if (keys.join("|") === "program|risk applies when|critical controls|verification stop work|records references") {
+    return [1750, 1950, 2500, 2050, 1110];
+  }
   if (keys.join("|") === "task|description|hazards|controls|permits|training|references") {
     return [1120, 1550, 1350, 2150, 1080, 1180, 930];
   }
@@ -6704,6 +6762,9 @@ function renderHighRiskProgramsSection(outlineOrdinal: number, section: CsepTemp
           });
       children.push(rendered);
     });
+    if (subsection.table?.rows.length) {
+      children.push(createDocxTable(subsection.table) as unknown as Paragraph);
+    }
   });
   return children;
 }
