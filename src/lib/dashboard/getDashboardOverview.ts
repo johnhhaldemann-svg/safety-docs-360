@@ -2,6 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { normalizeDocumentStatus } from "@/lib/documentStatus";
+import { formatTitleCase } from "@/lib/formatTitleCase";
+import {
+  buildLeadershipTrustMetadata,
+  coverageStatus,
+  type LeadershipEvidenceRef,
+  type LeadershipNextAction,
+  type LeadershipSourceCoverage,
+} from "@/lib/leadershipTrust";
 import type {
   ContractorRiskScore,
   CorrectiveActionStatus,
@@ -189,6 +197,17 @@ function emptyOverview(params: {
     observationCategoryTop: [],
     credentialGaps: { expiredCredentials: 0, expiringSoonCredentials: 0 },
   };
+  overview.leadershipTrust = buildLeadershipTrustMetadata({
+    dateWindowLabel: "Selected dashboard window",
+    sourceCoverage: [
+      { key: "correctives", label: "Correctives", count: 0, href: "/field-id-exchange", status: "missing" },
+      { key: "incidents", label: "Incidents", count: 0, href: "/incidents", status: "missing" },
+      { key: "permits", label: "Permits", count: 0, href: "/permits", status: "missing" },
+      { key: "documents", label: "Documents", count: 0, href: "/library", status: "missing" },
+    ],
+    executiveSummary: "No leadership-ready prevention signals were available for this dashboard response.",
+    provenanceNote: "The dashboard service returned an empty overview because source records are not connected or the workspace is still being set up.",
+  });
   return {
     ...overview,
     performanceScore: buildDashboardPerformanceScore(overview),
@@ -961,6 +980,127 @@ export async function getDashboardOverview(params?: {
     observationCategoryTop,
     credentialGaps,
   };
+  const sourceCoverage: LeadershipSourceCoverage[] = [
+    {
+      key: "correctives",
+      label: "Correctives",
+      count: correctiveRows.length,
+      href: "/field-id-exchange",
+      status: coverageStatus(correctiveRows.length),
+    },
+    {
+      key: "incidents",
+      label: "Incidents",
+      count: incidentRows.length,
+      href: "/incidents",
+      status: coverageStatus(incidentRows.length),
+    },
+    {
+      key: "permits",
+      label: "Permits",
+      count: permitRows.length,
+      href: "/permits",
+      status: coverageStatus(permitRows.length),
+    },
+    {
+      key: "JSAs",
+      label: "JSAs",
+      count: jsaRows.length,
+      href: "/jsa",
+      status: coverageStatus(jsaRows.length),
+    },
+    {
+      key: "documents",
+      label: "Documents",
+      count: documentRows.length,
+      href: "/library",
+      status: coverageStatus(documentRows.length),
+    },
+    {
+      key: "contractors",
+      label: "Contractors",
+      count: contractorRows.length,
+      href: "/company-contractors",
+      status: coverageStatus(contractorRows.length),
+    },
+  ];
+  const evidenceRefs: LeadershipEvidenceRef[] = [
+    ...overdueCorrectiveSamples.slice(0, 3).map((row) => ({
+      id: `corrective-${row.id}`,
+      label: `Overdue: ${formatTitleCase((row.category ?? "corrective").replace(/_/g, " ")) || "Corrective"}`,
+      href: "/field-id-exchange",
+      sourceModule: "company_corrective_actions",
+      sourceId: row.id,
+      detail: row.due_at ? `Due ${row.due_at}` : undefined,
+    })),
+    ...topRisks.slice(0, 2).map((risk) => ({
+      id: `risk-${risk.name}`,
+      label: formatTitleCase(risk.name) || risk.name,
+      href: "/analytics?tab=risk",
+      sourceModule: "dashboard_top_risks",
+      detail: `${risk.count} signal${risk.count === 1 ? "" : "s"} in this theme`,
+    })),
+  ];
+  const nextActions: LeadershipNextAction[] = [
+    overview.summary.openHighRiskItems > 0
+      ? {
+          id: "verify-high-risk",
+          label: "Verify high-risk work",
+          href: "/field-id-exchange",
+          priority: "high",
+          detail: `${overview.summary.openHighRiskItems} high-risk item${overview.summary.openHighRiskItems === 1 ? "" : "s"} need field confirmation.`,
+        }
+      : null,
+    overview.summary.overdueCorrectiveActions > 0
+      ? {
+          id: "close-overdue",
+          label: "Close overdue correctives",
+          href: "/field-id-exchange",
+          priority: "high",
+          detail: `${overview.summary.overdueCorrectiveActions} corrective action${overview.summary.overdueCorrectiveActions === 1 ? "" : "s"} are past due.`,
+        }
+      : null,
+    missingPermits > 0
+      ? {
+          id: "resolve-permits",
+          label: "Resolve permit blockers",
+          href: "/permits",
+          priority: "medium",
+          detail: `${missingPermits} required permit bucket${missingPermits === 1 ? "" : "s"} are missing coverage.`,
+        }
+      : null,
+    credentialGaps.expiredCredentials > 0
+      ? {
+          id: "review-credentials",
+          label: "Review expired credentials",
+          href: "/training-matrix",
+          priority: "medium",
+          detail: `${credentialGaps.expiredCredentials} credential${credentialGaps.expiredCredentials === 1 ? "" : "s"} are expired.`,
+        }
+      : null,
+    docTotal > 0
+      ? {
+          id: "clear-documents",
+          label: "Clear document readiness",
+          href: "/library",
+          priority: "low",
+          detail: "Review submitted, draft, under-review, missing, or expiring documents before leadership reporting.",
+        }
+      : null,
+  ].filter((action): action is LeadershipNextAction => action !== null).slice(0, 3);
+  overview.leadershipTrust = buildLeadershipTrustMetadata({
+    lastUpdatedAt: new Date().toISOString(),
+    dateWindowLabel: `${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`,
+    sourceCoverage,
+    evidenceRefs,
+    nextActions,
+    executiveSummary:
+      overview.summary.openHighRiskItems > 0 || overview.summary.overdueCorrectiveActions > 0
+        ? "Leadership should review high-risk and overdue work before treating the current posture as controlled."
+        : "Leadership posture is stable for this window, with no high-risk or overdue corrective pressure in the dashboard summary.",
+    provenanceNote:
+      "Derived from company-scoped correctives, incidents, permits, JSAs, documents, contractor records, and dashboard engine health checks.",
+  });
 
   return {
     ...overview,

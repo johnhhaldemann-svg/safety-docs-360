@@ -9,6 +9,8 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
+import type { LeadershipTrustMetadata } from "@/lib/leadershipTrust";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -38,6 +40,7 @@ type GeneratedReportPayload = {
     status?: Record<string, number>;
     kpis?: Record<string, number>;
     topHazardCategories?: Array<{ category: string; count: number }>;
+    leadershipTrust?: LeadershipTrustMetadata;
   };
   file_path?: string | null;
 };
@@ -341,6 +344,9 @@ export default function ReportsPage() {
                   .map(([key, value]) => `${key} ${value}`)
                   .join(" · ")}
               </div>
+              {latestGenerated.metrics.leadershipTrust ? (
+                <TrustSummaryPanel trust={latestGenerated.metrics.leadershipTrust} compact />
+              ) : null}
             </div>
           )}
         </SectionCard>

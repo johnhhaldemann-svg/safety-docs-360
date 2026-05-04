@@ -1,5 +1,7 @@
 "use client";
 
+import type { ExplainableRecommendation, LeadershipTrustMetadata } from "@/lib/leadershipTrust";
+
 export type HealthIssueRollupItem = {
   injuryType: string;
   label: string;
@@ -128,14 +130,8 @@ export type AnalyticsSummary = {
     topLocationAreas?: Array<{ label: string; count: number }>;
     derivedRollupConfidence?: number;
   } | null;
-  riskMemoryRecommendations?: Array<{
-    id: string;
-    kind: string;
-    title: string;
-    body: string;
-    confidence: number;
-    created_at: string;
-  }>;
+  riskMemoryRecommendations?: ExplainableRecommendation[];
+  leadershipTrust?: LeadershipTrustMetadata;
   riskMemoryTrend?: {
     points: Array<{ date: string; score: number; band: string; windowDays: number }>;
     latest: { date: string; score: number; band: string } | null;

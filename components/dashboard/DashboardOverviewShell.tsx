@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOverviewFiltersBar";
 import { InlineMessage } from "@/components/WorkspacePrimitives";
+import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { formatTitleCase } from "@/lib/formatTitleCase";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -566,6 +567,8 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           </div>
         </div>
       </section>
+
+      {overview.leadershipTrust ? <TrustSummaryPanel trust={overview.leadershipTrust} /> : null}
 
       <DashboardDetailsTabs
         activeTab={activeTab}

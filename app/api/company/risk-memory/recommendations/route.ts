@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
+import { explainRecommendation } from "@/lib/leadershipTrust";
 
 export const runtime = "nodejs";
 
@@ -51,5 +52,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: res.error.message || "Failed to load recommendations." }, { status: 500 });
   }
 
-  return NextResponse.json({ recommendations: res.data ?? [] });
+  return NextResponse.json({
+    recommendations: (res.data ?? []).map((rec) =>
+      explainRecommendation({
+        id: rec.id,
+        kind: rec.kind,
+        title: rec.title,
+        body: rec.body,
+        confidence: rec.confidence,
+        created_at: rec.created_at,
+        actionHref: "/analytics?tab=risk",
+      })
+    ),
+  });
 }

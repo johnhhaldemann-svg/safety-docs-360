@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { PredictiveRiskPayload } from "@/lib/predictiveRisk";
+import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -183,6 +184,8 @@ export function PredictiveModelView({
           </div>
         ) : null}
 
+        {data?.leadershipTrust ? <TrustSummaryPanel trust={data.leadershipTrust} compact /> : null}
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="High risk locations"
@@ -313,6 +316,12 @@ export function PredictiveModelView({
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-[var(--app-text-strong)]">{action.title}</p>
                     <p className="mt-1 text-xs text-[var(--app-muted)]">{action.target}</p>
+                    {action.evidence ? <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{action.evidence}</p> : null}
+                    {typeof action.confidencePercent === "number" ? (
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--app-muted)]">
+                        {action.sourceModule ?? "predictive risk"} - confidence {action.confidencePercent}%
+                      </p>
+                    ) : null}
                   </div>
                   <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-black ${impactClass(action.impact)}`}>
                     {action.impact}

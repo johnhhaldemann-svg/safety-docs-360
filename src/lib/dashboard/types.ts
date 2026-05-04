@@ -1,3 +1,5 @@
+import type { LeadershipTrustMetadata } from "@/lib/leadershipTrust";
+
 /**
  * Shared TypeScript types for safety dashboard analytics payloads.
  * No runtime data — definitions only.
@@ -172,4 +174,6 @@ export type DashboardOverview = {
   observationCategoryTop?: ObservationCategoryCount[];
   /** Expired vs soon-to-expire contractor credentials when doc rows exist. */
   credentialGaps?: CredentialGapSummary;
+  /** Leadership-facing trust, evidence, freshness, and next-action metadata. */
+  leadershipTrust?: LeadershipTrustMetadata;
 };

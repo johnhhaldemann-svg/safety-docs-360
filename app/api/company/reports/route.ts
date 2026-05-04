@@ -4,6 +4,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
+import { buildLeadershipTrustMetadata, coverageStatus } from "@/lib/leadershipTrust";
 
 export const runtime = "nodejs";
 
@@ -216,6 +217,60 @@ async function buildEodReportPayload({
     narrative: generatedNarrative,
     markdown,
     metrics: {
+      leadershipTrust: buildLeadershipTrustMetadata({
+        dateWindowLabel: formatDateLabel(workDate),
+        sourceCoverage: [
+          { key: "jsas", label: "JSAs", count: scopedJsas.length, href: "/jsa", status: coverageStatus(scopedJsas.length) },
+          { key: "observations", label: "Observations", count: scopedActions.length, href: "/field-id-exchange", status: coverageStatus(scopedActions.length) },
+          { key: "permits", label: "Permits", count: scopedPermits.length, href: "/permits", status: coverageStatus(scopedPermits.length) },
+          { key: "incidents", label: "Incidents", count: scopedIncidents.length, href: "/incidents", status: coverageStatus(scopedIncidents.length) },
+        ],
+        evidenceRefs: [
+          ...scopedActions.slice(0, 2).map((row) => ({
+            id: `action-${row.id}`,
+            label: String(row.title ?? row.category ?? "Observation"),
+            href: "/field-id-exchange",
+            sourceModule: "company_corrective_actions",
+            sourceId: row.id,
+          })),
+          ...scopedIncidents.slice(0, 2).map((row) => ({
+            id: `incident-${row.id}`,
+            label: String(row.title ?? row.category ?? "Incident"),
+            href: "/incidents",
+            sourceModule: "company_incidents",
+            sourceId: row.id,
+          })),
+        ],
+        nextActions: [
+          ...(openDeficiencies > 0
+            ? [
+                {
+                  id: "close-open-deficiencies",
+                  label: "Close open deficiencies",
+                  href: "/field-id-exchange",
+                  priority: "high" as const,
+                  detail: `${openDeficiencies} deficiencies remain open in this report.`,
+                },
+              ]
+            : []),
+          ...(permitCount > 0
+            ? [
+                {
+                  id: "review-permit-log",
+                  label: "Review permit log",
+                  href: "/permits",
+                  priority: "medium" as const,
+                  detail: `${permitCount} permit record${permitCount === 1 ? "" : "s"} were included in this report.`,
+                },
+              ]
+            : []),
+        ],
+        executiveSummary:
+          openDeficiencies > 0 || highRiskObservations > 0
+            ? "This report includes unresolved or high-risk field signals that should be reviewed before leadership sign-off."
+            : "This report has no unresolved high-risk summary pressure from the included source records.",
+        provenanceNote: "Generated from company-scoped JSA, observation, permit, and incident records for the selected report date.",
+      }),
       workDate,
       jobsiteId,
       jobsiteName,
@@ -366,6 +421,16 @@ export async function POST(request: Request) {
       generatedReport: {
         ...report,
         metrics: {
+          leadershipTrust: buildLeadershipTrustMetadata({
+            dateWindowLabel: "Demo report window",
+            sourceCoverage: [
+              { key: "correctives", label: "Correctives", count: 7, href: "/field-id-exchange", status: "connected" },
+              { key: "incidents", label: "Incidents", count: 2, href: "/incidents", status: "connected" },
+              { key: "permits", label: "Permits", count: 2, href: "/permits", status: "connected" },
+            ],
+            executiveSummary: "Demo report includes leadership trust metadata for source coverage and action review.",
+            provenanceNote: "Demo data is illustrative and scoped to the sales demo workspace.",
+          }),
           totals: { correctiveActions: 7, incidents: 2, permits: 2, daps: 2 },
           status: { correctiveOpen: 3, correctiveClosed: 4, overdueActions: 1, sifIncidents: 1 },
           kpis: { avgClosureHours: 18.5 },
@@ -501,6 +566,62 @@ export async function POST(request: Request) {
         .map(([category, count]) => ({ category, count }));
 
       metrics = {
+        leadershipTrust: buildLeadershipTrustMetadata({
+          dateWindowLabel: `Last ${days} day${days === 1 ? "" : "s"}`,
+          sourceCoverage: [
+            { key: "correctives", label: "Correctives", count: data.actions.length, href: "/field-id-exchange", status: coverageStatus(data.actions.length) },
+            { key: "incidents", label: "Incidents", count: data.incidents.length, href: "/incidents", status: coverageStatus(data.incidents.length) },
+            { key: "permits", label: "Permits", count: data.permits.length, href: "/permits", status: coverageStatus(data.permits.length) },
+            { key: "submissions", label: "Submissions", count: data.submissions.length, href: "/company-safety-forms", status: coverageStatus(data.submissions.length) },
+            { key: "jsas", label: "JSAs", count: data.daps.length + data.dapActivities.length, href: "/jsa", status: coverageStatus(data.daps.length + data.dapActivities.length) },
+          ],
+          evidenceRefs: [
+            ...data.actions.slice(0, 2).map((row) => ({
+              id: `report-action-${row.id}`,
+              label: String(row.category ?? "Corrective action"),
+              href: "/field-id-exchange",
+              sourceModule: "company_corrective_actions",
+              sourceId: row.id,
+            })),
+            ...data.incidents.slice(0, 2).map((row) => ({
+              id: `report-incident-${row.id}`,
+              label: String(row.category ?? "Incident"),
+              href: "/incidents",
+              sourceModule: "company_incidents",
+              sourceId: row.id,
+            })),
+          ],
+          nextActions: [
+            ...(overdueActions > 0
+              ? [
+                  {
+                    id: "report-overdue-actions",
+                    label: "Close overdue actions",
+                    href: "/field-id-exchange",
+                    priority: "high" as const,
+                    detail: `${overdueActions} overdue action${overdueActions === 1 ? "" : "s"} should be resolved.`,
+                  },
+                ]
+              : []),
+            ...(topHazardCategories.length > 0
+              ? [
+                  {
+                    id: "report-top-hazard",
+                    label: "Review top hazard category",
+                    href: "/analytics?tab=risk",
+                    priority: "medium" as const,
+                    detail: `${topHazardCategories[0].category.replace(/_/g, " ")} leads this report window.`,
+                  },
+                ]
+              : []),
+          ],
+          executiveSummary:
+            overdueActions > 0
+              ? "Report-ready summary includes overdue corrective action pressure that should be handled before sign-off."
+              : "Report-ready summary includes source coverage and no overdue corrective pressure for the selected report window.",
+          provenanceNote:
+            "Generated from company-scoped correctives, incidents, permits, submissions, JSAs, and JSA activities.",
+        }),
         windowDays: days,
         totals: {
           correctiveActions: data.actions.length,

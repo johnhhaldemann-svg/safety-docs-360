@@ -4,6 +4,11 @@ import type {
   TradeForecast,
   TrendPoint,
 } from "@/lib/injuryWeather/types";
+import {
+  buildLeadershipTrustMetadata,
+  coverageStatus,
+  type LeadershipTrustMetadata,
+} from "@/lib/leadershipTrust";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -40,6 +45,9 @@ export type PredictiveRiskAction = {
   target: string;
   impact: "High impact" | "Medium impact" | "Monitor";
   href: string | null;
+  evidence?: string;
+  sourceModule?: string;
+  confidencePercent?: number;
 };
 
 export type PredictiveRiskPayload = {
@@ -65,6 +73,7 @@ export type PredictiveRiskPayload = {
     confidenceLabel: "High" | "Medium" | "Low";
     provenanceNote: string;
   };
+  leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
 
@@ -477,13 +486,107 @@ export function buildPredictiveRiskPayload(input: {
     locations,
     drivers,
     recommendedControls: input.forecast.recommendedControls,
-  });
+  }).map((action): PredictiveRiskAction => ({
+    ...action,
+    evidence:
+      action.href === "/permits"
+        ? "Linked to permit and stop-work activity in the selected window."
+        : "Linked to jobsite risk, driver concentration, and recommended control signals in the selected window.",
+    sourceModule: action.href === "/permits" ? "company_permits" : "predictive_risk",
+    confidencePercent: confidencePercent(input.forecast),
+  }));
   const confidence = confidencePercent(input.forecast);
   const positiveLocations = locations.filter((row) => row.riskScore > 0);
   const averageRiskScore =
     positiveLocations.length > 0
       ? Math.round(positiveLocations.reduce((sum, row) => sum + row.riskScore, 0) / positiveLocations.length)
       : scoreToDisplay(fallbackScore);
+
+  const sourceCoverage = [
+    {
+      key: "correctives",
+      label: "Correctives",
+      count: input.correctiveActions.length,
+      href: "/field-id-exchange",
+      status: coverageStatus(input.correctiveActions.length),
+    },
+    {
+      key: "incidents",
+      label: "Incidents",
+      count: input.incidents.length,
+      href: "/incidents",
+      status: coverageStatus(input.incidents.length),
+    },
+    {
+      key: "permits",
+      label: "Permits",
+      count: input.permits.length,
+      href: "/permits",
+      status: coverageStatus(input.permits.length),
+    },
+    {
+      key: "jsaActivities",
+      label: "JSA activities",
+      count: input.jsaActivities.length,
+      href: "/jsa",
+      status: coverageStatus(input.jsaActivities.length),
+    },
+    {
+      key: "jobsites",
+      label: "Jobsites",
+      count: input.jobsites.length,
+      href: "/jobsites",
+      status: coverageStatus(input.jobsites.length),
+    },
+  ] as const;
+  const topLocation = locations.find((location) => location.riskScore > 0);
+  const leadershipTrust = buildLeadershipTrustMetadata({
+    lastUpdatedAt: input.forecast.summary.lastUpdatedAt,
+    dateWindowLabel: `${days} day predictive window`,
+    sourceCoverage: [...sourceCoverage],
+    missingSignals: [
+      ...(input.jobsites.length === 0 ? ["No active jobsite roster was available for this predictive model view."] : []),
+      ...(rows.length === 0 ? ["No jobsite-aware risk records were available in this window."] : []),
+      ...(input.forecast.summary.forecastMode === "baseline_only"
+        ? ["Forecast is currently baseline-only because live signal volume is sparse."]
+        : []),
+    ],
+    evidenceRefs: [
+      ...(topLocation
+        ? [
+            {
+              id: `predictive-location-${topLocation.id}`,
+              label: topLocation.label,
+              href: topLocation.id === "unassigned" ? "/analytics?tab=risk" : `/jobsites/${topLocation.id}/analytics`,
+              sourceModule: "predictive_risk_location",
+              sourceId: topLocation.id,
+              detail: `${topLocation.riskScore} risk score, top driver ${topLocation.topDriver}`,
+            },
+          ]
+        : []),
+      ...drivers.slice(0, 2).map((driver) => ({
+        id: `driver-${driver.id}`,
+        label: driver.label,
+        href: "/analytics?tab=risk",
+        sourceModule: "predictive_risk_driver",
+        sourceId: driver.id,
+        detail: `${driver.count} signal${driver.count === 1 ? "" : "s"}`,
+      })),
+    ],
+    nextActions: actions.slice(0, 3).map((action) => ({
+      id: action.id,
+      label: action.title,
+      href: action.href ?? "/analytics?tab=risk",
+      priority: action.impact === "High impact" ? "high" : action.impact === "Medium impact" ? "medium" : "low",
+      detail: `${action.target}. ${action.evidence}`,
+    })),
+    confidencePercent: confidence,
+    executiveSummary:
+      positiveLocations.length > 0
+        ? `${positiveLocations.length} location${positiveLocations.length === 1 ? "" : "s"} carry predictive risk signals; use the ranked actions before work starts.`
+        : "Predictive model has limited live signals in this window; use the view as a readiness check, not a risk claim.",
+    provenanceNote: provenanceNote(input.forecast, rows.length),
+  });
 
   return {
     filters: {
@@ -508,6 +611,7 @@ export function buildPredictiveRiskPayload(input: {
       confidenceLabel: confidenceLabel(confidence),
       provenanceNote: provenanceNote(input.forecast, rows.length),
     },
+    leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };
 }

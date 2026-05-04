@@ -9,6 +9,13 @@ import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredCon
 import { loadCompanyRiskScoreTrend, summarizeTrendDelta } from "@/lib/riskMemory/scoresRepo";
 import { buildSalesDemoAnalyticsSummaryResponse } from "@/lib/demoWorkspace";
 import { INJURY_TYPE_LABELS } from "@/lib/incidents/injuryType";
+import {
+  buildLeadershipTrustMetadata,
+  coverageStatus,
+  explainRecommendation,
+  type ExplainableRecommendation,
+  type LeadershipNextAction,
+} from "@/lib/leadershipTrust";
 
 export const runtime = "nodejs";
 
@@ -124,10 +131,11 @@ export async function GET(request: Request) {
       .eq("company_id", companyScope.companyId),
     auth.supabase
       .from("company_sor_records")
-      .select("id")
+      .select("id, date, project, location, category, hazard_category_code, subcategory, description, severity, created_at, status")
       .eq("company_id", companyScope.companyId)
       .eq("is_deleted", false)
-      .gte("created_at", since),
+      .neq("status", "superseded")
+      .gte("date", since),
   ]);
   const jsasMissing = jsasRes.error && isMissingJsaRelationError(jsasRes.error.message);
   const jsaActivitiesMissing = jsaActivitiesRes.error && isMissingJsaRelationError(jsaActivitiesRes.error.message);
@@ -138,6 +146,7 @@ export async function GET(request: Request) {
   if (jsasRes.error && !jsasMissing) return NextResponse.json({ error: jsasRes.error.message || "Failed to load JSAs." }, { status: 500 });
   if (jsaActivitiesRes.error && !jsaActivitiesMissing) return NextResponse.json({ error: jsaActivitiesRes.error.message || "Failed to load JSA activities." }, { status: 500 });
   if (jobsitesRes.error) return NextResponse.json({ error: jobsitesRes.error.message || "Failed to load jobsites." }, { status: 500 });
+  if (sorRes.error) return NextResponse.json({ error: sorRes.error.message || "Failed to load SOR records." }, { status: 500 });
 
   const actions = actionsRes.data ?? [];
   const incidents = (incidentsRes.data ?? []).filter((row) => {
@@ -174,6 +183,34 @@ export async function GET(request: Request) {
   const closureByJobsite = new Map<string, { totalHours: number; count: number }>();
   let positiveObservationCount = 0;
   let negativeObservationCount = 0;
+  let sorNearMissCount = 0;
+  let sorHazardCount = 0;
+  let sorOtherCount = 0;
+  function sorObservationKind(row: (typeof sorRows)[0]) {
+    const text = `${row.category ?? ""} ${row.subcategory ?? ""}`.toLowerCase();
+    if (text.includes("positive")) return "positive" as const;
+    if (text.includes("near_miss") || text.includes("near miss")) return "near_miss" as const;
+    if (text.includes("other") && !row.hazard_category_code) return "other" as const;
+    return "hazard" as const;
+  }
+  function sorReportTag(row: (typeof sorRows)[0]) {
+    const kind = sorObservationKind(row);
+    if (kind === "positive") return "POSITIVE" as const;
+    if (kind === "near_miss") return "NEAR MISS" as const;
+    if (kind === "hazard") return "HAZARD" as const;
+    return "SOR" as const;
+  }
+  function sorDay(row: (typeof sorRows)[0]) {
+    return String(row.date ?? row.created_at ?? "").slice(0, 10);
+  }
+  function sorCategoryKey(row: (typeof sorRows)[0]) {
+    return String(row.hazard_category_code ?? row.category ?? "sor").trim().toLowerCase() || "sor";
+  }
+  function sorTitle(row: (typeof sorRows)[0]) {
+    const description = String(row.description ?? "").trim();
+    if (description) return description.length > 90 ? `${description.slice(0, 87)}...` : description;
+    return String(row.category ?? "").trim() || "Untitled SOR";
+  }
   for (const action of actions) {
     const category = (action.category ?? "uncategorized").toLowerCase();
     hazardCounts.set(category, (hazardCounts.get(category) ?? 0) + 1);
@@ -217,6 +254,28 @@ export async function GET(request: Request) {
       existing.overdue += 1;
     }
     jobsiteRisk.set(jobsiteKey, existing);
+  }
+  for (const sor of sorRows) {
+    const category = sorCategoryKey(sor);
+    hazardCounts.set(category, (hazardCounts.get(category) ?? 0) + 1);
+    const day = sorDay(sor);
+    if (day) actionsByDay.set(day, (actionsByDay.get(day) ?? 0) + 1);
+    const kind = sorObservationKind(sor);
+    if (kind === "positive") {
+      positiveObservationCount += 1;
+    } else if (kind === "near_miss") {
+      sorNearMissCount += 1;
+      negativeObservationCount += 1;
+    } else if (kind === "hazard") {
+      sorHazardCount += 1;
+      negativeObservationCount += 1;
+    } else {
+      sorOtherCount += 1;
+    }
+    if (["high", "critical"].includes(String(sor.severity ?? "").toLowerCase())) {
+      const key = String(sor.location ?? sor.project ?? "unassigned").trim() || "unassigned";
+      highRiskLocationCounts.set(key, (highRiskLocationCounts.get(key) ?? 0) + 1);
+    }
   }
   for (const incident of incidents) {
     const category = (incident.category ?? "incident").toLowerCase();
@@ -290,12 +349,18 @@ export async function GET(request: Request) {
     return value !== "archived" && value !== "completed" && value !== "inactive";
   }).length;
   const openIncidents = incidents.filter((item) => String(item.status ?? "").toLowerCase() !== "closed").length;
-  const openObservations = actions.filter((item) => String(item.status ?? "").toLowerCase() !== "verified_closed").length;
-  const highRiskObservations = actions.filter((item) => {
+  const openCorrectiveActions = actions.filter((item) => String(item.status ?? "").toLowerCase() !== "verified_closed").length;
+  const openSorObservations = sorRows.filter((item) => !["locked", "superseded"].includes(String(item.status ?? "").toLowerCase())).length;
+  const openObservations = openCorrectiveActions + openSorObservations;
+  const highRiskCorrectiveActions = actions.filter((item) => {
     const severity = String(item.severity ?? "").toLowerCase();
     const priority = String(item.priority ?? "").toLowerCase();
     return severity === "high" || severity === "critical" || priority === "high";
   }).length;
+  const highRiskSorObservations = sorRows.filter((item) =>
+    ["high", "critical"].includes(String(item.severity ?? "").toLowerCase())
+  ).length;
+  const highRiskObservations = highRiskCorrectiveActions + highRiskSorObservations;
 
   function observationReportTag(row: (typeof actions)[0]) {
     const ot = String(row.observation_type ?? "").toLowerCase();
@@ -305,30 +370,40 @@ export async function GET(request: Request) {
     return "OBSERVATION" as const;
   }
 
-  const recentReports = [...actions]
+  const recentActionReports = actions.map((row) => ({
+    id: row.id,
+    title: String(row.title ?? "").trim() || "Untitled observation",
+    tag: observationReportTag(row),
+    sortAt: new Date(String(row.created_at ?? 0)).getTime(),
+  }));
+  const recentSorReports = sorRows.map((row) => ({
+    id: row.id,
+    title: sorTitle(row),
+    tag: sorReportTag(row),
+    sortAt: new Date(String(row.created_at ?? row.date ?? 0)).getTime(),
+  }));
+  const recentReports = [...recentActionReports, ...recentSorReports]
     .sort((a, b) => {
-      const tb = new Date(String(b.created_at ?? 0)).getTime();
-      const ta = new Date(String(a.created_at ?? 0)).getTime();
-      return tb - ta;
+      return b.sortAt - a.sortAt;
     })
     .slice(0, 6)
     .map((row) => ({
       id: row.id,
-      title: String(row.title ?? "").trim() || "Untitled observation",
-      tag: observationReportTag(row),
+      title: row.title,
+      tag: row.tag,
     }));
 
   const observationBreakdown = {
-    nearMiss: actions.filter((a) => String(a.observation_type ?? "").toLowerCase() === "near_miss").length,
+    nearMiss: actions.filter((a) => String(a.observation_type ?? "").toLowerCase() === "near_miss").length + sorNearMissCount,
     hazard:
       actions.filter((a) =>
         ["hazard", "negative"].includes(String(a.observation_type ?? "").toLowerCase())
-      ).length,
+      ).length + sorHazardCount,
     positive: positiveObservationCount,
     other: actions.filter((a) => {
       const ot = String(a.observation_type ?? "").toLowerCase();
       return !["near_miss", "hazard", "negative", "positive"].includes(ot);
-    }).length,
+    }).length + sorOtherCount,
     inspections: permits.length + activities.length,
     daps: jsas.length,
   };
@@ -443,15 +518,26 @@ export async function GET(request: Request) {
     const c = priorityColIndex(a.priority);
     riskHeatmapCells[r][c] += 1;
   }
+  for (const sor of sorRows) {
+    const r = severityRowIndex(sor.severity);
+    riskHeatmapCells[r][3] += 1;
+  }
   const heatMax = Math.max(1, ...riskHeatmapCells.flat());
 
   const observationPriorityBands = {
     high: highRiskObservations,
-    medium: actions.filter((item) => {
-      const s = String(item.severity ?? "").toLowerCase();
-      return s === "medium" || s === "moderate";
-    }).length,
-    low: actions.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
+    medium:
+      actions.filter((item) => {
+        const s = String(item.severity ?? "").toLowerCase();
+        return s === "medium" || s === "moderate";
+      }).length +
+      sorRows.filter((item) => {
+        const s = String(item.severity ?? "").toLowerCase();
+        return s === "medium" || s === "moderate";
+      }).length,
+    low:
+      actions.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length +
+      sorRows.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
   };
 
   const [riskMemoryRollup, riskRecRes, riskScoreTrendPoints] = await Promise.all([
@@ -489,23 +575,140 @@ export async function GET(request: Request) {
     direction: riskScoreTrendSummary.direction,
   };
 
-  let riskMemoryRecommendations: Array<{
-    id: string;
-    kind: string;
-    title: string;
-    body: string;
-    confidence: number;
-    created_at: string;
-  }> = [];
+  let riskMemoryRecommendations: ExplainableRecommendation[] = [];
   if (!riskRecRes.error) {
-    riskMemoryRecommendations = (riskRecRes.data ?? []) as typeof riskMemoryRecommendations;
+    riskMemoryRecommendations = (riskRecRes.data ?? []).map((rec) =>
+      explainRecommendation({
+        id: rec.id,
+        kind: rec.kind,
+        title: rec.title,
+        body: rec.body,
+        confidence: rec.confidence,
+        created_at: rec.created_at,
+        actionHref: "/analytics?tab=risk",
+      })
+    );
   }
+  const leadershipSourceCoverage = [
+    {
+      key: "observations",
+      label: "Observations",
+      count: actions.length + sorRows.length,
+      href: "/field-id-exchange",
+      status: coverageStatus(actions.length + sorRows.length),
+    },
+    {
+      key: "incidents",
+      label: "Incidents",
+      count: incidents.length,
+      href: "/incidents",
+      status: coverageStatus(incidents.length),
+    },
+    {
+      key: "permits",
+      label: "Permits",
+      count: permits.length,
+      href: "/permits",
+      status: coverageStatus(permits.length),
+    },
+    {
+      key: "jsas",
+      label: "JSAs",
+      count: jsas.length + activities.length,
+      href: "/jsa",
+      status: coverageStatus(jsas.length + activities.length),
+    },
+    {
+      key: "riskMemory",
+      label: "Risk Memory",
+      count: riskMemoryRollup?.facetCount ?? 0,
+      href: "/analytics?tab=risk",
+      status: coverageStatus(riskMemoryRollup?.facetCount ?? 0),
+    },
+    {
+      key: "jobsites",
+      label: "Jobsites",
+      count: activeJobsitesCount,
+      href: "/jobsites",
+      status: coverageStatus(activeJobsitesCount),
+    },
+  ];
+  const leadershipNextActions: LeadershipNextAction[] = [
+    highRiskObservations > 0
+      ? {
+          id: "review-high-risk-observations",
+          label: "Review high-risk observations",
+          href: "/field-id-exchange",
+          priority: "high",
+          detail: `${highRiskObservations} high-risk observation${highRiskObservations === 1 ? "" : "s"} are in this analytics window.`,
+        }
+      : null,
+    openIncidents > 0
+      ? {
+          id: "review-open-incidents",
+          label: "Review open incidents",
+          href: "/incidents",
+          priority: "high",
+          detail: `${openIncidents} incident${openIncidents === 1 ? "" : "s"} remain open.`,
+        }
+      : null,
+    riskMemoryRecommendations.length > 0
+      ? {
+          id: "assign-risk-recommendations",
+          label: "Assign risk recommendations",
+          href: "/analytics?tab=risk",
+          priority: "medium",
+          detail: `${riskMemoryRecommendations.length} recommendation${riskMemoryRecommendations.length === 1 ? "" : "s"} are ready for leadership triage.`,
+        }
+      : null,
+    permits.length > 0
+      ? {
+          id: "verify-permit-controls",
+          label: "Verify permit controls",
+          href: "/permits",
+          priority: "low",
+          detail: `${permits.length} permit${permits.length === 1 ? "" : "s"} contribute to this analytics window.`,
+        }
+      : null,
+  ].filter((action): action is LeadershipNextAction => action !== null).slice(0, 3);
+  const leadershipTrust = buildLeadershipTrustMetadata({
+    dateWindowLabel: `Last ${Math.max(1, days)} days`,
+    sourceCoverage: leadershipSourceCoverage,
+    missingSignals: [
+      ...(jsasMissing || jsaActivitiesMissing ? ["JSA tables are not available, so JSA coverage is partial."] : []),
+      ...(riskRecRes.error ? ["Stored risk recommendations could not be loaded for this response."] : []),
+      ...(riskMemoryRollup?.facetCount ? [] : ["Risk Memory facets are not populated for this window."]),
+    ],
+    evidenceRefs: [
+      ...recentReports.slice(0, 3).map((row) => ({
+        id: `recent-${row.id}`,
+        label: row.title,
+        href: "/field-id-exchange",
+        sourceModule: row.tag === "SOR" ? "company_sor_records" : "company_corrective_actions",
+        sourceId: row.id,
+      })),
+      ...topHazardCategories.slice(0, 2).map((hazard) => ({
+        id: `hazard-${hazard.category}`,
+        label: hazard.category.replace(/_/g, " "),
+        href: "/analytics?tab=risk",
+        sourceModule: "analytics_hazard_rollup",
+        detail: `${hazard.count} signal${hazard.count === 1 ? "" : "s"}`,
+      })),
+    ],
+    nextActions: leadershipNextActions,
+    executiveSummary:
+      highRiskObservations > 0 || openIncidents > 0
+        ? "Leadership should treat this analytics window as active risk: high-risk observations or open incidents need review."
+        : "Leadership analytics show no acute high-risk observation or open incident pressure in this window.",
+    provenanceNote:
+      "Derived from company-scoped observations, SOR records, incidents, permits, JSAs, jobsites, Risk Memory, and recommendation tables.",
+  });
 
   return NextResponse.json({
     snapshots: result.data ?? [],
     summary: {
       totals: {
-        correctiveActions: actions.length,
+        correctiveActions: actions.length + sorRows.length,
         incidents: incidents.length,
         permits: permits.length,
         daps: jsas.length,
@@ -553,6 +756,7 @@ export async function GET(request: Request) {
       riskMemory: riskMemoryRollup,
       riskMemoryTrend,
       riskMemoryRecommendations,
+      leadershipTrust,
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())
           .sort((a, b) => a[0].localeCompare(b[0]))

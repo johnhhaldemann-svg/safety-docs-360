@@ -12,6 +12,7 @@ import { Sparkline } from "@/components/metrics/Sparkline";
 import { AddInsightToDashboardButton } from "@/components/analytics/AddInsightToDashboardButton";
 import { AnalyticsFocusedTab } from "@/components/analytics/AnalyticsFocusedTab";
 import { AnalyticsOverviewSkeleton } from "@/components/analytics/AnalyticsOverviewSkeleton";
+import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import type {
   AnalyticsSummary,
   LikelyInjuryInsightPayload,
@@ -412,7 +413,7 @@ function AnalyticsPageInner() {
       </div>
 
       <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-8">
-        <div className="sticky top-4 z-10 rounded-xl border border-[var(--app-accent-border-24)] bg-white/85 px-4 py-2 backdrop-blur">
+        <div className="rounded-xl border border-[var(--app-accent-border-24)] bg-white/85 px-4 py-2 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-slate-500">{lastLoadedAt ? `Last updated ${new Date(lastLoadedAt).toLocaleString()}` : "Not loaded yet"}</p>
             <button
@@ -431,6 +432,10 @@ function AnalyticsPageInner() {
 
         {!loading && injuryModelIssue ? (
           <InlineMessage tone={injuryModelIssue.tone}>{injuryModelIssue.message}</InlineMessage>
+        ) : null}
+
+        {!loading && summary?.leadershipTrust ? (
+          <TrustSummaryPanel trust={summary.leadershipTrust} compact />
         ) : null}
 
         {!loading && injuryLikelihood ? (
@@ -872,6 +877,8 @@ function AnalyticsPageInner() {
                       </button>
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-slate-400">{rec.body}</p>
+                    {rec.evidence ? <p className="mt-2 text-xs leading-relaxed text-slate-400">{rec.evidence}</p> : null}
+                    {rec.businessImpact ? <p className="mt-1 text-xs leading-relaxed text-slate-500">{rec.businessImpact}</p> : null}
                     <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-600">
                       {rec.kind.replace(/_/g, " ")} · confidence {(rec.confidence * 100).toFixed(0)}%
                     </p>
@@ -1078,8 +1085,8 @@ function AnalyticsPageInner() {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-12">
-          <div className="lg:col-span-5">
+        <div className="grid gap-5 xl:grid-cols-12">
+          <div className="xl:col-span-6">
             <div className="analytics-dark-panel p-5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trending hazards</p>
@@ -1099,13 +1106,13 @@ function AnalyticsPageInner() {
                 ))}
               </div>
             </div>
-            <div className="analytics-dark-panel relative mt-5 p-5">
-              <div className="absolute right-4 top-4 z-10">
+            <div className="analytics-dark-panel mt-5 p-5">
+              <div className="mb-3 flex justify-end">
                 <AddInsightToDashboardButton blockId="graph_jobsite_risk" />
               </div>
               <HeatmapGrid
                 title="Risk heatmap"
-                description="Severity × priority (corrective actions in window)"
+                description="Severity × priority (SORs use the dash column)"
                 rowLabels={heatmap?.rowLabels ?? ["C", "H", "M", "L"]}
                 colLabels={heatmap?.colLabels ?? ["H", "M", "L", "—"]}
                 cells={heatmap?.cells ?? []}
@@ -1115,7 +1122,7 @@ function AnalyticsPageInner() {
             </div>
           </div>
 
-          <div className="space-y-5 lg:col-span-4">
+          <div className="space-y-5 xl:col-span-3">
             <div className="analytics-dark-panel p-5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Summary</p>
@@ -1176,7 +1183,7 @@ function AnalyticsPageInner() {
             </div>
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="xl:col-span-3">
             <div className="relative rounded-2xl border border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_var(--app-accent-primary-soft)_0%,_transparent_100%)] p-6 text-center">
               <div className="absolute right-4 top-4 z-10">
                 <AddInsightToDashboardButton blockId="graph_risk_reduction" />

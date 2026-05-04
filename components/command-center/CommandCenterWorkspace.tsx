@@ -29,9 +29,11 @@ import {
 } from "@/components/command-center/model";
 import { InductionReadinessCard } from "@/components/command-center/InductionReadinessCard";
 import { AppTabBar } from "@/components/AppTabBar";
+import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import { useUrlTabState } from "@/hooks/useUrlTabState";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import type { ExplainableRecommendation, LeadershipTrustMetadata } from "@/lib/leadershipTrust";
 
 const COMMAND_CENTER_HUB_TABS = ["now", "risk", "knowledge"] as const;
 
@@ -52,14 +54,8 @@ type AnalyticsSummaryPayload = {
       aggregatedWithBaseline?: { score: number; band: string };
       aggregated?: { score: number; band: string; sampleSize?: number };
     };
-    riskMemoryRecommendations?: Array<{
-      id: string;
-      kind: string;
-      title: string;
-      body: string;
-      confidence: number;
-      created_at: string;
-    }>;
+    riskMemoryRecommendations?: ExplainableRecommendation[];
+    leadershipTrust?: LeadershipTrustMetadata;
   };
   warning?: string;
   error?: string;
@@ -350,6 +346,10 @@ export function CommandCenterWorkspace() {
         </p>
       ) : null}
 
+      {analytics?.summary?.leadershipTrust ? (
+        <TrustSummaryPanel trust={analytics.summary.leadershipTrust} compact />
+      ) : null}
+
       <AppTabBar
         value={hubTab}
         onValueChange={setHubTab}
@@ -444,12 +444,26 @@ export function CommandCenterWorkspace() {
                             <div>
                               <p className="text-sm font-semibold text-[var(--app-text-strong)]">{recommendation.title}</p>
                               <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--app-text)]">{recommendation.body}</p>
+                              {recommendation.evidence ? (
+                                <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">{recommendation.evidence}</p>
+                              ) : null}
+                              {recommendation.businessImpact ? (
+                                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{recommendation.businessImpact}</p>
+                              ) : null}
                             </div>
                             <StatusBadge
-                              label={`${recommendation.kind} - ${Math.round((recommendation.confidence ?? 0) * 100)}%`}
+                              label={`${recommendation.sourceModule ?? recommendation.kind} - ${Math.round((recommendation.confidence ?? 0) * 100)}%`}
                               tone="info"
                             />
                           </div>
+                          {recommendation.actionHref ? (
+                            <Link
+                              href={recommendation.actionHref}
+                              className="mt-3 inline-flex text-xs font-bold text-[var(--app-accent-primary)] hover:text-[var(--app-link-hover)]"
+                            >
+                              Open action path
+                            </Link>
+                          ) : null}
                         </div>
                       ))}
                     </div>
