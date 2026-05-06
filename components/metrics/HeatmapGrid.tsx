@@ -14,29 +14,26 @@ export function HeatmapGrid({
   rowLabels,
   colLabels,
   cells,
-  max: rawMax,
   title,
   description,
   loading = false,
 }: HeatmapGridProps) {
-  const max = rawMax > 0 ? rawMax : 0;
   const rLabels = rowLabels.length ? rowLabels : ["C", "H", "M", "L"];
-  const cLabels = colLabels.length ? colLabels : ["H", "M", "L", "—"];
+  const cLabels = colLabels.length ? colLabels : ["H", "M", "L", "-"];
+  const hasActivity = cells.some((row) => row.some((cell) => cell > 0));
 
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
       {description ? <p className="mt-1 text-[10px] text-slate-400">{description}</p> : null}
-      <div
-        className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-4"
-        role="grid"
-        aria-label={title}
-      >
+      <div className="mt-3 flex flex-col gap-4 xl:flex-row xl:items-start xl:gap-4">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <div className="inline-block min-w-full sm:min-w-0">
+          <div className="inline-block min-w-[18rem] sm:min-w-full">
             <div
               className="grid gap-1"
-              style={{ gridTemplateColumns: `minmax(2.5rem, 5rem) repeat(${cLabels.length}, minmax(2.5rem, 1fr))` }}
+              role="grid"
+              aria-label={title}
+              style={{ gridTemplateColumns: `minmax(3.5rem, 5rem) repeat(${cLabels.length}, minmax(3rem, 1fr))` }}
             >
               <div className="min-w-0" aria-hidden />
               {cLabels.map((c) => (
@@ -53,34 +50,39 @@ export function HeatmapGrid({
                     {rowLabel}
                   </div>
                   {(cells[ri] ?? Array(cLabels.length).fill(0)).map((cell, ci) => {
-                    const t = max > 0 ? cell / max || 0 : 0;
+                    const active = cell > 0 && !loading;
                     return (
                       <div
                         key={`${ri}-${ci}`}
                         role="gridcell"
                         className={[
-                          "flex h-10 min-w-[2.5rem] items-center justify-center rounded-lg text-xs font-bold",
-                          t > 0 && !loading ? "text-slate-800" : "text-slate-500",
-                          heatmapCellClassName(t),
+                          "flex h-10 min-w-[3rem] items-center justify-center rounded-lg text-xs font-bold",
+                          active ? "text-slate-800" : "text-slate-500",
+                          heatmapCellClassName(rowLabel, active),
                         ].join(" ")}
                         title={
                           !loading
-                            ? `${rowLabel} × ${cLabels[ci] ?? "—"}: ${cell} (vs max ${max || "—"} in view)`
+                            ? `${rowLabel} x ${cLabels[ci] ?? "-"}: ${cell}`
                             : "Loading"
                         }
                       >
-                        {loading ? "" : cell > 0 ? cell : ""}
+                        {loading ? "" : cell > 0 ? cell : hasActivity ? "" : "0"}
                       </div>
                     );
                   })}
                 </div>
               ))}
             </div>
+            {!loading && !hasActivity ? (
+              <div className="mt-2 rounded-lg border border-dashed border-[rgba(148,163,184,0.45)] bg-white/50 px-3 py-2 text-center text-[10px] font-semibold text-slate-500">
+                No SORs or corrective actions in this window.
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="w-full shrink-0 rounded-lg border border-white/5 bg-white/[0.02] p-3 sm:max-w-[12rem] lg:border lg:border-white/5 lg:bg-transparent lg:p-0">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Relative density</p>
-          <p className="mt-0.5 text-[9px] leading-snug text-slate-500">Warmer = higher share of the maximum count in this window</p>
+        <div className="w-full shrink-0 rounded-lg border border-white/5 bg-white/[0.02] p-3 sm:max-w-none xl:max-w-[12rem] xl:border xl:border-white/5 xl:bg-transparent xl:p-0">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Severity level</p>
+          <p className="mt-0.5 text-[9px] leading-snug text-slate-500">Color follows the row severity level, not count density.</p>
           <ul className="mt-2 space-y-1.5" aria-label="Heatmap color legend">
             {HEATMAP_LEGEND_STEPS.map((s) => (
               <li key={s.label} className="flex items-center gap-2 text-[9px] text-slate-500">

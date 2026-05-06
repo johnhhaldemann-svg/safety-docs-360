@@ -8,6 +8,7 @@ import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPan
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { ComplianceCommandCenter } from "@/components/training-matrix/ComplianceCommandCenter";
+import { CoordinatorQueue } from "@/components/training-matrix/CoordinatorQueue";
 import { useTableDensity } from "@/hooks/useTableDensity";
 import {
   InlineMessage,
@@ -26,6 +27,18 @@ import {
   CONSTRUCTION_POSITIONS,
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
+import { buildTrainingMatrixActionQueue } from "@/lib/trainingMatrixActionQueue";
+import {
+  applyAiReviewToReadinessRows,
+  buildEmployeeReadinessRow,
+  buildReadinessChart,
+  summarizeReadinessRows,
+  type ReadinessAiReview,
+  type ReadinessChartCellStatus,
+  type ReadinessRow,
+  type ReadinessStatus,
+  type ReadinessSummary,
+} from "@/lib/readinessMatrix";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -53,6 +66,7 @@ type MatrixFilters = {
 };
 
 type MatrixCellState = "match" | "gap" | "na";
+type MatrixViewMode = "readiness" | "all" | "gaps" | "expiring";
 
 type MatrixCellDetail = {
   state: MatrixCellState;
@@ -804,6 +818,310 @@ function SchemaMigrationBanner({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+function readinessStatusText(status: ReadinessStatus) {
+  switch (status) {
+    case "ready":
+      return "Ready";
+    case "expiring_soon":
+      return "Expiring Soon";
+    case "gap":
+      return "Gap";
+    case "blocked":
+      return "Blocked";
+    case "needs_review":
+      return "Needs Review";
+  }
+}
+
+function readinessToneClass(status: ReadinessStatus) {
+  switch (status) {
+    case "ready":
+      return "bg-emerald-500/12 text-emerald-300 ring-emerald-500/25";
+    case "expiring_soon":
+      return "bg-amber-500/15 text-amber-200 ring-amber-500/35";
+    case "gap":
+      return "bg-fuchsia-500/12 text-fuchsia-300 ring-fuchsia-500/25";
+    case "blocked":
+      return "bg-red-500/15 text-red-200 ring-red-500/35";
+    case "needs_review":
+      return "bg-sky-500/12 text-sky-300 ring-sky-500/25";
+  }
+}
+
+function readinessChartToneClass(status: ReadinessChartCellStatus) {
+  if (status === "met") return "bg-emerald-500/10 text-emerald-200 ring-emerald-500/25";
+  return readinessToneClass(status);
+}
+
+function readinessChartCellLabel(status: ReadinessChartCellStatus) {
+  return status === "met" ? "Met" : readinessStatusText(status);
+}
+
+function ReadinessChartPreview({ rows }: { rows: ReadinessRow[] }) {
+  const chart = useMemo(() => buildReadinessChart(rows, 5), [rows]);
+  const visibleRows = chart.rows.slice(0, 12);
+
+  if (rows.length === 0 || chart.columns.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-cyan-500/35 bg-zinc-950/55 p-4 shadow-sm shadow-cyan-950/20">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Readiness Chart</p>
+          <p className="mt-1 text-sm text-zinc-400">
+            Matrix-style view of workers against the highest-impact readiness requirements.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-400">
+          {(["met", "gap", "expiring_soon", "blocked", "needs_review"] as const).map((status) => (
+            <span key={status} className={`rounded-full px-2 py-0.5 ring-1 ${readinessChartToneClass(status)}`}>
+              {readinessChartCellLabel(status)}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-zinc-800">
+        <table className="min-w-full border-collapse text-left text-xs">
+          <thead>
+            <tr className="border-b border-zinc-800 bg-zinc-900/90">
+              <th className="min-w-[190px] px-3 py-2 font-bold uppercase tracking-wide text-zinc-400">Worker</th>
+              <th className="min-w-[130px] px-3 py-2 font-bold uppercase tracking-wide text-zinc-400">Trade</th>
+              {chart.columns.map((column) => (
+                <th key={column.key} className="min-w-[135px] px-3 py-2 font-bold uppercase tracking-wide text-zinc-400">
+                  <span className="line-clamp-2">{column.label}</span>
+                </th>
+              ))}
+              <th className="min-w-[130px] px-3 py-2 font-bold uppercase tracking-wide text-zinc-400">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row) => (
+              <tr key={row.rowId} className="border-b border-zinc-800/80">
+                <td className="px-3 py-2 align-top">
+                  <div className="font-semibold text-white">{row.worker}</div>
+                  <div className="mt-0.5 text-[11px] uppercase tracking-wide text-zinc-500">{row.personType}</div>
+                </td>
+                <td className="px-3 py-2 align-top text-zinc-300">
+                  <div>{row.trade}</div>
+                  {row.jobsiteName ? <div className="mt-0.5 text-[11px] text-zinc-500">{row.jobsiteName}</div> : null}
+                </td>
+                {row.cells.map((cell) => (
+                  <td key={cell.columnKey} className="px-3 py-2 align-top">
+                    <span
+                      title={cell.detail ?? cell.label}
+                      className={`inline-flex min-w-[78px] justify-center rounded px-2 py-1 font-bold ring-1 ${readinessChartToneClass(cell.status)}`}
+                    >
+                      {cell.label}
+                    </span>
+                  </td>
+                ))}
+                <td className="px-3 py-2 align-top">
+                  <span className={`inline-flex rounded-full px-2 py-1 font-bold ring-1 ${readinessToneClass(row.status)}`}>
+                    {readinessStatusText(row.status)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {chart.rows.length > visibleRows.length ? (
+        <p className="mt-2 text-xs text-zinc-500">
+          Showing first {visibleRows.length} of {chart.rows.length} readiness rows. The detailed table below includes all rows.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ReadinessMatrixPanel({
+  rows,
+  summary,
+  loading,
+  loaded,
+  error,
+  aiReview,
+  aiLoading,
+  aiMessage,
+  onRefresh,
+  onRunAi,
+}: {
+  rows: ReadinessRow[];
+  summary: ReadinessSummary | null;
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  aiReview: ReadinessAiReview | null;
+  aiLoading: boolean;
+  aiMessage: string | null;
+  onRefresh: () => void;
+  onRunAi: () => void;
+}) {
+  const safeSummary = summary ?? summarizeReadinessRows(rows);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/55 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Readiness Matrix</p>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-300">
+            Employees and jobsite contractor employees are scored from training rules, credential dates,
+            contractor training records, inductions, and contractor document blockers.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {loading ? "Refreshing..." : "Refresh readiness"}
+          </button>
+          <button
+            type="button"
+            onClick={onRunAi}
+            disabled={aiLoading || loading || rows.length === 0}
+            className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-zinc-950 hover:bg-cyan-400 disabled:opacity-50"
+          >
+            {aiLoading ? "Reviewing..." : "Run AI readiness review"}
+          </button>
+        </div>
+      </div>
+
+      {error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
+      {aiMessage ? <InlineMessage tone="neutral">{aiMessage}</InlineMessage> : null}
+      {aiReview ? (
+        <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-cyan-300 px-2.5 py-1 text-xs font-bold text-cyan-950">
+              AI Review
+            </span>
+            {aiReview.overallScore != null ? (
+              <span className="font-mono text-lg font-bold">{aiReview.overallScore}/100</span>
+            ) : null}
+            {aiReview.fallbackUsed ? <span className="text-xs text-cyan-200">Fallback used</span> : null}
+          </div>
+          <p className="mt-2 leading-6 text-cyan-100">{aiReview.summary}</p>
+          {aiReview.prioritizedActions.length > 0 ? (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {aiReview.prioritizedActions.slice(0, 4).map((action) => (
+                <li key={action} className="rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-3 py-2">
+                  {action}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: "Ready", value: safeSummary.ready, status: "ready" as const },
+          { label: "Expiring", value: safeSummary.expiringSoon, status: "expiring_soon" as const },
+          { label: "Gaps", value: safeSummary.gap, status: "gap" as const },
+          { label: "Blocked", value: safeSummary.blocked, status: "blocked" as const },
+          { label: "Needs review", value: safeSummary.needsReview, status: "needs_review" as const },
+        ].map(({ label, value, status }) => (
+          <div key={label} className={`rounded-xl border border-zinc-800 bg-zinc-950/50 p-4 ring-1 ${readinessToneClass(status)}`}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">{label}</p>
+            <p className="mt-2 font-mono text-3xl font-bold">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {rows.length > 0 ? <ReadinessChartPreview rows={rows} /> : null}
+
+      {!loaded && loading ? (
+        <InlineMessage tone="neutral">Loading readiness matrix...</InlineMessage>
+      ) : rows.length === 0 ? (
+        <InlineMessage tone="neutral">No readiness rows are available for the selected filters.</InlineMessage>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/90">
+                <th className="min-w-[240px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-400">Worker</th>
+                <th className="min-w-[150px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-400">Status</th>
+                <th className="min-w-[180px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-400">Scope</th>
+                <th className="min-w-[260px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-400">Blocking / gap reasons</th>
+                <th className="min-w-[220px] px-4 py-3 text-xs font-bold uppercase tracking-wide text-zinc-400">Next action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const topIssues = [...row.blockers, ...row.gaps, ...row.expiring, ...row.reviewItems].slice(0, 3);
+                return (
+                  <tr key={row.id} className="border-b border-zinc-800/80">
+                    <td className="px-4 py-4 align-top">
+                      <div className="font-semibold text-white">{row.name}</div>
+                      <div className="mt-1 text-xs text-zinc-500">{row.email || row.personId}</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+                          {row.personType}
+                        </span>
+                        {row.contractorName ? (
+                          <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-semibold text-zinc-300">
+                            {row.contractorName}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${readinessToneClass(row.status)}`}>
+                        {readinessStatusText(row.status)}
+                      </span>
+                      <div className="mt-2 font-mono text-xs text-zinc-500">Score {row.readinessScore}</div>
+                      {row.ai?.explanation ? (
+                        <p className="mt-2 text-xs leading-5 text-cyan-200">{row.ai.explanation}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 align-top text-xs leading-5 text-zinc-300">
+                      <div>{row.trade}</div>
+                      <div>{row.position}</div>
+                      {row.jobsiteName ? <div className="text-zinc-500">{row.jobsiteName}</div> : null}
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      {topIssues.length > 0 ? (
+                        <ul className="space-y-1.5 text-xs leading-5 text-zinc-300">
+                          {topIssues.map((issue, index) => (
+                            <li key={`${row.id}-${issue.type}-${index}`}>{issue.detail}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-xs text-zinc-500">No active issues.</span>
+                      )}
+                      {row.operationalSignals?.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {row.operationalSignals.slice(0, 3).map((signal) => (
+                            <span
+                              key={`${row.id}-${signal.type}-${signal.label}`}
+                              className={
+                                signal.severity === "high"
+                                  ? "rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-200 ring-1 ring-red-500/30"
+                                  : "rounded-full bg-sky-500/12 px-2 py-0.5 text-[10px] font-bold text-sky-200 ring-1 ring-sky-500/25"
+                              }
+                              title={signal.detail}
+                            >
+                              {signal.label} ({signal.count})
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 align-top text-xs leading-5 text-zinc-300">
+                      {row.recommendedNextAction}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainingMatrixPage() {
   const isOfflineDemoUi = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -816,6 +1134,7 @@ export default function TrainingMatrixPage() {
   const [selectedTradeFilter, setSelectedTradeFilter] = useState("");
   const [selectedSubTradeFilter, setSelectedSubTradeFilter] = useState("");
   const [selectedTaskCodeFilter, setSelectedTaskCodeFilter] = useState("");
+  const [matrixViewMode, setMatrixViewMode] = useState<MatrixViewMode>("readiness");
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
   const [schemaMigrationBannerDismissed, setSchemaMigrationBannerDismissed] = useState(false);
@@ -825,6 +1144,14 @@ export default function TrainingMatrixPage() {
   /** Start true: we auto-fetch on mount so the first paint shows loading, not an empty “not loaded” shell. */
   const [loading, setLoading] = useState(true);
   const [workspaceDataLoaded, setWorkspaceDataLoaded] = useState(false);
+  const [readinessRows, setReadinessRows] = useState<ReadinessRow[]>([]);
+  const [readinessSummary, setReadinessSummary] = useState<ReadinessSummary | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [readinessLoaded, setReadinessLoaded] = useState(false);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
+  const [aiReview, setAiReview] = useState<ReadinessAiReview | null>(null);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
+  const [aiReviewMessage, setAiReviewMessage] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
     "neutral"
@@ -882,6 +1209,75 @@ export default function TrainingMatrixPage() {
       /* ignore */
     }
   }, []);
+
+  const loadReadiness = useCallback(async () => {
+    setReadinessLoading(true);
+    setReadinessError(null);
+    setAiReviewMessage(null);
+    setAiReview(null);
+
+    if (isOfflineDemoUi) {
+      const demo = buildOfflineDemoMatrixPayload(selectedTradeFilter);
+      const demoRows = demo.rows.map((row) =>
+        buildEmployeeReadinessRow({
+          requirements: demo.requirements.map((requirement) => ({
+            id: requirement.id,
+            title: requirement.title,
+            matchKeywords: requirement.matchKeywords,
+          })),
+          row,
+        })
+      );
+      setReadinessRows(demoRows);
+      setReadinessSummary(summarizeReadinessRows(demoRows));
+      setReadinessLoading(false);
+      setReadinessLoaded(true);
+      return;
+    }
+
+    try {
+      const token = await getAccessToken();
+      const params = new URLSearchParams();
+      if (selectedTradeFilter) params.set("trade", selectedTradeFilter);
+      if (selectedSubTradeFilter) params.set("subTrade", selectedSubTradeFilter);
+      if (selectedTaskCodeFilter) params.set("taskCode", selectedTaskCodeFilter);
+      const query = params.toString();
+      const res = await fetch(`/api/company/training-matrix/readiness${query ? `?${query}` : ""}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            rows?: ReadinessRow[];
+            summary?: ReadinessSummary;
+            metadata?: { directoryNotice?: string | null; schemaMigrationNeeded?: boolean };
+          }
+        | null;
+      if (!res.ok) {
+        setReadinessRows([]);
+        setReadinessSummary(summarizeReadinessRows([]));
+        setReadinessError(sanitizeApiErrorMessage(data?.error || "Failed to load readiness matrix."));
+        return;
+      }
+      const nextRows = data?.rows ?? [];
+      setReadinessRows(nextRows);
+      setReadinessSummary(data?.summary ?? summarizeReadinessRows(nextRows));
+      if (data?.metadata?.directoryNotice) setDirectoryNotice(data.metadata.directoryNotice);
+      if (typeof data?.metadata?.schemaMigrationNeeded === "boolean") {
+        setSchemaMigrationNeeded(data.metadata.schemaMigrationNeeded);
+      }
+    } catch (e) {
+      setReadinessRows([]);
+      setReadinessSummary(summarizeReadinessRows([]));
+      setReadinessError(
+        sanitizeApiErrorMessage(e instanceof Error ? e.message : "Failed to load readiness matrix.")
+      );
+    } finally {
+      setReadinessLoading(false);
+      setReadinessLoaded(true);
+    }
+  }, [isOfflineDemoUi, selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
 
   const loadMatrix = useCallback(async () => {
     setLoading(true);
@@ -1001,6 +1397,13 @@ export default function TrainingMatrixPage() {
     void loadMatrix();
   }, [loadMatrix]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadReadiness();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadReadiness]);
+
   const handleTradeFilterChange = useCallback((value: string) => {
     setSelectedTradeFilter(value);
     setSelectedSubTradeFilter("");
@@ -1011,6 +1414,52 @@ export default function TrainingMatrixPage() {
     setSelectedSubTradeFilter(value);
     setSelectedTaskCodeFilter("");
   }, []);
+
+  const runAiReadinessReview = useCallback(async () => {
+    if (readinessRows.length === 0) {
+      setAiReviewMessage("Load readiness rows before running AI review.");
+      return;
+    }
+    setAiReviewLoading(true);
+    setAiReviewMessage(null);
+    try {
+      const token = await getAccessToken();
+      const rowsForReview = readinessRows
+        .filter((row) => row.status !== "ready")
+        .slice(0, 80);
+      const res = await fetch("/api/company/training-matrix/readiness/ai-review", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: readinessSummary ?? summarizeReadinessRows(readinessRows),
+          rows: rowsForReview.length ? rowsForReview : readinessRows.slice(0, 40),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; review?: ReadinessAiReview }
+        | null;
+      if (!res.ok || !data?.review) {
+        setAiReviewMessage(sanitizeApiErrorMessage(data?.error || "AI readiness review failed."));
+        return;
+      }
+      setAiReview(data.review);
+      const reviewedRows = applyAiReviewToReadinessRows(readinessRows, data.review);
+      setReadinessRows(reviewedRows);
+      setReadinessSummary(summarizeReadinessRows(reviewedRows));
+      if (data.review.fallbackUsed) {
+        setAiReviewMessage("AI was unavailable, so deterministic readiness results remain the source of truth.");
+      }
+    } catch (e) {
+      setAiReviewMessage(
+        sanitizeApiErrorMessage(e instanceof Error ? e.message : "AI readiness review failed.")
+      );
+    } finally {
+      setAiReviewLoading(false);
+    }
+  }, [readinessRows, readinessSummary]);
 
   const handleCreate = useCallback(async () => {
     setSaving(true);
@@ -1219,6 +1668,70 @@ export default function TrainingMatrixPage() {
     return { met, gap, na, total: met + gap + na };
   }, [rows, requirements]);
 
+  const coordinatorQueue = useMemo(
+    () => buildTrainingMatrixActionQueue(rows, requirements),
+    [requirements, rows]
+  );
+
+  const attentionCountByUser = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of coordinatorQueue) {
+      counts.set(item.userId, (counts.get(item.userId) ?? 0) + 1);
+    }
+    return counts;
+  }, [coordinatorQueue]);
+
+  const attentionCountByRequirement = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of coordinatorQueue) {
+      if (!item.requirementId) continue;
+      counts.set(item.requirementId, (counts.get(item.requirementId) ?? 0) + 1);
+    }
+    return counts;
+  }, [coordinatorQueue]);
+
+  const visibleMatrixRequirements = useMemo(() => {
+    if (matrixViewMode === "readiness" || matrixViewMode === "all") return requirements;
+    return requirements.filter((requirement) =>
+      rows.some((row) => {
+        const state = row.cells[requirement.id] ?? "gap";
+        const detail = row.cellDetails?.[requirement.id];
+        if (matrixViewMode === "gaps") return state === "gap";
+        return (
+          state === "match" &&
+          detail?.matchSource === "certifications" &&
+          (detail.expiryStatus === "soon" || detail.expiryStatus === "none")
+        );
+      })
+    );
+  }, [matrixViewMode, requirements, rows]);
+
+  const matrixViewOptions: Array<{ value: MatrixViewMode; label: string; count: number }> = [
+    { value: "readiness", label: "Readiness", count: readinessSummary?.total ?? readinessRows.length },
+    { value: "all", label: "All", count: requirements.length },
+    {
+      value: "gaps",
+      label: "Only gaps",
+      count: requirements.filter((requirement) =>
+        rows.some((row) => (row.cells[requirement.id] ?? "gap") === "gap")
+      ).length,
+    },
+    {
+      value: "expiring",
+      label: "Expiring / no date",
+      count: requirements.filter((requirement) =>
+        rows.some((row) => {
+          const detail = row.cellDetails?.[requirement.id];
+          return (
+            (row.cells[requirement.id] ?? "gap") === "match" &&
+            detail?.matchSource === "certifications" &&
+            (detail.expiryStatus === "soon" || detail.expiryStatus === "none")
+          );
+        })
+      ).length,
+    },
+  ];
+
   return (
     <div className="training-matrix-light space-y-8">
       <section className="training-hero-surface overflow-hidden rounded-3xl p-6 sm:p-8">
@@ -1239,11 +1752,14 @@ export default function TrainingMatrixPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="button"
-              onClick={() => void loadMatrix()}
-              disabled={loading}
+              onClick={() => {
+                void loadMatrix();
+                void loadReadiness();
+              }}
+              disabled={loading || readinessLoading}
               className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              {loading
+              {loading || readinessLoading
                 ? workspaceDataLoaded
                   ? "Refreshing…"
                   : "Loading…"
@@ -1298,11 +1814,28 @@ export default function TrainingMatrixPage() {
           <MetricTile
             eyebrow="Workflow focus"
             title="Next action"
-            value={requirements.length === 0 ? "Add rule" : trackerStats?.gap ? "Review gaps" : "Audit ledger"}
-            detail="Use requirements, filters, and the ledger together so this page reads as one guided workflow."
+            value={
+              requirements.length === 0
+                ? "Add rule"
+                : coordinatorQueue.length > 0
+                  ? `${coordinatorQueue.length} actions`
+                  : "Audit ledger"
+            }
+            detail={
+              coordinatorQueue.length > 0
+                ? "Work the coordinator queue first, then use the matrix for detail."
+                : "No active coordinator actions in the current matrix."
+            }
           />
         </div>
       </SectionCard>
+
+      <CoordinatorQueue
+        queue={coordinatorQueue}
+        requirements={requirements}
+        loading={loading}
+        onRefresh={() => void loadMatrix()}
+      />
 
       {!isOfflineDemoUi ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -1314,6 +1847,7 @@ export default function TrainingMatrixPage() {
               people: rows.length,
               met: trackerStats?.met,
               gap: trackerStats?.gap,
+              coordinatorActions: coordinatorQueue.length,
             })}
           />
           <CompanyMemoryBankPanel />
@@ -1662,6 +2196,47 @@ export default function TrainingMatrixPage() {
           ) : null
         }
       >
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/55 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Matrix View</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {visibleMatrixRequirements.length} of {requirements.length} requirement columns visible
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {matrixViewOptions.map((option) => {
+              const active = matrixViewMode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMatrixViewMode(option.value)}
+                  className={
+                    active
+                      ? "rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-zinc-950"
+                      : "rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                  }
+                >
+                  {option.label} ({option.count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {matrixViewMode === "readiness" ? (
+          <ReadinessMatrixPanel
+            rows={readinessRows}
+            summary={readinessSummary}
+            loading={readinessLoading}
+            loaded={readinessLoaded}
+            error={readinessError}
+            aiReview={aiReview}
+            aiLoading={aiReviewLoading}
+            aiMessage={aiReviewMessage}
+            onRefresh={() => void loadReadiness()}
+            onRunAi={() => void runAiReadinessReview()}
+          />
+        ) : (
         <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
           <table
             className={`min-w-full border-collapse text-left ${isCompact ? "text-xs" : "text-sm"}`}
@@ -1671,15 +2246,23 @@ export default function TrainingMatrixPage() {
                 <th className={matrixTableLayout.thFirst}>
                   Person & field profile
                 </th>
-                {requirements.map((r) => (
-                  <th
-                    key={r.id}
-                    className={matrixTableLayout.thReq}
-                    title={requirementHeaderTitle(r)}
-                  >
-                    <span className="line-clamp-3">{r.title}</span>
-                  </th>
-                ))}
+                {visibleMatrixRequirements.map((r) => {
+                  const attentionCount = attentionCountByRequirement.get(r.id) ?? 0;
+                  return (
+                    <th
+                      key={r.id}
+                      className={matrixTableLayout.thReq}
+                      title={requirementHeaderTitle(r)}
+                    >
+                      <span className="line-clamp-2">{r.title}</span>
+                      {attentionCount > 0 ? (
+                        <span className="mt-1 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-500/35">
+                          {attentionCount} action{attentionCount === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </th>
+                  );
+                })}
                 <th className={matrixTableLayout.thCert}>
                   On-profile certs
                 </th>
@@ -1688,10 +2271,22 @@ export default function TrainingMatrixPage() {
             <tbody>
               {rows.map((row) => {
                 const positionRollup = buildPositionRollup(row, requirements);
+                const attentionCount = attentionCountByUser.get(row.userId) ?? 0;
                 return (
                   <tr key={row.userId} className="border-b border-zinc-800/80 bg-zinc-950/30">
                     <td className={matrixTableLayout.tdFirst}>
-                      <div className="font-semibold text-white">{row.name}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-semibold text-white">{row.name}</div>
+                        {attentionCount > 0 ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200 ring-1 ring-amber-500/35">
+                            {attentionCount} need{attentionCount === 1 ? "" : "s"}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-500/25">
+                            Clear
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-zinc-500">{row.email || row.userId}</div>
                       <dl className="mt-2 space-y-1 text-xs text-zinc-300">
                         <div className="flex gap-1">
@@ -1726,7 +2321,7 @@ export default function TrainingMatrixPage() {
                         Update profile & dates
                       </Link>
                     </td>
-                    {requirements.map((r) => {
+                    {visibleMatrixRequirements.map((r) => {
                       const state = row.cells[r.id] ?? "gap";
                       const d = row.cellDetails?.[r.id];
                       const tip = requirementCellTitle(r, d, state);
@@ -1738,19 +2333,19 @@ export default function TrainingMatrixPage() {
                         >
                           <div className="flex flex-col items-center gap-1">
                             {state === "match" ? (
-                              <span className="inline-flex text-emerald-400">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-500/25">
                                 <Check className={matrixTableLayout.icon} aria-hidden />
-                                <span className="sr-only">Met</span>
+                                Met
                               </span>
                             ) : state === "na" ? (
-                              <span className="inline-flex text-zinc-600">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-bold text-zinc-500 ring-1 ring-zinc-700">
                                 <Minus className={matrixTableLayout.icon} aria-hidden />
-                                <span className="sr-only">Not applicable</span>
+                                N/A
                               </span>
                             ) : (
-                              <span className="inline-flex text-fuchsia-400">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/12 px-2 py-0.5 text-[10px] font-bold text-fuchsia-300 ring-1 ring-fuchsia-500/25">
                                 <X className={matrixTableLayout.icon} aria-hidden />
-                                <span className="sr-only">Gap</span>
+                                Gap
                               </span>
                             )}
                             {state === "match" ? (
@@ -1859,6 +2454,7 @@ export default function TrainingMatrixPage() {
             </tbody>
           </table>
         </div>
+        )}
       </ComplianceCommandCenter>
     </div>
   );

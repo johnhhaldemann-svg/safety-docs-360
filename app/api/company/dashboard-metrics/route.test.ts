@@ -84,9 +84,10 @@ describe("/api/company/dashboard-metrics", () => {
       return b;
     }
 
-    const sorB = { select: vi.fn(), eq: vi.fn(), gte: vi.fn() };
+    const sorB = { select: vi.fn(), eq: vi.fn(), neq: vi.fn(), gte: vi.fn() };
     sorB.select.mockReturnValue(sorB);
     sorB.eq.mockReturnValue(sorB);
+    sorB.neq.mockReturnValue(sorB);
     sorB.gte.mockResolvedValue(ok);
 
     const contractorsB = { select: vi.fn(), eq: vi.fn() };

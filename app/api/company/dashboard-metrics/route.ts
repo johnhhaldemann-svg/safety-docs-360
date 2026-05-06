@@ -95,7 +95,8 @@ export async function GET(request: Request) {
     .select("id", { count: "exact", head: true })
     .eq("company_id", companyId)
     .eq("is_deleted", false)
-    .gte("created_at", since);
+    .neq("status", "superseded")
+    .gte("date", since.slice(0, 10));
 
   const correctiveTotalQuery = withJobsiteScope(
     auth.supabase
