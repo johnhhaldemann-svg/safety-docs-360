@@ -102,6 +102,7 @@ export type ReadinessAiReview = {
 };
 
 export type ReadinessChartCellStatus = "met" | ReadinessStatus;
+export type ReadinessPersonnelTypeFilter = "all" | ReadinessPersonType;
 
 export type ReadinessChartModel = {
   columns: Array<{ key: string; label: string }>;
@@ -121,6 +122,37 @@ export type ReadinessChartModel = {
     }>;
   }>;
 };
+
+export function filterReadinessRowsForChart(
+  rows: ReadinessRow[],
+  filters: {
+    personnelSearch?: string | null;
+    personnelType?: ReadinessPersonnelTypeFilter | null;
+  }
+) {
+  const search = normalizeForMatch(filters.personnelSearch ?? "");
+  const personType = filters.personnelType ?? "all";
+
+  return rows.filter((row) => {
+    if (personType !== "all" && row.personType !== personType) return false;
+    if (!search) return true;
+
+    const searchable = [
+      row.name,
+      row.email,
+      row.trade,
+      row.position,
+      row.role,
+      row.contractorName,
+      row.jobsiteName,
+    ]
+      .filter(Boolean)
+      .map((value) => normalizeForMatch(String(value)))
+      .join(" ");
+
+    return searchable.includes(search);
+  });
+}
 
 type EmployeeMatrixRow = {
   userId: string;

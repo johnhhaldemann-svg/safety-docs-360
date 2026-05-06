@@ -5,6 +5,7 @@ import {
   buildContractorReadinessRow,
   buildEmployeeReadinessRow,
   buildReadinessChart,
+  filterReadinessRowsForChart,
   summarizeReadinessRows,
   type ReadinessRequirement,
 } from "./readinessMatrix";
@@ -195,6 +196,49 @@ describe("readiness matrix", () => {
     expect(chart.columns[0]).toMatchObject({ label: "Fall Protection" });
     expect(chart.rows[0].cells[0]).toMatchObject({ status: "gap", label: "Gap" });
     expect(chart.rows[1].cells[0]).toMatchObject({ status: "met", label: "Met" });
+  });
+
+  it("filters readiness chart rows by personnel type and searchable worker context", () => {
+    const employee = employeeRow({
+      userId: "u2",
+      name: "Sam Rivera",
+      email: "sam@example.com",
+      role: "electrician",
+      profileFields: { tradeSpecialty: "Electrical", jobTitle: "Journeyman" },
+    });
+    const contractor = buildContractorReadinessRow({
+      assignmentId: "a1",
+      employeeId: "ce1",
+      name: "Derrick Price",
+      email: "derrick@example.com",
+      contractorId: "c1",
+      contractorName: "Roof Co",
+      jobsiteId: "j1",
+      jobsiteName: "North Site",
+      trade: "Roofing",
+      position: "Foreman",
+      requirements: [],
+      records: [],
+    });
+
+    expect(
+      filterReadinessRowsForChart([employee, contractor], {
+        personnelType: "contractor",
+        personnelSearch: "roof co",
+      }).map((row) => row.id)
+    ).toEqual([contractor.id]);
+    expect(
+      filterReadinessRowsForChart([employee, contractor], {
+        personnelType: "all",
+        personnelSearch: "north",
+      }).map((row) => row.id)
+    ).toEqual([contractor.id]);
+    expect(
+      filterReadinessRowsForChart([employee, contractor], {
+        personnelType: "employee",
+        personnelSearch: "electrical",
+      }).map((row) => row.id)
+    ).toEqual([employee.id]);
   });
 
   it("escalates ready jobsite rows when operational signals are present", () => {

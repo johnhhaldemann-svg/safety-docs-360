@@ -32,9 +32,11 @@ import {
   applyAiReviewToReadinessRows,
   buildEmployeeReadinessRow,
   buildReadinessChart,
+  filterReadinessRowsForChart,
   summarizeReadinessRows,
   type ReadinessAiReview,
   type ReadinessChartCellStatus,
+  type ReadinessPersonnelTypeFilter,
   type ReadinessRow,
   type ReadinessStatus,
   type ReadinessSummary,
@@ -59,14 +61,27 @@ type Requirement = {
   generatedSourceOperationKey?: string | null;
 };
 
+type MatrixJobsiteOption = { id: string; name: string };
+
 type MatrixFilters = {
   trades: string[];
   subTrades: string[];
   taskCodes: Array<{ value: string; label: string }>;
+  jobsites?: MatrixJobsiteOption[];
 };
 
 type MatrixCellState = "match" | "gap" | "na";
 type MatrixViewMode = "readiness" | "all" | "gaps" | "expiring";
+
+function mergeJobsiteOptions(current: MatrixJobsiteOption[], next: MatrixJobsiteOption[]) {
+  const merged = new Map<string, MatrixJobsiteOption>();
+  for (const jobsite of [...current, ...next]) {
+    const id = jobsite.id?.trim();
+    if (!id) continue;
+    merged.set(id, { id, name: jobsite.name?.trim() || "Unnamed job / project" });
+  }
+  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
 
 type MatrixCellDetail = {
   state: MatrixCellState;
@@ -233,6 +248,7 @@ function buildOfflineDemoMatrixPayload(selectedTradeFilter: string) {
       ],
       subTrades: [],
       taskCodes: [{ value: "energized_work_boundaries", label: "Energized Work Boundaries" }],
+      jobsites: [{ id: "demo-site", name: "Demo Project" }],
     } as MatrixFilters,
   };
 }
@@ -864,7 +880,7 @@ function ReadinessChartPreview({ rows }: { rows: ReadinessRow[] }) {
   if (rows.length === 0 || chart.columns.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-cyan-500/35 bg-zinc-950/55 p-4 shadow-sm shadow-cyan-950/20">
+    <div className="space-y-3">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Readiness Chart</p>
@@ -931,6 +947,120 @@ function ReadinessChartPreview({ rows }: { rows: ReadinessRow[] }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+function ReadinessChartSection({
+  rows,
+  allRowsCount,
+  loading,
+  loaded,
+  error,
+  jobsiteOptions,
+  selectedJobsiteId,
+  onJobsiteChange,
+  personnelSearch,
+  onPersonnelSearchChange,
+  personnelType,
+  onPersonnelTypeChange,
+}: {
+  rows: ReadinessRow[];
+  allRowsCount: number;
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  jobsiteOptions: MatrixJobsiteOption[];
+  selectedJobsiteId: string;
+  onJobsiteChange: (value: string) => void;
+  personnelSearch: string;
+  onPersonnelSearchChange: (value: string) => void;
+  personnelType: ReadinessPersonnelTypeFilter;
+  onPersonnelTypeChange: (value: ReadinessPersonnelTypeFilter) => void;
+}) {
+  const selectedJobsite = jobsiteOptions.find((jobsite) => jobsite.id === selectedJobsiteId);
+  const employees = rows.filter((row) => row.personType === "employee").length;
+  const contractors = rows.filter((row) => row.personType === "contractor").length;
+
+  return (
+    <SectionCard
+      eyebrow="Workforce Readiness"
+      title="Readiness Chart"
+      description="Filter the picture-style readiness chart by job/project and personnel without changing the detailed compliance table below."
+    >
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr_1fr]">
+        <label className="text-sm font-medium text-[var(--app-text-strong)]">
+          Job / Project
+          <select
+            value={selectedJobsiteId}
+            onChange={(event) => onJobsiteChange(event.target.value)}
+            className={`mt-1 w-full ${appNativeSelectClassName}`}
+          >
+            <option value="">All jobs / projects</option>
+            {jobsiteOptions.map((jobsite) => (
+              <option key={jobsite.id} value={jobsite.id}>
+                {jobsite.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-[var(--app-text-strong)]">
+          Personnel Search
+          <input
+            type="search"
+            value={personnelSearch}
+            onChange={(event) => onPersonnelSearchChange(event.target.value)}
+            placeholder="Name, email, trade, company, job"
+            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+          />
+        </label>
+        <label className="text-sm font-medium text-[var(--app-text-strong)]">
+          Personnel Type
+          <select
+            value={personnelType}
+            onChange={(event) => onPersonnelTypeChange(event.target.value as ReadinessPersonnelTypeFilter)}
+            className={`mt-1 w-full ${appNativeSelectClassName}`}
+          >
+            <option value="all">All personnel</option>
+            <option value="employee">Employees</option>
+            <option value="contractor">Contractors</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+        <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">
+          {rows.length} visible of {allRowsCount} readiness rows
+        </span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">
+          {employees} employee{employees === 1 ? "" : "s"}
+        </span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">
+          {contractors} contractor{contractors === 1 ? "" : "s"}
+        </span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">
+          {selectedJobsite ? selectedJobsite.name : "All jobs / projects"}
+        </span>
+      </div>
+
+      <div className="mt-4">
+        {loaded && loading ? (
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-700">
+            Updating readiness chart...
+          </p>
+        ) : null}
+        {!loaded && loading ? (
+          <InlineMessage tone="neutral">Loading readiness chart...</InlineMessage>
+        ) : error ? (
+          <InlineMessage tone="error">{error}</InlineMessage>
+        ) : rows.length === 0 ? (
+          <InlineMessage tone="neutral">
+            No readiness chart rows match the selected job and personnel filters.
+          </InlineMessage>
+        ) : (
+          <ReadinessChartPreview rows={rows} />
+        )}
+      </div>
+    </SectionCard>
   );
 }
 
@@ -1028,8 +1158,6 @@ function ReadinessMatrixPanel({
           </div>
         ))}
       </div>
-
-      {rows.length > 0 ? <ReadinessChartPreview rows={rows} /> : null}
 
       {!loaded && loading ? (
         <InlineMessage tone="neutral">Loading readiness matrix...</InlineMessage>
@@ -1134,6 +1262,10 @@ export default function TrainingMatrixPage() {
   const [selectedTradeFilter, setSelectedTradeFilter] = useState("");
   const [selectedSubTradeFilter, setSelectedSubTradeFilter] = useState("");
   const [selectedTaskCodeFilter, setSelectedTaskCodeFilter] = useState("");
+  const [selectedJobsiteFilter, setSelectedJobsiteFilter] = useState("");
+  const [readinessJobsites, setReadinessJobsites] = useState<MatrixJobsiteOption[]>([]);
+  const [personnelSearch, setPersonnelSearch] = useState("");
+  const [personnelTypeFilter, setPersonnelTypeFilter] = useState<ReadinessPersonnelTypeFilter>("all");
   const [matrixViewMode, setMatrixViewMode] = useState<MatrixViewMode>("readiness");
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
@@ -1226,10 +1358,13 @@ export default function TrainingMatrixPage() {
             matchKeywords: requirement.matchKeywords,
           })),
           row,
+          jobsiteId: selectedJobsiteFilter || null,
+          jobsiteName: selectedJobsiteFilter ? "Demo Project" : null,
         })
       );
       setReadinessRows(demoRows);
       setReadinessSummary(summarizeReadinessRows(demoRows));
+      setReadinessJobsites(demo.filters.jobsites ?? []);
       setReadinessLoading(false);
       setReadinessLoaded(true);
       return;
@@ -1241,6 +1376,7 @@ export default function TrainingMatrixPage() {
       if (selectedTradeFilter) params.set("trade", selectedTradeFilter);
       if (selectedSubTradeFilter) params.set("subTrade", selectedSubTradeFilter);
       if (selectedTaskCodeFilter) params.set("taskCode", selectedTaskCodeFilter);
+      if (selectedJobsiteFilter) params.set("jobsiteId", selectedJobsiteFilter);
       const query = params.toString();
       const res = await fetch(`/api/company/training-matrix/readiness${query ? `?${query}` : ""}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1251,6 +1387,7 @@ export default function TrainingMatrixPage() {
             error?: string;
             rows?: ReadinessRow[];
             summary?: ReadinessSummary;
+            filters?: MatrixFilters;
             metadata?: { directoryNotice?: string | null; schemaMigrationNeeded?: boolean };
           }
         | null;
@@ -1263,6 +1400,7 @@ export default function TrainingMatrixPage() {
       const nextRows = data?.rows ?? [];
       setReadinessRows(nextRows);
       setReadinessSummary(data?.summary ?? summarizeReadinessRows(nextRows));
+      setReadinessJobsites((current) => mergeJobsiteOptions(current, data?.filters?.jobsites ?? []));
       if (data?.metadata?.directoryNotice) setDirectoryNotice(data.metadata.directoryNotice);
       if (typeof data?.metadata?.schemaMigrationNeeded === "boolean") {
         setSchemaMigrationNeeded(data.metadata.schemaMigrationNeeded);
@@ -1277,7 +1415,13 @@ export default function TrainingMatrixPage() {
       setReadinessLoading(false);
       setReadinessLoaded(true);
     }
-  }, [isOfflineDemoUi, selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
+  }, [
+    isOfflineDemoUi,
+    selectedJobsiteFilter,
+    selectedSubTradeFilter,
+    selectedTaskCodeFilter,
+    selectedTradeFilter,
+  ]);
 
   const loadMatrix = useCallback(async () => {
     setLoading(true);
@@ -1287,6 +1431,7 @@ export default function TrainingMatrixPage() {
       setRequirements(demo.requirements);
       setRows(demo.rows);
       setFilters(demo.filters);
+      setReadinessJobsites(demo.filters.jobsites ?? []);
       setCanMutate(false);
       setSchemaMigrationNeeded(false);
       setWarning(null);
@@ -1350,6 +1495,7 @@ export default function TrainingMatrixPage() {
         }))
       );
       setFilters(data?.filters ?? { trades: [], subTrades: [], taskCodes: [] });
+      setReadinessJobsites((current) => mergeJobsiteOptions(current, data?.filters?.jobsites ?? []));
       setRows(
         (data?.rows ?? []).map((row) => ({
           ...row,
@@ -1706,6 +1852,15 @@ export default function TrainingMatrixPage() {
     );
   }, [matrixViewMode, requirements, rows]);
 
+  const filteredReadinessChartRows = useMemo(
+    () =>
+      filterReadinessRowsForChart(readinessRows, {
+        personnelSearch,
+        personnelType: personnelTypeFilter,
+      }),
+    [personnelSearch, personnelTypeFilter, readinessRows]
+  );
+
   const matrixViewOptions: Array<{ value: MatrixViewMode; label: string; count: number }> = [
     { value: "readiness", label: "Readiness", count: readinessSummary?.total ?? readinessRows.length },
     { value: "all", label: "All", count: requirements.length },
@@ -1934,6 +2089,21 @@ export default function TrainingMatrixPage() {
           </label>
         </div>
       </SectionCard>
+
+      <ReadinessChartSection
+        rows={filteredReadinessChartRows}
+        allRowsCount={readinessRows.length}
+        loading={readinessLoading}
+        loaded={readinessLoaded}
+        error={readinessError}
+        jobsiteOptions={readinessJobsites}
+        selectedJobsiteId={selectedJobsiteFilter}
+        onJobsiteChange={setSelectedJobsiteFilter}
+        personnelSearch={personnelSearch}
+        onPersonnelSearchChange={setPersonnelSearch}
+        personnelType={personnelTypeFilter}
+        onPersonnelTypeChange={setPersonnelTypeFilter}
+      />
 
       {canMutate ? (
         <SectionCard

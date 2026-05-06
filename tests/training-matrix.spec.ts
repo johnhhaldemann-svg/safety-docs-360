@@ -22,6 +22,7 @@ test.describe("Training matrix", () => {
       await expect(page.getByText("Training matrix", { exact: false }).first()).toBeVisible({
         timeout: 25_000,
       });
+      await expect(page.getByText("Readiness Chart", { exact: true }).first()).toBeVisible();
       await expect(page.getByText("Coordinator Queue", { exact: true })).toBeVisible();
     }
   });
