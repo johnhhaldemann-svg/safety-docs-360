@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isMissingMicrosoftProjectSchemaError } from "@/lib/microsoftProject";
 import {
   authorizeMicrosoftProjectRequest,
   demoMicrosoftProjectRows,
@@ -31,9 +32,23 @@ export async function GET(request: Request) {
     .limit(250);
 
   if (projects.error) {
+    if (isMissingMicrosoftProjectSchemaError(projects.error.message)) {
+      return NextResponse.json({
+        projects: [],
+        tasks: [],
+        warning: "Microsoft Project tables are not available yet. Run the latest Supabase migration.",
+      });
+    }
     return NextResponse.json({ error: projects.error.message || "Failed to load Microsoft Project imports." }, { status: 500 });
   }
   if (tasks.error) {
+    if (isMissingMicrosoftProjectSchemaError(tasks.error.message)) {
+      return NextResponse.json({
+        projects: projects.data ?? [],
+        tasks: [],
+        warning: "Microsoft Project task tables are not available yet. Run the latest Supabase migration.",
+      });
+    }
     return NextResponse.json({ error: tasks.error.message || "Failed to load Microsoft Project tasks." }, { status: 500 });
   }
 

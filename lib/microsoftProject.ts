@@ -139,6 +139,20 @@ export function getMicrosoftProjectEnvStatus() {
   };
 }
 
+export function isMissingMicrosoftProjectSchemaError(message?: string | null) {
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("company_integration_connections") ||
+    m.includes("company_integration_sync_runs") ||
+    m.includes("company_microsoft_project_sources") ||
+    m.includes("company_microsoft_project_tasks") ||
+    m.includes("company_microsoft_project_assignments") ||
+    m.includes("schema cache") ||
+    m.includes("does not exist") ||
+    m.includes("could not find")
+  );
+}
+
 function getRequiredMicrosoftEnv() {
   const clientId = readEnv("MICROSOFT_CLIENT_ID");
   const clientSecret = readEnv("MICROSOFT_CLIENT_SECRET");
@@ -1025,20 +1039,42 @@ export async function runMicrosoftProjectDailySync(params: {
 }
 
 export async function getMicrosoftProjectStatus(params: { supabase: SupabaseLike; companyId: string }) {
-  const connection = await loadConnection(params.supabase, params.companyId);
-  const latestRun = await table(params.supabase, "company_integration_sync_runs")
-    .select("*")
-    .eq("company_id", params.companyId)
-    .eq("provider", MICROSOFT_PROJECT_PROVIDER)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const sources = await table(params.supabase, "company_microsoft_project_sources")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", params.companyId);
-  const tasks = await table(params.supabase, "company_microsoft_project_tasks")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", params.companyId);
+  let connection: MicrosoftProjectConnection | null = null;
+  let latestRun: SupabaseResult = { data: null, error: null };
+  let sources: SupabaseResult = { count: 0, error: null };
+  let tasks: SupabaseResult = { count: 0, error: null };
+  let warning: string | null = null;
+
+  try {
+    connection = await loadConnection(params.supabase, params.companyId);
+    latestRun = await table(params.supabase, "company_integration_sync_runs")
+      .select("*")
+      .eq("company_id", params.companyId)
+      .eq("provider", MICROSOFT_PROJECT_PROVIDER)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    sources = await table(params.supabase, "company_microsoft_project_sources")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", params.companyId);
+    tasks = await table(params.supabase, "company_microsoft_project_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", params.companyId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Microsoft Project schema is not available.";
+    if (!isMissingMicrosoftProjectSchemaError(message)) {
+      throw error;
+    }
+    warning = "Microsoft Project tables are not available yet. Run the latest Supabase migration.";
+  }
+
+  const countWarning =
+    isMissingMicrosoftProjectSchemaError(latestRun.error?.message) ||
+    isMissingMicrosoftProjectSchemaError(sources.error?.message) ||
+    isMissingMicrosoftProjectSchemaError(tasks.error?.message);
+  if (countWarning) {
+    warning = "Microsoft Project tables are not available yet. Run the latest Supabase migration.";
+  }
 
   return {
     configured: getMicrosoftProjectEnvStatus(),
@@ -1058,5 +1094,6 @@ export async function getMicrosoftProjectStatus(params: { supabase: SupabaseLike
       projects: sources.count ?? 0,
       tasks: tasks.count ?? 0,
     },
+    warning,
   };
 }

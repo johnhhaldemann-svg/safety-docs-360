@@ -7,6 +7,7 @@ import {
   normalizeDataverseEnvironmentUrl,
   normalizeDataverseProjects,
   normalizeDataverseTasks,
+  isMissingMicrosoftProjectSchemaError,
   normalizeMicrosoftSourceId,
   verifyMicrosoftOAuthState,
 } from "@/lib/microsoftProject";
@@ -58,6 +59,18 @@ describe("microsoftProject connector helpers", () => {
       "https://tenant.crm.dynamics.com"
     );
     expect(normalizeDataverseEnvironmentUrl("http://tenant.crm.dynamics.com")).toBeNull();
+  });
+
+  it("recognizes missing Microsoft Project schema errors", () => {
+    expect(
+      isMissingMicrosoftProjectSchemaError(
+        "Could not find the table 'public.company_integration_connections' in the schema cache"
+      )
+    ).toBe(true);
+    expect(isMissingMicrosoftProjectSchemaError('relation "public.company_microsoft_project_sources" does not exist')).toBe(
+      true
+    );
+    expect(isMissingMicrosoftProjectSchemaError("Invalid auth token.")).toBe(false);
   });
 
   it("normalizes Dataverse projects and tasks with missing optional fields", () => {
