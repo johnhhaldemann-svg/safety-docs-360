@@ -92,7 +92,7 @@ export default function SafePredictWorkforcePage() {
       <div className="grid gap-4 2xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <Card className="p-5 text-center">
           <button type="button" onClick={() => filterByStatus("all")} className="block w-full rounded-lg text-center focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
-            <SectionTitle title="Overall Readiness Score" />
+            <SectionTitle title="Overall Readiness Score" hint={false} />
             <div className="mx-auto mt-4 grid h-28 w-28 place-items-center rounded-full bg-[conic-gradient(#16a34a_0_84%,#dcfce7_84%_100%)] p-2">
               <div className="grid h-full w-full place-items-center rounded-full bg-white">
                 <span>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Home,
   LayoutGrid,
+  LogOut,
   Menu,
   Search,
   Settings,
@@ -25,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const navItems = [
   { href: "/safe-predict", label: "Dashboard", icon: Home },
@@ -56,9 +58,20 @@ function isActive(pathname: string, href: string) {
 
 export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const { dataset, mode, setMode } = useSafePredictData();
   const elevatedSiteCount = dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length;
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    setMobileMenuOpen(false);
+    router.push("/login");
+    router.refresh();
+  }
 
   const navList = (
     <div className="space-y-1">
@@ -142,6 +155,18 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               Visit our Help Center
             </span>
           </Link>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="flex w-full items-center gap-3 border-t border-white/10 pt-4 text-left text-sm text-slate-200 transition hover:text-white disabled:cursor-wait disabled:opacity-60"
+          >
+            <LogOut className="h-6 w-6" aria-hidden />
+            <span>
+              <span className="block font-bold text-white">{signingOut ? "Signing out..." : "Log out"}</span>
+              Return to secure access
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -172,6 +197,17 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">{navList}</nav>
+            <div className="border-t border-white/10 p-4">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-white/8 hover:text-white disabled:cursor-wait disabled:opacity-60"
+              >
+                <LogOut className="h-5 w-5" aria-hidden />
+                {signingOut ? "Signing out..." : "Log out"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -230,6 +266,16 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                   <p className="text-xs text-slate-500">Safety Manager</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                aria-label={signingOut ? "Signing out" : "Log out"}
+                title={signingOut ? "Signing out" : "Log out"}
+              >
+                <LogOut className="h-5 w-5" aria-hidden />
+              </button>
             </div>
           </div>
         </header>

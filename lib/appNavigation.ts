@@ -91,6 +91,14 @@ export const companyAdminQuickLinks: NavItem[] = [
     primaryActionLabel: "Open directory",
     audience: "operator",
   },
+  {
+    href: "/auditflow",
+    label: "AuditFlow",
+    short: "AF",
+    description: "Checklist templates, assignments, employee audits, manager review, and printable reports.",
+    primaryActionLabel: "Open audits",
+    audience: "field",
+  },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -131,6 +139,14 @@ export const companyManagerQuickLinks: NavItem[] = [
     primaryActionLabel: "Open directory",
     audience: "operator",
   },
+  {
+    href: "/auditflow",
+    label: "AuditFlow",
+    short: "AF",
+    description: "Checklist templates, assignments, employee audits, manager review, and printable reports.",
+    primaryActionLabel: "Open audits",
+    audience: "field",
+  },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -147,6 +163,7 @@ export const companyManagerQuickLinks: NavItem[] = [
 
 export const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Home Dashboard", short: "DB" },
+  { href: "/auditflow", label: "AuditFlow", short: "AF" },
   { href: "/field-audits", label: "Field Audits", short: "FA" },
   { href: "/library", label: "Document Library", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
@@ -333,6 +350,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Audits",
     items: [
       { href: "/audit-customers", label: "Audit Customers", short: "AC" },
+      { href: "/auditflow", label: "AuditFlow", short: "AF" },
       { href: "/field-audits", label: "Field Audits", short: "FA" },
     ],
   },
@@ -414,6 +432,7 @@ export const companyManagerSideSections: NavSection[] = [
     title: "Audits",
     items: [
       { href: "/audit-customers", label: "Audit Customers", short: "AC" },
+      { href: "/auditflow", label: "AuditFlow", short: "AF" },
       { href: "/field-audits", label: "Field Audits", short: "FA" },
     ],
   },
@@ -484,6 +503,7 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Field & Sites",
     items: [
+      { href: "/auditflow", label: "AuditFlow", short: "AF" },
       { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
     ],

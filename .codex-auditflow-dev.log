@@ -1,0 +1,20 @@
+
+> safety_docs_360@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.153.188:3000
+- Environments: .env.local
+✓ Ready in 1194ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3100
+- PID:          37072
+- Dir:          C:\Users\johnh\OneDrive\Desktop\safety_docs_360
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 37072 /F to stop it.
+[?25h
+
+C:\Users\johnh\OneDrive\Desktop\safety_docs_360>

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { assertCompanyInviteAllowed } from "@/lib/companySeats";
 import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
-import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
+import { buildCompanyInviteSignupUrl, sendCompanyInviteEmail } from "@/lib/inviteEmail";
 import {
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -293,6 +293,7 @@ export async function GET(request: Request) {
         role: invite.role,
         status: formatAccountStatus(invite.status),
         created_at: invite.created_at ?? null,
+        signup_url: buildCompanyInviteSignupUrl(invite.email),
       })),
       scopeTeam: "Demo Workspace",
       scopeCompanyId: "demo-company",
@@ -384,6 +385,7 @@ export async function GET(request: Request) {
     role: string;
     status: string;
     created_at?: string | null;
+    signup_url?: string | null;
   }> = [];
 
   if (companyScope.companyId) {
@@ -410,6 +412,7 @@ export async function GET(request: Request) {
         role: formatAppRole(row.role),
         status: formatAccountStatus(row.account_status),
         created_at: row.created_at ?? null,
+        signup_url: buildCompanyInviteSignupUrl(row.email),
       });
     }
   }
@@ -602,6 +605,7 @@ export async function POST(request: Request) {
       status: formatAccountStatus(accountStatus),
     },
     invite: inviteData,
+    inviteUrl: buildCompanyInviteSignupUrl(email),
     message: emailResult.sent
       ? "Company invite saved and email sent. After signup, this user will stay pending until your company approves access."
       : "Company invite saved. This person can create an account with the invited email, will automatically join your company workspace, and will stay pending until you approve access.",

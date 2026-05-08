@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -61,18 +61,79 @@ export function Card({
   );
 }
 
+function defaultSectionHint(title: string) {
+  const hints: Record<string, string> = {
+    "Data Mode": "Switches between authenticated live beta data and the built-in demo fallback used when live workspace records are unavailable.",
+    "Risk Thresholds": "Defines how SafetyDoc360 groups numeric risk scores into low, medium, high, and critical bands.",
+    "Connected SafetyDoc360 Workflows": "Links this SafePredict screen back to the original SafetyDoc360 operating workflows.",
+    "Risk Forecast": "Shows projected risk movement using recent events, actions, training readiness, permits, and inspection signals.",
+    "Risk Heat Map": "Groups risk by area, trade, or jobsite so high-priority work is easier to spot.",
+    "Launch Readiness Snapshot": "Summarizes whether the current workspace has enough records to support a useful SafePredict rollout.",
+    "Activity Timeline": "Lists recent safety events and workflow changes feeding the current SafePredict view.",
+  };
+
+  return hints[title] ?? `Explains the ${title.toLowerCase()} section and how it supports the current SafePredict workflow.`;
+}
+
+function defaultMetricHint(title: string, value: string | number, detail: string, trend?: string) {
+  const extra = trend ? ` ${trend}` : "";
+  return `${title} is currently ${value}. ${detail}.${extra}`;
+}
+
+export function InfoHint({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+
+  return (
+    <span className={cx("relative inline-flex", className)}>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        aria-label={label}
+        aria-expanded={open}
+        aria-describedby={open ? id : undefined}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+      >
+        <Info className="h-4 w-4" aria-hidden />
+      </button>
+      {open ? (
+        <span
+          id={id}
+          role="tooltip"
+          className="absolute right-0 top-7 z-30 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white p-3 text-left text-xs font-semibold leading-5 text-slate-600 shadow-[0_16px_36px_rgba(15,23,42,0.16)]"
+        >
+          {children}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function SectionTitle({
   title,
   action,
+  hint,
 }: {
   title: string;
   action?: React.ReactNode;
+  hint?: React.ReactNode | false;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 items-start gap-2">
         <h2 className="text-xl font-black leading-tight tracking-tight text-slate-950">{title}</h2>
-        <Info className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+        {hint !== false ? <InfoHint label={`About ${title}`}>{hint ?? defaultSectionHint(title)}</InfoHint> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -184,6 +245,7 @@ export function MetricCard({
   sparkline,
   href,
   sourceLabel = "View source",
+  hint,
 }: {
   title: string;
   value: string | number;
@@ -195,6 +257,7 @@ export function MetricCard({
   sparkline?: React.ReactNode;
   href?: string;
   sourceLabel?: string;
+  hint?: React.ReactNode;
 }) {
   const toneMap = {
     red: "text-red-600 bg-red-50",
@@ -205,14 +268,16 @@ export function MetricCard({
     amber: "text-amber-600 bg-amber-50",
   } as const;
 
-  const content = (
+  return (
     <Card className={cx("p-4 transition", href ? "h-full hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.1)]" : undefined)}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className={cx("grid h-14 w-14 shrink-0 place-items-center rounded-full", toneMap[tone])}>{icon}</div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-bold text-slate-800">{title}</p>
-            <Info className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+            <InfoHint label={`About ${title}`}>
+              {hint ?? defaultMetricHint(title, value, detail, trend)}
+            </InfoHint>
           </div>
           <div className="mt-2 flex items-end gap-2">
             <p className={cx("font-app-display text-4xl font-black leading-none", toneMap[tone].split(" ")[0])}>
@@ -226,20 +291,12 @@ export function MetricCard({
       </div>
       {trend ? <p className="mt-4 text-sm text-slate-600">{trend}</p> : null}
       {href ? (
-        <p className="mt-3 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-blue-600">
+        <Link href={href} className="mt-3 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-blue-600">
           {sourceLabel}
           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-        </p>
+        </Link>
       ) : null}
     </Card>
-  );
-
-  if (!href) return content;
-
-  return (
-    <Link href={href} className="block h-full focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100" aria-label={`${title}: ${sourceLabel}`}>
-      {content}
-    </Link>
   );
 }
 

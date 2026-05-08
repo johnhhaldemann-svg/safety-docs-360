@@ -15,6 +15,7 @@ import {
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
+import { SupervisorPerformancePanel } from "@/components/training/SupervisorPerformancePanel";
 import { trainingDeckCount, trainingResources } from "@/lib/trainingResources";
 
 const totalEstimatedMinutes = trainingResources.reduce((total, resource) => {
@@ -70,6 +71,8 @@ export default function TrainingPage() {
           <p className="mt-1 text-sm text-[var(--app-text)]">Built for admins, supervisors, field users, and read-only viewers.</p>
         </div>
       </section>
+
+      <SupervisorPerformancePanel />
 
       <section className="grid gap-5 xl:grid-cols-2">
         {trainingResources.map((resource, index) => (

@@ -130,6 +130,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open audits",
   },
   {
+    matcher: (href) => href === "/auditflow",
+    group: "audits",
+    description: "Manage checklist templates, employee assignments, reviews, reports, and linked actions.",
+    primaryActionLabel: "Open AuditFlow",
+  },
+  {
     matcher: (href) => href === "/jobsites" || href.startsWith("/jobsites/"),
     group: "fieldSites",
     description: "Open project-scoped workspaces, team context, and live activity.",

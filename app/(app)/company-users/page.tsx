@@ -61,6 +61,7 @@ type CompanyInvite = {
   role: string;
   status: string;
   created_at?: string | null;
+  signup_url?: string | null;
 };
 
 type Jobsite = {
@@ -149,6 +150,16 @@ function formatEnvDetails(details?: EnvDetails | null) {
 
 function getProfileHref(userId: string) {
   return `/profile?userId=${encodeURIComponent(userId)}&returnTo=${encodeURIComponent("/company-users")}`;
+}
+
+function getInviteSignupUrl(invite: CompanyInvite) {
+  if (invite.signup_url) return invite.signup_url;
+  if (typeof window === "undefined") return "";
+  const url = new URL("/login", window.location.origin);
+  url.searchParams.set("mode", "signup");
+  url.searchParams.set("email", invite.email);
+  url.searchParams.set("invite", "company");
+  return url.toString();
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -618,7 +629,7 @@ export default function CompanyUsersPage() {
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { error?: string; details?: EnvDetails; message?: string; warning?: string }
+        | { error?: string; details?: EnvDetails; message?: string; warning?: string; inviteUrl?: string | null }
         | null;
       const details = data?.details;
 
@@ -634,7 +645,11 @@ export default function CompanyUsersPage() {
       setInviteEmail("");
       setInviteRole("Company User");
       setMessageTone(data?.warning ? "warning" : "success");
-      setMessage(data?.warning || data?.message || "Company user invited successfully.");
+      setMessage(
+        data?.warning ||
+          (data?.inviteUrl ? `${data?.message || "Company user invited successfully."} Invite link: ${data.inviteUrl}` : data?.message) ||
+          "Company user invited successfully."
+      );
       await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
@@ -1185,6 +1200,25 @@ export default function CompanyUsersPage() {
                       <span>Role: {invite.role}</span>
                       <span>Status: {invite.status}</span>
                       <span>Sent {formatRelative(invite.created_at)}</span>
+                    </div>
+                    <div className="mt-3 flex max-w-full flex-wrap gap-2">
+                      <input
+                        readOnly
+                        value={getInviteSignupUrl(invite)}
+                        aria-label={`Invite link for ${invite.email}`}
+                        className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(getInviteSignupUrl(invite));
+                          setMessageTone("success");
+                          setMessage(`Invite link copied for ${invite.email}.`);
+                        }}
+                        className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
+                      >
+                        Copy Link
+                      </button>
                     </div>
                   </div>
                   <StatusBadge label="Waiting for account setup" tone="warning" />
