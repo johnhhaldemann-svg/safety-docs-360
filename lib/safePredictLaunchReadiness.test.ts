@@ -16,11 +16,11 @@ const moduleWithData: SafePredictModuleSummary = {
 };
 
 describe("safePredictLaunchReadiness", () => {
-  it("maps connected modules to company workspace routes", () => {
-    expect(safePredictModuleRoute("jobsites")).toBe("/jobsites");
-    expect(safePredictModuleRoute("actions")).toBe("/field-id-exchange");
-    expect(safePredictModuleRoute("permits")).toBe("/permits");
-    expect(safePredictModuleRoute("training")).toBe("/training-matrix");
+  it("maps connected modules to SafePredict beta routes", () => {
+    expect(safePredictModuleRoute("jobsites")).toBe("/safe-predict/jobsites");
+    expect(safePredictModuleRoute("actions")).toBe("/safe-predict/corrective-actions");
+    expect(safePredictModuleRoute("permits")).toBe("/safe-predict/permits");
+    expect(safePredictModuleRoute("training")).toBe("/safe-predict/training");
   });
 
   it("classifies module health for launch readiness cards", () => {

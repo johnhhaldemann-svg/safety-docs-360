@@ -2,20 +2,19 @@ import { describe, expect, it } from "vitest";
 import { isLegacyOperationHref, mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 
 describe("safePredictRouteMap", () => {
-  it("moves old SafePredict pages into the company workspace", () => {
-    expect(mapSafePredictOperationHref("/safe-predict")).toBe("/dashboard");
-    expect(mapSafePredictOperationHref("/safe-predict/jobsites")).toBe("/jobsites");
-    expect(mapSafePredictOperationHref("/safe-predict/incidents")).toBe("/incidents");
-    expect(mapSafePredictOperationHref("/safe-predict/predictive-risk")).toBe("/analytics/predictive-model");
-    expect(mapSafePredictOperationHref("/safe-predict/reports?tab=marketplace")).toBe("/reports");
+  it("moves workspace operating routes into SafePredict beta pages", () => {
+    expect(mapSafePredictOperationHref("/dashboard")).toBe("/safe-predict");
+    expect(mapSafePredictOperationHref("/jobsites")).toBe("/safe-predict/jobsites");
+    expect(mapSafePredictOperationHref("/incidents")).toBe("/safe-predict/incidents");
+    expect(mapSafePredictOperationHref("/analytics/predictive-model")).toBe("/safe-predict/predictive-risk");
+    expect(mapSafePredictOperationHref("/library?tab=marketplace")).toBe("/safe-predict/reports");
   });
 
-  it("preserves jobsite identity and leaves workspace routes alone", () => {
-    expect(mapSafePredictOperationHref("/safe-predict/jobsites/riverside")).toBe("/jobsites/riverside/overview");
-    expect(mapSafePredictOperationHref("/dashboard")).toBe("/dashboard");
+  it("preserves jobsite identity and leaves SafePredict routes alone", () => {
+    expect(mapSafePredictOperationHref("/jobsites/riverside/permits")).toBe("/safe-predict/jobsites/riverside");
     expect(mapSafePredictOperationHref("/profile")).toBe("/profile");
-    expect(isLegacyOperationHref("/safe-predict/permits")).toBe(true);
-    expect(isLegacyOperationHref("/permits")).toBe(false);
+    expect(mapSafePredictOperationHref("/safe-predict/jobsites")).toBe("/safe-predict/jobsites");
+    expect(isLegacyOperationHref("/permits")).toBe(true);
     expect(isLegacyOperationHref("/profile")).toBe(false);
   });
 });

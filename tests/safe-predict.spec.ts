@@ -1,25 +1,30 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("legacy SafePredict routes", () => {
+test.describe("SafePredict beta platform routes", () => {
   const redirects = [
-    ["/safe-predict", "/dashboard"],
-    ["/safe-predict/jobsites", "/jobsites"],
-    ["/safe-predict/jobsites/riverside", "/jobsites/riverside/overview"],
-    ["/safe-predict/predictive-risk", "/analytics/predictive-model"],
-    ["/safe-predict/risk-mitigation", "/field-id-exchange"],
-    ["/safe-predict/incidents", "/incidents"],
-    ["/safe-predict/observations", "/safety-submit"],
-    ["/safe-predict/corrective-actions", "/field-id-exchange"],
-    ["/safe-predict/inspections", "/field-audits"],
-    ["/safe-predict/hazards", "/safety-intelligence"],
-    ["/safe-predict/workforce", "/company-users"],
-    ["/safe-predict/training", "/training-matrix"],
-    ["/safe-predict/permits", "/permits"],
-    ["/safe-predict/analytics", "/analytics"],
-    ["/safe-predict/reports", "/reports"],
-    ["/safe-predict/platform-actions", "/command-center"],
-    ["/safe-predict/settings", "/settings/risk-memory"],
+    ["/dashboard", "/safe-predict"],
+    ["/jobsites", "/safe-predict/jobsites"],
+    ["/jobsites/riverside/permits", "/safe-predict/jobsites/riverside"],
+    ["/analytics/predictive-model", "/safe-predict/predictive-risk"],
+    ["/field-id-exchange", "/safe-predict/corrective-actions"],
+    ["/incidents", "/safe-predict/incidents"],
+    ["/safety-submit", "/safe-predict/observations"],
+    ["/field-audits", "/safe-predict/inspections"],
+    ["/safety-intelligence", "/safe-predict/hazards"],
+    ["/company-users", "/safe-predict/workforce"],
+    ["/training-matrix", "/safe-predict/training"],
+    ["/permits", "/safe-predict/permits"],
+    ["/analytics", "/safe-predict/analytics"],
+    ["/reports", "/safe-predict/reports"],
+    ["/command-center", "/safe-predict"],
+    ["/settings/risk-memory", "/safe-predict/settings"],
   ] as const;
+
+  test("loads the beta platform shell directly", async ({ page }) => {
+    await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("link", { name: /SafetyDoc360/ }).filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back, John." })).toBeVisible();
+  });
 
   for (const [from, to] of redirects) {
     test(`${from} redirects to ${to}`, async ({ request }) => {

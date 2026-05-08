@@ -1,20 +1,31 @@
-const safePredictToWorkspaceRouteMap: Record<string, string> = {
-  "/safe-predict": "/dashboard",
-  "/safe-predict/jobsites": "/jobsites",
-  "/safe-predict/predictive-risk": "/analytics/predictive-model",
-  "/safe-predict/risk-mitigation": "/field-id-exchange",
-  "/safe-predict/incidents": "/incidents",
-  "/safe-predict/observations": "/safety-submit",
-  "/safe-predict/corrective-actions": "/field-id-exchange",
-  "/safe-predict/inspections": "/field-audits",
-  "/safe-predict/hazards": "/safety-intelligence",
-  "/safe-predict/workforce": "/company-users",
-  "/safe-predict/training": "/training-matrix",
-  "/safe-predict/permits": "/permits",
-  "/safe-predict/analytics": "/analytics",
-  "/safe-predict/reports": "/reports",
-  "/safe-predict/platform-actions": "/command-center",
-  "/safe-predict/settings": "/settings/risk-memory",
+const nativeOperationRouteMap: Record<string, string> = {
+  "/dashboard": "/safe-predict",
+  "/command-center": "/safe-predict",
+  "/jobsites": "/safe-predict/jobsites",
+  "/audit-customers": "/safe-predict/jobsites",
+  "/field-id-exchange": "/safe-predict/corrective-actions",
+  "/incidents": "/safe-predict/incidents",
+  "/field-audits": "/safe-predict/inspections",
+  "/safety-submit": "/safe-predict/observations",
+  "/safety-intelligence": "/safe-predict/hazards",
+  "/analytics": "/safe-predict/analytics",
+  "/analytics/predictive-model": "/safe-predict/predictive-risk",
+  "/analytics/safety-intelligence": "/safe-predict/analytics",
+  "/reports": "/safe-predict/reports",
+  "/training": "/safe-predict/training",
+  "/training-matrix": "/safe-predict/training",
+  "/company-inductions": "/safe-predict/training",
+  "/company-contractors": "/safe-predict/workforce",
+  "/company-users": "/safe-predict/workforce",
+  "/company-safety-forms": "/safe-predict/inspections",
+  "/permits": "/safe-predict/permits",
+  "/jsa": "/safe-predict/permits",
+  "/library": "/safe-predict/reports",
+  "/search": "/safe-predict/reports",
+  "/submit": "/safe-predict/reports",
+  "/upload": "/safe-predict/reports",
+  "/marketplace-preview-approvals": "/safe-predict/reports",
+  "/settings/risk-memory": "/safe-predict/settings",
 };
 
 function splitHref(href: string) {
@@ -34,14 +45,18 @@ function appendContext(route: string, query: string, hash: string) {
 export function mapSafePredictOperationHref(href: string) {
   const { path, query, hash } = splitHref(href);
 
-  const jobsiteMatch = path.match(/^\/safe-predict\/jobsites\/([^/]+)/);
-  if (jobsiteMatch?.[1]) {
-    return appendContext(`/jobsites/${encodeURIComponent(decodeURIComponent(jobsiteMatch[1]))}/overview`, query, hash);
+  if (path === "/safe-predict" || path.startsWith("/safe-predict/")) {
+    return href;
   }
 
-  const direct = safePredictToWorkspaceRouteMap[path];
+  const direct = nativeOperationRouteMap[path];
   if (direct) {
     return appendContext(direct, query, hash);
+  }
+
+  const jobsiteMatch = path.match(/^\/jobsites\/([^/]+)/);
+  if (jobsiteMatch?.[1]) {
+    return appendContext(`/safe-predict/jobsites/${encodeURIComponent(decodeURIComponent(jobsiteMatch[1]))}`, query, hash);
   }
 
   return href;
