@@ -35,8 +35,6 @@ const ISSUE_CATEGORIES = new Set([
 ]);
 const CANONICAL_ACTION_SELECT =
   "id, company_id, jobsite_id, title, description, severity, category, status, assigned_user_id, due_at, started_at, closed_at, manager_override_close, manager_override_reason, created_at, updated_at, created_by, updated_by, priority, observation_type, sif_potential, sif_category, immediate_action_required, time_to_close_hours";
-const LEGACY_ACTION_SELECT =
-  "id, company_id, jobsite_id, observation_id, title, description, severity, category, status, due_at, closed_at, created_at, updated_at";
 
 type CorrectiveActionPayload = {
   title?: string;
@@ -105,9 +103,6 @@ function isMissingCorrectiveActionsTable(message?: string | null) {
     normalized.includes("company_corrective_action_evidence") ||
     normalized.includes("company_corrective_action_events")
   );
-}
-function isMissingCompatView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_corrective_actions");
 }
 
 function isMissingCanonicalActionColumn(message?: string | null) {
@@ -224,7 +219,6 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = normalizeStatus(searchParams.get("status"));
-  const legacyStatus = status === "verified_closed" ? "closed" : status;
   const assigneeId = searchParams.get("assigneeId")?.trim();
   const jobsiteId = searchParams.get("jobsiteId")?.trim();
   const overdueOnly = searchParams.get("overdue") === "true";
@@ -299,62 +293,6 @@ export async function GET(request: Request) {
       error: { message?: string | null } | null;
     };
   }
-  let legacyRows: Array<Record<string, unknown>> = [];
-  if (actionsResult.error && isMissingCorrectiveActionsTable(actionsResult.error.message)) {
-    let legacyQuery = auth.supabase
-      .from("compat_company_corrective_actions")
-      .select(LEGACY_ACTION_SELECT)
-      .eq("company_id", companyScope.companyId)
-      .order("updated_at", { ascending: false });
-    if (searchParams.has("status")) {
-      legacyQuery = legacyQuery.eq("status", legacyStatus);
-    }
-    if (jobsiteId) {
-      legacyQuery = legacyQuery.eq("jobsite_id", jobsiteId);
-    }
-    if (overdueOnly) {
-      legacyQuery = legacyQuery
-        .lt("due_at", new Date().toISOString())
-        .not("status", "in", "(closed,verified_closed)");
-    }
-    if (jobsiteScope.restricted && !jobsiteId) {
-      if (jobsiteScope.jobsiteIds.length < 1) {
-        return NextResponse.json({ actions: [] });
-      }
-      legacyQuery = legacyQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
-    }
-    actionsResult = (await legacyQuery) as {
-      data: Array<Record<string, unknown>> | null;
-      error: { message?: string | null } | null;
-    };
-  } else if (!actionsResult.error && !assigneeId) {
-    let legacyQuery = auth.supabase
-      .from("compat_company_corrective_actions")
-      .select(LEGACY_ACTION_SELECT)
-      .eq("company_id", companyScope.companyId)
-      .order("updated_at", { ascending: false });
-    if (searchParams.has("status")) {
-      legacyQuery = legacyQuery.eq("status", legacyStatus);
-    }
-    if (jobsiteId) {
-      legacyQuery = legacyQuery.eq("jobsite_id", jobsiteId);
-    }
-    if (overdueOnly) {
-      legacyQuery = legacyQuery
-        .lt("due_at", new Date().toISOString())
-        .not("status", "in", "(closed,verified_closed)");
-    }
-    if (jobsiteScope.restricted && !jobsiteId) {
-      legacyQuery = legacyQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
-    }
-    const legacyResult = (await legacyQuery) as {
-      data: Array<Record<string, unknown>> | null;
-      error: { message?: string | null } | null;
-    };
-    if (!legacyResult.error || isMissingCompatView(legacyResult.error?.message)) {
-      legacyRows = legacyResult.data ?? [];
-    }
-  }
   if (actionsResult.error) {
     if (isMissingCorrectiveActionsTable(actionsResult.error.message)) {
       return NextResponse.json(
@@ -373,16 +311,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const actionRowsById = new Map<string, Record<string, unknown>>();
-  for (const row of legacyRows) {
-    const id = typeof row.id === "string" ? row.id : "";
-    if (id) actionRowsById.set(id, row);
-  }
-  for (const row of (actionsResult.data ?? []) as Array<Record<string, unknown>>) {
-    const id = typeof row.id === "string" ? row.id : "";
-    if (id) actionRowsById.set(id, row);
-  }
-  const actionRows = Array.from(actionRowsById.values());
+  const actionRows = (actionsResult.data ?? []) as Array<Record<string, unknown>>;
   const actionIds = actionRows
     .map((row) => (typeof row.id === "string" ? row.id : ""))
     .filter(Boolean);

@@ -11,9 +11,6 @@ export const runtime = "nodejs";
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_reports");
 }
-function isMissingCompatView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_reports");
-}
 function canManage(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
 }
@@ -366,21 +363,12 @@ export async function GET(request: Request) {
   const csepBlockGet = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
   if (csepBlockGet) return csepBlockGet;
   let query = auth.supabase
-    .from("compat_company_reports")
+    .from("company_reports")
     .select("*")
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
   if (status) query = query.eq("status", status);
-  let result = await query;
-  if (result.error && isMissingCompatView(result.error.message)) {
-    let fallbackQuery = auth.supabase
-      .from("company_reports")
-      .select("*")
-      .eq("company_id", companyScope.companyId)
-      .order("updated_at", { ascending: false });
-    if (status) fallbackQuery = fallbackQuery.eq("status", status);
-    result = await fallbackQuery;
-  }
+  const result = await query;
   if (result.error) {
     if (isMissingTable(result.error.message)) return NextResponse.json({ reports: [], warning: "Report tables are not available yet. Run latest migrations." }, { status: 500 });
     return NextResponse.json({ error: result.error.message || "Failed to load reports." }, { status: 500 });

@@ -2,11 +2,6 @@ type SupabaseLikeClient = {
   from: (table: string) => unknown;
 };
 
-type AuthUserLike = {
-  app_metadata?: Record<string, unknown>;
-  user_metadata?: Record<string, unknown>;
-};
-
 function normalizeTeamName(team?: string | null) {
   return team?.trim() || "General";
 }
@@ -33,24 +28,14 @@ export function uuidMatches(
   return na !== null && nb !== null && na === nb;
 }
 
-/** When DB rows lag JWT (e.g. super-admin assigned company_id in metadata only). */
-function companyIdFromJwtMetadata(authUser?: AuthUserLike | null): string | null {
-  if (!authUser) return null;
-  const fromApp = authUser.app_metadata?.company_id;
-  const fromUser = authUser.user_metadata?.company_id;
-  const raw = typeof fromApp === "string" ? fromApp : typeof fromUser === "string" ? fromUser : "";
-  const trimmed = raw.trim();
-  return trimmed || null;
-}
-
 export async function getCompanyScope(params: {
   supabase: SupabaseLikeClient;
   userId: string;
   fallbackTeam?: string | null;
-  /** If set, used when membership / user_roles lack company_id but JWT has company_id. */
-  authUser?: AuthUserLike | null;
+  /** Deprecated during the legacy RBAC cutover. Metadata is no longer trusted for company scope. */
+  authUser?: unknown;
 }) {
-  const { supabase, userId, fallbackTeam, authUser } = params;
+  const { supabase, userId, fallbackTeam } = params;
   const safeTeam = normalizeTeamName(fallbackTeam);
 
   // Prefer `user_roles.company_id` first. Admin subscription + billing are keyed off that company;
@@ -148,38 +133,6 @@ export async function getCompanyScope(params: {
         companyName,
         source: "membership" as const,
       };
-    }
-  }
-
-  const jwtCompanyId = companyIdFromJwtMetadata(authUser);
-  if (jwtCompanyId) {
-    const jwtCompanyLookup = await (
-      supabase.from("companies") as {
-        select: (columns: string) => {
-          eq: (column: string, value: string) => {
-            maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
-          };
-        };
-      }
-    )
-      .select("id, name")
-      .eq("id", jwtCompanyId)
-      .maybeSingle();
-
-    if (
-      !jwtCompanyLookup.error &&
-      jwtCompanyLookup.data &&
-      typeof jwtCompanyLookup.data === "object"
-    ) {
-      const c = jwtCompanyLookup.data as { id?: string | null; name?: string | null };
-      const normalizedJwtCompanyId = normalizeUuid(c.id);
-      if (normalizedJwtCompanyId) {
-        return {
-          companyId: normalizedJwtCompanyId,
-          companyName: c.name?.trim() || safeTeam,
-          source: "jwt_metadata" as const,
-        };
-      }
     }
   }
 

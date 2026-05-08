@@ -214,48 +214,6 @@ async function deleteCompanyRelatedRows(adminClient: ServiceSupabase, companyId:
   return { error: null as string | null };
 }
 
-async function clearAuthCompanyFieldsForUsers(params: {
-  adminClient: ServiceSupabase;
-  userIds: string[];
-  companyId: string;
-}) {
-  const { adminClient, userIds, companyId } = params;
-
-  for (const userId of userIds) {
-    const { data, error } = await adminClient.auth.admin.getUserById(userId);
-    if (error || !data.user) {
-      continue;
-    }
-
-    const user = data.user;
-    const um = { ...(user.user_metadata ?? {}) };
-    const am = { ...(user.app_metadata ?? {}) };
-    const umCompany =
-      typeof um.company_id === "string" ? um.company_id.trim() : "";
-    const amCompany =
-      typeof am.company_id === "string" ? am.company_id.trim() : "";
-
-    if (umCompany !== companyId && amCompany !== companyId) {
-      continue;
-    }
-
-    um.role = "viewer";
-    um.team = "General";
-    um.company_id = null;
-    if ("company_name" in um) {
-      um.company_name = null;
-    }
-    am.role = "viewer";
-    am.team = "General";
-    am.company_id = null;
-
-    await adminClient.auth.admin.updateUserById(userId, {
-      user_metadata: um,
-      app_metadata: am,
-    });
-  }
-}
-
 export async function GET(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_view_all_company_data",
@@ -956,28 +914,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const membershipsResult = await adminClient
-    .from("company_memberships")
-    .select("user_id")
-    .eq("company_id", companyId);
-
-  if (membershipsResult.error) {
-    return NextResponse.json(
-      {
-        error:
-          membershipsResult.error.message ||
-          "Failed to load company members before deleting the workspace.",
-      },
-      { status: 500 }
-    );
-  }
-
-  const memberUserIds = Array.from(
-    new Set(
-      ((membershipsResult.data as { user_id: string }[] | null) ?? []).map((row) => row.user_id)
-    )
-  );
-
   const cascadeResult = await deleteCompanyRelatedRows(adminClient, companyId);
   if (cascadeResult.error) {
     return NextResponse.json({ error: cascadeResult.error }, { status: 500 });
@@ -1002,12 +938,6 @@ export async function DELETE(request: Request, context: RouteContext) {
       { status: 500 }
     );
   }
-
-  await clearAuthCompanyFieldsForUsers({
-    adminClient,
-    userIds: memberUserIds,
-    companyId,
-  });
 
   const { error: companyDeleteError } = await adminClient
     .from("companies")

@@ -19,9 +19,6 @@ export const runtime = "nodejs";
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_incidents");
 }
-function isMissingCompatView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_incidents");
-}
 const INCIDENT_STATUSES = new Set(["open", "in_progress", "closed"]);
 const ESCALATION_LEVELS = new Set(["none", "monitor", "urgent", "critical"]);
 const STOP_WORK_STATUSES = new Set([
@@ -109,7 +106,7 @@ export async function GET(request: Request) {
     role: auth.role,
   });
   let query = auth.supabase
-    .from("compat_company_incidents")
+    .from("company_incidents")
     .select("*")
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
@@ -118,20 +115,7 @@ export async function GET(request: Request) {
     if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ incidents: [] });
     query = query.in("jobsite_id", jobsiteScope.jobsiteIds);
   }
-  let result = await query;
-  if (result.error && isMissingCompatView(result.error.message)) {
-    let fallbackQuery = auth.supabase
-      .from("company_incidents")
-      .select("*")
-      .eq("company_id", companyScope.companyId)
-      .order("updated_at", { ascending: false });
-    if (status) fallbackQuery = fallbackQuery.eq("status", status);
-    if (jobsiteScope.restricted) {
-      if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ incidents: [] });
-      fallbackQuery = fallbackQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
-    }
-    result = await fallbackQuery;
-  }
+  const result = await query;
   if (result.error) {
     if (isMissingTable(result.error.message)) return NextResponse.json({ incidents: [], warning: "Incident tables are not available yet. Run latest migrations." }, { status: 500 });
     return NextResponse.json({ error: result.error.message || "Failed to load incidents." }, { status: 500 });

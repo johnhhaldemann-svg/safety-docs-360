@@ -171,7 +171,7 @@ export async function PATCH(
       team,
       accountStatus,
       warning:
-        "Role was updated in the workspace RBAC table, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
+        "Role was updated in the workspace RBAC table, but the company membership row could not be refreshed because the service role key is unavailable at runtime.",
     });
   }
 
@@ -212,34 +212,6 @@ export async function PATCH(
     return NextResponse.json(
       { error: "Company workspace users cannot update platform administrator accounts." },
       { status: 403 }
-    );
-  }
-
-  const mergedUserMetadata = {
-    ...(currentUser.user.user_metadata ?? {}),
-    role,
-    team,
-    company_id: companyScope.companyId,
-    account_status: accountStatus,
-  };
-
-  const mergedAppMetadata = {
-    ...(currentUser.user.app_metadata ?? {}),
-    role,
-    team,
-    company_id: companyScope.companyId,
-    account_status: accountStatus,
-  };
-
-  const { error: updateError } = await adminClient.auth.admin.updateUserById(id, {
-    user_metadata: mergedUserMetadata,
-    app_metadata: mergedAppMetadata,
-  });
-
-  if (updateError) {
-    return NextResponse.json(
-      { error: formatRoleConstraintError(updateError.message) },
-      { status: 500 }
     );
   }
 
@@ -383,34 +355,6 @@ export async function DELETE(
   const fallbackRole = "viewer";
   const fallbackWorkspaceTeam = "General";
   const fallbackStatus = "suspended";
-
-  const mergedUserMetadata = {
-    ...(currentUser.user.user_metadata ?? {}),
-    role: fallbackRole,
-    team: fallbackWorkspaceTeam,
-    company_id: null,
-    account_status: fallbackStatus,
-  };
-
-  const mergedAppMetadata = {
-    ...(currentUser.user.app_metadata ?? {}),
-    role: fallbackRole,
-    team: fallbackWorkspaceTeam,
-    company_id: null,
-    account_status: fallbackStatus,
-  };
-
-  const { error: updateError } = await adminClient.auth.admin.updateUserById(id, {
-    user_metadata: mergedUserMetadata,
-    app_metadata: mergedAppMetadata,
-  });
-
-  if (updateError) {
-    return NextResponse.json(
-      { error: formatRoleConstraintError(updateError.message) },
-      { status: 500 }
-    );
-  }
 
   const { error: roleError } = await adminClient.from("user_roles").upsert(
     {

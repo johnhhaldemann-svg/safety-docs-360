@@ -577,60 +577,6 @@ export function formatAccountStatus(status?: string | null) {
   return "Active";
 }
 
-function getLegacyAccountStatus(user: AuthLikeUser): AccountStatus {
-  const metadataStatus =
-    typeof user.app_metadata?.account_status === "string"
-      ? user.app_metadata.account_status
-      : typeof user.user_metadata?.account_status === "string"
-        ? user.user_metadata.account_status
-        : "";
-
-  return normalizeAccountStatus(metadataStatus);
-}
-
-function getLegacyRole(user: AuthLikeUser): AppRole {
-  const metadataRole =
-    typeof user.app_metadata?.role === "string"
-      ? user.app_metadata.role
-      : typeof user.user_metadata?.role === "string"
-        ? user.user_metadata.role
-        : "";
-
-  const normalizedRole = normalizeAppRole(metadataRole);
-
-  if (metadataRole.trim()) {
-    return normalizedRole;
-  }
-
-  if (isBootstrapAdminUser(user)) {
-    return "super_admin";
-  }
-
-  return "viewer";
-}
-
-function getLegacyTeam(user: AuthLikeUser) {
-  const metadataTeam =
-    typeof user.app_metadata?.team === "string"
-      ? user.app_metadata.team
-      : typeof user.user_metadata?.team === "string"
-        ? user.user_metadata.team
-        : "";
-
-  return metadataTeam.trim() || "General";
-}
-
-function getLegacyCompanyId(user: AuthLikeUser) {
-  const metadataCompanyId =
-    typeof user.app_metadata?.company_id === "string"
-      ? user.app_metadata.company_id
-      : typeof user.user_metadata?.company_id === "string"
-        ? user.user_metadata.company_id
-        : "";
-
-  return metadataCompanyId.trim() || null;
-}
-
 async function getCompanyPermissionOverrides(
   supabase: SupabaseLikeClient,
   companyId?: string | null
@@ -883,7 +829,36 @@ export async function getUserRoleContext(params: {
 
   let effectiveRow: RoleRow | null = roleRowResult.data as RoleRow | null;
 
-  if (!isBootstrapAdminUser(user)) {
+  if (isBootstrapAdminUser(user)) {
+    if (
+      !effectiveRow ||
+      normalizeAppRole(effectiveRow.role) !== "super_admin" ||
+      normalizeAccountStatus(effectiveRow.account_status) !== "active"
+    ) {
+      await upsertRoleRow({
+        supabase: (createSupabaseAdminClient() ?? supabase) as never,
+        userId: user.id,
+        role: "super_admin",
+        team: "Internal Admin",
+        accountStatus: "active",
+        companyId: null,
+        actorUserId: user.id,
+      });
+    }
+
+    const permissions = getPermissionMap("super_admin");
+    return {
+      role: "super_admin" as const,
+      team: "Internal Admin",
+      accountStatus: "active" as const,
+      companyId: null as string | null,
+      permissions: APP_PERMISSIONS.filter((permission) => permissions[permission]),
+      permissionMap: permissions,
+      source: "bootstrap_admin_override" as const,
+    };
+  }
+
+  if (effectiveRow) {
     effectiveRow = await reconcileUserRoleWithCompanyMembership({
       userId: user.id,
       jwtRow: effectiveRow,
@@ -891,35 +866,7 @@ export async function getUserRoleContext(params: {
   }
 
   if (effectiveRow) {
-    if (isBootstrapAdminUser(user)) {
-      if (
-        normalizeAppRole(effectiveRow.role) !== "super_admin" ||
-        normalizeAccountStatus(effectiveRow.account_status) !== "active"
-      ) {
-        await upsertRoleRow({
-          supabase: (createSupabaseAdminClient() ?? supabase) as never,
-          userId: user.id,
-          role: "super_admin",
-          team: "Internal Admin",
-          accountStatus: "active",
-          companyId: null,
-          actorUserId: user.id,
-        });
-      }
-
-      const permissions = getPermissionMap("super_admin");
-      return {
-        role: "super_admin" as const,
-        team: "Internal Admin",
-        accountStatus: "active" as const,
-        companyId: null as string | null,
-        permissions: APP_PERMISSIONS.filter((permission) => permissions[permission]),
-        permissionMap: permissions,
-        source: "bootstrap_admin_override" as const,
-      };
-    }
-
-    const companyId = effectiveRow.company_id?.trim() || getLegacyCompanyId(user);
+    const companyId = effectiveRow.company_id?.trim() || null;
     const companyOverrides = await getCompanyPermissionOverrides(supabase, companyId);
     const permissionMap = getPermissionMap(
       normalizeAppRole(effectiveRow.role),
@@ -938,46 +885,16 @@ export async function getUserRoleContext(params: {
     };
   }
 
-  const legacyRole = getLegacyRole(user);
-  const legacyTeam = getLegacyTeam(user);
-  const legacyAccountStatus = getLegacyAccountStatus(user);
-  const legacyCompanyId = getLegacyCompanyId(user);
-  const legacyCompanyOverrides = await getCompanyPermissionOverrides(supabase, legacyCompanyId);
-
-  const upsertClient = createSupabaseAdminClient() ?? supabase;
-
-  if (
-    !roleRowResult.error &&
-    (legacyRole !== "viewer" ||
-      legacyTeam !== "General" ||
-      legacyAccountStatus !== "active" ||
-      Boolean(legacyCompanyId))
-  ) {
-    await upsertRoleRow({
-      supabase: upsertClient as never,
-      userId: user.id,
-      role: legacyRole,
-      team: legacyTeam,
-      accountStatus: legacyAccountStatus,
-      companyId: legacyCompanyId,
-      actorUserId: user.id,
-    });
-  }
-
-  const effectivePermissionMap = getPermissionMap(
-    legacyRole,
-    legacyCompanyOverrides,
-    null
-  );
+  const effectivePermissionMap = getPermissionMap("viewer");
 
   return {
-    role: legacyRole,
-    team: legacyTeam,
-    accountStatus: legacyAccountStatus,
-    companyId: legacyCompanyId,
+    role: "viewer" as const,
+    team: "General",
+    accountStatus: "active" as const,
+    companyId: null as string | null,
     permissions: APP_PERMISSIONS.filter((permission) => effectivePermissionMap[permission]),
     permissionMap: effectivePermissionMap,
-    source: roleRowResult.error ? ("legacy_missing_table" as const) : ("legacy" as const),
+    source: roleRowResult.error ? ("canonical_unavailable" as const) : ("canonical_missing" as const),
   };
 }
 

@@ -6,10 +6,6 @@ import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/cs
 
 export const runtime = "nodejs";
 
-function isMissingCompatJobsitesView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_jobsites");
-}
-
 function isMissingJsaRelationError(message?: string | null) {
   const lower = (message ?? "").toLowerCase();
   return lower.includes("company_daps") || lower.includes("company_jsas") || lower.includes("schema cache");
@@ -57,8 +53,8 @@ export async function GET(request: Request) {
   const [jobsitesRaw, observationsRaw, dapsRaw, permitsRaw, incidentsRaw, reportsRaw] =
     await Promise.all([
       auth.supabase
-        .from("compat_company_jobsites")
-        .select("id, company_id, name, project_number, location, status, start_date, end_date, notes, created_at, updated_at")
+        .from("company_jobsites")
+        .select("id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at")
         .eq("company_id", companyScope.companyId)
         .order("updated_at", { ascending: false }),
       auth.supabase
@@ -95,10 +91,7 @@ export async function GET(request: Request) {
         .limit(500),
     ]);
 
-  if (
-    jobsitesRaw.error &&
-    !isMissingCompatJobsitesView(jobsitesRaw.error.message)
-  ) {
+  if (jobsitesRaw.error) {
     return NextResponse.json(
       { error: jobsitesRaw.error.message || "Failed to load workspace summary." },
       { status: 500 }

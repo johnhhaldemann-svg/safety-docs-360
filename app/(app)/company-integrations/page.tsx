@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Cloud,
+  ExternalLink,
   FolderSync,
   PlugZap,
   RefreshCw,
@@ -23,6 +24,8 @@ import {
 } from "@/components/WorkspacePrimitives";
 
 const supabase = getSupabaseBrowserClient();
+const MICROSOFT_PROJECT_STORE_SEARCH_URL = "ms-windows-store://search/?query=Microsoft%20Project";
+const MICROSOFT_PROJECT_STORE_WEB_URL = "https://apps.microsoft.com/search?query=Microsoft%20Project";
 
 type Webhook = {
   id: string;
@@ -86,6 +89,17 @@ type MicrosoftProjectRows = {
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function getMicrosoftProjectStoreUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_MICROSOFT_PROJECT_STORE_URL?.trim();
+  if (configuredUrl) return configuredUrl;
+
+  if (typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent)) {
+    return MICROSOFT_PROJECT_STORE_SEARCH_URL;
+  }
+
+  return MICROSOFT_PROJECT_STORE_WEB_URL;
 }
 
 export default function CompanyIntegrationsPage() {
@@ -205,6 +219,10 @@ export default function CompanyIntegrationsPage() {
       behavior: "smooth",
       block: "start",
     });
+  }
+
+  function openMicrosoftProjectStore() {
+    window.location.href = getMicrosoftProjectStoreUrl();
   }
 
   async function connectMicrosoftProject() {
@@ -415,7 +433,7 @@ export default function CompanyIntegrationsPage() {
               <div>
                 <h3 className="text-base font-bold text-[var(--app-text-strong)]">Install flow</h3>
                 <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
-                  Use Install app to connect it, then Sync whenever schedules change.
+                  Install through Microsoft Store, then connect your Microsoft account and sync whenever schedules change.
                 </p>
               </div>
             </div>
@@ -495,7 +513,7 @@ export default function CompanyIntegrationsPage() {
                   {
                     title: "3. Install and sync",
                     detail:
-                      "Select Install app, approve Microsoft permissions, return here, then select Sync to import schedules.",
+                      "Select Install app to open Microsoft Store, connect your Microsoft account, then select Sync to import schedules.",
                   },
                 ].map((step) => (
                   <li
@@ -543,7 +561,7 @@ export default function CompanyIntegrationsPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
               <input
                 value={dataverseEnvironmentUrl}
                 onChange={(e) => setDataverseEnvironmentUrl(e.target.value)}
@@ -552,11 +570,19 @@ export default function CompanyIntegrationsPage() {
               />
               <button
                 type="button"
-                onClick={() => void connectMicrosoftProject()}
+                onClick={openMicrosoftProjectStore}
                 className={appButtonPrimaryClassName}
               >
+                <ExternalLink className="mr-2 inline h-4 w-4" aria-hidden="true" />
+                Install app
+              </button>
+              <button
+                type="button"
+                onClick={() => void connectMicrosoftProject()}
+                className={appButtonSecondaryClassName}
+              >
                 <FolderSync className="mr-2 inline h-4 w-4" aria-hidden="true" />
-                {microsoftStatus?.connected ? "Reconnect" : "Install app"}
+                {microsoftStatus?.connected ? "Reconnect account" : "Connect account"}
               </button>
               <button
                 type="button"

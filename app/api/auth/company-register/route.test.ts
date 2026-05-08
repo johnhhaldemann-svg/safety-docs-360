@@ -88,6 +88,23 @@ describe("company register route", () => {
 
     expect(response.status).toBe(200);
     expect(createUser).toHaveBeenCalledTimes(1);
+    expect(createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_metadata: expect.objectContaining({
+          full_name: "Jordan Owner",
+          company_name: "Acme Safety",
+        }),
+      })
+    );
+    expect(createUser.mock.calls[0]?.[0]?.app_metadata).toBeUndefined();
+    expect(createUser.mock.calls[0]?.[0]?.user_metadata).not.toEqual(
+      expect.objectContaining({
+        role: expect.anything(),
+        team: expect.anything(),
+        company_id: expect.anything(),
+        account_status: expect.anything(),
+      })
+    );
     expect(from).toHaveBeenCalledWith("company_signup_requests");
     expect(insert).toHaveBeenCalledTimes(1);
     expect(mocks.acceptUserAgreement).toHaveBeenCalledWith(

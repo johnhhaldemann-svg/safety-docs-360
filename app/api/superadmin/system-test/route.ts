@@ -135,20 +135,6 @@ function getDisplayName(user: {
   return metadataName.trim() || user.email?.split("@")[0] || "Unnamed User";
 }
 
-function getTeam(user: {
-  app_metadata?: Record<string, unknown> | null;
-  user_metadata?: Record<string, unknown> | null;
-}) {
-  const metadataTeam =
-    typeof user.app_metadata?.team === "string"
-      ? user.app_metadata.team
-      : typeof user.user_metadata?.team === "string"
-        ? user.user_metadata.team
-        : "";
-
-  return metadataTeam.trim() || "General";
-}
-
 function addCheck(
   checks: SystemTestCheck[],
   check: SystemTestCheck
@@ -215,10 +201,6 @@ async function resolveSelectedUser(params: {
           supabase: adminClient,
           userId: rawUser.id,
           fallbackTeam: roleContext.team,
-          authUser: {
-            app_metadata: rawUser.app_metadata ?? undefined,
-            user_metadata: rawUser.user_metadata ?? undefined,
-          },
         });
 
         return {
@@ -226,7 +208,7 @@ async function resolveSelectedUser(params: {
           email: rawUser.email ?? "",
           name: getDisplayName(rawUser),
           role: roleContext.role,
-          team: roleContext.team || getTeam(rawUser),
+          team: roleContext.team || "General",
           status: roleContext.accountStatus,
           companyId: companyScope.companyId,
           companyName: companyScope.companyName,
@@ -636,42 +618,14 @@ export async function GET(request: Request) {
     });
   }
 
-  const metadataCompanyId =
-    typeof selectedUser.app_metadata?.company_id === "string"
-      ? selectedUser.app_metadata.company_id.trim()
-      : typeof selectedUser.user_metadata?.company_id === "string"
-        ? selectedUser.user_metadata.company_id.trim()
-        : "";
-  const metadataRole =
-    typeof selectedUser.app_metadata?.role === "string"
-      ? selectedUser.app_metadata.role.trim()
-      : typeof selectedUser.user_metadata?.role === "string"
-        ? selectedUser.user_metadata.role.trim()
-        : "";
-  const metadataTeam =
-    typeof selectedUser.app_metadata?.team === "string"
-      ? selectedUser.app_metadata.team.trim()
-      : typeof selectedUser.user_metadata?.team === "string"
-        ? selectedUser.user_metadata.team.trim()
-        : "";
-
-  const metadataCompanyMatches =
-    !selectedUser.companyId || metadataCompanyId === selectedUser.companyId;
-  const metadataRoleMatches =
-    !metadataRole || metadataRole === selectedUser.role;
-  const metadataTeamMatches =
-    !metadataTeam || metadataTeam === selectedUser.team;
-
   addCheck(checks, {
-    id: "selected-user-metadata-sync",
-    label: "Selected user metadata sync",
-    status:
-      metadataCompanyMatches && metadataRoleMatches && metadataTeamMatches ? "green" : "yellow",
-    detail:
-      metadataCompanyMatches && metadataRoleMatches && metadataTeamMatches
-        ? "Auth metadata matches the selected user directory state."
-        : "The auth metadata and the directory record are not fully aligned yet.",
-    metric: selectedUser.companyId ? selectedUser.companyId : "no company metadata",
+    id: "selected-user-canonical-rbac",
+    label: "Selected user canonical RBAC",
+    status: selectedUserRoleRow.data ? "green" : "red",
+    detail: selectedUserRoleRow.data
+      ? "User access is resolved from canonical RBAC tables, not auth metadata."
+      : "No canonical RBAC row exists for the selected user.",
+    metric: selectedUser.companyId ? selectedUser.companyId : "no company scope",
   });
 
   if (companiesProbe.error) {

@@ -1126,7 +1126,7 @@ export default function AdminUsersPage() {
                   <p className="text-xs text-slate-500">
                     Super Admin / Platform Admin: required when the role is company-scoped (e.g. Company Admin,
                     Field User). Links the user in{" "}
-                    <code className="rounded bg-slate-800/70 px-1">company_memberships</code> and profile metadata.
+                    <code className="rounded bg-slate-800/70 px-1">company_memberships</code> and canonical RBAC.
                   </p>
                 </div>
               ) : null}

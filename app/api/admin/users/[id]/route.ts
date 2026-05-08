@@ -43,10 +43,7 @@ function trimText(value?: string | null) {
 
 async function resolveCompanyAssignment(params: {
   adminClient: ReturnType<typeof createSupabaseAdminClient>;
-  currentUser: {
-    app_metadata?: Record<string, unknown>;
-    user_metadata?: Record<string, unknown>;
-  };
+  currentUser?: unknown;
   userId: string;
   team: string;
   role: string;
@@ -57,7 +54,6 @@ async function resolveCompanyAssignment(params: {
 }) {
   const {
     adminClient,
-    currentUser,
     userId,
     team,
     role,
@@ -157,23 +153,30 @@ async function resolveCompanyAssignment(params: {
     return { companyId: null, companyName: null, error: null as string | null };
   }
 
-  const metadataCompanyId =
-    typeof currentUser.app_metadata?.company_id === "string"
-      ? currentUser.app_metadata.company_id
-      : typeof currentUser.user_metadata?.company_id === "string"
-        ? currentUser.user_metadata.company_id
-        : null;
+  const { data: existingRoleRow } = await adminClient
+    .from("user_roles")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (metadataCompanyId) {
+  const existingRoleCompanyId =
+    existingRoleRow &&
+    typeof existingRoleRow === "object" &&
+    "company_id" in existingRoleRow &&
+    typeof existingRoleRow.company_id === "string"
+      ? existingRoleRow.company_id
+      : null;
+
+  if (existingRoleCompanyId) {
     const companyLookup = await adminClient
       .from("companies")
       .select("id, name")
-      .eq("id", metadataCompanyId)
+      .eq("id", existingRoleCompanyId)
       .maybeSingle();
 
     const company = companyLookup.data as CompanyLookupRow | null;
     return {
-      companyId: metadataCompanyId,
+      companyId: existingRoleCompanyId,
       companyName: company?.name?.trim() || team || "Company Workspace",
       error: null as string | null,
     };
@@ -341,7 +344,7 @@ export async function PATCH(
       team,
       accountStatus,
       warning:
-        "Role was updated in the workspace RBAC table, but Supabase Auth metadata could not be synced because the service role key is unavailable at runtime.",
+        "Role was updated in the workspace RBAC table, but company membership sync requires the Supabase service role key.",
     });
   }
 
@@ -386,36 +389,6 @@ export async function PATCH(
   )
     ? normalizePermissionOverrides(body.permissionOverrides ?? null)
     : existingPermissionOverrides;
-  const mergedUserMetadata = {
-    ...(currentUser.user.user_metadata ?? {}),
-    role,
-    team: companyAssignment.companyName || team,
-    company_id: companyAssignment.companyId,
-    account_status: accountStatus,
-  };
-
-  const mergedAppMetadata = {
-    ...(currentUser.user.app_metadata ?? {}),
-    role,
-    team: companyAssignment.companyName || team,
-    company_id: companyAssignment.companyId,
-    account_status: accountStatus,
-  };
-
-  const { error: updateError } = await adminClient.auth.admin.updateUserById(
-    id,
-    {
-    user_metadata: mergedUserMetadata,
-    app_metadata: mergedAppMetadata,
-  }
-  );
-
-  if (updateError) {
-    return NextResponse.json(
-      { error: formatRoleConstraintError(updateError.message) },
-      { status: 500 }
-    );
-  }
 
   const { error: roleError } = await adminClient.from("user_roles").upsert(
     {
@@ -545,31 +518,27 @@ export async function POST(
     : undefined;
 
   if (action === "resend_invite") {
-    const role =
-      typeof currentUser.user.app_metadata?.role === "string"
-        ? currentUser.user.app_metadata.role
-        : typeof currentUser.user.user_metadata?.role === "string"
-          ? currentUser.user.user_metadata.role
-          : "viewer";
+    const { data: roleRow } = await adminClient
+      .from("user_roles")
+      .select("role, team, account_status")
+      .eq("user_id", id)
+      .maybeSingle();
+    const role = normalizeAppRole(
+      roleRow && typeof roleRow === "object" && "role" in roleRow
+        ? String(roleRow.role ?? "viewer")
+        : "viewer"
+    );
     const team =
-      typeof currentUser.user.app_metadata?.team === "string"
-        ? currentUser.user.app_metadata.team
-        : typeof currentUser.user.user_metadata?.team === "string"
-          ? currentUser.user.user_metadata.team
-          : "General";
-    const accountStatus =
-      typeof currentUser.user.app_metadata?.account_status === "string"
-        ? currentUser.user.app_metadata.account_status
-        : typeof currentUser.user.user_metadata?.account_status === "string"
-          ? currentUser.user.user_metadata.account_status
-          : "active";
+      roleRow && typeof roleRow === "object" && "team" in roleRow
+        ? String(roleRow.team ?? "General")
+        : "General";
+    const accountStatus = normalizeAccountStatus(
+      roleRow && typeof roleRow === "object" && "account_status" in roleRow
+        ? String(roleRow.account_status ?? "active")
+        : "active"
+    );
 
     const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: {
-        role,
-        team,
-        account_status: accountStatus,
-      },
       ...(normalizedRedirectTo ? { redirectTo: normalizedRedirectTo } : {}),
     });
 

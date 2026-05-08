@@ -6,10 +6,6 @@ export const runtime = "nodejs";
 
 type Params = { jobsiteId: string; surface: string };
 
-function isMissingCompatJobsitesView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_jobsites");
-}
-
 type SupabaseLike = {
   from: (table: string) => {
     select: (columns: string) => {
@@ -32,21 +28,8 @@ type SupabaseLike = {
   };
 };
 
-/** Match `/api/company/jobsites`: prefer compat view, fall back to base table. */
+/** Match `/api/company/jobsites`: canonical company jobsites only. */
 async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
-  const compat = await supabase
-    .from("compat_company_jobsites")
-    .select("id, company_id, name, status, project_number, location")
-    .eq("id", jobsiteId)
-    .maybeSingle();
-
-  if (compat.error && !isMissingCompatJobsitesView(compat.error.message)) {
-    return compat;
-  }
-  if (!compat.error && compat.data) {
-    return compat;
-  }
-
   return supabase
     .from("company_jobsites")
     .select("id, company_id, name, status, project_number, location, project_manager, safety_lead")

@@ -12,9 +12,6 @@ export const runtime = "nodejs";
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_permits");
 }
-function isMissingCompatView(message?: string | null) {
-  return (message ?? "").toLowerCase().includes("compat_company_permits");
-}
 const PERMIT_STATUSES = new Set(["draft", "active", "closed", "expired"]);
 const ESCALATION_LEVELS = new Set(["none", "monitor", "urgent", "critical"]);
 const STOP_WORK_STATUSES = new Set([
@@ -107,7 +104,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ permits: [] });
   }
   let query = auth.supabase
-    .from("compat_company_permits")
+    .from("company_permits")
     .select("*")
     .eq("company_id", companyScope.companyId)
     .order("updated_at", { ascending: false });
@@ -117,21 +114,7 @@ export async function GET(request: Request) {
     if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ permits: [] });
     query = query.in("jobsite_id", jobsiteScope.jobsiteIds);
   }
-  let result = await query;
-  if (result.error && isMissingCompatView(result.error.message)) {
-    let fallbackQuery = auth.supabase
-      .from("company_permits")
-      .select("*")
-      .eq("company_id", companyScope.companyId)
-      .order("updated_at", { ascending: false });
-    if (status) fallbackQuery = fallbackQuery.eq("status", status);
-    if (requestedJobsiteId) fallbackQuery = fallbackQuery.eq("jobsite_id", requestedJobsiteId);
-    if (jobsiteScope.restricted) {
-      if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ permits: [] });
-      fallbackQuery = fallbackQuery.in("jobsite_id", jobsiteScope.jobsiteIds);
-    }
-    result = await fallbackQuery;
-  }
+  const result = await query;
   if (result.error) {
     if (isMissingTable(result.error.message)) return NextResponse.json({ permits: [], warning: "Permit tables are not available yet. Run latest migrations." }, { status: 500 });
     return NextResponse.json({ error: result.error.message || "Failed to load permits." }, { status: 500 });

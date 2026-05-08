@@ -200,27 +200,25 @@ export async function POST(request: Request) {
     email,
   });
 
-  const pendingMetadata = companyInvite
+  const pendingRole = companyInvite
     ? {
         role: companyInvite.role,
         team: companyInvite.team,
         company_id: companyInvite.company_id,
         account_status: companyInvite.account_status,
-        full_name: fullName,
       }
     : {
         role: "viewer",
         team: "General",
         company_id: null,
         account_status: "active",
-        full_name: fullName,
       };
 
   const { data, error } = await publicClient.auth.signUp({
     email,
     password,
     options: {
-      data: pendingMetadata,
+      data: { full_name: fullName },
     },
   });
 
@@ -235,15 +233,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const mergedUserMetadata = {
-    ...(data.user.user_metadata ?? {}),
-    ...pendingMetadata,
-  };
-  const mergedAppMetadata = {
-    ...(data.user.app_metadata ?? {}),
-    ...pendingMetadata,
-  };
-
   const consumeInviteResult = await ensureCompanyInviteApplied({
     publicClient,
     adminClient,
@@ -254,10 +243,10 @@ export async function POST(request: Request) {
 
   const defaultRolePayload = {
     user_id: data.user.id,
-    role: pendingMetadata.role,
-    team: pendingMetadata.team,
-    company_id: pendingMetadata.company_id,
-    account_status: pendingMetadata.account_status,
+    role: pendingRole.role,
+    team: pendingRole.team,
+    company_id: pendingRole.company_id,
+    account_status: pendingRole.account_status,
     created_by: data.user.id,
     updated_by: data.user.id,
   };
@@ -266,23 +255,19 @@ export async function POST(request: Request) {
     ? {
         user_id: data.user.id,
         company_id: companyInvite.company_id,
-        role: pendingMetadata.role,
+        role: pendingRole.role,
         status:
-          pendingMetadata.account_status === "pending" ||
-          pendingMetadata.account_status === "suspended"
-            ? pendingMetadata.account_status
+          pendingRole.account_status === "pending" ||
+          pendingRole.account_status === "suspended"
+            ? pendingRole.account_status
             : "active",
         created_by: data.user.id,
         updated_by: data.user.id,
       }
     : null;
 
-  const [metadataResult, roleResult, membershipResult] = adminClient
+  const [roleResult, membershipResult] = adminClient
     ? await Promise.all([
-        adminClient.auth.admin.updateUserById(data.user.id, {
-          user_metadata: mergedUserMetadata,
-          app_metadata: mergedAppMetadata,
-        }),
         adminClient.from("user_roles").upsert(defaultRolePayload, {
           onConflict: "user_id",
         }),
@@ -293,7 +278,6 @@ export async function POST(request: Request) {
           : Promise.resolve({ error: null }),
       ])
     : [
-        { error: null },
         { error: null },
         { error: null },
       ];
@@ -314,13 +298,13 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     message: companyInvite
-      ? pendingMetadata.account_status === "pending"
+      ? pendingRole.account_status === "pending"
         ? "Account created. Your company invite was applied. Your company admin still needs to approve your access before you can enter the workspace."
         : "Account created. Your company invite was applied and your workspace access has been configured."
       : "Account created. Sign in to build your construction profile and continue into company setup or an invited company flow.",
     warning:
-      metadataResult.error && roleResult.error
-        ? "Your account was created, but some admin-only profile details will finish syncing after approval."
+      roleResult.error
+        ? roleResult.error.message ?? "Your account was created, but your workspace role could not be attached automatically."
         : consumeInviteResult.error
           ? consumeInviteResult.error.message ??
             "Your account was created, but the company invite could not be attached automatically."

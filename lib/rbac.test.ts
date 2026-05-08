@@ -1,10 +1,72 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabaseAdmin", () => ({
+  createSupabaseAdminClient: () => null,
+  getSupabaseAnonKey: () => "anon-key",
+  getSupabaseServerUrl: () => "https://example.supabase.co",
+  getSupabaseServiceRoleKey: () => "service-role-key",
+}));
+
 import {
   formatAppRole,
+  getUserRoleContext,
   getPermissionMap,
   isCompanyRole,
   normalizeAppRole,
 } from "@/lib/rbac";
+
+type RoleRow = {
+  user_id: string;
+  role: string;
+  team: string | null;
+  company_id: string | null;
+  account_status: string | null;
+  permission_overrides?: unknown;
+} | null;
+
+function createRbacClient(params: {
+  roleRow?: RoleRow;
+  roleError?: { message?: string | null } | null;
+  companyPermissionOverrides?: unknown;
+}) {
+  const upsert = vi.fn(async () => ({ error: null }));
+
+  return {
+    upsert,
+    client: {
+      from(table: string) {
+        if (table === "user_roles") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: params.roleRow ?? null,
+                  error: params.roleError ?? null,
+                }),
+              }),
+            }),
+            upsert,
+          };
+        }
+
+        if (table === "companies") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { permission_overrides: params.companyPermissionOverrides ?? null },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    },
+  };
+}
 
 describe("sales_demo role", () => {
   it("normalizes and formats the role label", () => {
@@ -39,5 +101,85 @@ describe("sales_demo role", () => {
     expect(permissionMap.can_access_training).toBe(true);
     expect(permissionMap.can_access_safety_intelligence).toBe(true);
     expect(permissionMap.can_access_billing).toBe(true);
+  });
+});
+
+describe("getUserRoleContext canonical cutover", () => {
+  it("uses canonical user_roles even when auth metadata disagrees", async () => {
+    const { client } = createRbacClient({
+      roleRow: {
+        user_id: "user-1",
+        role: "company_user",
+        team: "Field Team",
+        company_id: "company-1",
+        account_status: "active",
+        permission_overrides: null,
+      },
+    });
+
+    const context = await getUserRoleContext({
+      supabase: client,
+      user: {
+        id: "user-1",
+        email: "person@example.com",
+        app_metadata: { role: "super_admin", company_id: "wrong-company" },
+        user_metadata: { role: "super_admin" },
+      },
+    });
+
+    expect(context.role).toBe("company_user");
+    expect(context.companyId).toBe("company-1");
+    expect(context.team).toBe("Field Team");
+    expect(context.permissionMap.can_access_internal_admin).toBe(false);
+    expect(context.source).toBe("table");
+  });
+
+  it("does not grant access from legacy auth metadata when no canonical row exists", async () => {
+    const { client } = createRbacClient({ roleRow: null });
+
+    const context = await getUserRoleContext({
+      supabase: client,
+      user: {
+        id: "user-2",
+        email: "metadata-admin@example.com",
+        app_metadata: {
+          role: "super_admin",
+          team: "Internal",
+          company_id: "company-1",
+          account_status: "active",
+        },
+      },
+    });
+
+    expect(context.role).toBe("viewer");
+    expect(context.companyId).toBeNull();
+    expect(context.team).toBe("General");
+    expect(context.permissionMap.can_access_internal_admin).toBe(false);
+    expect(context.source).toBe("canonical_missing");
+  });
+
+  it("keeps the bootstrap admin override as emergency access", async () => {
+    const { client, upsert } = createRbacClient({ roleRow: null });
+
+    const context = await getUserRoleContext({
+      supabase: client,
+      user: {
+        id: "bootstrap-user",
+        email: "john.h.haldemann@gmail.com",
+      },
+    });
+
+    expect(context.role).toBe("super_admin");
+    expect(context.companyId).toBeNull();
+    expect(context.permissionMap.can_access_internal_admin).toBe(true);
+    expect(context.source).toBe("bootstrap_admin_override");
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: "bootstrap-user",
+        role: "super_admin",
+        company_id: null,
+      }),
+      { onConflict: "user_id" }
+    );
   });
 });

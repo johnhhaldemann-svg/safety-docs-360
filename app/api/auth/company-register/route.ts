@@ -89,11 +89,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const pendingMetadata = {
-    role: "viewer",
-    team: companyName,
-    company_id: null,
-    account_status: "pending",
+  const profileMetadata = {
     full_name: fullName,
     company_name: companyName,
     company_industry: industry,
@@ -110,8 +106,7 @@ export async function POST(request: Request) {
     email,
     password,
     email_confirm: true,
-    user_metadata: pendingMetadata,
-    app_metadata: pendingMetadata,
+    user_metadata: profileMetadata,
   });
 
   if (createError) {

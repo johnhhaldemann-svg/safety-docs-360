@@ -223,42 +223,6 @@ async function linkExistingOwnerAccount(params: {
 
   let metadataWarning: string | null = null;
 
-  if (params.adminClient) {
-    const ownerLookupResult = await params.adminClient.auth.admin.getUserById(params.ownerUserId);
-    const ownerUser = ownerLookupResult.data.user ?? null;
-
-    if (!ownerLookupResult.error && ownerUser) {
-      const metadataResult = await params.adminClient.auth.admin.updateUserById(
-        params.ownerUserId,
-        {
-          user_metadata: {
-            ...(ownerUser.user_metadata ?? {}),
-            role: "company_admin",
-            team: params.companyName,
-            company_id: params.companyId,
-            account_status: "active",
-            company_name: params.companyName,
-          },
-          app_metadata: {
-            ...(ownerUser.app_metadata ?? {}),
-            role: "company_admin",
-            team: params.companyName,
-            company_id: params.companyId,
-            account_status: "active",
-          },
-        }
-      );
-
-      if (metadataResult.error) {
-        metadataWarning =
-          "The company owner was linked successfully, but profile metadata will finish syncing on next login.";
-      }
-    } else if (ownerLookupResult.error) {
-      metadataWarning =
-        "The company owner was linked successfully, but profile metadata could not be refreshed immediately.";
-    }
-  }
-
   if (consumeInviteResult.error) {
     metadataWarning =
       metadataWarning ||

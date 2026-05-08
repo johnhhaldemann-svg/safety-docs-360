@@ -76,20 +76,6 @@ function getDisplayName(user: {
   return "Unnamed User";
 }
 
-function getTeam(user: {
-  app_metadata?: Record<string, unknown>;
-  user_metadata?: Record<string, unknown>;
-}) {
-  const metadataTeam =
-    typeof user.app_metadata?.team === "string"
-      ? user.app_metadata.team
-      : typeof user.user_metadata?.team === "string"
-        ? user.user_metadata.team
-        : "";
-
-  return metadataTeam.trim() || "General";
-}
-
 function getStatus(user: {
   email_confirmed_at?: string | null;
   last_sign_in_at?: string | null;
@@ -287,9 +273,9 @@ export async function GET(request: Request) {
         email: user.email ?? "",
         name: getDisplayName(user),
         role: formatAppRole(roleContext.role),
-        team: roleContext.team || getTeam(user),
+        team: roleContext.team || "General",
         companyId: companyMembershipMap.get(user.id)?.companyId ?? null,
-        companyName: companyMembershipMap.get(user.id)?.companyName || roleContext.team || getTeam(user),
+        companyName: companyMembershipMap.get(user.id)?.companyName || roleContext.team || "General",
         status:
           roleContext.accountStatus === "pending" ||
           roleContext.accountStatus === "suspended"
@@ -363,16 +349,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
-    email,
-    {
-      data: {
-        role,
-        team,
-        account_status: accountStatus,
-      },
-    }
-  );
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

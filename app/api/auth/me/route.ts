@@ -108,8 +108,6 @@ async function applyPendingCompanyInvite(params: {
   adminClient: ReturnType<typeof createSupabaseAdminClient>;
   userId: string;
   email: string;
-  userMetadata?: Record<string, unknown> | null;
-  appMetadata?: Record<string, unknown> | null;
 }) {
   const normalizedEmail = params.email.trim().toLowerCase();
   if (!normalizedEmail) return;
@@ -130,24 +128,6 @@ async function applyPendingCompanyInvite(params: {
   });
 
   if (!consumeInviteResult.error) {
-    if (params.adminClient) {
-      await params.adminClient.auth.admin.updateUserById(params.userId, {
-        user_metadata: {
-          ...(params.userMetadata ?? {}),
-          role: invite.role,
-          team: invite.team,
-          company_id: invite.company_id,
-          account_status: invite.account_status,
-        },
-        app_metadata: {
-          ...(params.appMetadata ?? {}),
-          role: invite.role,
-          team: invite.team,
-          company_id: invite.company_id,
-          account_status: invite.account_status,
-        },
-      });
-    }
     return;
   }
 
@@ -213,22 +193,6 @@ async function applyPendingCompanyInvite(params: {
         updated_by: params.userId,
       })
       .eq("id", invite.id),
-    params.adminClient.auth.admin.updateUserById(params.userId, {
-      user_metadata: {
-        ...(params.userMetadata ?? {}),
-        role: invite.role,
-        team: invite.team,
-        company_id: invite.company_id,
-        account_status: invite.account_status,
-      },
-      app_metadata: {
-        ...(params.appMetadata ?? {}),
-        role: invite.role,
-        team: invite.team,
-        company_id: invite.company_id,
-        account_status: invite.account_status,
-      },
-    }),
   ]);
 }
 
@@ -243,8 +207,6 @@ async function applyApprovedCompanyOwnerLink(params: {
   adminClient: ReturnType<typeof createSupabaseAdminClient>;
   userId: string;
   email: string;
-  userMetadata?: Record<string, unknown> | null;
-  appMetadata?: Record<string, unknown> | null;
 }) {
   const normalizedEmail = params.email.trim().toLowerCase();
   if (!normalizedEmail) return;
@@ -257,23 +219,6 @@ async function applyApprovedCompanyOwnerLink(params: {
     ((rpcResult.data as ApprovedCompanyOwnerRow[] | null) ?? [])[0] ?? null;
 
   if (!rpcResult.error && linkedRow && params.adminClient) {
-    await params.adminClient.auth.admin.updateUserById(params.userId, {
-      user_metadata: {
-        ...(params.userMetadata ?? {}),
-        role: linkedRow.linked_role,
-        team: linkedRow.company_name,
-        company_id: linkedRow.company_id,
-        account_status: linkedRow.account_status,
-        company_name: linkedRow.company_name,
-      },
-      app_metadata: {
-        ...(params.appMetadata ?? {}),
-        role: linkedRow.linked_role,
-        team: linkedRow.company_name,
-        company_id: linkedRow.company_id,
-        account_status: linkedRow.account_status,
-      },
-    });
     return;
   }
 
@@ -353,23 +298,6 @@ async function applyApprovedCompanyOwnerLink(params: {
       },
       { onConflict: "user_id,company_id" }
     ),
-    params.adminClient.auth.admin.updateUserById(params.userId, {
-      user_metadata: {
-        ...(params.userMetadata ?? {}),
-        role: "company_admin",
-        team: companyRow.name?.trim() || "Company Workspace",
-        company_id: companyRow.id,
-        account_status: "active",
-        company_name: companyRow.name?.trim() || "Company Workspace",
-      },
-      app_metadata: {
-        ...(params.appMetadata ?? {}),
-        role: "company_admin",
-        team: companyRow.name?.trim() || "Company Workspace",
-        company_id: companyRow.id,
-        account_status: "active",
-      },
-    }),
   ]);
 }
 
@@ -577,16 +505,12 @@ async function handleAuthMeGet(request: Request) {
         adminClient,
         userId: auth.user.id,
         email: auth.user.email ?? "",
-        userMetadata: auth.user.user_metadata ?? undefined,
-        appMetadata: auth.user.app_metadata ?? undefined,
       });
       await applyApprovedCompanyOwnerLink({
         supabase: (requestScopedSupabase ?? auth.supabase) as never,
         adminClient,
         userId: auth.user.id,
         email: auth.user.email ?? "",
-        userMetadata: auth.user.user_metadata ?? undefined,
-        appMetadata: auth.user.app_metadata ?? undefined,
       });
     } catch (error) {
       serverLog("error", "auth_me_company_access_resolve_failed", {
