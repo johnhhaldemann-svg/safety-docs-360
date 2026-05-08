@@ -4,8 +4,16 @@ import { Suspense, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
+import { resolvePostLoginRoute, type PostLoginPermissionMap } from "@/lib/postLoginRoute";
 
 const supabase = getSupabaseBrowserClient();
+
+type AuthMeResponse = {
+  user?: {
+    role?: string | null;
+    permissionMap?: PostLoginPermissionMap | null;
+  } | null;
+};
 
 const capabilityTiles = [
   "Inspections",
@@ -55,16 +63,45 @@ function LoginPageContent() {
       password,
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setFormTone("error");
       setFormMessage(error.message);
       return;
     }
 
-    router.push("/safe-predict");
+    const nextRoute = await getPostLoginRoute();
+
+    setLoading(false);
+    router.push(nextRoute);
     router.refresh();
+  }
+
+  async function getPostLoginRoute() {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    if (!token) {
+      return resolvePostLoginRoute();
+    }
+
+    try {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        return resolvePostLoginRoute();
+      }
+
+      const me = (await res.json().catch(() => null)) as AuthMeResponse | null;
+      return resolvePostLoginRoute(me?.user?.role, me?.user?.permissionMap);
+    } catch {
+      return resolvePostLoginRoute();
+    }
   }
 
   async function handleCreateAccount() {
