@@ -63,7 +63,7 @@ function LoginPageContent() {
       return;
     }
 
-    router.push("/safe-predict");
+    router.push("/dashboard");
     router.refresh();
   }
 

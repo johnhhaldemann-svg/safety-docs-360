@@ -8,15 +8,15 @@ import {
 } from "@/lib/safePredictPlatformActions";
 
 describe("safePredictPlatformActions", () => {
-  it("exposes company admin actions through SafePredict-native routes", () => {
-    const safePredictHrefs = new Set(safePredictPlatformActions.map((action) => action.href));
+  it("exposes company admin actions through workspace routes", () => {
+    const workspaceHrefs = new Set(safePredictPlatformActions.map((action) => action.href));
     const originalCompanyHrefs = companyAdminSideSections
       .flatMap((section) => section.items)
       .map((item) => item.href)
       .filter((href) => href !== "/safe-predict");
 
     for (const href of originalCompanyHrefs) {
-      expect(safePredictHrefs.has(mapSafePredictOperationHref(href)), href).toBe(true);
+      expect(workspaceHrefs.has(mapSafePredictOperationHref(href)), href).toBe(true);
     }
   });
 
@@ -27,8 +27,8 @@ describe("safePredictPlatformActions", () => {
   });
 
   it("searches action labels, routes, and section names", () => {
-    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "permits").map((action) => action.href)).toContain("/safe-predict/permits");
-    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "team").map((action) => action.href)).toContain("/safe-predict/workforce");
+    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "permits").map((action) => action.href)).toContain("/permits");
+    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "team").map((action) => action.href)).toContain("/company-users");
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "superadmin").length).toBeGreaterThan(0);
   });
 });

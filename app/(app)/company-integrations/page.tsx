@@ -11,6 +11,7 @@ import {
   PlugZap,
   RefreshCw,
   Settings2,
+  ShieldCheck,
 } from "lucide-react";
 import {
   EmptyState,
@@ -457,6 +458,66 @@ export default function CompanyIntegrationsPage() {
           <InlineMessage>Loading Microsoft Project connector...</InlineMessage>
         ) : (
           <div className="space-y-5">
+            <div className="rounded-xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_#ffffff_0%,_#f6f9ff_100%)] p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-bold text-[var(--app-text-strong)]">
+                    <ShieldCheck className="h-4 w-4 text-[var(--app-accent-primary)]" aria-hidden="true" />
+                    Account linking instructions
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text)]">
+                    Link a Microsoft work account that can read the company Project schedules. After Microsoft returns
+                    you to Safety360Docs, run Sync to bring projects and tasks into this workspace.
+                  </p>
+                </div>
+                <span
+                  className={cx(
+                    "inline-flex shrink-0 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em]",
+                    microsoftAppTone
+                  )}
+                >
+                  {microsoftAppState}
+                </span>
+              </div>
+
+              <ol className="mt-5 grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    title: "1. Confirm access",
+                    detail:
+                      "Use a Microsoft work or school account with access to the Project / Planner schedules you want imported.",
+                  },
+                  {
+                    title: "2. Add environment",
+                    detail:
+                      "If your projects live in Dataverse, enter the Dynamics environment URL before installing the app.",
+                  },
+                  {
+                    title: "3. Install and sync",
+                    detail:
+                      "Select Install app, approve Microsoft permissions, return here, then select Sync to import schedules.",
+                  },
+                ].map((step) => (
+                  <li
+                    key={step.title}
+                    className="rounded-xl border border-[var(--app-border)] bg-white/82 px-4 py-3 shadow-[0_8px_18px_rgba(76,108,161,0.045)]"
+                  >
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">{step.title}</div>
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{step.detail}</p>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                <div className="rounded-xl border border-[rgba(46,158,91,0.2)] bg-[var(--semantic-success-bg)] px-4 py-3 text-[var(--semantic-success)]">
+                  Linked account: {microsoftStatus?.connection?.accountEmail || "Not linked yet"}
+                </div>
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3 text-[var(--app-text)]">
+                  Verify the link by checking that imported projects and tasks appear below after Sync.
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-3 text-sm text-slate-300 md:grid-cols-3">
               <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
                 <div className="flex items-center gap-2 text-slate-100">

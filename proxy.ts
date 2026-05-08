@@ -1,7 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 
 export async function proxy(request: NextRequest) {
+  const mappedWorkspacePath = mapSafePredictOperationHref(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+  if (mappedWorkspacePath !== `${request.nextUrl.pathname}${request.nextUrl.search}`) {
+    const redirectUrl = request.nextUrl.clone();
+    const [pathname, search = ""] = mappedWorkspacePath.split("?");
+    redirectUrl.pathname = pathname;
+    redirectUrl.search = search ? `?${search}` : "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

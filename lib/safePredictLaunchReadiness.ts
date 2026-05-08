@@ -36,18 +36,18 @@ export type SafePredictLaunchSummary = {
 };
 
 const moduleRoutes: Record<SafePredictModuleKey, string> = {
-  daps: "/safe-predict/platform-actions",
-  permits: "/safe-predict/permits",
-  incidents: "/safe-predict/incidents",
-  observations: "/safe-predict/observations",
-  inspections: "/safe-predict/inspections",
-  hazards: "/safe-predict/hazards",
-  training: "/safe-predict/training",
-  reports: "/safe-predict/reports",
-  jobsites: "/safe-predict/jobsites",
-  users: "/safe-predict/workforce",
-  actions: "/safe-predict/corrective-actions",
-  analytics: "/safe-predict/analytics",
+  daps: "/command-center",
+  permits: "/permits",
+  incidents: "/incidents",
+  observations: "/safety-submit",
+  inspections: "/field-audits",
+  hazards: "/safety-intelligence",
+  training: "/training-matrix",
+  reports: "/reports",
+  jobsites: "/jobsites",
+  users: "/company-users",
+  actions: "/field-id-exchange",
+  analytics: "/analytics",
 };
 
 export function safePredictModuleRoute(key: SafePredictModuleKey) {
