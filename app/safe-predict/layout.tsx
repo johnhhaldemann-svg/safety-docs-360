@@ -1,10 +1,5 @@
-import { SafePredictShell } from "@/components/safe-predict/SafePredictShell";
-import { SafePredictDataProvider } from "@/components/safe-predict/SafePredictDataProvider";
+import { redirect } from "next/navigation";
 
-export default function SafePredictLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <SafePredictDataProvider>
-      <SafePredictShell>{children}</SafePredictShell>
-    </SafePredictDataProvider>
-  );
+export default function SafePredictLayout() {
+  redirect("/dashboard");
 }
