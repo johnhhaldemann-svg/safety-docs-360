@@ -38,6 +38,23 @@ type CompanyUser = {
   last_sign_in_at?: string | null;
 };
 
+type LeadershipSafetyScoreSummary = {
+  userId: string;
+  userName?: string;
+  roleLabel: string;
+  score: number;
+  grade: string;
+  trend: number;
+  positiveSignals?: Array<{ label?: string; detail?: string }>;
+  negativeSignals?: Array<{ label?: string; detail?: string }>;
+  evidenceRefs?: Array<{ label?: string; href?: string }>;
+  coachingPrompt?: string;
+};
+
+type LeadershipSafetyScoresResponse = {
+  scores?: LeadershipSafetyScoreSummary[];
+};
+
 type CompanyInvite = {
   id: string;
   email: string;
@@ -152,6 +169,19 @@ function getPulseLabel(score: number) {
   return "Building";
 }
 
+function getCommitmentTone(grade?: string): "neutral" | "success" | "warning" | "info" | "error" {
+  if (grade === "A" || grade === "B") return "success";
+  if (grade === "C") return "info";
+  if (grade === "D") return "warning";
+  if (grade === "F") return "error";
+  return "neutral";
+}
+
+function formatTrend(trend?: number) {
+  if (!trend) return "Steady";
+  return `${trend > 0 ? "+" : ""}${trend} pts`;
+}
+
 function formatDemoRole(role: string) {
   const normalized = role.trim().toLowerCase();
   if (normalized === "company_admin") return "Company Admin";
@@ -198,6 +228,7 @@ export default function CompanyUsersPage() {
   const [editAssignments, setEditAssignments] = useState<string[]>([]);
   const [referenceTime] = useState(() => Date.now());
   const [demoMode, setDemoMode] = useState(false);
+  const [leadershipScores, setLeadershipScores] = useState<LeadershipSafetyScoreSummary[]>([]);
 
   async function getAccessToken() {
     const {
@@ -221,11 +252,39 @@ export default function CompanyUsersPage() {
       const isDemo = await isSalesDemoToken(token);
       setDemoMode(isDemo);
       if (isDemo) {
-        setUsers(
-          demoCompanyUsers.map((user, index) => ({
+        const demoUsers = demoCompanyUsers.map((user, index) => ({
             ...user,
             role: formatDemoRole(user.role),
             last_sign_in_at: new Date(Date.now() - index * 9 * 60000).toISOString(),
+          }));
+        setUsers(demoUsers);
+        setLeadershipScores(
+          demoUsers.map((user, index) => ({
+            userId: user.id,
+            userName: user.name,
+            roleLabel: user.role,
+            score: [92, 87, 74][index] ?? 81,
+            grade: ["A", "B", "C"][index] ?? "B",
+            trend: [4, 2, -3][index] ?? 0,
+            positiveSignals: [
+              {
+                label: "Risk actions moving",
+                detail: "AI recommendations are being converted into jobsite follow-up.",
+              },
+            ],
+            negativeSignals:
+              index === 2
+                ? [
+                    {
+                      label: "Closeout discipline",
+                      detail: "A few assigned permits and JSAs need tighter end-of-shift closeout.",
+                    },
+                  ]
+                : [],
+            coachingPrompt:
+              index === 2
+                ? "Coach toward faster permit/JSA closeout and supervisor verification on assigned work."
+                : "Keep reinforcing prompt risk-response and documented follow-through.",
           }))
         );
         setInvites(demoCompanyInvites);
@@ -264,11 +323,22 @@ export default function CompanyUsersPage() {
       setInvites(data?.invites ?? []);
       setScopeTeam(data?.scopeTeam ?? "General");
       setScopeCompanyName(data?.scopeCompanyName ?? data?.scopeTeam ?? "General");
+
+      const scoreResponse = await fetch("/api/company/leadership-safety-scores", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const scoreData = (await scoreResponse.json().catch(() => null)) as
+        | LeadershipSafetyScoresResponse
+        | null;
+      setLeadershipScores(scoreResponse.ok ? scoreData?.scores ?? [] : []);
     } catch (error) {
       setMessageTone("error");
         setMessage(error instanceof Error ? error.message : "Failed to load company users.");
         setUsers([]);
         setInvites([]);
+        setLeadershipScores([]);
     }
 
     setLoading(false);
@@ -452,6 +522,22 @@ export default function CompanyUsersPage() {
   );
   const teamPulseLabel = getPulseLabel(teamPulseScore);
   const teamPulseTone = getPulseTone(teamPulseScore);
+  const leadershipScoresByUserId = useMemo(() => {
+    return new Map(leadershipScores.map((score) => [score.userId, score]));
+  }, [leadershipScores]);
+  const leadershipScoreRows = useMemo(
+    () =>
+      users
+        .map((user) => ({
+          user,
+          score: leadershipScoresByUserId.get(user.id),
+        }))
+        .filter((row): row is { user: CompanyUser; score: LeadershipSafetyScoreSummary } =>
+          Boolean(row.score)
+        )
+        .sort((a, b) => a.score.score - b.score.score),
+    [leadershipScoresByUserId, users]
+  );
   const activityItems = useMemo(() => {
     const userItems = users.map((user) => ({
         id: user.id,

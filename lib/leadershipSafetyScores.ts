@@ -168,9 +168,11 @@ export function canViewLeadershipSafetyScore(params: {
   if (viewerRole === "safety_manager") {
     return targetRole === "project_manager" || targetRole === "field_supervisor" || targetRole === "foreman";
   }
+  const viewerJobsiteIds = params.viewerJobsiteIds ?? [];
+  const targetJobsiteIds = params.targetJobsiteIds ?? [];
   const overlaps =
-    (params.viewerJobsiteIds ?? []).length === 0 ||
-    (params.targetJobsiteIds ?? []).some((jobsiteId) => (params.viewerJobsiteIds ?? []).includes(jobsiteId));
+    viewerJobsiteIds.length > 0 &&
+    targetJobsiteIds.some((jobsiteId) => viewerJobsiteIds.includes(jobsiteId));
   if (viewerRole === "project_manager") {
     return overlaps && (targetRole === "field_supervisor" || targetRole === "foreman");
   }

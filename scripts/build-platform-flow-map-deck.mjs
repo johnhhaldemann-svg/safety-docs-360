@@ -191,13 +191,11 @@ arrow(7.14, 4.66, 8.0, 2.92, C.amber);
 arrow(10.18, 2.48, 10.88, 2.18, C.violet);
 arrow(10.18, 2.8, 10.88, 3.56, C.violet);
 arrow(10.18, 4.55, 10.88, 4.88, C.blue);
-arrow(11.86, 4.42, 4.05, 3.29, C.green, 1.0);
-
 line(0.94, 2.66, 0.94, 3.0, C.line);
 arrow(9.1, 3.31, 9.1, 4.06, C.violet);
-arrow(3.78, 3.29, 3.78, 5.72, C.blue, 1.0);
-line(3.78, 5.72, 11.86, 5.72, C.line, 1.0);
-arrow(11.86, 5.72, 11.86, 5.34, C.green, 1.0);
+line(11.86, 5.34, 11.86, 5.72, C.green, 1.0);
+line(11.86, 5.72, 3.78, 5.72, C.line, 1.0);
+arrow(3.78, 5.72, 3.78, 3.29, C.blue, 1.0);
 
 slide.addShape(pptx.ShapeType.roundRect, {
   x: 0.55,
@@ -359,12 +357,11 @@ drawArrow(7.14, 4.66, 8.0, 2.92, C.amber);
 drawArrow(10.18, 2.48, 10.88, 2.18, C.violet);
 drawArrow(10.18, 2.8, 10.88, 3.56, C.violet);
 drawArrow(10.18, 4.55, 10.88, 4.88, C.blue);
-drawArrow(11.86, 4.42, 4.05, 3.29, C.green, 1.6);
 drawLine(0.94, 2.66, 0.94, 3.0, C.line, 1.6);
 drawArrow(9.1, 3.31, 9.1, 4.06, C.violet);
-drawArrow(3.78, 3.29, 3.78, 5.72, C.blue, 1.6);
-drawLine(3.78, 5.72, 11.86, 5.72, C.line, 1.6);
-drawArrow(11.86, 5.72, 11.86, 5.34, C.green, 1.6);
+drawLine(11.86, 5.34, 11.86, 5.72, C.green, 1.6);
+drawLine(11.86, 5.72, 3.78, 5.72, C.line, 1.6);
+drawArrow(3.78, 5.72, 3.78, 3.29, C.blue, 1.6);
 rr(0.55, 6.18, 12.28, 0.54, 0.08, C.white, "CBD7DC", 1.5);
 drawText(
   "Security boundary: all company and jobsite data passes through route-handler scope checks, Supabase RLS, storage policy, and role permissions.",

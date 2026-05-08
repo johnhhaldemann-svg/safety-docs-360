@@ -25,6 +25,7 @@ const supabase = getSupabaseBrowserClient();
 
 type AuthMeResponse = {
   user?: {
+    id?: string;
     companyId?: string | null;
     role?: string;
     roleLabel?: string;
@@ -34,6 +35,22 @@ type AuthMeResponse = {
       can_manage_company_users?: boolean;
     };
   };
+};
+
+type LeadershipSafetyScoreSummary = {
+  userId: string;
+  roleLabel: string;
+  score: number;
+  grade: string;
+  trend: number;
+  positiveSignals?: Array<{ label?: string; detail?: string }>;
+  negativeSignals?: Array<{ label?: string; detail?: string }>;
+  evidenceRefs?: Array<{ label?: string; href?: string }>;
+  coachingPrompt?: string;
+};
+
+type LeadershipSafetyScoresResponse = {
+  scores?: LeadershipSafetyScoreSummary[];
 };
 
 type ProfileResponse = {
@@ -140,6 +157,19 @@ function getDisplayName(fullName: string, preferredName: string) {
   return preferredName.trim() || fullName.trim() || "Your Name";
 }
 
+function getCommitmentTone(grade?: string): "success" | "warning" | "info" | "error" | "neutral" {
+  if (grade === "A" || grade === "B") return "success";
+  if (grade === "C") return "info";
+  if (grade === "D") return "warning";
+  if (grade === "F") return "error";
+  return "neutral";
+}
+
+function formatTrend(trend?: number) {
+  if (!trend) return "Holding steady";
+  return `${trend > 0 ? "+" : ""}${trend} pts`;
+}
+
 function getInitials(name: string) {
   const parts = name
     .split(/\s+/)
@@ -174,6 +204,7 @@ export default function ProfilePage() {
   const [workspaceRoleLabel, setWorkspaceRoleLabel] = useState("");
   const [workspaceTeam, setWorkspaceTeam] = useState("");
   const [canManageTeamUsers, setCanManageTeamUsers] = useState(false);
+  const [leadershipScore, setLeadershipScore] = useState<LeadershipSafetyScoreSummary | null>(null);
   const [managedUserId, setManagedUserId] = useState("");
   const [returnTo, setReturnTo] = useState("/company-users");
   const [managedProfile, setManagedProfile] = useState(false);
@@ -222,6 +253,7 @@ export default function ProfilePage() {
       }
 
       try {
+        setLeadershipScore(null);
         const [meResponse, profileResponse] = await Promise.all([
           fetch("/api/auth/me", {
             headers: {
@@ -286,6 +318,29 @@ export default function ProfilePage() {
           setPhotoPath(profile.photoPath ?? "");
           setPhotoPreview(profile.photoUrl ?? "");
           setInitialProfileComplete(Boolean(profile.profileComplete));
+        }
+
+        const targetScoreUserId =
+          requestedUserId || profileData?.targetUser?.id || meData?.user?.id || "";
+        if (targetScoreUserId) {
+          const scoreResponse = await fetch(
+            `/api/company/leadership-safety-scores?userId=${encodeURIComponent(targetScoreUserId)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          );
+          const scoreData = (await scoreResponse.json().catch(() => null)) as
+            | LeadershipSafetyScoresResponse
+            | null;
+          if (scoreResponse.ok) {
+            setLeadershipScore(
+              scoreData?.scores?.find((score) => score.userId === targetScoreUserId) ??
+                scoreData?.scores?.[0] ??
+                null
+            );
+          }
         }
       } catch (error) {
         console.error("Failed to load profile:", error);
@@ -621,6 +676,99 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
+        </SectionCard>
+      ) : null}
+
+      {leadershipScore ? (
+        <SectionCard
+          title="Safety commitment indicator"
+          description="Automatic coaching signal from assigned jobs, injury response, permit/JSA discipline, corrective action follow-through, and AI risk actions."
+          aside={
+            <StatusBadge
+              label={`Grade ${leadershipScore.grade}`}
+              tone={getCommitmentTone(leadershipScore.grade)}
+            />
+          }
+        >
+          <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr]">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Commitment score
+              </div>
+              <div className="mt-3 flex items-end gap-2">
+                <span className="text-5xl font-black tracking-tight text-white">
+                  {leadershipScore.score}
+                </span>
+                <span className="pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                  /100
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge label={formatTrend(leadershipScore.trend)} tone="info" />
+                <StatusBadge label={leadershipScore.roleLabel} tone="neutral" />
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-500">
+                {leadershipScore.coachingPrompt ||
+                  "Use the strongest signals and improvement opportunities below to reduce risk on assigned work."}
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+                  Strongest signals
+                </div>
+                <div className="mt-3 space-y-3">
+                  {(leadershipScore.positiveSignals ?? []).slice(0, 3).length > 0 ? (
+                    (leadershipScore.positiveSignals ?? []).slice(0, 3).map((signal, index) => (
+                      <div key={`${signal.label}-${index}`}>
+                        <p className="text-sm font-semibold text-slate-100">{signal.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{signal.detail}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-6 text-slate-500">
+                      No positive leadership signals have been captured in this scoring window yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/20 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-300">
+                  Improvement opportunities
+                </div>
+                <div className="mt-3 space-y-3">
+                  {(leadershipScore.negativeSignals ?? []).slice(0, 3).length > 0 ? (
+                    (leadershipScore.negativeSignals ?? []).slice(0, 3).map((signal, index) => (
+                      <div key={`${signal.label}-${index}`}>
+                        <p className="text-sm font-semibold text-slate-100">{signal.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{signal.detail}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-6 text-slate-500">
+                      No priority coaching opportunities are open in this scoring window.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {(leadershipScore.evidenceRefs ?? []).length > 0 ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {(leadershipScore.evidenceRefs ?? []).slice(0, 4).map((ref, index) => (
+                <Link
+                  key={`${ref.label}-${index}`}
+                  href={ref.href || "#"}
+                  className="rounded-full border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
+                >
+                  {ref.label || "Evidence"}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </SectionCard>
       ) : null}
 
