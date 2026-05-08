@@ -1,6 +1,12 @@
 import { getDeclaredAppNavHrefs } from "../../lib/appNavigation";
 
 /**
+ * Well-formed UUID that is unlikely to collide with real rows; pages should still render
+ * shell (empty state, redirect, or 404 UI) without 5xx.
+ */
+export const E2E_PLACEHOLDER_UUID = "00000000-0000-4000-8000-000000000001";
+
+/**
  * Smoke targets: public marketing/legal and unauthenticated entry.
  */
 export const PUBLIC_ROUTES = [
@@ -12,6 +18,24 @@ export const PUBLIC_ROUTES = [
   "/liability-waiver",
   "/company-signup",
   "/contractor-training-intake",
+  "/demo/load",
+  "/safe-predict",
+  "/safe-predict/analytics",
+  "/safe-predict/corrective-actions",
+  "/safe-predict/hazards",
+  "/safe-predict/incidents",
+  "/safe-predict/inspections",
+  "/safe-predict/jobsites",
+  `/safe-predict/jobsites/${E2E_PLACEHOLDER_UUID}`,
+  "/safe-predict/observations",
+  "/safe-predict/permits",
+  "/safe-predict/platform-actions",
+  "/safe-predict/predictive-risk",
+  "/safe-predict/reports",
+  "/safe-predict/risk-mitigation",
+  "/safe-predict/settings",
+  "/safe-predict/training",
+  "/safe-predict/workforce",
 ] as const;
 
 /**
@@ -63,12 +87,6 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/superadmin/csep-completeness-review",
   "/superadmin/injury-forecast-lab",
 ] as const;
-
-/**
- * Well-formed UUID that is unlikely to collide with real rows; pages should still render
- * shell (empty state, redirect, or 404 UI) without 5xx.
- */
-export const E2E_PLACEHOLDER_UUID = "00000000-0000-4000-8000-000000000001";
 
 const id = E2E_PLACEHOLDER_UUID;
 

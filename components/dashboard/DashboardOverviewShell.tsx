@@ -52,7 +52,7 @@ import {
   trendHasPositiveValues,
   workforceReadinessHasSignals,
 } from "@/src/lib/dashboard/overviewDataPresence";
-import { Activity, AlertTriangle, GraduationCap, ScanLine } from "lucide-react";
+import { Activity, AlertTriangle, Database, GraduationCap, ScanLine } from "lucide-react";
 import Link from "next/link";
 
 const supabase = getSupabaseBrowserClient();
@@ -233,6 +233,8 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoMessage, setDemoMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pinningBlockId, setPinningBlockId] = useState<DashboardBlockId | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTabId>(() => readDashboardTab(searchParams.get("tab")));
 
@@ -497,9 +499,42 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     </button>
   );
 
+  async function loadDemoEnvironment() {
+    if (!window.confirm("Load isolated demo data and switch your active workspace to Demo Construction?")) return;
+    setDemoLoading(true);
+    setDemoMessage(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Sign in before loading the demo environment.");
+      const res = await fetch("/api/demo/load", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; companyName?: string; counts?: { jobsites?: number; microsoftTasks?: number } }
+        | null;
+      if (!res.ok) throw new Error(data?.error || "Failed to load demo environment.");
+      setDemoMessage({
+        tone: "success",
+        text: `${data?.companyName ?? "Demo Construction"} loaded with ${data?.counts?.jobsites ?? 0} projects and ${
+          data?.counts?.microsoftTasks ?? 0
+        } schedule activities.`,
+      });
+      router.push("/dashboard?demo=loaded");
+      router.refresh();
+      void load();
+    } catch (err) {
+      setDemoMessage({ tone: "error", text: err instanceof Error ? err.message : "Failed to load demo environment." });
+    }
+    setDemoLoading(false);
+  }
+
   return (
     <div className="space-y-8">
       {filters}
+      {demoMessage ? <InlineMessage tone={demoMessage.tone}>{demoMessage.text}</InlineMessage> : null}
       {dashboardLayout.message ? (
         <InlineMessage tone={dashboardLayout.message.tone}>{dashboardLayout.message.text}</InlineMessage>
       ) : null}
@@ -523,6 +558,15 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
               />
               <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
+              <button
+                type="button"
+                onClick={() => void loadDemoEnvironment()}
+                disabled={demoLoading}
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] px-3 py-2 text-xs font-bold text-[var(--app-accent-primary)] shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition hover:border-[var(--app-accent-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Database className="h-3.5 w-3.5" />
+                {demoLoading ? "Loading demo..." : "Load Demo Environment"}
+              </button>
               {renderPinButton("priority_queue", "Pin queue")}
               <button
                 type="button"

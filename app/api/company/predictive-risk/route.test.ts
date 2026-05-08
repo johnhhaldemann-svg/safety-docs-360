@@ -149,6 +149,7 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
     }),
     company_permits: queryBuilder({ data: [] }),
     company_jsa_activities: queryBuilder({ data: [] }),
+    company_sor_records: queryBuilder({ data: [] }),
     ...overrides,
   };
   return {

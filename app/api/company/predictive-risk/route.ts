@@ -172,6 +172,7 @@ export async function GET(request: Request) {
     .from("company_sor_records")
     .select("id, date, location, trade, category, hazard_category_code, subcategory, description, severity, status, created_at")
     .eq("company_id", companyId)
+    .eq("is_deleted", false)
     .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
 
   const [forecast, jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, observationsRes] = await Promise.all([
