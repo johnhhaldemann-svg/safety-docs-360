@@ -238,12 +238,19 @@ export async function PATCH(
   }
 
   if (companyScope.companyId) {
+    const membershipStatus =
+      accountStatus === "pending"
+        ? "pending"
+        : accountStatus === "suspended"
+          ? "suspended"
+          : "active";
+
     await adminClient.from("company_memberships").upsert(
       {
         user_id: id,
         company_id: companyScope.companyId,
         role,
-        status: accountStatus === "pending" ? "pending" : "active",
+        status: membershipStatus,
         created_by: auth.user.id,
         updated_by: auth.user.id,
       },

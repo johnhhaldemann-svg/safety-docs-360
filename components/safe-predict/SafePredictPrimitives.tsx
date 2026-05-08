@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState, useSyncExternalStore } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  Camera,
   CheckCircle2,
   ChevronRight,
   CircleAlert,
   Clock,
   FileText,
   Info,
+  Loader2,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -484,12 +486,45 @@ export function CorrectiveActionCard({
   action,
   highlighted,
   onStatusChange,
+  onCloseWithPhoto,
 }: {
   action: SafePredictCorrectiveAction;
   highlighted?: boolean;
   onStatusChange?: (id: string, status: SafePredictCorrectiveAction["status"]) => void;
+  onCloseWithPhoto?: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
 }) {
   const statusOptions: SafePredictCorrectiveAction["status"][] = ["New", "In Progress", "Awaiting Verification", "Closed"];
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingClosePhoto, setUploadingClosePhoto] = useState(false);
+  const [closePhotoName, setClosePhotoName] = useState("");
+  const [closeError, setCloseError] = useState("");
+
+  function handleStatusChange(status: SafePredictCorrectiveAction["status"]) {
+    setCloseError("");
+    if (status === "Closed" && onCloseWithPhoto) {
+      photoInputRef.current?.click();
+      return;
+    }
+    onStatusChange?.(action.id, status);
+  }
+
+  async function handleClosePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file || !onCloseWithPhoto) {
+      return;
+    }
+    setUploadingClosePhoto(true);
+    setCloseError("");
+    const result = await onCloseWithPhoto(action.id, file);
+    setUploadingClosePhoto(false);
+    if (result.success) {
+      setClosePhotoName(file.name);
+      return;
+    }
+    setCloseError(result.error || "Could not close this action with the selected photo.");
+  }
+
   return (
     <article
       className={cx(
@@ -520,18 +555,53 @@ export function CorrectiveActionCard({
       {action.aiRecommended ? <span className="mt-3 inline-flex rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">AI Rec.</span> : null}
       {action.effectiveness ? <p className="mt-3 text-xs font-bold text-emerald-700">Effectiveness {action.effectiveness}/5</p> : null}
       {onStatusChange ? (
-        <select
-          value={action.status}
-          onChange={(event) => onStatusChange(action.id, event.target.value as SafePredictCorrectiveAction["status"])}
-          className="mt-3 h-9 w-full rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-700"
-          aria-label={`Change status for ${action.title}`}
-        >
-          {statusOptions.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
+        <>
+          <select
+            value={action.status}
+            onChange={(event) => handleStatusChange(event.target.value as SafePredictCorrectiveAction["status"])}
+            disabled={uploadingClosePhoto}
+            className="mt-3 h-9 w-full rounded-md border border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-700 disabled:cursor-wait disabled:opacity-60"
+            aria-label={`Change status for ${action.title}`}
+          >
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+          {onCloseWithPhoto ? (
+            <>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => void handleClosePhotoChange(event)}
+                aria-label={`Completion photo for ${action.title}`}
+              />
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={uploadingClosePhoto}
+                className={cx(
+                  "mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-black transition disabled:cursor-wait disabled:opacity-60",
+                  action.status === "Closed"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-white"
+                )}
+              >
+                {uploadingClosePhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                {uploadingClosePhoto
+                  ? "Uploading photo..."
+                  : action.status === "Closed"
+                    ? closePhotoName || "Photo proof attached"
+                    : "Add photo to close"}
+              </button>
+              {closeError ? <p className="mt-2 text-xs font-bold leading-5 text-red-600">{closeError}</p> : null}
+            </>
+          ) : null}
+        </>
       ) : null}
     </article>
   );

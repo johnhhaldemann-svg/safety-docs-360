@@ -7,12 +7,9 @@ test.describe("SafePredict beta platform routes", () => {
     ["/jobsites/riverside/permits", "/safe-predict/jobsites/riverside"],
     ["/analytics/predictive-model", "/safe-predict/predictive-risk"],
     ["/field-id-exchange", "/safe-predict/corrective-actions"],
-    ["/incidents", "/safe-predict/incidents"],
     ["/safety-submit", "/safe-predict/observations"],
     ["/field-audits", "/safe-predict/inspections"],
     ["/safety-intelligence", "/safe-predict/hazards"],
-    ["/company-users", "/safe-predict/workforce"],
-    ["/training-matrix", "/safe-predict/training"],
     ["/permits", "/safe-predict/permits"],
     ["/analytics", "/safe-predict/analytics"],
     ["/reports", "/safe-predict/reports"],
@@ -33,4 +30,22 @@ test.describe("SafePredict beta platform routes", () => {
       expect(response.headers().location).toContain(to);
     });
   }
+
+  test("keeps the canonical training matrix route in the app shell", async ({ request }) => {
+    const response = await request.get("/training-matrix", { maxRedirects: 0 });
+    expect([200, 401]).toContain(response.status());
+    expect(response.headers().location ?? "").not.toContain("/safe-predict/training");
+  });
+
+  test("keeps the canonical incident log route in the app shell", async ({ request }) => {
+    const response = await request.get("/incidents", { maxRedirects: 0 });
+    expect([200, 401]).toContain(response.status());
+    expect(response.headers().location ?? "").not.toContain("/safe-predict/incidents");
+  });
+
+  test("keeps the canonical team access route in the app shell", async ({ request }) => {
+    const response = await request.get("/company-users", { maxRedirects: 0 });
+    expect([200, 401]).toContain(response.status());
+    expect(response.headers().location ?? "").not.toContain("/safe-predict/workforce");
+  });
 });

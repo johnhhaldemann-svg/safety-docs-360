@@ -10,6 +10,7 @@ import {
   type SafePredictActionRecord,
   type SafePredictDataMode,
   type SafePredictDataset,
+  type SafePredictHazardRecord,
   type SafePredictLiveJobsiteRow,
   type SafePredictLiveRecordRow,
   type SafePredictJobsiteRecord,
@@ -24,6 +25,7 @@ type SafePredictDataContextValue = {
   setSelectedJobsiteId: (siteId: string) => void;
   setMode: (mode: SafePredictDataMode) => void;
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
+  closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   advanceActionStatus: (id: string) => void;
   addDraftAction: (input: {
     title: string;
@@ -33,6 +35,15 @@ type SafePredictDataContextValue = {
     priority: SafePredictCorrectiveAction["priority"];
     createdFrom: SafePredictActionRecord["createdFrom"];
   }) => SafePredictActionRecord;
+  addDraftHazard: (input: {
+    title: string;
+    siteId: string;
+    riskLevel: SafePredictHazardRecord["riskLevel"];
+    controlStatus: SafePredictHazardRecord["controlStatus"];
+    owner: string;
+    dueDate: string;
+    description?: string;
+  }) => SafePredictHazardRecord;
   addDraftJobsite: (input: {
     name: string;
     code: string;
@@ -47,6 +58,7 @@ type SafePredictDataContextValue = {
 const SafePredictDataContext = createContext<SafePredictDataContextValue | null>(null);
 
 const actionStorageKey = "safe-predict-live-beta-actions-v1";
+const hazardStorageKey = "safe-predict-live-beta-hazards-v1";
 const jobsiteStorageKey = "safe-predict-live-beta-jobsites-v1";
 const actionStatusStorageKey = "safe-predict-action-status-overrides-v1";
 const selectedJobsiteStorageKey = "safe-predict-selected-jobsite-v1";
@@ -61,6 +73,15 @@ function normalizeActionRows(value: unknown): SafePredictActionRecord[] | null {
   const rows = value.filter((row): row is SafePredictActionRecord => {
     if (!isRecord(row)) return false;
     return typeof row.id === "string" && typeof row.title === "string" && typeof row.status === "string" && typeof row.siteId === "string";
+  });
+  return rows.length > 0 ? rows : null;
+}
+
+function normalizeHazardRows(value: unknown): SafePredictHazardRecord[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows = value.filter((row): row is SafePredictHazardRecord => {
+    if (!isRecord(row)) return false;
+    return typeof row.id === "string" && typeof row.title === "string" && typeof row.siteId === "string";
   });
   return rows.length > 0 ? rows : null;
 }
@@ -117,6 +138,14 @@ function loadInitialActions() {
   }
 }
 
+function loadInitialHazards() {
+  try {
+    return normalizeHazardRows(JSON.parse(window.localStorage.getItem(hazardStorageKey) || "null"))?.filter((hazard) => hazard.id.startsWith("draft-hazard-")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function loadInitialJobsites() {
   try {
     return normalizeJobsiteRows(JSON.parse(window.localStorage.getItem(jobsiteStorageKey) || "null"))?.filter((jobsite) => jobsite.id.startsWith("draft-site-")) ?? [];
@@ -138,6 +167,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [loading, setLoading] = useState(false);
   const [baseDataset, setBaseDataset] = useState<SafePredictDataset>(demoSafePredictDataset);
   const [draftActions, setDraftActions] = useState<SafePredictActionRecord[]>([]);
+  const [draftHazards, setDraftHazards] = useState<SafePredictHazardRecord[]>([]);
   const [draftJobsites, setDraftJobsites] = useState<SafePredictJobsiteRecord[]>([]);
   const [actionStatuses, setActionStatuses] = useState<Record<string, SafePredictActionStatus>>({});
   const [selectedJobsiteId, setSelectedJobsiteIdState] = useState("all");
@@ -147,6 +177,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     const handle = window.setTimeout(() => {
       setModeState(loadInitialMode());
       setDraftActions(loadInitialActions());
+      setDraftHazards(loadInitialHazards());
       setDraftJobsites(loadInitialJobsites());
       setActionStatuses(loadInitialActionStatuses());
       setSelectedJobsiteIdState(loadInitialSelectedJobsite());
@@ -228,6 +259,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     () => ({
       ...baseDataset,
       jobsites: [...draftJobsites, ...baseDataset.jobsites],
+      hazards: [...draftHazards, ...baseDataset.hazards],
       actions: [
         ...draftActions,
         ...baseDataset.actions.map((action) => {
@@ -240,7 +272,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         }),
       ],
     }),
-    [actionStatuses, baseDataset, draftActions, draftJobsites]
+    [actionStatuses, baseDataset, draftActions, draftHazards, draftJobsites]
   );
 
   const setMode = useCallback((nextMode: SafePredictDataMode) => {
@@ -268,7 +300,12 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     window.localStorage.setItem(actionStatusStorageKey, JSON.stringify(nextStatuses));
   }, []);
 
-  const updateActionStatus = useCallback(
+  const persistDraftHazards = useCallback((nextHazards: SafePredictHazardRecord[]) => {
+    setDraftHazards(nextHazards);
+    window.localStorage.setItem(hazardStorageKey, JSON.stringify(nextHazards));
+  }, []);
+
+  const setActionStatusLocal = useCallback(
     (id: string, status: SafePredictActionStatus) => {
       if (draftActions.some((action) => action.id === id)) {
         persistDraftActions(
@@ -286,6 +323,17 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       }
 
       persistActionStatuses({ ...actionStatuses, [id]: status });
+    },
+    [actionStatuses, draftActions, persistActionStatuses, persistDraftActions]
+  );
+
+  const updateActionStatus = useCallback(
+    (id: string, status: SafePredictActionStatus) => {
+      setActionStatusLocal(id, status);
+      if (draftActions.some((action) => action.id === id)) {
+        return;
+      }
+
       if (mode === "live" && liveToken) {
         const existing = baseDataset.actions.find((action) => action.id === id);
         void fetch(`/api/company/corrective-actions/${encodeURIComponent(id)}`, {
@@ -304,7 +352,102 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         }).catch(() => undefined);
       }
     },
-    [actionStatuses, baseDataset.actions, draftActions, liveToken, mode, persistActionStatuses, persistDraftActions]
+    [baseDataset.actions, draftActions, liveToken, mode, setActionStatusLocal]
+  );
+
+  const closeActionWithPhoto = useCallback(
+    async (id: string, file: File) => {
+      if (!file.type.startsWith("image/")) {
+        return { success: false, error: "Choose a photo before closing this action." };
+      }
+
+      if (draftActions.some((action) => action.id === id) || mode !== "live" || !liveToken) {
+        setActionStatusLocal(id, "Closed");
+        return { success: true };
+      }
+
+      try {
+        const uploadUrlResponse = await fetch(`/api/company/corrective-actions/${encodeURIComponent(id)}/upload-url`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${liveToken}`,
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: file.type || "image/jpeg",
+          }),
+        });
+        const uploadUrlPayload = (await uploadUrlResponse.json().catch(() => null)) as
+          | { bucket?: string; path?: string; token?: string; error?: string }
+          | null;
+        if (!uploadUrlResponse.ok || !uploadUrlPayload?.bucket || !uploadUrlPayload.path || !uploadUrlPayload.token) {
+          return {
+            success: false,
+            error: uploadUrlPayload?.error || "Could not prepare the completion photo upload.",
+          };
+        }
+
+        if (uploadUrlPayload.token !== "offline-demo-token") {
+          const supabase = getSupabaseBrowserClient();
+          const { error: uploadError } = await supabase.storage
+            .from(uploadUrlPayload.bucket)
+            .uploadToSignedUrl(uploadUrlPayload.path, uploadUrlPayload.token, file, {
+              contentType: file.type || "image/jpeg",
+            });
+          if (uploadError) {
+            return { success: false, error: uploadError.message || "Photo upload failed." };
+          }
+        }
+
+        const evidenceResponse = await fetch(`/api/company/corrective-actions/${encodeURIComponent(id)}/evidence`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${liveToken}`,
+          },
+          body: JSON.stringify({
+            filePath: uploadUrlPayload.path,
+            fileName: file.name,
+            mimeType: file.type || "image/jpeg",
+          }),
+        });
+        const evidencePayload = (await evidenceResponse.json().catch(() => null)) as { error?: string } | null;
+        if (!evidenceResponse.ok) {
+          return {
+            success: false,
+            error: evidencePayload?.error || "Photo was uploaded, but could not be attached as proof.",
+          };
+        }
+
+        const closeResponse = await fetch(`/api/company/corrective-actions/${encodeURIComponent(id)}/close`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${liveToken}`,
+          },
+          body: JSON.stringify({
+            closureNote: `Closed with completion photo: ${file.name}`,
+          }),
+        });
+        const closePayload = (await closeResponse.json().catch(() => null)) as { error?: string } | null;
+        if (!closeResponse.ok) {
+          return {
+            success: false,
+            error: closePayload?.error || "Photo proof was attached, but the action could not be closed.",
+          };
+        }
+
+        setActionStatusLocal(id, "Closed");
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Could not close this action with photo proof.",
+        };
+      }
+    },
+    [draftActions, liveToken, mode, setActionStatusLocal]
   );
 
   const advanceActionStatus = useCallback(
@@ -360,6 +503,48 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       return draft;
     },
     [draftActions, liveToken, mode, persistDraftActions]
+  );
+
+  const addDraftHazard = useCallback(
+    (input: {
+      title: string;
+      siteId: string;
+      riskLevel: SafePredictHazardRecord["riskLevel"];
+      controlStatus: SafePredictHazardRecord["controlStatus"];
+      owner: string;
+      dueDate: string;
+      description?: string;
+    }) => {
+      const draft: SafePredictHazardRecord = {
+        id: `draft-hazard-${Date.now()}`,
+        siteId: input.siteId,
+        title: input.title,
+        driverId: input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "field-hazard",
+        controlStatus: input.controlStatus,
+        riskLevel: input.riskLevel,
+        owner: input.owner || "Unassigned",
+        dueDate: input.dueDate || "No due date",
+      };
+      persistDraftHazards([draft, ...draftHazards]);
+      if (mode === "live" && liveToken) {
+        void fetch("/api/company/safety-submissions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${liveToken}`,
+          },
+          body: JSON.stringify({
+            title: input.title,
+            description: input.description || `SafePredict hazard logged for ${input.owner || "field review"}.`,
+            severity: input.riskLevel,
+            category: "hazard",
+            jobsiteId: input.siteId,
+          }),
+        }).catch(() => undefined);
+      }
+      return draft;
+    },
+    [draftHazards, liveToken, mode, persistDraftHazards]
   );
 
   const addDraftJobsite = useCallback(
@@ -432,8 +617,10 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         setSelectedJobsiteId,
         setMode,
         updateActionStatus,
+        closeActionWithPhoto,
         advanceActionStatus,
         addDraftAction,
+        addDraftHazard,
         addDraftJobsite,
       }}
     >

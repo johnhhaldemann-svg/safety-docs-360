@@ -77,6 +77,7 @@ type WorkspaceRows = {
   actions: RowAction[];
   exportRows: unknown[];
   cardGrid?: ReactNode;
+  rowIds?: string[];
 };
 
 function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
@@ -109,13 +110,23 @@ function siteName(siteId: string, jobsites: Array<{ id: string; name: string }>)
 }
 
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
-  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, addDraftAction } = useSafePredictData();
+  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard } = useSafePredictData();
   const router = useRouter();
   const config = safePredictWorkspaceConfigs[workspace];
   const [query, setQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState(selectedJobsiteId === "all" ? "all" : selectedJobsiteId);
   const [riskFilter, setRiskFilter] = useState<SafePredictRiskLevel | "all">("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showHazardComposer, setShowHazardComposer] = useState(false);
+  const [hazardDraft, setHazardDraft] = useState({
+    title: "",
+    description: "",
+    siteId: selectedJobsiteId === "all" ? "" : selectedJobsiteId,
+    riskLevel: "medium" as SafePredictRiskLevel,
+    controlStatus: "Needs Control" as SafePredictDataset["hazards"][number]["controlStatus"],
+    owner: "",
+    dueDate: "",
+  });
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -154,6 +165,39 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     router.push(`/safe-predict/corrective-actions#${draft.id}`);
   }
 
+  function logHazard() {
+    const title = hazardDraft.title.trim();
+    if (!title) return;
+    const fallbackSiteId = siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "riverside";
+    const draft = addDraftHazard({
+      title,
+      description: hazardDraft.description.trim(),
+      siteId: hazardDraft.siteId || fallbackSiteId,
+      riskLevel: hazardDraft.riskLevel,
+      controlStatus: hazardDraft.controlStatus,
+      owner: hazardDraft.owner.trim() || "Unassigned",
+      dueDate: hazardDraft.dueDate || "No due date",
+    });
+    setSiteFilter(draft.siteId);
+    setSelectedJobsiteId(draft.siteId);
+    setStatusFilter("all");
+    setRiskFilter("all");
+    setQuery("");
+    setHazardDraft({
+      title: "",
+      description: "",
+      siteId: draft.siteId,
+      riskLevel: "medium",
+      controlStatus: "Needs Control",
+      owner: "",
+      dueDate: "",
+    });
+    setShowHazardComposer(false);
+    window.setTimeout(() => {
+      document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }
+
   const pageRows = buildRows({
     workspace,
     query: normalizedQuery,
@@ -162,6 +206,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     scoped,
     jobsites: dataset.jobsites,
     updateActionStatus,
+    closeActionWithPhoto,
     createActionFromSignal,
   });
 
@@ -199,12 +244,110 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             <Download className="h-4 w-4" />
             Export
           </ExportButton>
-          <Link href={workspacePrimaryHref(workspace)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]">
-            <Plus className="h-4 w-4" />
-            {config.primaryAction}
-          </Link>
+          {workspace === "hazards" ? (
+            <button
+              type="button"
+              onClick={() => setShowHazardComposer((current) => !current)}
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+            >
+              <Plus className="h-4 w-4" />
+              {config.primaryAction}
+            </button>
+          ) : (
+            <Link href={workspacePrimaryHref(workspace)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]">
+              <Plus className="h-4 w-4" />
+              {config.primaryAction}
+            </Link>
+          )}
         </div>
       </div>
+
+      {workspace === "hazards" && showHazardComposer ? (
+        <Card className="mb-5 p-5">
+          <SectionTitle title="Log Hazard" />
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_170px_190px_1fr]">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Hazard</span>
+              <input
+                value={hazardDraft.title}
+                onChange={(event) => setHazardDraft((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Open edge at level 3 stairwell"
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+            <SelectShell
+              label="Jobsite"
+              value={hazardDraft.siteId || (siteFilter === "all" ? dataset.jobsites[0]?.id ?? "" : siteFilter)}
+              onChange={(value) => setHazardDraft((current) => ({ ...current, siteId: value }))}
+              options={dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))}
+            />
+            <SelectShell
+              label="Risk"
+              value={hazardDraft.riskLevel}
+              onChange={(value) => setHazardDraft((current) => ({ ...current, riskLevel: value as SafePredictRiskLevel }))}
+              options={[
+                { label: "Critical", value: "critical" },
+                { label: "High", value: "high" },
+                { label: "Medium", value: "medium" },
+                { label: "Low", value: "low" },
+              ]}
+            />
+            <SelectShell
+              label="Control"
+              value={hazardDraft.controlStatus}
+              onChange={(value) =>
+                setHazardDraft((current) => ({
+                  ...current,
+                  controlStatus: value as SafePredictDataset["hazards"][number]["controlStatus"],
+                }))
+              }
+              options={[
+                { label: "Needs Control", value: "Needs Control" },
+                { label: "Control Planned", value: "Control Planned" },
+                { label: "Controlled", value: "Controlled" },
+              ]}
+            />
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Owner</span>
+              <input
+                value={hazardDraft.owner}
+                onChange={(event) => setHazardDraft((current) => ({ ...current, owner: event.target.value }))}
+                placeholder="Owner"
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_2fr_auto] xl:items-end">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Due date</span>
+              <input
+                type="date"
+                value={hazardDraft.dueDate}
+                onChange={(event) => setHazardDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Notes</span>
+              <input
+                value={hazardDraft.description}
+                onChange={(event) => setHazardDraft((current) => ({ ...current, description: event.target.value }))}
+                placeholder="Immediate controls, location details, or escalation notes"
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={logHazard}
+              disabled={!hazardDraft.title.trim()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              <Plus className="h-4 w-4" />
+              Log Hazard
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {moduleMetrics(workspace, summary, scoped).map((metric) => (
@@ -327,7 +470,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           {pageRows.cardGrid ? (
             <div className="grid gap-4 p-5 pt-2 md:grid-cols-2 2xl:grid-cols-3">{pageRows.cardGrid}</div>
           ) : (
-            <DataTable headers={pageRows.headers} rows={pageRows.rows} actions={pageRows.actions} />
+            <DataTable headers={pageRows.headers} rows={pageRows.rows} actions={pageRows.actions} rowIds={pageRows.rowIds} />
           )}
         </Card>
       ) : null}
@@ -368,6 +511,7 @@ function buildRows({
   scoped,
   jobsites,
   updateActionStatus,
+  closeActionWithPhoto,
   createActionFromSignal,
 }: {
   workspace: SafePredictWorkspaceSlug;
@@ -377,6 +521,7 @@ function buildRows({
   scoped: ScopedRows;
   jobsites: Array<{ id: string; name: string }>;
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
+  closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel }) => void;
 }): WorkspaceRows {
   function textMatches(values: string[]) {
@@ -399,7 +544,7 @@ function buildRows({
       exportRows: actions,
       cardGrid: actions.map((action) => (
         <div key={action.id} id={action.id} className="scroll-mt-28">
-          <CorrectiveActionCard action={action} onStatusChange={updateActionStatus} />
+          <CorrectiveActionCard action={action} onStatusChange={updateActionStatus} onCloseWithPhoto={closeActionWithPhoto} />
         </div>
       )) as ReactNode,
     };
@@ -422,7 +567,7 @@ function buildRows({
 
   if (workspace === "hazards") {
     const rows = scoped.hazards.filter((row) => textMatches([row.title, row.controlStatus, row.owner]) && statusMatches(row.controlStatus) && riskMatches(row.riskLevel));
-    return table("Hazard Control Register", ["Hazard", "Jobsite", "Control", "Owner", "Due", "Risk", "Action"], rows.map((row) => [row.title, siteName(row.siteId, jobsites), row.controlStatus, row.owner, row.dueDate, row.riskLevel]), rows.map((row) => ({ label: "Create Control", onClick: () => createActionFromSignal(row) })), rows);
+    return table("Hazard Control Register", ["Hazard", "Jobsite", "Control", "Owner", "Due", "Risk", "Action"], rows.map((row) => [row.title, siteName(row.siteId, jobsites), row.controlStatus, row.owner, row.dueDate, row.riskLevel]), rows.map((row) => ({ label: "Create Control", onClick: () => createActionFromSignal(row) })), rows, rows.map((row) => row.id));
   }
 
   if (workspace === "training") {
@@ -447,17 +592,17 @@ function buildRows({
   return table("Platform Settings", ["Setting", "Value", "Status"], [["Data mode", "Live beta or demo fallback", "Ready"], ["Risk bands", "Low / Medium / High / Critical", "Ready"], ["Visual system", "Concept-picture SafetyDoc360 theme", "Ready"]], [], []);
 }
 
-function table(title: string, headers: string[], rows: string[][], actions: RowAction[], exportRows: unknown[]) {
-  return { title, headers, rows, actions, exportRows };
+function table(title: string, headers: string[], rows: string[][], actions: RowAction[], exportRows: unknown[], rowIds?: string[]) {
+  return { title, headers, rows, actions, exportRows, rowIds };
 }
 
-function DataTable({ headers, rows, actions }: { headers: string[]; rows: string[][]; actions: RowAction[] }) {
+function DataTable({ headers, rows, actions, rowIds }: { headers: string[]; rows: string[][]; actions: RowAction[]; rowIds?: string[] }) {
   const visibleHeaders = headers.filter((header) => header !== "Action");
   return (
     <>
     <div className="space-y-3 p-4 pt-1 md:hidden">
       {rows.map((row, rowIndex) => (
-        <article key={`workspace-card-${rowIndex}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <article id={rowIds?.[rowIndex]} key={`workspace-card-${rowIndex}`} className="scroll-mt-28 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <p className="text-base font-black leading-snug text-slate-950">{row[0]}</p>
           <dl className="mt-3 grid gap-2 text-sm">
             {row.slice(1).map((cell, cellIndex) => (
@@ -493,7 +638,7 @@ function DataTable({ headers, rows, actions }: { headers: string[]; rows: string
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr key={row.join("-")} className="border-b border-slate-100 hover:bg-slate-50">
+            <tr id={rowIds?.[rowIndex]} key={row.join("-")} className="scroll-mt-28 border-b border-slate-100 hover:bg-slate-50">
               {row.map((cell, cellIndex) => (
                 <td key={`${rowIndex}-${cellIndex}`} className="px-5 py-3 font-semibold text-slate-700">
                   {cellIndex === row.length - 1 && ["critical", "high", "medium", "low"].includes(cell) ? <RiskBadge level={cell as SafePredictRiskLevel} /> : cell}

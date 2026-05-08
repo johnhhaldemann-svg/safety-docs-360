@@ -33,10 +33,13 @@ const DRAFT_KEY = "safety360docs:company-field-audit-draft:v1";
 
 type Jobsite = {
   id: string;
+  company_id?: string | null;
   name: string;
   project_number?: string | null;
   location?: string | null;
-  report_email?: string | null;
+  status?: string | null;
+  customer_company_name?: string | null;
+  customer_report_email?: string | null;
   audit_customer_id?: string | null;
 };
 
@@ -49,6 +52,7 @@ type AuditCustomer = {
 
 type AuditListRow = {
   id: string;
+  company_id?: string | null;
   jobsite_id: string | null;
   audit_customer_id?: string | null;
   audit_customer_location_id?: string | null;
@@ -208,35 +212,43 @@ export default function CompanyFieldAuditsPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in.");
-      const [customersRes, jobsitesRes, auditsRes] = await Promise.all([
-        fetch("/api/company/audit-customers", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
-        fetch("/api/company/audit-customer-locations", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
-        fetch("/api/company/field-audits", {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
-      ]);
-      const customersData = (await customersRes.json().catch(() => null)) as
-        | { customers?: AuditCustomer[]; error?: string; warning?: string }
+      const contextUrl = auditCustomerId
+        ? `/api/company/field-audits/context?companyId=${encodeURIComponent(auditCustomerId)}`
+        : "/api/company/field-audits/context";
+      const contextRes = await fetch(contextUrl, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const contextData = (await contextRes.json().catch(() => null)) as
+        | { companies?: AuditCustomer[]; jobsites?: Jobsite[]; error?: string; warning?: string }
         | null;
-      const jobsitesData = (await jobsitesRes.json().catch(() => null)) as { locations?: Jobsite[]; error?: string; warning?: string } | null;
+      if (!contextRes.ok) throw new Error(contextData?.error || contextData?.warning || "Failed to load audit setup.");
+      const companies = contextData?.companies ?? [];
+      const effectiveCompanyId = companies.some((company) => company.id === auditCustomerId)
+        ? auditCustomerId
+        : companies.length === 1
+          ? companies[0].id
+          : "";
+      const auditsUrl = effectiveCompanyId
+        ? `/api/company/field-audits?companyId=${encodeURIComponent(effectiveCompanyId)}`
+        : "/api/company/field-audits";
+      const auditsRes = await fetch(auditsUrl, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       const auditsData = (await auditsRes.json().catch(() => null)) as { audits?: AuditListRow[]; error?: string; warning?: string } | null;
-      if (!customersRes.ok) throw new Error(customersData?.error || customersData?.warning || "Failed to load audit customers.");
-      if (!jobsitesRes.ok) throw new Error(jobsitesData?.error || jobsitesData?.warning || "Failed to load audit jobs.");
       if (!auditsRes.ok) throw new Error(auditsData?.error || auditsData?.warning || "Failed to load audits.");
-      setAuditCustomers(customersData?.customers ?? []);
-      setJobsites(jobsitesData?.locations ?? []);
+      setAuditCustomers(companies);
+      setJobsites(contextData?.jobsites ?? []);
       setAudits(auditsData?.audits ?? []);
+      if (effectiveCompanyId && effectiveCompanyId !== auditCustomerId) {
+        setAuditCustomerId(effectiveCompanyId);
+      }
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Could not load field audit data.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auditCustomerId]);
 
   useEffect(() => {
     void loadData();
@@ -246,19 +258,16 @@ export default function CompanyFieldAuditsPage() {
   const filteredJobsites = useMemo(
     () =>
       auditCustomerId
-        ? jobsites.filter((jobsite) => jobsite.audit_customer_id === auditCustomerId)
-        : jobsites,
+        ? jobsites.filter(
+            (jobsite) =>
+              jobsite.company_id === auditCustomerId &&
+              String(jobsite.status ?? "").toLowerCase() === "active"
+          )
+        : [],
     [auditCustomerId, jobsites]
   );
   const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
-  const selectedJobsiteCustomer = selectedJobsite?.audit_customer_id
-    ? auditCustomers.find((customer) => customer.id === selectedJobsite.audit_customer_id)
-    : null;
-  const selectedReportEmail =
-    selectedCustomer?.report_email ||
-    selectedJobsiteCustomer?.report_email ||
-    selectedJobsite?.report_email ||
-    "";
+  const selectedReportEmail = selectedJobsite?.customer_report_email || selectedCustomer?.report_email || "";
 
   useEffect(() => {
     if (!jobsiteId || !auditCustomerId) return;
@@ -305,6 +314,8 @@ export default function CompanyFieldAuditsPage() {
     setSubmitting(true);
     setMessage("");
     try {
+      if (!auditCustomerId) throw new Error("Choose a company before submitting this audit.");
+      if (!jobsiteId) throw new Error("Choose an active jobsite before submitting this audit.");
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -316,9 +327,10 @@ export default function CompanyFieldAuditsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          jobsiteId: null,
-          auditCustomerId: auditCustomerId || selectedJobsite?.audit_customer_id || null,
-          auditCustomerLocationId: jobsiteId || null,
+          companyId: auditCustomerId,
+          jobsiteId,
+          auditCustomerId: selectedJobsite?.audit_customer_id || null,
+          auditCustomerLocationId: null,
           auditDate: auditDate || null,
           auditors,
           hoursBilled,
@@ -431,7 +443,7 @@ export default function CompanyFieldAuditsPage() {
 
       <SectionCard
         title="Audit header"
-        description="Choose the audit customer, audit job/location, and trade before scoring. Drafts save locally until submitted."
+        description="Choose the company, active jobsite, and trade before scoring. Drafts save locally until submitted."
         aside={
           <button type="button" onClick={clearDraft} className={appButtonSecondaryClassName} disabled={submitting}>
             Clear draft
@@ -440,7 +452,7 @@ export default function CompanyFieldAuditsPage() {
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <label className="block text-sm font-semibold text-slate-100">
-            Customer company
+            Company
             <select
               value={auditCustomerId}
               onChange={(event) => {
@@ -449,7 +461,7 @@ export default function CompanyFieldAuditsPage() {
               }}
               className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 [color-scheme:dark]"
             >
-              <option value="">No customer selected</option>
+              <option value="">Select company</option>
               {auditCustomers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
@@ -458,13 +470,14 @@ export default function CompanyFieldAuditsPage() {
             </select>
           </label>
           <label className="block text-sm font-semibold text-slate-100">
-            Audit Job / Location
+            Active jobsite
             <select
               value={jobsiteId}
               onChange={(event) => setJobsiteId(event.target.value)}
+              disabled={!auditCustomerId}
               className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 [color-scheme:dark]"
             >
-              <option value="">No audit location selected</option>
+              <option value="">Select active jobsite</option>
               {filteredJobsites.map((jobsite) => (
                 <option key={jobsite.id} value={jobsite.id}>
                   {jobsite.name}
@@ -508,6 +521,13 @@ export default function CompanyFieldAuditsPage() {
         <p className="mt-3 text-xs font-medium text-slate-400">
           Customer copy: {selectedReportEmail || "No customer report email saved yet"}
         </p>
+        {auditCustomerId && filteredJobsites.length === 0 ? (
+          <div className="mt-3">
+            <InlineMessage tone="warning">
+              This company does not have an active jobsite available for field audits yet.
+            </InlineMessage>
+          </div>
+        ) : null}
       </SectionCard>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -675,7 +695,7 @@ export default function CompanyFieldAuditsPage() {
             <button
               type="button"
               onClick={() => void submitAudit()}
-              disabled={submitting || score.total < 1}
+              disabled={submitting || score.total < 1 || !auditCustomerId || !jobsiteId}
               className={`mt-4 w-full ${appButtonPrimaryClassName}`}
             >
               <Save className="h-4 w-4" />
@@ -691,16 +711,14 @@ export default function CompanyFieldAuditsPage() {
             ) : (
               <div className="max-h-[520px] space-y-2 overflow-y-auto">
                 {audits.map((audit) => {
-                  const jobsite = jobsites.find((row) => row.id === (audit.audit_customer_location_id ?? audit.jobsite_id));
-                  const customer = (audit.audit_customer_id ?? jobsite?.audit_customer_id)
-                    ? auditCustomers.find((row) => row.id === (audit.audit_customer_id ?? jobsite?.audit_customer_id))
-                    : null;
-                  const copyEmail = jobsite?.report_email || customer?.report_email || "";
+                  const jobsite = jobsites.find((row) => row.id === audit.jobsite_id);
+                  const customer = auditCustomers.find((row) => row.id === (audit.company_id ?? auditCustomerId));
+                  const copyEmail = jobsite?.customer_report_email || customer?.report_email || "";
                   return (
                     <div key={audit.id} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-slate-100">{jobsite?.name ?? "No audit location"}</p>
+                          <p className="font-semibold text-slate-100">{jobsite?.name ?? "No jobsite selected"}</p>
                           <p className="text-xs text-slate-400">
                             {audit.audit_date ?? new Date(audit.created_at).toLocaleDateString()} |{" "}
                             {tradeLabel(audit.selected_trade)}

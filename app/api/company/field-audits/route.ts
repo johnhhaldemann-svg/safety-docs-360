@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
+import { authorizeRequest, isAdminRole, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
@@ -28,6 +28,7 @@ const MAX_PAYLOAD_CHARS = 1_800_000;
 const MAX_OBSERVATIONS = 500;
 
 type SubmitBody = {
+  companyId?: string | null;
   jobsiteId?: string | null;
   auditCustomerId?: string | null;
   auditCustomerLocationId?: string | null;
@@ -51,6 +52,10 @@ function validAuditDate(value: unknown) {
 
 function cleanText(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function canSelectAnyCompany(role: string, permissionMap: { can_view_all_company_data?: boolean }) {
+  return isAdminRole(role) || Boolean(permissionMap.can_view_all_company_data);
 }
 
 function normalizeHoursBilled(value: unknown) {
@@ -172,37 +177,46 @@ export async function GET(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
-  if (!isCompanyRole(auth.role) && auth.role !== "sales_demo") {
+  const canUseCompanyPicker = canSelectAnyCompany(auth.role, auth.permissionMap);
+  if (!isCompanyRole(auth.role) && auth.role !== "sales_demo" && !canUseCompanyPicker) {
     return NextResponse.json({ error: "Field audits are available to company workspace roles." }, { status: 403 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const requestedCompanyId = searchParams.get("companyId")?.trim() || "";
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     fallbackTeam: auth.team,
     authUser: auth.user,
   });
-  if (!companyScope.companyId) return NextResponse.json({ audits: [] });
+  const effectiveCompanyId = canUseCompanyPicker
+    ? requestedCompanyId || companyScope.companyId
+    : companyScope.companyId;
+  if (!effectiveCompanyId) return NextResponse.json({ audits: [] });
+  if (!canUseCompanyPicker && requestedCompanyId && requestedCompanyId !== companyScope.companyId) {
+    return NextResponse.json({ error: "You can only view audits for your assigned company." }, { status: 403 });
+  }
 
-  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, effectiveCompanyId);
   if (csepBlock) return csepBlock;
 
-  const { searchParams } = new URL(request.url);
   const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() || "";
+  const readSupabase = canUseCompanyPicker ? createSupabaseAdminClient() ?? auth.supabase : auth.supabase;
   const jobsiteScope = await getJobsiteAccessScope({
-    supabase: auth.supabase,
+    supabase: readSupabase,
     userId: auth.user.id,
-    companyId: companyScope.companyId,
+    companyId: effectiveCompanyId,
     role: auth.role,
   });
   if (requestedJobsiteId && !isJobsiteAllowed(requestedJobsiteId, jobsiteScope)) {
     return NextResponse.json({ audits: [] });
   }
 
-  let query = auth.supabase
+  let query = readSupabase
     .from("company_jobsite_audits")
     .select("id, company_id, jobsite_id, audit_customer_id, audit_customer_location_id, audit_date, auditors, selected_trade, template_source, status, score_summary, payload, ai_review_id, ai_review_status, ai_review_summary, created_at, updated_at, submitted_by")
-    .eq("company_id", companyScope.companyId)
+    .eq("company_id", effectiveCompanyId)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -237,7 +251,8 @@ export async function POST(request: Request) {
     ],
   });
   if ("error" in auth) return auth.error;
-  if (!isCompanyRole(auth.role) && auth.role !== "sales_demo") {
+  const canUseCompanyPicker = canSelectAnyCompany(auth.role, auth.permissionMap);
+  if (!isCompanyRole(auth.role) && auth.role !== "sales_demo" && !canUseCompanyPicker) {
     return NextResponse.json({ error: "Field audits are available to company workspace roles." }, { status: 403 });
   }
 
@@ -247,17 +262,24 @@ export async function POST(request: Request) {
     fallbackTeam: auth.team,
     authUser: auth.user,
   });
-  if (!companyScope.companyId) {
-    return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
-  }
-
-  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
-  if (csepBlock) return csepBlock;
-
   const body = (await request.json().catch(() => null)) as SubmitBody | null;
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
+
+  const requestedCompanyId = cleanText(body.companyId, 80) || null;
+  const effectiveCompanyId = canUseCompanyPicker
+    ? requestedCompanyId || companyScope.companyId
+    : companyScope.companyId;
+  if (!effectiveCompanyId) {
+    return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
+  }
+  if (!canUseCompanyPicker && requestedCompanyId && requestedCompanyId !== companyScope.companyId) {
+    return NextResponse.json({ error: "You can only submit audits for your assigned company." }, { status: 403 });
+  }
+
+  const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, effectiveCompanyId);
+  if (csepBlock) return csepBlock;
 
   const serialized = JSON.stringify(body);
   if (serialized.length > MAX_PAYLOAD_CHARS) {
@@ -267,25 +289,61 @@ export async function POST(request: Request) {
   const jobsiteId = cleanText(body.jobsiteId, 80) || null;
   const auditCustomerId = cleanText(body.auditCustomerId, 80) || null;
   const auditCustomerLocationId = cleanText(body.auditCustomerLocationId, 80) || null;
-  const jobsiteScope = await getJobsiteAccessScope({
-    supabase: auth.supabase,
-    userId: auth.user.id,
-    companyId: companyScope.companyId,
-    role: auth.role,
-  });
-  if (jobsiteId && !isJobsiteAllowed(jobsiteId, jobsiteScope)) {
-    return NextResponse.json({ error: "You can only submit audits for assigned jobsites." }, { status: 403 });
+  if (!jobsiteId) {
+    return NextResponse.json({ error: "Select an active jobsite before submitting this audit." }, { status: 400 });
   }
   const writeSupabase = createSupabaseAdminClient() ?? auth.supabase;
+  const jobsiteScope = await getJobsiteAccessScope({
+    supabase: writeSupabase,
+    userId: auth.user.id,
+    companyId: effectiveCompanyId,
+    role: auth.role,
+  });
+  if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
+    return NextResponse.json({ error: "You can only submit audits for assigned jobsites." }, { status: 403 });
+  }
 
-  let auditCustomerName: string | null = null;
-  let auditLocationName: string | null = null;
-  let auditLocationAddress: string | null = null;
+  const companyCheck = await writeSupabase
+    .from("companies")
+    .select("id, name, status")
+    .eq("id", effectiveCompanyId)
+    .maybeSingle();
+  if (companyCheck.error) {
+    return NextResponse.json({ error: companyCheck.error.message || "Failed to validate company." }, { status: 500 });
+  }
+  if (!companyCheck.data) {
+    return NextResponse.json({ error: "Select a valid company for this audit." }, { status: 400 });
+  }
+  if (String(companyCheck.data.status ?? "").trim().toLowerCase() === "archived") {
+    return NextResponse.json({ error: "Audits cannot be submitted for an archived company." }, { status: 400 });
+  }
+
+  const jobsiteCheck = await writeSupabase
+    .from("company_jobsites")
+    .select("id, name, location, status, customer_company_name, customer_report_email, audit_customer_id")
+    .eq("company_id", effectiveCompanyId)
+    .eq("id", jobsiteId)
+    .maybeSingle();
+  if (jobsiteCheck.error) {
+    return NextResponse.json({ error: jobsiteCheck.error.message || "Failed to validate jobsite." }, { status: 500 });
+  }
+  if (!jobsiteCheck.data) {
+    return NextResponse.json({ error: "Select a valid jobsite for this company." }, { status: 400 });
+  }
+  if (String(jobsiteCheck.data.status ?? "").trim().toLowerCase() !== "active") {
+    return NextResponse.json({ error: "Select an active jobsite for this audit." }, { status: 400 });
+  }
+
+  let auditCustomerName: string | null =
+    typeof jobsiteCheck.data.customer_company_name === "string" ? jobsiteCheck.data.customer_company_name : null;
+  let auditLocationName: string | null = typeof jobsiteCheck.data.name === "string" ? jobsiteCheck.data.name : null;
+  let auditLocationAddress: string | null =
+    typeof jobsiteCheck.data.location === "string" ? jobsiteCheck.data.location : null;
   if (auditCustomerId) {
     const customerCheck = await writeSupabase
       .from("company_audit_customers")
       .select("id, name")
-      .eq("company_id", companyScope.companyId)
+      .eq("company_id", effectiveCompanyId)
       .eq("id", auditCustomerId)
       .maybeSingle();
     if (customerCheck.error) {
@@ -300,7 +358,7 @@ export async function POST(request: Request) {
     const locationCheck = await writeSupabase
       .from("company_audit_customer_locations")
       .select("id, audit_customer_id, name, location")
-      .eq("company_id", companyScope.companyId)
+      .eq("company_id", effectiveCompanyId)
       .eq("id", auditCustomerLocationId)
       .maybeSingle();
     if (locationCheck.error) {
@@ -364,7 +422,7 @@ export async function POST(request: Request) {
   const auditInsert = await writeSupabase
     .from("company_jobsite_audits")
     .insert({
-      company_id: companyScope.companyId,
+      company_id: effectiveCompanyId,
       jobsite_id: jobsiteId,
       audit_customer_id: auditCustomerId,
       audit_customer_location_id: auditCustomerLocationId,
@@ -376,6 +434,9 @@ export async function POST(request: Request) {
       score_summary: normalized.scoreSummary,
       payload: {
         ...body,
+        companyId: effectiveCompanyId,
+        companyName: companyCheck.data.name ?? null,
+        jobsiteName: auditLocationName,
         hoursBilled,
         auditCustomerName,
         auditLocationName,
@@ -395,7 +456,7 @@ export async function POST(request: Request) {
 
   const auditId = String(auditInsert.data.id);
   const observationRows = normalized.observations.map((observation) => ({
-    company_id: companyScope.companyId,
+    company_id: effectiveCompanyId,
     audit_id: auditId,
     jobsite_id: jobsiteId,
     source_key: observation.sourceKey,
@@ -451,7 +512,7 @@ export async function POST(request: Request) {
       const correctiveInsert = await writeSupabase
         .from("company_corrective_actions")
         .insert(buildCorrectiveActionInsert({
-          companyId: companyScope.companyId,
+          companyId: effectiveCompanyId,
           jobsiteId,
           actorUserId: auth.user.id,
           auditId,
@@ -466,9 +527,9 @@ export async function POST(request: Request) {
           .from("company_jobsite_audit_observations")
           .update({ corrective_action_id: correctiveActionId })
           .eq("id", saved.id)
-          .eq("company_id", companyScope.companyId);
+          .eq("company_id", effectiveCompanyId);
         const facet = buildCorrectiveActionFacetRow(
-          companyScope.companyId,
+          effectiveCompanyId,
           correctiveInsert.data as Record<string, unknown>,
           { riskMemory: observation.riskMemory }
         );
@@ -490,8 +551,8 @@ export async function POST(request: Request) {
           observation,
           correctiveActionId,
         }),
-        companyId: companyScope.companyId,
-        defaultCompanyName: companyScope.companyName,
+        companyId: effectiveCompanyId,
+        defaultCompanyName: String(companyCheck.data.name ?? companyScope.companyName ?? ""),
         defaultJobsiteId: jobsiteId,
         actorUserId: auth.user.id,
       });
@@ -501,7 +562,7 @@ export async function POST(request: Request) {
           .from("company_jobsite_audit_observations")
           .update({ ai_bucket_id: intake.bucketId })
           .eq("id", saved.id)
-          .eq("company_id", companyScope.companyId);
+          .eq("company_id", effectiveCompanyId);
       } else if (intake.prepared.validationStatus === "rejected") {
         ingestionErrors.push(`AI intake rejected ${saved.id}.`);
       }
@@ -515,7 +576,7 @@ export async function POST(request: Request) {
       ? await writeSupabase
           .from("company_jobsites")
           .select("id, name")
-          .eq("company_id", companyScope.companyId)
+          .eq("company_id", effectiveCompanyId)
           .eq("id", jobsiteId)
           .maybeSingle()
       : { data: null, error: null };
@@ -545,7 +606,7 @@ export async function POST(request: Request) {
     aiReviewStatus = aiReview.meta.fallbackUsed ? "fallback_reviewed" : "reviewed";
     aiReviewId = await persistFieldAuditAiReview({
       supabase: writeSupabase,
-      companyId: companyScope.companyId,
+      companyId: effectiveCompanyId,
       jobsiteId,
       auditId,
       actorUserId: auth.user.id,
@@ -570,7 +631,7 @@ export async function POST(request: Request) {
           aiReview: aiReviewSummary,
         },
       })
-      .eq("company_id", companyScope.companyId)
+      .eq("company_id", effectiveCompanyId)
       .eq("id", auditId);
 
     if (aiReviewUpdate.error) {
@@ -582,7 +643,7 @@ export async function POST(request: Request) {
     await writeSupabase
       .from("company_jobsite_audits")
       .update({ ai_review_status: "failed" })
-      .eq("company_id", companyScope.companyId)
+      .eq("company_id", effectiveCompanyId)
       .eq("id", auditId);
   }
 

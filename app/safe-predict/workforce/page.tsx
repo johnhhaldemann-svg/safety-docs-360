@@ -76,6 +76,13 @@ export default function SafePredictWorkforcePage() {
               <CalendarDays className="h-4 w-4" />
               May 20 - May 26, 2024
             </button>
+            <Link
+              href="/company-users"
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+            >
+              <Users className="h-4 w-4" />
+              Manage Team Access
+            </Link>
             <ExportButton
               fileName="safe-predict-workforce-readiness.json"
               label="Export workforce readiness report"
@@ -250,8 +257,8 @@ export default function SafePredictWorkforcePage() {
             </table>
           </div>
           <div className="border-t border-slate-100 p-5">
-            <Link href="/safe-predict/training" className="inline-flex items-center gap-2 font-black text-blue-600">
-              View full demo roster <ArrowRight className="h-4 w-4" />
+            <Link href="/company-users" className="inline-flex items-center gap-2 font-black text-blue-600">
+              Add, remove, or archive team members <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </Card>
@@ -425,7 +432,7 @@ export default function SafePredictWorkforcePage() {
               <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" />Overdue</span><strong>{workforce.overdue} (7%)</strong></p>
             </div>
           </div>
-          <Link href="/safe-predict/workforce" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">View workforce directory <ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/company-users" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">Manage live roster <ArrowRight className="h-4 w-4" /></Link>
         </Card>
 
         <Card className="p-5">

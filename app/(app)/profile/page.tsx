@@ -611,12 +611,16 @@ export default function ProfilePage() {
         title={
           managedProfile
             ? `Manage ${managedProfileLabel}'s construction profile`
-            : "Build your construction profile"
+            : initialProfileComplete
+              ? "My profile"
+              : "Build your construction profile"
         }
         description={
           managedProfile
             ? "Update this employee’s jobsite-facing profile (title, trade, credentials). This is separate from their workspace role, which is set under Team access."
-            : "Your app role (Company Admin, Company User, etc.) is shown below. The form fields are your public jobsite title and trade—used on your construction card, not for permissions."
+            : initialProfileComplete
+              ? "View your saved jobsite profile, contact details, credentials, and account access in one place."
+              : "Your app role (Company Admin, Company User, etc.) is shown below. The form fields are your public jobsite title and trade—used on your construction card, not for permissions."
         }
         actions={
           managedProfile ? (
@@ -626,7 +630,14 @@ export default function ProfilePage() {
             >
               Back to Team Access
             </Link>
-          ) : undefined
+          ) : (
+            <a
+              href="#profile-editor"
+              className="inline-flex items-center justify-center rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-950/50"
+            >
+              Edit profile
+            </a>
+          )
         }
       />
 
@@ -638,6 +649,82 @@ export default function ProfilePage() {
           </Link>
           .
         </InlineMessage>
+      ) : null}
+
+      {!managedProfile ? (
+        <section className="app-profile-card app-radius-panel p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start">
+              {photoPreview || photoUrl ? (
+                <Image
+                  src={photoPreview || photoUrl}
+                  alt={displayName}
+                  width={120}
+                  height={120}
+                  className="app-photo-frame h-28 w-28 rounded-[1.8rem] object-cover"
+                />
+              ) : (
+                <div className="app-photo-placeholder flex h-28 w-28 shrink-0 items-center justify-center rounded-[1.8rem] text-3xl font-black text-[var(--app-accent-primary)]">
+                  {getInitials(displayName)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--app-accent-primary)]">
+                  Profile snapshot
+                </div>
+                <h2 className="mt-2 font-app-display text-3xl font-black tracking-tight text-[var(--app-text-strong)]">
+                  {displayName}
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-[var(--app-text)]">
+                  {resolvedJobTitle || workspaceRoleLabel || "Jobsite title not set"}
+                  {(resolvedJobTitle || workspaceRoleLabel) && resolvedTrade ? " | " : ""}
+                  {resolvedTrade || ""}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <StatusBadge
+                    label={initialProfileComplete ? "Profile saved" : "Profile needs details"}
+                    tone={initialProfileComplete ? "success" : "warning"}
+                  />
+                  <StatusBadge label={getReadinessLabel(readinessStatus)} tone={getReadinessTone(readinessStatus)} />
+                  {workspaceRoleLabel ? <StatusBadge label={workspaceRoleLabel} tone="neutral" /> : null}
+                </div>
+              </div>
+            </div>
+            <a
+              href="#profile-editor"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              Edit details
+            </a>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <div className="app-soft-field rounded-2xl px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">Company</div>
+              <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                {workspaceTeam || "Not linked"}
+              </div>
+            </div>
+            <div className="app-soft-field rounded-2xl px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">Phone</div>
+              <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                {phone || "Add phone"}
+              </div>
+            </div>
+            <div className="app-soft-field rounded-2xl px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">Region</div>
+              <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                {[city, stateRegion].filter(Boolean).join(", ") || "Set location"}
+              </div>
+            </div>
+            <div className="app-soft-field rounded-2xl px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">Credentials</div>
+              <div className="mt-2 truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                {allCertifications.length ? `${allCertifications.length} on profile` : "Add certifications"}
+              </div>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {!managedProfile && workspaceRoleLabel ? (
@@ -808,7 +895,7 @@ export default function ProfilePage() {
         ))}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+      <div id="profile-editor" className="grid scroll-mt-28 gap-5 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="space-y-5">
           <SectionCard
             title="Field identity card"

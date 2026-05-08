@@ -250,7 +250,6 @@ const ITEM_META: Array<{
     matcher: (href) => href === "/profile",
     group: "account",
     description: "Update your account profile, contact details, role context, and personal settings.",
-    primaryActionLabel: "Open profile",
   },
   {
     matcher: (href) => href === "/admin",
