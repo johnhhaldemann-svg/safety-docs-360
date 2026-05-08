@@ -972,6 +972,90 @@ export default function CompanyUsersPage() {
         ))}
       </section>
 
+      <SectionCard
+        title="Leadership safety commitment"
+        description="Evidence-backed commitment indicators for leaders you are allowed to coach or review."
+        aside={
+          leadershipScoreRows.length > 0 ? (
+            <StatusBadge label={`${leadershipScoreRows.length} visible`} tone="info" />
+          ) : undefined
+        }
+      >
+        {loading ? (
+          <InlineMessage>Loading leadership indicators...</InlineMessage>
+        ) : leadershipScoreRows.length === 0 ? (
+          <EmptyState
+            title="No leadership indicators visible yet"
+            description="Scores appear after assigned leaders have enough jobsite, permit, JSA, injury-response, corrective-action, or AI risk-action evidence."
+          />
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-3">
+            {leadershipScoreRows.slice(0, 6).map(({ user, score }) => {
+              const topOpportunity = score.negativeSignals?.[0];
+              const topPositive = score.positiveSignals?.[0];
+              return (
+                <div
+                  key={score.userId}
+                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">{score.roleLabel || user.role}</p>
+                    </div>
+                    <StatusBadge label={`Grade ${score.grade}`} tone={getCommitmentTone(score.grade)} />
+                  </div>
+                  <div className="mt-4 flex items-end gap-2">
+                    <span className="text-4xl font-black tracking-tight text-white">{score.score}</span>
+                    <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                      /100
+                    </span>
+                    <span className="pb-1 text-xs font-semibold text-slate-500">
+                      {formatTrend(score.trend)}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-400">
+                    {score.coachingPrompt ||
+                      "Use the evidence below to coach risk reduction on assigned work."}
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    {topPositive ? (
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
+                        <p className="text-xs font-semibold text-emerald-200">{topPositive.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{topPositive.detail}</p>
+                      </div>
+                    ) : null}
+                    {topOpportunity ? (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 px-3 py-2">
+                        <p className="text-xs font-semibold text-amber-200">{topOpportunity.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{topOpportunity.detail}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      href={getProfileHref(user.id)}
+                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                    >
+                      View profile
+                    </Link>
+                    {(score.evidenceRefs ?? []).slice(0, 1).map((ref, index) => (
+                      <Link
+                        key={`${score.userId}-evidence-${index}`}
+                        href={ref.href || "#"}
+                        className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                      >
+                        {ref.label || "Evidence"}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
+
       <section className="grid gap-4 lg:grid-cols-3">
         <Link href="/jobsites" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
           <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Jobsites</div>

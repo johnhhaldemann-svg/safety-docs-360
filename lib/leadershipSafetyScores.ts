@@ -77,12 +77,6 @@ const COMPANY_WIDE_ROLES = new Set<LeadershipSafetyRole>([
   "safety_manager",
 ]);
 
-const FIELD_SCOPED_ROLES = new Set<LeadershipSafetyRole>([
-  "project_manager",
-  "field_supervisor",
-  "foreman",
-]);
-
 function text(row: Record<string, unknown>, key: string) {
   const value = row[key];
   return typeof value === "string" ? value.trim() : "";
@@ -234,6 +228,7 @@ export function buildLeadershipSafetyScore(params: {
   const negatives: LeadershipSafetySignal[] = [];
   const evidenceRefs: LeadershipSafetyEvidenceRef[] = [];
   let delta = 0;
+  const nowMs = dateMs(params.now) ?? Date.now();
 
   if (!scope.companyWide && scope.jobsiteIds.length === 0) {
     pushSignal(negatives, "No assigned jobsites", "This leadership role has no assigned jobsites to verify.", -8);
@@ -273,7 +268,7 @@ export function buildLeadershipSafetyScore(params: {
   const stalePermits = permits.filter((row) => {
     const status = normalizeStatus(row.status);
     const dueMs = dateMs(row.due_at);
-    return status === "expired" || (status !== "closed" && dueMs != null && dueMs < Date.now());
+    return status === "expired" || (status !== "closed" && dueMs != null && dueMs < nowMs);
   });
   const unownedPermits = permits.filter((row) => !text(row, "owner_user_id"));
   const stopWorkOpen = permits.filter((row) => {
@@ -300,7 +295,7 @@ export function buildLeadershipSafetyScore(params: {
   const staleDraftJsas = jsas.filter((row) => {
     const status = normalizeStatus(row.status);
     const created = dateMs(row.created_at);
-    return status === "draft" && created != null && Date.now() - created > 3 * 24 * 60 * 60 * 1000;
+    return status === "draft" && created != null && nowMs - created > 3 * 24 * 60 * 60 * 1000;
   });
   const thinJsas = jsas.filter((row) => {
     const description = text(row, "description");
@@ -337,7 +332,7 @@ export function buildLeadershipSafetyScore(params: {
   const overdueActions = actions.filter((row) => {
     const dueMs = dateMs(row.due_at);
     const status = normalizeStatus(row.status);
-    return dueMs != null && dueMs < Date.now() && status !== "verified_closed" && !hasDate(row.closed_at);
+    return dueMs != null && dueMs < nowMs && status !== "verified_closed" && !hasDate(row.closed_at);
   });
   if (closedActions.length > 0) {
     const points = Math.min(14, closedActions.length * 3);

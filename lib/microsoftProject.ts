@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const MICROSOFT_PROJECT_PROVIDER = "microsoft_project";
 
@@ -581,7 +582,7 @@ async function findCompanyUserByEmail(supabase: SupabaseLike, email?: string | n
 async function resolveOrCreateJobsite(params: {
   supabase: SupabaseLike;
   companyId: string;
-  actorUserId: string;
+  actorUserId?: string | null;
   project: ImportedMicrosoftProject;
 }) {
   const { supabase, companyId, actorUserId, project } = params;
@@ -636,7 +637,7 @@ async function importMicrosoftPayload(params: {
   supabase: SupabaseLike;
   companyId: string;
   connectionId: string;
-  actorUserId: string;
+  actorUserId?: string | null;
   projects: ImportedMicrosoftProject[];
   tasks: ImportedMicrosoftTask[];
   assignments: ImportedMicrosoftAssignment[];
@@ -781,7 +782,7 @@ async function importMicrosoftPayload(params: {
 export async function upsertMicrosoftProjectConnection(params: {
   supabase: SupabaseLike;
   companyId: string;
-  actorUserId: string;
+  actorUserId?: string | null;
   token: MicrosoftTokenResponse;
   graphMe: { id: string; displayName: string; email: string; raw: Record<string, unknown> };
   dataverseEnvironmentUrl?: string | null;
@@ -829,7 +830,7 @@ async function loadConnection(supabase: SupabaseLike, companyId: string) {
 export async function runMicrosoftProjectSync(params: {
   supabase: SupabaseLike;
   companyId: string;
-  actorUserId: string;
+  actorUserId?: string | null;
 }) {
   const connection = await loadConnection(params.supabase, params.companyId);
   if (!connection) throw new Error("Microsoft Project is not connected.");
@@ -935,6 +936,92 @@ export async function runMicrosoftProjectSync(params: {
       .eq("id", connection.id);
     throw error;
   }
+}
+
+function readMicrosoftProjectCronMaxCompanies() {
+  const raw = Number(process.env.MICROSOFT_PROJECT_CRON_MAX_COMPANIES ?? "50");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 50;
+}
+
+export async function runMicrosoftProjectDailySync(params: {
+  maxCompanies?: number;
+} = {}) {
+  const supabase = createSupabaseAdminClient();
+  if (!supabase) {
+    return {
+      ok: false,
+      error: "Supabase service role is required for Microsoft Project cron sync.",
+      companiesSeen: 0,
+      companiesSynced: 0,
+      companiesFailed: 0,
+      results: [],
+    };
+  }
+
+  const maxCompanies = params.maxCompanies ?? readMicrosoftProjectCronMaxCompanies();
+  const connections = await table(supabase, "company_integration_connections")
+    .select("id, company_id, status, provider, last_sync_at")
+    .eq("provider", MICROSOFT_PROJECT_PROVIDER)
+    .eq("status", "connected")
+    .order("last_sync_at", { ascending: true, nullsFirst: true })
+    .limit(maxCompanies);
+
+  if (connections.error) {
+    return {
+      ok: false,
+      error: connections.error.message || "Failed to load Microsoft Project connections.",
+      companiesSeen: 0,
+      companiesSynced: 0,
+      companiesFailed: 0,
+      results: [],
+    };
+  }
+
+  const rows = ((connections.data ?? []) as Array<{ id: string; company_id: string }>)
+    .filter((row) => row.company_id);
+  const results: Array<{
+    companyId: string;
+    ok: boolean;
+    status?: string;
+    projectsImported?: number;
+    tasksImported?: number;
+    assignmentsImported?: number;
+    error?: string;
+  }> = [];
+
+  for (const row of rows) {
+    try {
+      const result = await runMicrosoftProjectSync({
+        supabase,
+        companyId: row.company_id,
+        actorUserId: null,
+      });
+      results.push({
+        companyId: row.company_id,
+        ok: true,
+        status: result.status,
+        projectsImported: result.projectsImported,
+        tasksImported: result.tasksImported,
+        assignmentsImported: result.assignmentsImported,
+      });
+    } catch (error) {
+      results.push({
+        companyId: row.company_id,
+        ok: false,
+        error: error instanceof Error ? error.message : "Microsoft Project sync failed.",
+      });
+    }
+  }
+
+  const companiesFailed = results.filter((result) => !result.ok).length;
+  return {
+    ok: companiesFailed < rows.length || rows.length === 0,
+    companiesSeen: rows.length,
+    companiesSynced: results.filter((result) => result.ok).length,
+    companiesFailed,
+    results,
+    cappedAt: maxCompanies,
+  };
 }
 
 export async function getMicrosoftProjectStatus(params: { supabase: SupabaseLike; companyId: string }) {

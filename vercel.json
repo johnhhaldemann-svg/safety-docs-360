@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/risk-memory-rollup",
       "schedule": "45 5 * * *"
+    },
+    {
+      "path": "/api/cron/microsoft-project-sync",
+      "schedule": "0 6 * * *"
     }
   ]
 }

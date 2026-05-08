@@ -381,7 +381,7 @@ export default function ProfilePage() {
       .publicUrl;
 
     return {
-      nextPhotoUrl: `${publicUrl}?v=${Date.now()}`,
+      nextPhotoUrl: `${publicUrl}?v=${photoFile.lastModified}`,
       nextPhotoPath,
     };
   }
@@ -521,7 +521,7 @@ export default function ProfilePage() {
           : companyId
             ? "/dashboard"
             : "/company-setup";
-        window.location.href = nextHref;
+        window.location.assign(nextHref);
         return;
       }
     } catch (error) {
