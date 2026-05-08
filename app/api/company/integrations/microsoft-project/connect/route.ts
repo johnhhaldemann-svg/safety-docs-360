@@ -3,10 +3,9 @@ import { buildMicrosoftAuthorizeUrl } from "@/lib/microsoftProject";
 import {
   authorizeMicrosoftProjectRequest,
   isDemoMicrosoftProjectRequest,
-  runtime,
 } from "../_shared";
 
-export { runtime };
+export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const scoped = await authorizeMicrosoftProjectRequest(request, { requireManage: true });
