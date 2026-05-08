@@ -3,6 +3,7 @@ import {
   BarChart3,
   ClipboardList,
   FolderOpen,
+  GraduationCap,
   HardHat,
   LayoutDashboard,
   Settings2,
@@ -19,15 +20,18 @@ const GROUP_ICONS: Record<WorkspaceNavGroup, LucideIcon> = {
   audits: ClipboardList,
   documents: FolderOpen,
   fieldSites: HardHat,
-  programs: ClipboardList,
+  programs: GraduationCap,
   insights: BarChart3,
   account: Users,
 };
 
 const TITLE_HINTS: Array<{ test: (t: string) => boolean; Icon: LucideIcon }> = [
+  { test: (t) => /superadmin|system|platform/i.test(t), Icon: Shield },
   { test: (t) => /admin|platform/i.test(t), Icon: Shield },
   { test: (t) => /document|library|template/i.test(t), Icon: FolderOpen },
-  { test: (t) => /account|team|billing|report/i.test(t), Icon: Users },
+  { test: (t) => /company|user|account|team|billing/i.test(t), Icon: Users },
+  { test: (t) => /program|training|induction/i.test(t), Icon: GraduationCap },
+  { test: (t) => /insight|report|analytics/i.test(t), Icon: BarChart3 },
   { test: (t) => /audit/i.test(t), Icon: ClipboardList },
   { test: (t) => /review|queue/i.test(t), Icon: ClipboardList },
   { test: (t) => /setup|profile|company/i.test(t), Icon: Settings2 },

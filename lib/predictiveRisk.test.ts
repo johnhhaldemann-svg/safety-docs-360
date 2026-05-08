@@ -135,7 +135,19 @@ describe("buildPredictiveRiskPayload", () => {
         },
       ],
       permits: [],
-      jsaActivities: [],
+      jsaActivities: [
+        {
+          id: "j1-activity",
+          jobsite_id: "j1",
+          work_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          trade: "Electrical",
+          activity_name: "LOTO panel verification",
+          hazard_category: "electrical",
+          mitigation: "Use PPE and be careful.",
+          planned_risk_level: "high",
+          status: "planned",
+        },
+      ],
     });
 
     expect(payload.summary.predictedIncidents).toBe(3);
@@ -144,6 +156,8 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.locations[0]?.riskScore).toBeGreaterThan(payload.locations[1]?.riskScore ?? 0);
     expect(payload.drivers.map((driver) => driver.label)).toContain("Fall Protection");
     expect(payload.actions[0]?.target).toBe("North Building");
+    expect(payload.behaviorRisk.behaviorRiskScore).toBeGreaterThan(0);
+    expect(payload.behaviorRisk.topDrivers.map((driver) => driver.driver)).toContain("weak_jsa_language");
   });
 
   it("falls back to forecast categories when no jobsite-aware rows exist", () => {
@@ -161,6 +175,7 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.drivers[0]?.label).toBe("Fall Protection");
     expect(payload.summary.averageRiskScore).toBe(61);
     expect(payload.model.provenanceNote).toContain("No jobsite-aware records");
+    expect(payload.behaviorRisk.riskLevel).toBe("Low");
   });
 
   it("builds a populated sales demo payload", () => {
@@ -168,5 +183,6 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.locations.length).toBeGreaterThan(0);
     expect(payload.summary.confidencePercent).toBe(85);
     expect(payload.actions.length).toBeGreaterThan(0);
+    expect(payload.behaviorRisk.behaviorRiskScore).toBeGreaterThan(0);
   });
 });

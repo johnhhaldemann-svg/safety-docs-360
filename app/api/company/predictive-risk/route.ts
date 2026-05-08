@@ -14,6 +14,7 @@ import {
   type PredictiveRiskJsaActivityRow,
   type PredictiveRiskPermitRow,
 } from "@/lib/predictiveRisk";
+import type { BehaviorRiskObservationRow } from "@/lib/predictive/behaviorRisk";
 
 export const runtime = "nodejs";
 
@@ -160,12 +161,20 @@ export async function GET(request: Request) {
   const jsaActivitiesQuery = applyJobsiteScope(
     auth.supabase
       .from("company_jsa_activities")
-      .select("id, hazard_category, status, created_at, jobsite_id")
+      .select(
+        "id, jsa_id, jobsite_id, work_date, trade, activity_name, area, crew_size, hazard_category, hazard_description, mitigation, permit_required, permit_type, planned_risk_level, status, created_at, updated_at"
+      )
       .eq("company_id", companyId) as unknown as ScopedQueryBuilder<PredictiveRiskJsaActivityRow>,
     scopeOptions
   ).gte("created_at", since) as PromiseLike<QueryResult<PredictiveRiskJsaActivityRow>>;
 
-  const [forecast, jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes] = await Promise.all([
+  const observationsQuery = auth.supabase
+    .from("company_sor_records")
+    .select("id, date, location, trade, category, hazard_category_code, subcategory, description, severity, status, created_at")
+    .eq("company_id", companyId)
+    .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
+
+  const [forecast, jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, observationsRes] = await Promise.all([
     getInjuryWeatherDashboardData({
       companyId,
       jobsiteId: forecastJobsiteId,
@@ -176,6 +185,7 @@ export async function GET(request: Request) {
     incidentsQuery,
     permitsQuery,
     jsaActivitiesQuery,
+    observationsQuery,
   ]);
 
   const hardError =
@@ -183,7 +193,8 @@ export async function GET(request: Request) {
     correctiveRes.error?.message ||
     incidentsRes.error?.message ||
     permitsRes.error?.message ||
-    (jsaActivitiesRes.error && !isMissingTable(jsaActivitiesRes.error.message) ? jsaActivitiesRes.error.message : null);
+    (jsaActivitiesRes.error && !isMissingTable(jsaActivitiesRes.error.message) ? jsaActivitiesRes.error.message : null) ||
+    (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null);
 
   if (hardError) {
     return NextResponse.json({ error: hardError || "Failed to load predictive risk." }, { status: 500 });
@@ -191,6 +202,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json(
     buildPredictiveRiskPayload({
+      projectId: companyId,
       days,
       jobsiteId: requestedJobsiteId,
       month,
@@ -200,6 +212,7 @@ export async function GET(request: Request) {
       incidents: incidentsRes.data ?? [],
       permits: permitsRes.data ?? [],
       jsaActivities: jsaActivitiesRes.error ? [] : jsaActivitiesRes.data ?? [],
+      observations: observationsRes.error ? [] : observationsRes.data ?? [],
       warning:
         jobsiteScope.restricted && !requestedJobsiteId && forecastJobsiteId
           ? "Forecast headline uses your first assigned jobsite; location rankings use all assigned jobsites."

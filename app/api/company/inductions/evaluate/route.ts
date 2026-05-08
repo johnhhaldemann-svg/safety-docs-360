@@ -12,6 +12,15 @@ import {
 
 export const runtime = "nodejs";
 
+function isMissingInductionSchemaError(message?: string | null) {
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("schema cache") ||
+    m.includes("does not exist") ||
+    m.includes("could not find")
+  );
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
@@ -88,6 +97,19 @@ export async function GET(request: Request) {
       reqsRes.error?.message ||
       completionsRes.error?.message ||
       "Failed to load induction data.";
+    if (isMissingInductionSchemaError(msg)) {
+      return NextResponse.json({
+        jobsiteId,
+        subjectUserId: subjectUserId || null,
+        visitorDisplayName,
+        contractorId: searchParams.get("contractorId")?.trim() || null,
+        status: "eligible",
+        missingProgramIds: [],
+        reasons: [],
+        warning: "Induction setup is not available yet. Run the company induction database migration to enable site access checks.",
+        schemaMigrationNeeded: true,
+      });
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 

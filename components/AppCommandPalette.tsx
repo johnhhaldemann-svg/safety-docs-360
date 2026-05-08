@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NavItem } from "@/lib/appNavigation";
+import { getWorkspaceNavItemMeta } from "@/lib/workspaceNavigationModel";
 import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 type AppCommandPaletteProps = {
@@ -23,10 +24,19 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
       return items;
     }
     return items.filter((item) => {
+      const meta = getWorkspaceNavItemMeta(item);
       const label = item.label.toLowerCase();
       const href = item.href.toLowerCase();
       const short = item.short.toLowerCase();
-      return label.includes(q) || href.includes(q) || short.includes(q);
+      const description = (item.description ?? meta.description).toLowerCase();
+      const keywords = (item.keywords ?? []).join(" ").toLowerCase();
+      return (
+        label.includes(q) ||
+        href.includes(q) ||
+        short.includes(q) ||
+        description.includes(q) ||
+        keywords.includes(q)
+      );
     });
   }, [items, query]);
 
@@ -103,7 +113,12 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
                   <span className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--app-accent-surface-14)] text-[11px] font-black text-[var(--app-accent-primary)]">
                     {item.short}
                   </span>
-                  <span className="min-w-0 flex-1 font-medium">{item.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium text-[var(--app-text-strong)]">{item.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--app-muted)]">
+                      {item.description ?? getWorkspaceNavItemMeta(item).description}
+                    </span>
+                  </span>
                   <span className="truncate text-xs text-[var(--app-muted)]">{item.href}</span>
                   <ArrowRight
                     aria-hidden="true"

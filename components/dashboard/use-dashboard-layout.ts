@@ -15,6 +15,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 const supabase = getSupabaseBrowserClient();
 const isOfflineDesktop = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
+const DASHBOARD_LAYOUT_UPDATED_EVENT = "safety360:dashboard-layout-updated";
 
 type DashboardLayoutResponse = {
   savedLayout: DashboardBlockId[] | null;
@@ -22,6 +23,11 @@ type DashboardLayoutResponse = {
   effectiveLayout: DashboardBlockId[];
   availableBlocks: DashboardAvailableBlock[];
   error?: string;
+};
+
+type DashboardLayoutPinResponse = DashboardLayoutResponse & {
+  layoutChanged?: boolean;
+  replacedBlockId?: DashboardBlockId | null;
 };
 
 type StatusMessage = {
@@ -48,6 +54,11 @@ function getLocalLayoutFallback(role: DashboardRole) {
 async function getAccessToken() {
   const session = await supabase.auth.getSession();
   return session.data.session?.access_token ?? null;
+}
+
+function notifyDashboardLayoutUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(DASHBOARD_LAYOUT_UPDATED_EVENT));
 }
 
 export function useDashboardLayout({ role }: { role: DashboardRole }) {
@@ -134,6 +145,14 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
     });
   }, [refresh, role]);
 
+  useEffect(() => {
+    const handleLayoutUpdated = () => {
+      void refresh();
+    };
+    window.addEventListener(DASHBOARD_LAYOUT_UPDATED_EVENT, handleLayoutUpdated);
+    return () => window.removeEventListener(DASHBOARD_LAYOUT_UPDATED_EVENT, handleLayoutUpdated);
+  }, [refresh]);
+
   const updateSlot = useCallback((slotIndex: number, blockId: DashboardBlockId) => {
     setDraftLayout((current) => {
       const next = [...current];
@@ -207,6 +226,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
         tone: "success",
         text: "Dashboard layout saved.",
       });
+      notifyDashboardLayoutUpdated();
     } catch {
       setMessage({
         tone: "error",
@@ -255,6 +275,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
         tone: "success",
         text: "Dashboard layout reset to the role default.",
       });
+      notifyDashboardLayoutUpdated();
     } catch {
       setMessage({
         tone: "error",
@@ -264,6 +285,62 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
       setSaving(false);
     }
   }, [applyPayload]);
+
+  const pin = useCallback(
+    async (blockId: DashboardBlockId) => {
+      const token = await getAccessToken();
+      if (!token) {
+        setMessage({
+          tone: "error",
+          text: "You need to be signed in to pin dashboard widgets.",
+        });
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const response = await fetchWithTimeout(
+          "/api/dashboard/layout/pin",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ blockId }),
+          },
+          15000
+        );
+        const payload = (await response.json().catch(() => null)) as DashboardLayoutPinResponse | null;
+
+        if (!response.ok || !payload) {
+          setMessage({
+            tone: "error",
+            text: payload?.error || "Dashboard widget could not be pinned.",
+          });
+          return;
+        }
+
+        applyPayload(payload);
+        setEditing(false);
+        setMessage({
+          tone: "success",
+          text: payload.layoutChanged
+            ? "Dashboard widget pinned."
+            : "That widget is already on your dashboard.",
+        });
+        notifyDashboardLayoutUpdated();
+      } catch {
+        setMessage({
+          tone: "error",
+          text: "Dashboard widget could not be pinned.",
+        });
+      } finally {
+        setSaving(false);
+      }
+    },
+    [applyPayload]
+  );
 
   const hasUnsavedChanges =
     editing && !areDashboardLayoutsEqual(draftLayout, effectiveLayout);
@@ -284,6 +361,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
     updateSlot,
     save,
     reset,
+    pin,
     refresh,
   };
 }

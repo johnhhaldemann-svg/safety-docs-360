@@ -88,7 +88,7 @@ export function StatusBarChart({
       </div>
 
       <div className="h-56 w-full min-h-[200px] min-w-0 max-w-full rounded-2xl border border-[var(--app-border)] bg-white/90 p-2 shadow-[0_8px_18px_rgba(76,108,161,0.05)] sm:h-64 sm:p-3">
-        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={chartRows} margin={{ top: 8, right: 12, left: 4, bottom: 32 }}>
             <CartesianGrid stroke={CHART_GRID} vertical={false} strokeDasharray="3 3" />
             <XAxis

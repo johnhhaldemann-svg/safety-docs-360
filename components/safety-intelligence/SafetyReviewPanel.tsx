@@ -255,7 +255,7 @@ export function SafetyReviewPanel({
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] transition data-[state=active]:!bg-[var(--app-accent-primary)] data-[state=active]:!text-white"
             >
               {tab.label}
             </Tabs.Trigger>

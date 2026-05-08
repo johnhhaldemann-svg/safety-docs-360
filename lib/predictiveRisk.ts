@@ -9,6 +9,16 @@ import {
   coverageStatus,
   type LeadershipTrustMetadata,
 } from "@/lib/leadershipTrust";
+import {
+  calculateBehaviorRisk,
+  type BehaviorRiskCorrectiveActionRow,
+  type BehaviorRiskIncidentRow,
+  type BehaviorRiskJsaActivityRow,
+  type BehaviorRiskObservationRow,
+  type BehaviorRiskPermitRow,
+  type BehaviorRiskResult,
+  type BehaviorRiskTrainingGapRow,
+} from "@/lib/predictive/behaviorRisk";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -73,6 +83,7 @@ export type PredictiveRiskPayload = {
     confidenceLabel: "High" | "Medium" | "Low";
     provenanceNote: string;
   };
+  behaviorRisk: BehaviorRiskResult;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -84,7 +95,7 @@ export type PredictiveRiskJobsiteRow = {
   status?: string | null;
 };
 
-export type PredictiveRiskCorrectiveActionRow = {
+export type PredictiveRiskCorrectiveActionRow = BehaviorRiskCorrectiveActionRow & {
   id?: string | null;
   title?: string | null;
   category?: string | null;
@@ -97,7 +108,7 @@ export type PredictiveRiskCorrectiveActionRow = {
   sif_potential?: boolean | null;
 };
 
-export type PredictiveRiskIncidentRow = {
+export type PredictiveRiskIncidentRow = BehaviorRiskIncidentRow & {
   id?: string | null;
   title?: string | null;
   category?: string | null;
@@ -109,7 +120,7 @@ export type PredictiveRiskIncidentRow = {
   escalation_level?: string | null;
 };
 
-export type PredictiveRiskPermitRow = {
+export type PredictiveRiskPermitRow = BehaviorRiskPermitRow & {
   id?: string | null;
   title?: string | null;
   permit_type?: string | null;
@@ -123,7 +134,7 @@ export type PredictiveRiskPermitRow = {
   escalation_level?: string | null;
 };
 
-export type PredictiveRiskJsaActivityRow = {
+export type PredictiveRiskJsaActivityRow = BehaviorRiskJsaActivityRow & {
   id?: string | null;
   hazard_category?: string | null;
   status?: string | null;
@@ -460,6 +471,7 @@ function provenanceNote(data: InjuryWeatherDashboardData, rowCount: number) {
 }
 
 export function buildPredictiveRiskPayload(input: {
+  projectId?: string | null;
   days: number;
   jobsiteId?: string | null;
   month?: string | null;
@@ -469,10 +481,22 @@ export function buildPredictiveRiskPayload(input: {
   incidents: PredictiveRiskIncidentRow[];
   permits: PredictiveRiskPermitRow[];
   jsaActivities: PredictiveRiskJsaActivityRow[];
+  observations?: BehaviorRiskObservationRow[];
+  trainingGaps?: BehaviorRiskTrainingGapRow[];
   warning?: string;
 }): PredictiveRiskPayload {
   const days = normalizeDays(input.days);
   const rows = buildRiskRows(input);
+  const behaviorRisk = calculateBehaviorRisk({
+    projectId: input.projectId ?? null,
+    lookAheadDays: Math.min(days, 30),
+    jsaActivities: input.jsaActivities,
+    permits: input.permits,
+    correctiveActions: input.correctiveActions,
+    incidents: input.incidents,
+    observations: input.observations ?? [],
+    trainingGaps: input.trainingGaps ?? [],
+  });
   const accumulators = buildLocationAccumulators({
     rows,
     jobsites: input.jobsites,
@@ -611,6 +635,7 @@ export function buildPredictiveRiskPayload(input: {
       confidenceLabel: confidenceLabel(confidence),
       provenanceNote: provenanceNote(input.forecast, rows.length),
     },
+    behaviorRisk,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };
@@ -881,10 +906,53 @@ export function buildSalesDemoPredictiveRiskPayload(days: number): PredictiveRis
     jsaActivities: [
       {
         id: "demo-jsa-activity-1",
-        hazard_category: "spill_slip_hazards",
-        status: "open",
+        hazard_category: "fall_protection",
+        activity_name: "Leading edge deck work",
+        trade: "Steel",
+        area: "North tower level 4",
+        crew_size: 9,
+        mitigation: "Use PPE and watch your surroundings.",
+        permit_required: true,
+        permit_type: "Hot Work Permit",
+        planned_risk_level: "high",
+        work_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        status: "planned",
         created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-        jobsite_id: "demo-jobsite-3",
+        jobsite_id: "demo-jobsite-1",
+        supervisor_name: "Supervisor A",
+      },
+      {
+        id: "demo-jsa-activity-2",
+        hazard_category: "electrical",
+        activity_name: "Temporary power tie-in",
+        trade: "Electrical",
+        area: "North tower level 4",
+        crew_size: 4,
+        mitigation: "Supervisor verifies LOTO, tester confirmation, and barricade before start.",
+        planned_risk_level: "high",
+        work_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        status: "planned",
+        created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+        jobsite_id: "demo-jobsite-1",
+        supervisor_name: "Supervisor B",
+      },
+    ],
+    observations: [
+      {
+        id: "demo-sor-1",
+        hazard_category_code: "housekeeping",
+        location: "North tower level 4",
+        created_at: new Date(Date.now() - 4 * 86400000).toISOString(),
+        severity: "medium",
+        status: "submitted",
+      },
+      {
+        id: "demo-sor-2",
+        hazard_category_code: "housekeeping",
+        location: "North tower level 4",
+        created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+        severity: "medium",
+        status: "submitted",
       },
     ],
   });

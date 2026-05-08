@@ -30,6 +30,20 @@ export function TrustSummaryPanel({
   className?: string;
 }) {
   const connected = trust.sourceCoverage.filter((source) => source.status === "connected").length;
+  const totalSources = trust.sourceCoverage.length;
+  const evidenceCount = trust.evidenceRefs.length;
+  const confidenceMeaning =
+    totalSources > 0
+      ? [
+          `Confidence means this summary is backed by ${connected} of ${totalSources} active data sources`,
+          evidenceCount > 0
+            ? `and ${evidenceCount} evidence reference${evidenceCount === 1 ? "" : "s"}`
+            : "",
+          "for this window. It is not a safety grade.",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : "Confidence means no leadership data sources are configured for this window. It is not a safety grade.";
 
   return (
     <section
@@ -47,14 +61,22 @@ export function TrustSummaryPanel({
           <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--app-text-strong)]">{trust.executiveSummary}</p>
           <p className="mt-1 max-w-4xl text-xs leading-5 text-[var(--app-muted)]">{trust.provenanceNote}</p>
         </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          <span className={`rounded-full border px-3 py-1.5 text-xs font-bold ${confidenceTone(trust.confidenceLabel)}`}>
-            {trust.confidenceLabel} confidence ({trust.confidencePercent}%)
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-            <Clock3 className="h-3.5 w-3.5" aria-hidden />
-            {new Date(trust.lastUpdatedAt).toLocaleString()}
-          </span>
+        <div className="flex max-w-full flex-col items-start gap-1.5 lg:max-w-[24rem] lg:items-end">
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            <span
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold ${confidenceTone(trust.confidenceLabel)}`}
+              title={confidenceMeaning}
+            >
+              {trust.confidenceLabel} confidence ({trust.confidencePercent}%)
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <Clock3 className="h-3.5 w-3.5" aria-hidden />
+              {new Date(trust.lastUpdatedAt).toLocaleString()}
+            </span>
+          </div>
+          <p className="max-w-full text-left text-xs leading-5 text-[var(--app-muted)] lg:text-right">
+            {confidenceMeaning}
+          </p>
         </div>
       </div>
 

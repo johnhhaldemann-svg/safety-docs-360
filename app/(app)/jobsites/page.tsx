@@ -10,6 +10,9 @@ import {
   PageHero,
   SectionCard,
   StatusBadge,
+  appButtonPrimaryClassName,
+  appButtonQuietClassName,
+  appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
 import {
   formatRelative,
@@ -22,6 +25,7 @@ import { getDocumentStatusLabel } from "@/lib/documentStatus";
 const supabase = getSupabaseBrowserClient();
 
 type MessageTone = "neutral" | "success" | "warning" | "error";
+type PanelMode = "detail" | "form";
 
 type ComposerState = {
   name: string;
@@ -52,6 +56,10 @@ const EMPTY_COMPOSER: ComposerState = {
   endDate: "",
   notes: "",
 };
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 function getJobsiteTone(
   status: CompanyJobsite["status"]
@@ -130,6 +138,7 @@ export default function JobsitesPage() {
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [updatingJobsiteId, setUpdatingJobsiteId] = useState<string | null>(null);
   const [auditCustomers, setAuditCustomers] = useState<AuditCustomer[]>([]);
+  const [panelMode, setPanelMode] = useState<PanelMode>("detail");
 
   const loadAuditCustomers = useCallback(async () => {
     const {
@@ -159,6 +168,7 @@ export default function JobsitesPage() {
     return jobsites.filter((jobsite) => {
       const matchesStatus =
         statusFilter === "all" ||
+        (statusFilter === "document_only" && jobsite.source === "document_fallback") ||
         jobsite.status.toLowerCase() === statusFilter.toLowerCase();
       const matchesSearch =
         !normalizedSearch ||
@@ -181,7 +191,17 @@ export default function JobsitesPage() {
     if (selectedJobsiteId !== "all") {
       return jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? null;
     }
-    return filteredJobsites[0] ?? jobsites[0] ?? null;
+    return (
+      filteredJobsites.find((jobsite) => jobsite.status === "Action needed") ??
+      filteredJobsites.find((jobsite) => jobsite.status === "Active") ??
+      filteredJobsites.find((jobsite) => jobsite.status === "Planned") ??
+      filteredJobsites[0] ??
+      jobsites.find((jobsite) => jobsite.status === "Action needed") ??
+      jobsites.find((jobsite) => jobsite.status === "Active") ??
+      jobsites.find((jobsite) => jobsite.status === "Planned") ??
+      jobsites[0] ??
+      null
+    );
   }, [filteredJobsites, jobsites, selectedJobsiteId]);
 
   const selectedJobsiteVisibleInFilters = Boolean(
@@ -242,7 +262,7 @@ export default function JobsitesPage() {
   const actionNeededCount = jobsites.filter(
     (jobsite) => jobsite.status === "Action needed"
   ).length;
-  const archivedCount = jobsites.filter((jobsite) => jobsite.status === "Archived").length;
+  const documentOnlyCount = jobsites.filter((jobsite) => jobsite.source === "document_fallback").length;
   const linkedJobsiteCountByCustomer = useMemo(() => {
     const counts = new Map<string, number>();
     for (const jobsite of jobsites) {
@@ -261,6 +281,31 @@ export default function JobsitesPage() {
     setComposer(jobsite ? createComposerFromJobsite(jobsite) : EMPTY_COMPOSER);
   }
 
+  function openNewJobsiteForm() {
+    setSelectedJobsiteId("all");
+    resetComposer();
+    setMessage(null);
+    setPanelMode("form");
+  }
+
+  function openSelectedJobsiteForm(jobsite: CompanyJobsite) {
+    setSelectedJobsiteId(jobsite.id);
+    resetComposer(jobsite);
+    setMessage(
+      jobsite.source === "document_fallback"
+        ? "This document-only site is loaded into the form. Save it to create a managed jobsite."
+        : "Selected jobsite loaded into the form."
+    );
+    setMessageTone(jobsite.source === "document_fallback" ? "warning" : "neutral");
+    setPanelMode("form");
+  }
+
+  function openJobsiteDetail(jobsite: CompanyJobsite) {
+    setSelectedJobsiteId(jobsite.id);
+    setMessage(null);
+    setPanelMode("detail");
+  }
+
   function focusCustomerFields() {
     window.setTimeout(() => {
       document.getElementById("jobsite-customer-company")?.focus();
@@ -275,6 +320,7 @@ export default function JobsitesPage() {
       customerReportEmail: "",
     });
     setMessage(null);
+    setPanelMode("form");
     focusCustomerFields();
   }
 
@@ -288,6 +334,7 @@ export default function JobsitesPage() {
     }));
     setMessage(`Loaded ${customer.name} into the jobsite form.`);
     setMessageTone("neutral");
+    setPanelMode("form");
     focusCustomerFields();
   }
 
@@ -346,6 +393,7 @@ export default function JobsitesPage() {
       resetComposer();
       await reload();
       setSelectedJobsiteId(nextSelectedId);
+      setPanelMode("detail");
     } catch (error) {
       console.error("Failed to save jobsite:", error);
       setMessage(
@@ -479,169 +527,483 @@ export default function JobsitesPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHero
         eyebrow="Company Board"
         title="Jobsites"
-        description={`Create and manage live jobsites for ${companyName}, organize documents by site, and keep project operations visible in one place.`}
+        description={`Find, open, and manage live jobsites for ${companyName}. Daily work starts with the directory; setup tools stay close by when you need them.`}
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => void reload()}
-              className="rounded-xl border border-sky-500/35 bg-sky-950/35 px-5 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-100"
-            >
+            <button type="button" onClick={() => void reload()} className={appButtonSecondaryClassName}>
               {loading ? "Refreshing..." : "Refresh Jobsites"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedJobsiteId("all");
-                resetComposer();
-                setMessage(null);
-              }}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
-            >
+            <button type="button" onClick={openNewJobsiteForm} className={appButtonPrimaryClassName}>
               Add Jobsite
             </button>
-            <Link
-              href="/submit"
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-            >
+            <Link href="/submit" className={appButtonQuietClassName}>
               Submit Document
             </Link>
           </>
         }
       />
 
-      <InlineMessage tone="neutral">
-        Company admins can create managed jobsites here. Older document-only project names can be
-        converted into managed jobsites as the workspace grows. Use Refresh Jobsites to load the
-        latest company data.
-      </InlineMessage>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Jobsite summary filters">
         {[
-          {
-            title: "Active Jobsites",
-            value: String(activeJobsitesCount),
-            note: "Sites currently active or needing action",
-          },
-          {
-            title: "Planned",
-            value: String(plannedCount),
-            note: "Jobsites staged before field work begins",
-          },
-          {
-            title: "Action Needed",
-            value: String(actionNeededCount),
-            note: "Sites with pending documents or follow-up",
-          },
-          {
-            title: "Archived",
-            value: String(archivedCount),
-            note: "Completed or parked sites kept for history",
-          },
-          {
-            title: "Pending Documents",
-            value: String(pendingDocuments.length),
-            note: "Live company documents waiting on next action",
-          },
+          { title: "Active", value: String(activeJobsitesCount), filter: "active", note: "Open field work" },
+          { title: "Planned", value: String(plannedCount), filter: "planned", note: "Staged before work" },
+          { title: "Action Needed", value: String(actionNeededCount), filter: "action needed", note: "Needs follow-up" },
+          { title: "Document-only", value: String(documentOnlyCount), filter: "document_only", note: "Ready to convert" },
+          { title: "Pending Docs", value: String(pendingDocuments.length), filter: "all", note: "Awaiting review" },
         ].map((card) => (
-          <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              {card.title}
-            </div>
-            <div className="mt-3 text-4xl font-black tracking-tight text-white">
-              {loading ? "-" : card.value}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
-          </div>
+          <button
+            key={card.title}
+            type="button"
+            onClick={() => setStatusFilter(card.filter)}
+            className={cx(
+              "rounded-xl border bg-white p-4 text-left shadow-[0_10px_24px_rgba(44,58,86,0.055)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-24)]",
+              statusFilter === card.filter ? "border-[var(--app-accent-primary)] ring-2 ring-[var(--app-accent-surface-18)]" : "border-[var(--app-border)]"
+            )}
+          >
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--app-muted)]">{card.title}</span>
+            <span className="mt-2 block font-app-display text-3xl font-black text-[var(--app-text-strong)]">{loading ? "-" : card.value}</span>
+            <span className="mt-1 block text-xs leading-5 text-[var(--app-muted)]">{card.note}</span>
+          </button>
         ))}
       </section>
 
-      <div id="audit-customers" className="scroll-mt-28">
+      <section className="grid gap-5 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)]">
         <SectionCard
-          title="Audit Customer Directory"
-          description="Saved customer companies, report emails, and the jobsites connected to approved field audit delivery."
-          actions={
-            <button
-              type="button"
-              onClick={startAuditCustomerEntry}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+          title="Jobsite Directory"
+          description="Search the company workspace, pick a site, then work from the command panel."
+          aside={<StatusBadge label={`${filteredJobsites.length} visible`} tone={filteredJobsites.length > 0 ? "info" : "neutral"} />}
+          contentClassName="space-y-4"
+        >
+          <div className="grid gap-3 sm:grid-cols-[1fr_180px] xl:grid-cols-1 2xl:grid-cols-[1fr_180px]">
+            <input
+              type="search"
+              aria-label="Search jobsites, project numbers, customers, or site leads"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search site, customer, lead..."
+              className="w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+            />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
             >
-              Add Customer
-            </button>
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="planned">Planned</option>
+              <option value="action needed">Action needed</option>
+              <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
+              <option value="document_only">Document-only</option>
+            </select>
+          </div>
+
+          {selectedJobsiteId !== "all" && selectedJobsite && !selectedJobsiteVisibleInFilters ? (
+            <InlineMessage tone="warning">
+              {selectedJobsite.name} is selected but hidden by the current filters.
+            </InlineMessage>
+          ) : null}
+
+          {filteredJobsites.length === 0 ? (
+            <EmptyState
+              title={jobsites.length === 0 ? "No jobsites yet" : "No jobsites match this view"}
+              description={
+                jobsites.length === 0
+                  ? "Add the first managed jobsite or submit a document with a project name to start the directory."
+                  : "Clear the search or change the status filter to bring sites back into view."
+              }
+              primaryAction={jobsites.length === 0 ? { label: "Add Jobsite", onClick: openNewJobsiteForm } : undefined}
+            />
+          ) : (
+            <div className="max-h-[74rem] space-y-3 overflow-y-auto pr-1">
+              {filteredJobsites.map((jobsite) => {
+                const selected = selectedJobsite?.id === jobsite.id && panelMode === "detail";
+                const linkedCustomer = auditCustomers.find((customer) => customer.id === jobsite.auditCustomerId);
+                const customerName = linkedCustomer?.name || jobsite.customerCompanyName || "No report customer";
+                return (
+                  <article
+                    key={jobsite.id}
+                    className={cx(
+                      "rounded-xl border p-4 transition",
+                      selected ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)]" : "border-[var(--app-border)] bg-white hover:border-[var(--app-accent-border-24)]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openJobsiteDetail(jobsite)}
+                        className="min-w-0 text-left"
+                      >
+                        <span className="block truncate text-base font-black text-[var(--app-text-strong)]">{jobsite.name}</span>
+                        <span className="mt-1 block truncate text-xs text-[var(--app-muted)]">
+                          {jobsite.location || companyLocation}
+                        </span>
+                      </button>
+                      <StatusBadge label={jobsite.status} tone={getJobsiteTone(jobsite.status)} />
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs leading-5 text-[var(--app-text)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate">Report customer: {customerName}</span>
+                        <span className="font-semibold">{jobsite.pendingDocuments} pending</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-[var(--app-muted)]">
+                        <span>{jobsite.source === "table" ? "Managed site" : "Document-only site"}</span>
+                        <span>{formatRelative(jobsite.lastActivity, referenceTime)}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={() => openJobsiteDetail(jobsite)} className="flex-1 rounded-lg bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-bold text-white">
+                        View Site
+                      </button>
+                      <button type="button" onClick={() => openSelectedJobsiteForm(jobsite)} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-xs font-bold text-[var(--app-text-strong)]">
+                        {jobsite.source === "document_fallback" ? "Convert" : "Edit"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title={panelMode === "form" ? "Jobsite Setup" : selectedJobsite ? `${selectedJobsite.name} Command Panel` : "Jobsite Command Panel"}
+          description={
+            panelMode === "form"
+              ? "Add a managed site, edit site metadata, or convert a document-only site."
+              : selectedJobsite
+                ? "Review site status, documents, activity, and the next operational actions."
+                : "Select a site or add a new jobsite to begin."
+          }
+          actions={
+            panelMode === "form" ? (
+              <button type="button" onClick={() => setPanelMode("detail")} className={appButtonQuietClassName}>
+                Back to Site
+              </button>
+            ) : selectedJobsite ? (
+              <button type="button" onClick={() => openSelectedJobsiteForm(selectedJobsite)} className={appButtonSecondaryClassName}>
+                {selectedJobsite.source === "document_fallback" ? "Convert Site" : "Edit Site"}
+              </button>
+            ) : (
+              <button type="button" onClick={openNewJobsiteForm} className={appButtonPrimaryClassName}>
+                Add Jobsite
+              </button>
+            )
           }
         >
-          <div className="grid gap-4 sm:grid-cols-3">
+          {panelMode === "form" ? (
+            <div className="space-y-5">
+              {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  ["jobsite-name", "Jobsite Name", composer.name, "North Tower Expansion", "name"],
+                  ["jobsite-project-number", "Project Number", composer.projectNumber, "PRJ-2026-014", "projectNumber"],
+                  ["jobsite-location", "Location", composer.location, companyLocation, "location"],
+                  ["jobsite-project-manager", "Project Manager", composer.projectManager, "Project lead", "projectManager"],
+                  ["jobsite-safety-lead", "Safety Lead", composer.safetyLead, "Safety lead", "safetyLead"],
+                ].map(([id, label, value, placeholder, key]) => (
+                  <label key={id} htmlFor={id} className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                    {label}
+                    <input
+                      id={id}
+                      type="text"
+                      value={value}
+                      onChange={(event) => updateComposer(key as keyof ComposerState, event.target.value)}
+                      placeholder={placeholder}
+                      className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                    />
+                  </label>
+                ))}
+                <label htmlFor="jobsite-status" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Status
+                  <select
+                    id="jobsite-status"
+                    value={composer.status}
+                    onChange={(event) => updateComposer("status", event.target.value as ComposerState["status"])}
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+                <label htmlFor="jobsite-audit-customer" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Report Customer
+                  <select
+                    id="jobsite-audit-customer"
+                    value={composer.auditCustomerId}
+                    onChange={(event) => {
+                      const customerId = event.target.value;
+                      const customer = auditCustomers.find((item) => item.id === customerId);
+                      setComposer((current) => ({
+                        ...current,
+                        auditCustomerId: customerId,
+                        customerCompanyName: customer?.name ?? current.customerCompanyName,
+                        customerReportEmail: customer?.report_email ?? current.customerReportEmail,
+                      }));
+                    }}
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  >
+                    <option value="">No saved customer</option>
+                    {auditCustomers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>{customer.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label htmlFor="jobsite-customer-company" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Customer For Audit Reports
+                  <input
+                    id="jobsite-customer-company"
+                    type="text"
+                    value={composer.customerCompanyName}
+                    onChange={(event) => updateComposer("customerCompanyName", event.target.value)}
+                    placeholder="Customer or GC being audited"
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  />
+                </label>
+                <div>
+                  <label htmlFor="jobsite-customer-report-email" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                    Report Email
+                    <input
+                      id="jobsite-customer-report-email"
+                      type="email"
+                      value={composer.customerReportEmail}
+                      onChange={(event) => updateComposer("customerReportEmail", event.target.value)}
+                      placeholder="customer@example.com"
+                      className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAuditCustomer()}
+                    disabled={savingCustomer || !composer.customerCompanyName.trim()}
+                    className="mt-2 rounded-lg border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] px-3 py-2 text-xs font-bold text-[var(--semantic-success)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingCustomer ? "Saving customer..." : selectedAuditCustomer ? "Save as New Customer" : "Save Customer"}
+                  </button>
+                </div>
+                <label htmlFor="jobsite-start-date" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Start Date
+                  <input id="jobsite-start-date" type="date" value={composer.startDate} onChange={(event) => updateComposer("startDate", event.target.value)} className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]" />
+                </label>
+                <label htmlFor="jobsite-end-date" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  End Date
+                  <input id="jobsite-end-date" type="date" value={composer.endDate} onChange={(event) => updateComposer("endDate", event.target.value)} className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]" />
+                </label>
+                <label className="md:col-span-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Site Notes
+                  <textarea
+                    value={composer.notes}
+                    onChange={(event) => updateComposer("notes", event.target.value)}
+                    rows={4}
+                    placeholder="Site-specific access notes, startup requirements, or special concerns."
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm leading-6 font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={() => void handleCreateOrConvertJobsite()} disabled={saving} className={cx(appButtonPrimaryClassName, saving && "cursor-not-allowed opacity-60")}>
+                  {saving ? "Saving..." : "Save Jobsite"}
+                </button>
+                {selectedJobsite ? (
+                  <button type="button" onClick={() => openSelectedJobsiteForm(selectedJobsite)} className={appButtonSecondaryClassName}>
+                    Reload Selected Site
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => { resetComposer(); setMessage(null); }} className={appButtonQuietClassName}>
+                  Clear Form
+                </button>
+              </div>
+            </div>
+          ) : !selectedJobsite ? (
+            <EmptyState
+              title="Select a site or add a new jobsite"
+              description="The command panel will show site details, documents, activity, and actions once a jobsite is selected."
+              primaryAction={{ label: "Add Jobsite", onClick: openNewJobsiteForm }}
+            />
+          ) : (
+            <div className="space-y-5">
+              {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+              {selectedJobsite.source === "document_fallback" ? (
+                <InlineMessage tone="warning">
+                  This is a document-only site. Convert it to a managed site to unlock status control and richer site metadata.
+                </InlineMessage>
+              ) : null}
+              <div className="rounded-xl border border-[var(--app-border)] bg-white p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)]">{selectedJobsite.name}</h2>
+                      <StatusBadge label={selectedJobsite.status} tone={getJobsiteTone(selectedJobsite.status)} />
+                      <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--app-muted)]">{selectedJobsite.location || companyLocation}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedJobsite.source === "table" ? (
+                      <>
+                        <Link href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/overview`} className={appButtonPrimaryClassName}>Open Jobsite</Link>
+                        <Link href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/contractor-training`} className={appButtonQuietClassName}>Contractor Training</Link>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => openSelectedJobsiteForm(selectedJobsite)} className={appButtonPrimaryClassName}>Convert Site</button>
+                    )}
+                    <Link href="/submit" className={appButtonSecondaryClassName}>Submit Document</Link>
+                    <Link href="/upload" className={appButtonQuietClassName}>Upload File</Link>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    ["Report Customer", selectedCustomerName],
+                    ["Report Email", selectedCustomerEmail],
+                    ["Project Manager", selectedJobsite.projectManager || "Not assigned"],
+                    ["Safety Lead", selectedJobsite.safetyLead || "Not assigned"],
+                    ["Start Date", selectedJobsite.startDate || "Not set"],
+                    ["End Date", selectedJobsite.endDate || "Not set"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{label}</p>
+                      <p className="mt-1 break-words text-sm font-semibold text-[var(--app-text-strong)]">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">Site Notes</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
+                    {selectedJobsite.notes || "No site notes yet. Edit the jobsite to capture startup conditions, risk notes, and coordination details."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["Company Users", String(companyUsers.length), "Available for site coordination"],
+                  ["Users Online", String(activeUsers.length), "Active in the last 20 minutes"],
+                  ["Pending Site Docs", String(selectedJobsite.pendingDocuments), "Waiting on next action"],
+                  ["Open Invites", String(companyInvites.length), "Waiting for account setup"],
+                ].map(([title, value, note]) => (
+                  <div key={title} className="rounded-xl border border-[var(--app-border)] bg-white p-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{title}</p>
+                    <p className="mt-2 font-app-display text-2xl font-black text-[var(--app-text-strong)]">{loading ? "-" : value}</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{note}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedJobsite.source === "table" ? (
+                <div className="flex flex-wrap gap-2 rounded-xl border border-[var(--app-border)] bg-white p-3">
+                  <button type="button" onClick={() => void handleJobsiteStatusChange(selectedJobsite, "active")} disabled={updatingJobsiteId === selectedJobsite.id} className={appButtonSecondaryClassName}>Mark Active</button>
+                  <button type="button" onClick={() => void handleJobsiteStatusChange(selectedJobsite, "completed")} disabled={updatingJobsiteId === selectedJobsite.id} className={appButtonSecondaryClassName}>Complete Site</button>
+                  <button type="button" onClick={() => void handleJobsiteStatusChange(selectedJobsite, selectedJobsite.rawStatus === "archived" ? "active" : "archived")} disabled={updatingJobsiteId === selectedJobsite.id} className={appButtonQuietClassName}>
+                    {selectedJobsite.rawStatus === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
+                <div className="rounded-xl border border-[var(--app-border)] bg-white p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-bold text-[var(--app-text-strong)]">Site Documents</h3>
+                      <p className="mt-1 text-sm text-[var(--app-muted)]">Live documents connected to this jobsite.</p>
+                    </div>
+                    <StatusBadge label={`${selectedJobsiteDocuments.length} file${selectedJobsiteDocuments.length === 1 ? "" : "s"}`} tone={selectedJobsiteDocuments.length > 0 ? "info" : "neutral"} />
+                  </div>
+                  {selectedJobsiteDocuments.length === 0 ? (
+                    <div className="mt-4">
+                      <EmptyState title="No site documents yet" description="Submit or upload the first document for this jobsite to start the live record." actionHref="/submit" actionLabel="Submit Document" />
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-2">
+                      {selectedJobsiteDocuments.map((document) => (
+                        <div key={document.id} className="flex flex-col gap-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-[var(--app-text-strong)]">{getDocumentLabel(document)}</p>
+                            <p className="mt-1 truncate text-xs text-[var(--app-muted)]">{document.document_type || "Document"} - {formatRelative(document.created_at, referenceTime)}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <StatusBadge label={getDocumentStatusLabel(document.status, Boolean(document.final_file_path))} tone={selectedJobsite.pendingDocuments > 0 ? "warning" : "success"} />
+                            <Link href="/library" className="text-sm font-bold text-[var(--app-accent-primary)] hover:underline">Open</Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-5">
+                  <ActivityFeed title="Site Activity" description="Recent document movement and site-level work." items={selectedJobsiteActivity} />
+                  <SectionCard title="Operations Readiness" description="Quick links for this jobsite." contentClassName="space-y-2">
+                    {[
+                      ["Users by Jobsite", `${companyUsers.length} company users available for deployment and coordination.`, "/company-users", "Open Users"],
+                      ["Field iD Exchange", "Track hazards, near misses, good catches, and live field observations.", "/field-id-exchange", "Open Exchange"],
+                      ["Site Reporting", "Review document status, submissions, and company-side reporting.", "/reports", "Open Reports"],
+                      ["Action Items", `${pendingDocuments.length} pending document items and ${companyInvites.length} open invites need attention.`, "/dashboard", "Back to Board"],
+                    ].map(([title, detail, href, label]) => (
+                      <Link key={title} href={href} className="block rounded-lg border border-[var(--app-border)] bg-white px-3 py-3 transition hover:bg-[var(--app-panel-soft)]">
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="font-semibold text-[var(--app-text-strong)]">{title}</span>
+                          <span className="text-xs font-bold text-[var(--app-accent-primary)]">{label}</span>
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-[var(--app-muted)]">{detail}</span>
+                      </Link>
+                    ))}
+                  </SectionCard>
+                </div>
+              </div>
+            </div>
+          )}
+        </SectionCard>
+      </section>
+
+      <details className="rounded-xl border border-[var(--app-border)] bg-white p-5 shadow-[0_10px_24px_rgba(44,58,86,0.055)]">
+        <summary className="cursor-pointer text-base font-bold text-[var(--app-text-strong)]">
+          Advanced Setup: Report Customer Directory
+        </summary>
+        <div id="audit-customers" className="mt-5 space-y-5 scroll-mt-28">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <p className="max-w-3xl text-sm leading-6 text-[var(--app-muted)]">
+              Save customer companies and report emails for approved field audit delivery. Jobsites can use these saved customers instead of one-off report fields.
+            </p>
+            <button type="button" onClick={startAuditCustomerEntry} className={appButtonPrimaryClassName}>
+              Add Report Customer
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
             {[
-              {
-                title: "Audit Customers",
-                value: String(auditCustomers.length),
-                note: "Saved report recipients",
-              },
-              {
-                title: "Linked Jobsites",
-                value: String(jobsites.length - unlinkedJobsitesCount),
-                note: "Sites using customer directory emails",
-              },
-              {
-                title: "Fallback Jobsites",
-                value: String(unlinkedJobsitesCount),
-                note: "Sites still using legacy customer fields",
-              },
-            ].map((card) => (
-              <div
-                key={card.title}
-                className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
-              >
-                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  {card.title}
-                </div>
-                <div className="mt-3 text-3xl font-black tracking-tight text-white">
-                  {loading ? "-" : card.value}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
+              ["Report Customers", String(auditCustomers.length), "Saved report recipients"],
+              ["Linked Jobsites", String(jobsites.length - unlinkedJobsitesCount), "Using saved customers"],
+              ["Document-only Sites", String(documentOnlyCount), "Still based on document activity"],
+            ].map(([title, value, note]) => (
+              <div key={title} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{title}</p>
+                <p className="mt-2 font-app-display text-2xl font-black text-[var(--app-text-strong)]">{loading ? "-" : value}</p>
+                <p className="mt-1 text-xs text-[var(--app-muted)]">{note}</p>
               </div>
             ))}
           </div>
-
           {auditCustomers.length === 0 ? (
-            <EmptyState
-              title="No audit customers saved yet"
-              description="Create the first customer company and report email from this directory."
-              primaryAction={{ label: "Add Customer", onClick: startAuditCustomerEntry }}
-            />
+            <EmptyState title="No report customers saved yet" description="Create the first customer company and report email from this directory." primaryAction={{ label: "Add Report Customer", onClick: startAuditCustomerEntry }} />
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               {auditCustomers.map((customer) => {
                 const linkedCount = linkedJobsiteCountByCustomer.get(customer.id) ?? 0;
                 return (
-                  <div
-                    key={customer.id}
-                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
-                  >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div key={customer.id} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-lg font-bold text-white">
-                            {customer.name}
-                          </h3>
-                          <StatusBadge
-                            label={`${linkedCount} site${linkedCount === 1 ? "" : "s"}`}
-                            tone={linkedCount > 0 ? "success" : "neutral"}
-                          />
+                          <h3 className="truncate text-base font-bold text-[var(--app-text-strong)]">{customer.name}</h3>
+                          <StatusBadge label={`${linkedCount} site${linkedCount === 1 ? "" : "s"}`} tone={linkedCount > 0 ? "success" : "neutral"} />
                         </div>
-                        <div className="mt-2 break-all text-sm font-semibold text-sky-200">
-                          {customer.report_email || "No report email saved"}
-                        </div>
+                        <p className="mt-1 break-all text-sm font-semibold text-[var(--app-accent-primary)]">{customer.report_email || "No report email saved"}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => loadAuditCustomerIntoComposer(customer)}
-                        className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                      >
+                      <button type="button" onClick={() => loadAuditCustomerIntoComposer(customer)} className={appButtonSecondaryClassName}>
                         Use Customer
                       </button>
                     </div>
@@ -650,799 +1012,13 @@ export default function JobsitesPage() {
               })}
             </div>
           )}
-
           {unlinkedJobsitesCount > 0 ? (
             <InlineMessage tone="warning">
-              {unlinkedJobsitesCount} jobsite{unlinkedJobsitesCount === 1 ? "" : "s"} still
-              use the legacy customer company and email fields.
+              {unlinkedJobsitesCount} jobsite{unlinkedJobsitesCount === 1 ? "" : "s"} still use one-off customer company and email fields.
             </InlineMessage>
           ) : null}
-        </SectionCard>
-      </div>
-
-      <section className="grid gap-6 xl:grid-cols-[0.98fr_1.02fr]">
-        <SectionCard
-          title="Add or Convert a Jobsite"
-          description="Create a managed jobsite, connect it to an audit customer, or turn a document-only project name into a real site record."
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="jobsite-name"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Jobsite Name
-              </label>
-              <input
-                id="jobsite-name"
-                type="text"
-                value={composer.name}
-                onChange={(event) => updateComposer("name", event.target.value)}
-                placeholder="North Tower Expansion"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-project-number"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Project Number
-              </label>
-              <input
-                id="jobsite-project-number"
-                type="text"
-                value={composer.projectNumber}
-                onChange={(event) => updateComposer("projectNumber", event.target.value)}
-                placeholder="PRJ-2026-014"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-location"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Location
-              </label>
-              <input
-                id="jobsite-location"
-                type="text"
-                value={composer.location}
-                onChange={(event) => updateComposer("location", event.target.value)}
-                placeholder={companyLocation}
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-status"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Status
-              </label>
-              <select
-                id="jobsite-status"
-                value={composer.status}
-                onChange={(event) =>
-                  updateComposer("status", event.target.value as ComposerState["status"])
-                }
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-              >
-                <option value="planned">Planned</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-project-manager"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Project Manager
-              </label>
-              <input
-                id="jobsite-project-manager"
-                type="text"
-                value={composer.projectManager}
-                onChange={(event) => updateComposer("projectManager", event.target.value)}
-                placeholder="Project lead"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-safety-lead"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Safety Lead
-              </label>
-              <input
-                id="jobsite-safety-lead"
-                type="text"
-                value={composer.safetyLead}
-                onChange={(event) => updateComposer("safetyLead", event.target.value)}
-                placeholder="Safety lead"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-audit-customer"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Audit Customer
-              </label>
-              <select
-                id="jobsite-audit-customer"
-                value={composer.auditCustomerId}
-                onChange={(event) => {
-                  const customerId = event.target.value;
-                  const customer = auditCustomers.find((item) => item.id === customerId);
-                  setComposer((current) => ({
-                    ...current,
-                    auditCustomerId: customerId,
-                    customerCompanyName: customer?.name ?? current.customerCompanyName,
-                    customerReportEmail: customer?.report_email ?? current.customerReportEmail,
-                  }));
-                }}
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-              >
-                <option value="">No saved customer</option>
-                {auditCustomers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-customer-company"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Customer Company
-              </label>
-              <input
-                id="jobsite-customer-company"
-                type="text"
-                value={composer.customerCompanyName}
-                onChange={(event) => updateComposer("customerCompanyName", event.target.value)}
-                placeholder="Customer or GC being audited"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-customer-report-email"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Customer Audit Email
-              </label>
-              <input
-                id="jobsite-customer-report-email"
-                type="email"
-                value={composer.customerReportEmail}
-                onChange={(event) => updateComposer("customerReportEmail", event.target.value)}
-                placeholder="customer@example.com"
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-              <button
-                type="button"
-                onClick={() => void handleSaveAuditCustomer()}
-                disabled={savingCustomer || !composer.customerCompanyName.trim()}
-                className="mt-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-xs font-bold text-emerald-200 transition hover:bg-emerald-900/40 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
-              >
-                {savingCustomer ? "Saving customer..." : selectedAuditCustomer ? "Save as New Customer" : "Save Customer"}
-              </button>
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-start-date"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                Start Date
-              </label>
-              <input
-                id="jobsite-start-date"
-                type="date"
-                value={composer.startDate}
-                onChange={(event) => updateComposer("startDate", event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="jobsite-end-date"
-                className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500"
-              >
-                End Date
-              </label>
-              <input
-                id="jobsite-end-date"
-                type="date"
-                value={composer.endDate}
-                onChange={(event) => updateComposer("endDate", event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none focus:border-sky-500"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Site Notes
-              </label>
-              <textarea
-                value={composer.notes}
-                onChange={(event) => updateComposer("notes", event.target.value)}
-                rows={4}
-                placeholder="Site-specific access notes, startup requirements, or special concerns."
-                className="mt-2 w-full rounded-2xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-            </div>
-          </div>
-
-          {message ? (
-            <div className="mt-5">
-              <InlineMessage tone={messageTone}>{message}</InlineMessage>
-            </div>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleCreateOrConvertJobsite()}
-              disabled={saving}
-              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {saving ? "Saving..." : "Save Jobsite"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedJobsite) {
-                  resetComposer(selectedJobsite);
-                  setMessage(
-                    selectedJobsite.source === "document_fallback"
-                      ? "This document-only site is loaded into the form. Save it to create a managed jobsite."
-                      : "Selected jobsite loaded into the form."
-                  );
-                  setMessageTone(
-                    selectedJobsite.source === "document_fallback" ? "warning" : "neutral"
-                  );
-                }
-              }}
-              disabled={!selectedJobsite}
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
-            >
-              Load Selected Site
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                resetComposer();
-                setMessage(null);
-              }}
-              className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-            >
-              Clear Form
-            </button>
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Jobsite Directory"
-          description="Track every active, planned, and archived site in your company workspace."
-          aside={
-            <StatusBadge
-              label={`${filteredJobsites.length} visible`}
-              tone={filteredJobsites.length > 0 ? "info" : "neutral"}
-            />
-          }
-        >
-          <div className="grid gap-3 sm:grid-cols-[1.4fr_0.7fr]">
-            <input
-              type="search"
-              aria-label="Search jobsites, project numbers, or site leads"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search jobsites, project numbers, or site leads..."
-              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-            />
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 outline-none focus:border-sky-500"
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="planned">Planned</option>
-              <option value="action needed">Action Needed</option>
-              <option value="completed">Completed</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            {selectedJobsiteId !== "all" && selectedJobsite && !selectedJobsiteVisibleInFilters ? (
-              <InlineMessage tone="warning">
-                You still have {selectedJobsite.name} selected, but it is hidden by the current
-                filters.
-              </InlineMessage>
-            ) : null}
-
-            {filteredJobsites.length === 0 ? (
-              <EmptyState
-                title="No jobsites match this view"
-                description="Create your first jobsite or clear the current search and status filters."
-                actionHref="/submit"
-                actionLabel="Submit Document"
-              />
-            ) : (
-              filteredJobsites.map((jobsite) => {
-                const selected = selectedJobsite?.id === jobsite.id;
-                const siteInviteCount = companyInvites.length;
-                const linkedCustomer = auditCustomers.find((customer) => customer.id === jobsite.auditCustomerId);
-                const customerName = linkedCustomer?.name || jobsite.customerCompanyName || "Not set";
-                const customerEmail = linkedCustomer?.report_email || jobsite.customerReportEmail || "Not set";
-
-                return (
-                  <div
-                    key={jobsite.id}
-                    className={`rounded-2xl border p-5 transition ${
-                      selected
-                        ? "border-sky-500/40 bg-sky-950/40"
-                        : "border-slate-700/80 bg-slate-950/50"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedJobsiteId(jobsite.id)}
-                            className="text-left text-lg font-bold text-white transition hover:text-sky-300"
-                          >
-                            {jobsite.name}
-                          </button>
-                          <StatusBadge label={jobsite.status} tone={getJobsiteTone(jobsite.status)} />
-                          <StatusBadge
-                            label={
-                              jobsite.source === "table" ? "Managed Site" : "Document-Based"
-                            }
-                            tone={jobsite.source === "table" ? "success" : "info"}
-                          />
-                        </div>
-
-                        <div className="grid gap-2 text-sm text-slate-400 sm:grid-cols-2">
-                          <div>Location: {jobsite.location || companyLocation}</div>
-                          <div>Project #: {jobsite.projectNumber || "Not assigned"}</div>
-                          <div>Customer Company: {customerName}</div>
-                          <div>Project Manager: {jobsite.projectManager || "Not set"}</div>
-                          <div>Safety Lead: {jobsite.safetyLead || "Not set"}</div>
-                          <div>Customer Audit Email: {customerEmail}</div>
-                          <div>Pending Docs: {jobsite.pendingDocuments}</div>
-                          <div>Total Docs: {jobsite.totalDocuments}</div>
-                        </div>
-
-                        <div className="text-sm text-slate-500">
-                          Last activity: {formatRelative(jobsite.lastActivity, referenceTime)}
-                        </div>
-                      </div>
-
-                      <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[230px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedJobsiteId(jobsite.id);
-                            resetComposer(jobsite);
-                            setMessage(null);
-                          }}
-                          className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                        >
-                          Select Site
-                        </button>
-
-                        {jobsite.source === "table" ? (
-                          <>
-                            <Link
-                              href={`/jobsites/${encodeURIComponent(jobsite.id)}/overview`}
-                              className="rounded-xl bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-sky-700"
-                            >
-                              Open Jobsite
-                            </Link>
-                            <Link
-                              href={`/jobsites/${encodeURIComponent(jobsite.id)}/contractor-training`}
-                              className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-2.5 text-center text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/40"
-                            >
-                              Contractor Training
-                            </Link>
-                          </>
-                        ) : null}
-
-                        {jobsite.source === "document_fallback" ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedJobsiteId(jobsite.id);
-                              resetComposer(jobsite);
-                              setMessage(
-                                "This site is currently based on document activity only. Save the form to convert it into a managed jobsite."
-                              );
-                              setMessageTone("warning");
-                            }}
-                            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
-                          >
-                            Convert to Managed Site
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => void handleJobsiteStatusChange(jobsite, "active")}
-                              disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
-                            >
-                              Mark Active
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleJobsiteStatusChange(jobsite, "completed")}
-                              disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
-                            >
-                              Complete Site
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handleJobsiteStatusChange(
-                                  jobsite,
-                                  jobsite.rawStatus === "archived" ? "active" : "archived"
-                                )
-                              }
-                              disabled={updatingJobsiteId === jobsite.id}
-                              className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:text-slate-400"
-                            >
-                              {jobsite.rawStatus === "archived" ? "Reactivate" : "Archive"}
-                            </button>
-                          </>
-                        )}
-
-                        <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-                          {siteInviteCount} open invite{siteInviteCount === 1 ? "" : "s"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </SectionCard>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-        <SectionCard
-          title={selectedJobsite ? `${selectedJobsite.name} Site Board` : "Site Board"}
-          description={
-            selectedJobsite
-              ? "Open site details, live document flow, and readiness data for the selected jobsite."
-              : "Pick a jobsite from the directory to open its board."
-          }
-        >
-          {!selectedJobsite ? (
-            <EmptyState
-              title="Choose a jobsite to open its board"
-              description="Once a site is selected, you will see site details, documents, and recent activity in one place."
-            />
-          ) : (
-            <div className="space-y-6">
-              {selectedJobsite.source === "document_fallback" ? (
-                <InlineMessage tone="warning">
-                  This site is still document-based. Save it in the form above to unlock managed
-                  site controls and richer site metadata.
-                </InlineMessage>
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  {
-                    title: "Company Users",
-                    value: String(companyUsers.length),
-                    note: "People assigned to this company workspace",
-                  },
-                  {
-                    title: "Users Online",
-                    value: String(activeUsers.length),
-                    note: "Field and office users active in the last 20 minutes",
-                  },
-                  {
-                    title: "Pending Site Docs",
-                    value: String(selectedJobsite.pendingDocuments),
-                    note: "Live documents waiting on next action",
-                  },
-                  {
-                    title: "Open Invites",
-                    value: String(companyInvites.length),
-                    note: "Invites still waiting for account setup",
-                  },
-                ].map((card) => (
-                  <div
-                    key={card.title}
-                    className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      {card.title}
-                    </div>
-                    <div className="mt-3 text-3xl font-black tracking-tight text-white">
-                      {loading ? "-" : card.value}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-500">{card.note}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-black tracking-tight text-white">
-                        {selectedJobsite.name}
-                      </h2>
-                      <StatusBadge
-                        label={selectedJobsite.status}
-                        tone={getJobsiteTone(selectedJobsite.status)}
-                      />
-                      <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedJobsite.location || companyLocation}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    {selectedJobsite.source === "table" ? (
-                      <>
-                        <Link
-                          href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/overview`}
-                          className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
-                        >
-                          Open Jobsite
-                        </Link>
-                        <Link
-                          href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/contractor-training`}
-                          className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-900/40"
-                        >
-                          Contractor Training
-                        </Link>
-                      </>
-                    ) : null}
-                    <Link
-                      href="/submit"
-                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                    >
-                      Submit Site Document
-                    </Link>
-                    <Link
-                      href="/upload"
-                      className="rounded-xl border border-slate-600 bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                    >
-                      Upload Existing File
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Customer Company
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedCustomerName}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Project Manager
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedJobsite.projectManager || "Not assigned yet"}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Safety Lead
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedJobsite.safetyLead || "Not assigned yet"}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Customer Audit Email
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedCustomerEmail}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Start Date
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedJobsite.startDate || "Not set"}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      End Date
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-100">
-                      {selectedJobsite.endDate || "Not set"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Site Notes
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">
-                    {selectedJobsite.notes ||
-                      "No site notes yet. Use the jobsite form to capture startup conditions, risk notes, and coordination details."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-100">Site Documents</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Live documents connected to this jobsite.
-                    </p>
-                  </div>
-                  <StatusBadge
-                    label={`${selectedJobsiteDocuments.length} file${
-                      selectedJobsiteDocuments.length === 1 ? "" : "s"
-                    }`}
-                    tone={selectedJobsiteDocuments.length > 0 ? "info" : "neutral"}
-                  />
-                </div>
-
-                {selectedJobsiteDocuments.length === 0 ? (
-                  <div className="mt-5">
-                    <EmptyState
-                      title="No site documents yet"
-                      description="Submit or upload the first document for this jobsite to start the live record."
-                      actionHref="/submit"
-                      actionLabel="Submit Document"
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-5 overflow-hidden rounded-2xl border border-slate-700/80">
-                    <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-700/80 bg-slate-950/50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      <div>Document</div>
-                      <div>Type</div>
-                      <div>Status</div>
-                      <div>Submitted</div>
-                      <div>Action</div>
-                    </div>
-                    {selectedJobsiteDocuments.map((document) => (
-                      <div
-                        key={document.id}
-                        className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-slate-700/80 px-4 py-4 text-sm last:border-b-0"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-100">
-                            {getDocumentLabel(document)}
-                          </div>
-                          <div className="mt-1 truncate text-slate-500">
-                            {document.file_name || selectedJobsite.name}
-                          </div>
-                        </div>
-                        <div className="text-slate-400">
-                          {document.document_type || "Document"}
-                        </div>
-                        <div>
-                          <StatusBadge
-                            label={getDocumentStatusLabel(
-                              document.status,
-                              Boolean(document.final_file_path)
-                            )}
-                            tone={
-                              selectedJobsite.pendingDocuments > 0 ? "warning" : "success"
-                            }
-                          />
-                        </div>
-                        <div className="text-slate-400">
-                          {formatRelative(document.created_at, referenceTime)}
-                        </div>
-                        <div>
-                          <Link
-                            href="/library"
-                            className="text-sm font-semibold text-sky-300 transition hover:text-sky-600"
-                          >
-                            Open
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-        <div className="space-y-6">
-          <ActivityFeed
-            title="Site Activity"
-            description="Recent document movement and site-level work happening around this jobsite."
-            items={selectedJobsiteActivity}
-          />
-
-          <SectionCard
-            title="Operations Readiness"
-            description="Quick links to the company modules tied to the selected jobsite."
-          >
-            <div className="grid gap-4">
-              {[
-                {
-                  title: "Users by Jobsite",
-                  detail: `${companyUsers.length} company users available for deployment and coordination.`,
-                  href: "/company-users",
-                  label: "Open Users",
-                },
-                {
-                  title: "Field iD Exchange",
-                  detail:
-                    "Track hazards, near misses, good catches, and live field observations for this site.",
-                  href: "/field-id-exchange",
-                  label: "Open Exchange",
-                },
-                {
-                  title: "Site Reporting",
-                  detail:
-                    "Review document status, submissions, and company-side reporting tied to active work.",
-                  href: "/reports",
-                  label: "Open Reports",
-                },
-                {
-                  title: "Action Items",
-                  detail: `${pendingDocuments.length} pending document items and ${companyInvites.length} open invites still need attention.`,
-                  href: "/dashboard",
-                  label: "Back to Board",
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-100">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.detail}</p>
-                    </div>
-                    <Link
-                      href={item.href}
-                      className="inline-flex rounded-xl bg-slate-900/90 px-4 py-2.5 text-sm font-semibold text-slate-300 ring-1 ring-slate-200 transition hover:bg-slate-800/70"
-                    >
-                      {item.label}
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
         </div>
-      </section>
-
-      <ActivityFeed
-        title={selectedJobsite ? `${selectedJobsite.name} Activity` : "Jobsite Activity"}
-        description="Recent site-level document submissions, updates, and approvals."
-        items={selectedJobsiteActivity}
-      />
+      </details>
     </div>
   );
 }

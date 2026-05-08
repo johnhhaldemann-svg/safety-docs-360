@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { appNativeSelectClassName } from "@/components/WorkspacePrimitives";
+import { appButtonQuietClassName, appNativeSelectClassName } from "@/components/WorkspacePrimitives";
 import type { DashboardDataState } from "@/components/dashboard/types";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -118,6 +118,14 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
     | "low";
   const customStart = searchParams.get("startDate")?.trim() ?? "";
   const customEnd = searchParams.get("endDate")?.trim() ?? "";
+  const hasActiveFilters = Boolean(
+    jobsiteValue ||
+      (!lockedContractorId && contractorValue) ||
+      effectiveRange !== "90d" ||
+      riskValue !== "all" ||
+      customStart ||
+      customEnd
+  );
 
   return (
     <section className="rounded-xl border border-[var(--app-border)] bg-white/92 px-4 py-3 shadow-[0_8px_20px_rgba(44,58,86,0.04)] sm:px-5">
@@ -126,6 +134,23 @@ export function DashboardOverviewFiltersBar({ workspace }: { workspace: Dashboar
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">Scope</p>
           <h2 className="text-sm font-bold tracking-tight text-[var(--app-text-strong)]">Prevention View</h2>
         </div>
+        <button
+          type="button"
+          className={`${appButtonQuietClassName} px-3 py-2 text-xs`}
+          disabled={!hasActiveFilters}
+          onClick={() =>
+            pushParams({
+              jobsiteId: null,
+              contractorId: lockedContractorId ?? null,
+              range: null,
+              riskLevel: null,
+              startDate: null,
+              endDate: null,
+            })
+          }
+        >
+          Clear filters
+        </button>
       </div>
       <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
         <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-muted)]">

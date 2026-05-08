@@ -11,6 +11,8 @@ type CurrentNav = {
   href: string;
   label: string;
   short: string;
+  description?: string;
+  primaryActionLabel?: string;
 };
 
 type AppShellHeaderProps = {
@@ -65,9 +67,9 @@ export function AppShellHeader({
                 <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--app-muted)]">
                   <span className="truncate">{workspaceLabel}</span>
                   <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{currentNavSection?.title || currentNavItem.short}</span>
+                  <span className="truncate">{currentNavSection?.title || currentNavItem.label}</span>
                   <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate text-[var(--app-text-strong)]">{currentNavItem.short}</span>
+                  <span className="truncate text-[var(--app-text-strong)]">{currentNavItem.label}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {showPlatformAdminShell ? (
@@ -122,23 +124,28 @@ export function AppShellHeader({
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
                 {showPlatformAdminShell ? workspaceLabel : currentNavSection?.title || workspaceLabel}
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-3 sm:mt-2">
-                <div>
+              <div className="mt-1.5 flex flex-wrap items-start justify-between gap-3 sm:mt-2">
+                <div className="min-w-0">
                   <h1 className="font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-[1.7rem]">
                     {currentNavItem.label}
                   </h1>
                   <p className="mt-1 max-w-3xl text-sm text-[var(--app-text)]">
                     {showPlatformAdminShell
-                      ? "Administrative tools and audit controls"
+                      ? currentNavItem.description ?? currentNavMeta.description
                       : needsProfileSetup
                         ? "Complete your construction profile before opening company setup or workspace tools"
                         : needsCompanySetup
                           ? "Create your company workspace before inviting employees or opening company tools"
                           : isCompanyScopedUser
                             ? currentNavMeta.description
-                            : "Safety document workspace and active project tools"}
+                      : "Safety document workspace and active project tools"}
                   </p>
                 </div>
+                {!showPlatformAdminShell && currentNavMeta.primaryActionLabel ? (
+                  <span className="inline-flex shrink-0 rounded-lg border border-[var(--app-accent-border-22)] bg-[var(--app-accent-primary-soft)] px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--app-accent-primary)]">
+                    {currentNavMeta.primaryActionLabel}
+                  </span>
+                ) : null}
               </div>
               <p className="mt-2 max-w-3xl text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--app-muted)]">
                 Enterprise Safety Management Platform

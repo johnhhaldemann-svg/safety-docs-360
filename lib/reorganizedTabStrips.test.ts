@@ -57,11 +57,14 @@ describe("Reorganized tab strips (release contracts)", () => {
     expect(src).toContain('const ANALYTICS_TAB_IDS = ["overview", "observations", "inspections", "risk"]');
   });
 
-  it("command center hub uses three URL-synced tabs", () => {
+  it("command center hub uses five URL-synced tabs with legacy risk support", () => {
     const src = readFileSync(join(REPO_ROOT, "components/command-center/CommandCenterWorkspace.tsx"), "utf8");
-    expect(src).toContain('const COMMAND_CENTER_HUB_TABS = ["now", "risk", "knowledge"]');
+    expect(src).toContain('const COMMAND_CENTER_HUB_TABS = ["overview", "risk-memory", "predictive-risk", "insights", "open-work"]');
+    expect(src).toContain('const COMMAND_CENTER_URL_TABS = [...COMMAND_CENTER_HUB_TABS, "risk"]');
+    expect(src).toContain('rawHubTab === "risk" ? "risk-memory"');
     expect(src).toContain("AppTabBar");
     expect(src).toContain("useUrlTabState");
+    expect(src).toContain("PredictiveModelView");
   });
 
   it("library exposes three primary tabs via AppTabBar", () => {

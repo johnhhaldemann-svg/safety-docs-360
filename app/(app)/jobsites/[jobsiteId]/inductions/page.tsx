@@ -20,6 +20,7 @@ type EvalResult = {
   status: "eligible" | "blocked";
   reasons: string[];
   missingProgramIds: string[];
+  warning?: string;
 };
 
 export default function JobsiteInductionsPage() {
@@ -59,7 +60,12 @@ export default function JobsiteInductionsPage() {
         status: eJson!.status,
         reasons: eJson!.reasons ?? [],
         missingProgramIds: eJson!.missingProgramIds ?? [],
+        warning: eJson!.warning,
       });
+      if (eJson?.warning) {
+        setTone("warning");
+        setMessage(eJson.warning);
+      }
     } catch (e) {
       setTone("error");
       setMessage(e instanceof Error ? e.message : "Load failed.");

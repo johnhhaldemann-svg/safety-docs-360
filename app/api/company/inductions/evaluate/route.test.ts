@@ -188,6 +188,40 @@ describe("GET /api/company/inductions/evaluate", () => {
     expect(body.reasons).toHaveLength(0);
   });
 
+  it("returns a setup warning instead of leaking schema-cache errors", async () => {
+    authorizeRequest.mockResolvedValue({
+      user: { id: "user-1" },
+      role: "worker",
+      team: null,
+      supabase: makeSupabaseMock({
+        company_induction_programs: {
+          data: null,
+          error: {
+            message: "Could not find the table 'public.company_induction_programs' in the schema cache",
+          },
+        },
+        company_induction_requirements: { data: [], error: null },
+        company_induction_completions: { data: [], error: null },
+      }),
+      permissionMap: {},
+    });
+
+    const response = requireRouteResponse(
+      await GET(
+        new Request("https://example.com/api/company/inductions/evaluate?jobsiteId=jobsite-1")
+      )
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      status: string;
+      warning?: string;
+      schemaMigrationNeeded?: boolean;
+    };
+    expect(body.status).toBe("eligible");
+    expect(body.warning).toContain("Induction setup is not available yet");
+    expect(body.schemaMigrationNeeded).toBe(true);
+  });
+
   it("adds contractor expiry reason when evaluating with contractorId", async () => {
     authorizeRequest.mockResolvedValue({
       user: { id: "admin-user" },

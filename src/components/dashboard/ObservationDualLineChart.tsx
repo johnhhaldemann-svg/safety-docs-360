@@ -98,7 +98,7 @@ export function ObservationDualLineChart({
         {description ? <p className="mt-1 text-xs text-[var(--app-muted)]">{description}</p> : null}
       </div>
       <div className="h-56 w-full min-h-[220px] min-w-0 max-w-full rounded-2xl border border-[var(--app-border)] bg-white/90 p-2 shadow-[0_8px_18px_rgba(76,108,161,0.05)] sm:h-64 sm:p-3">
-        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
             <CartesianGrid stroke={CHART_GRID} vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="tick" tick={{ fill: CHART_AXIS, fontSize: 11 }} tickLine={{ stroke: CHART_GRID }} axisLine={{ stroke: CHART_GRID }} interval="preserveStartEnd" />

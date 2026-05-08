@@ -33,8 +33,8 @@ const SECTION_META: Record<
   Pick<WorkspaceNavSection, "title" | "description" | "audience">
 > = {
   today: {
-    title: "Today",
-    description: "Dashboard, command hub, and submission inbox for daily work.",
+    title: "Start Here",
+    description: "Dashboard, command hub, and the first place to check today's work.",
     audience: "operator",
   },
   audits: {
@@ -53,13 +53,13 @@ const SECTION_META: Record<
     audience: "field",
   },
   programs: {
-    title: "Programs",
+    title: "Programs & Training",
     description: "Safety Intelligence, inductions, forms, integrations, and training readiness.",
     audience: "operator",
   },
   insights: {
-    title: "Insights",
-    description: "Analytics, workflow activity, and reports.",
+    title: "Insights & Reports",
+    description: "Analytics, workflow activity, predictive signals, and reports.",
     audience: "leadership",
   },
   account: {
@@ -245,6 +245,84 @@ const ITEM_META: Array<{
     group: "account",
     description: "Update your account profile, contact details, role context, and personal settings.",
     primaryActionLabel: "Open profile",
+  },
+  {
+    matcher: (href) => href === "/admin",
+    group: "today",
+    description: "Review internal queues, user approvals, document activity, and the next admin action.",
+    primaryActionLabel: "Open admin home",
+  },
+  {
+    matcher: (href) => href === "/admin/review-documents",
+    group: "documents",
+    description: "Review submitted drafts, approve final documents, and manage document review flow.",
+    primaryActionLabel: "Open review queue",
+  },
+  {
+    matcher: (href) => href === "/admin/marketplace",
+    group: "documents",
+    description: "Manage marketplace records, preview generation, and template publication controls.",
+    primaryActionLabel: "Open marketplace",
+  },
+  {
+    matcher: (href) => href === "/admin/archive",
+    group: "documents",
+    description: "Find archived documents and restore records when needed.",
+    primaryActionLabel: "Open archive",
+  },
+  {
+    matcher: (href) => href === "/admin/users",
+    group: "account",
+    description: "Approve users, manage roles, and review internal and company access.",
+    primaryActionLabel: "Manage users",
+  },
+  {
+    matcher: (href) => href === "/admin/companies",
+    group: "account",
+    description: "Review customer companies, account health, and company-level support context.",
+    primaryActionLabel: "Open companies",
+  },
+  {
+    matcher: (href) => href === "/admin/agreements",
+    group: "account",
+    description: "Manage legal agreement configuration and acceptance records.",
+    primaryActionLabel: "Open agreements",
+  },
+  {
+    matcher: (href) => href === "/admin/transactions",
+    group: "account",
+    description: "Review payment, credit, and marketplace transaction activity.",
+    primaryActionLabel: "Open transactions",
+  },
+  {
+    matcher: (href) => href === "/admin/settings",
+    group: "account",
+    description: "Update internal platform settings and operating controls.",
+    primaryActionLabel: "Open settings",
+  },
+  {
+    matcher: (href) => href === "/admin/sor-audit",
+    group: "audits",
+    description: "Review statement-of-record audit history and verification activity.",
+    primaryActionLabel: "Open SOR audit",
+  },
+  {
+    matcher: (href) => href === "/admin/jobsite-audits",
+    group: "audits",
+    description: "Manage jobsite audit intake, review, and administrative follow-up.",
+    primaryActionLabel: "Open audits",
+  },
+  {
+    matcher: (href) => href === "/superadmin/ai-engine",
+    group: "insights",
+    description: "Superadmin-only AI operations health, calls, feedback, and evaluation visibility.",
+    primaryActionLabel: "Open AI operations",
+  },
+  {
+    matcher: (href) => href.startsWith("/superadmin/"),
+    group: "insights",
+    description: "Restricted superadmin diagnostics and validation tools.",
+    primaryActionLabel: "Open superadmin tool",
   },
   {
     matcher: (href) => href === "/purchases",

@@ -37,3 +37,5 @@ supabase/seed.sql
 .env.*
 !.env.example
 .codex-next-*.log
+.codex-*.log
+.codex_tmp/

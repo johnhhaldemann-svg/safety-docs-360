@@ -145,9 +145,12 @@ export function AppShellSidebar({
                                 <div className="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                                   {item.label}
                                 </div>
-                                {!active ? (
-                                  <div className="mt-0.5 truncate text-[10px] text-[var(--app-muted)]">
-                                    {navMeta.description}
+                                <div className="mt-0.5 truncate text-[10px] text-[var(--app-muted)]">
+                                  {navMeta.description}
+                                </div>
+                                {active && navMeta.primaryActionLabel ? (
+                                  <div className="mt-2 inline-flex rounded-md border border-[var(--app-accent-border-20)] bg-[var(--app-accent-primary-soft)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--app-accent-primary)]">
+                                    {navMeta.primaryActionLabel}
                                   </div>
                                 ) : null}
                               </div>

@@ -2464,13 +2464,13 @@ export default function FieldIdExchangePage() {
           <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/90 p-2">
             <Tabs.Trigger
               value="board"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:!bg-sky-600 data-[state=active]:!text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
             >
               Board
             </Tabs.Trigger>
             <Tabs.Trigger
               value="analytics"
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:bg-sky-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:text-white data-[state=active]:!bg-sky-600 data-[state=active]:!text-white data-[state=active]:shadow-md data-[state=inactive]:bg-transparent"
             >
               {"Analytics & trends"}
             </Tabs.Trigger>

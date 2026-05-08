@@ -526,6 +526,7 @@ export async function GET(request: Request) {
   }
 
   let contractorRows = [] as ReturnType<typeof buildContractorReadinessRow>[];
+  const inductionWarnings: string[] = [];
   if (jobsiteIds.length > 0) {
     let reqQuery = db
       .from("jobsite_contractor_training_requirements")
@@ -550,13 +551,18 @@ export async function GET(request: Request) {
         db.from("company_induction_completions").select("program_id, jobsite_id, user_id, visitor_display_name, expires_at, completed_at").eq("company_id", companyId),
       ]);
 
+    const inductionErrors = [
+      programsResult.error?.message,
+      inductionReqsResult.error?.message,
+      completionsResult.error?.message,
+    ].filter((message): message is string => Boolean(message));
+    inductionWarnings.push(...inductionErrors.filter(isMissingRelationError));
+
     const firstError =
       contractorReqsResult.error?.message ||
       assignmentsResult.error?.message ||
       contractorsResult.error?.message ||
-      programsResult.error?.message ||
-      inductionReqsResult.error?.message ||
-      completionsResult.error?.message;
+      inductionErrors.find((message) => !isMissingRelationError(message));
     if (firstError) {
       return NextResponse.json({ error: firstError }, { status: 500 });
     }
@@ -640,9 +646,9 @@ export async function GET(request: Request) {
       expiredDocsByContractor.set(row.contractor_id, list);
     }
 
-    const programs = (programsResult.data ?? []) as InductionProgramRow[];
-    const inductionReqs = (inductionReqsResult.data ?? []) as InductionRequirementRow[];
-    const completions = (completionsResult.data ?? []) as InductionCompletionRow[];
+    const programs = (programsResult.error ? [] : (programsResult.data ?? [])) as InductionProgramRow[];
+    const inductionReqs = (inductionReqsResult.error ? [] : (inductionReqsResult.data ?? [])) as InductionRequirementRow[];
+    const completions = (completionsResult.error ? [] : (completionsResult.data ?? [])) as InductionCompletionRow[];
 
     contractorRows = assignments.map((assignment) => {
       const employee = employeeById.get(assignment.contractor_employee_id) ?? {};
@@ -712,6 +718,7 @@ export async function GET(request: Request) {
         windowDays: operationalWindowDays,
         jobsiteSignals: operationalSignals.signals.length,
         warnings: operationalSignals.warnings,
+        inductionWarnings,
       },
       schemaMigrationNeeded:
         !reqFetch.applyColumnsAvailable || !reqFetch.taskScopeColumnsAvailable || !reqFetch.generatedColumnsAvailable,

@@ -8,7 +8,7 @@ import { InlineMessage, StatusBadge } from "@/components/WorkspacePrimitives";
 const supabase = getSupabaseBrowserClient();
 
 export function InductionReadinessCard() {
-  const [status, setStatus] = useState<"eligible" | "blocked" | "idle" | "error">("idle");
+  const [status, setStatus] = useState<"eligible" | "blocked" | "idle" | "warning" | "error">("idle");
   const [hint, setHint] = useState("");
   const [jobsiteId, setJobsiteId] = useState<string | null>(null);
 
@@ -41,12 +41,19 @@ export function InductionReadinessCard() {
           { headers: h }
         );
         const eData = (await eRes.json().catch(() => null)) as
-          | { status?: "eligible" | "blocked"; error?: string }
+          | { status?: "eligible" | "blocked"; error?: string; warning?: string }
           | null;
         if (!eRes.ok) {
           if (!cancelled) {
             setStatus("error");
             setHint(eData?.error || "Could not evaluate inductions.");
+          }
+          return;
+        }
+        if (eData?.warning) {
+          if (!cancelled) {
+            setStatus("warning");
+            setHint(eData.warning);
           }
           return;
         }
@@ -79,7 +86,7 @@ export function InductionReadinessCard() {
     <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-5 shadow-[var(--app-shadow-soft)]">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Site readiness</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {status === "error" ? (
+        {status === "error" || status === "warning" ? (
           <InlineMessage tone="warning">{hint}</InlineMessage>
         ) : (
           <>

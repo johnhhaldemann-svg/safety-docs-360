@@ -525,7 +525,7 @@ export default function CompanyFieldAuditsPage() {
                 <Tabs.Trigger
                   key={tab.id}
                   value={tab.id}
-                  className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition hover:text-white data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-md"
+                  className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition hover:text-white data-[state=active]:!bg-slate-950 data-[state=active]:!text-white data-[state=active]:shadow-md"
                 >
                   {tab.label}
                 </Tabs.Trigger>

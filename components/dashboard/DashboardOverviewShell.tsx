@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardOverviewFiltersBar } from "@/components/dashboard/DashboardOverviewFiltersBar";
-import { InlineMessage } from "@/components/WorkspacePrimitives";
+import { InlineMessage, appButtonQuietClassName } from "@/components/WorkspacePrimitives";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
+import { useDashboardLayout } from "@/components/dashboard/use-dashboard-layout";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { formatTitleCase } from "@/lib/formatTitleCase";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { getDashboardOverviewSectionVisibility } from "@/lib/dashboardVisibility";
+import { resolveDashboardRole } from "@/lib/dashboardRole";
 import type { PermissionMap } from "@/lib/rbac";
-import type { DashboardDataState } from "@/components/dashboard/types";
+import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
 import type { DashboardOverview, EngineHealthItem, TrendPoint } from "@/src/lib/dashboard/types";
 import { SectionCard } from "@/src/components/dashboard/SectionCard";
 import { MetricCard } from "@/src/components/dashboard/MetricCard";
@@ -224,10 +226,14 @@ function buildDailyCommandActions(params: {
 }
 
 export function DashboardOverviewShell({ workspace }: { workspace: DashboardDataState }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const dashboardLayout = useDashboardLayout({ role: resolveDashboardRole(workspace.userRole) });
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pinningBlockId, setPinningBlockId] = useState<DashboardBlockId | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTabId>(() => readDashboardTab(searchParams.get("tab")));
 
   const allowed = useMemo(() => canLoadDashboardOverview(workspace.permissionMap), [workspace.permissionMap]);
@@ -252,16 +258,28 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     (value: string) => {
       const tab = readDashboardTab(value);
       setActiveTab(tab);
-      if (typeof window === "undefined") return;
-      const nextUrl = new URL(window.location.href);
+      const next = new URLSearchParams(searchParams.toString());
       if (tab === "operations") {
-        nextUrl.searchParams.delete("tab");
+        next.delete("tab");
       } else {
-        nextUrl.searchParams.set("tab", tab);
+        next.set("tab", tab);
       }
-      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    []
+    [pathname, router, searchParams]
+  );
+
+  const pinDashboardBlock = useCallback(
+    async (blockId: DashboardBlockId) => {
+      setPinningBlockId(blockId);
+      try {
+        await dashboardLayout.pin(blockId);
+      } finally {
+        setPinningBlockId(null);
+      }
+    },
+    [dashboardLayout]
   );
 
   useEffect(() => {
@@ -468,10 +486,23 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     credentialGaps: cred,
     documentPipelineTotal: pipelineTotal,
   });
+  const renderPinButton = (blockId: DashboardBlockId, label = "Pin to dashboard") => (
+    <button
+      type="button"
+      className={`${appButtonQuietClassName} px-3 py-2 text-xs`}
+      disabled={dashboardLayout.saving || pinningBlockId !== null}
+      onClick={() => void pinDashboardBlock(blockId)}
+    >
+      {pinningBlockId === blockId ? "Pinning..." : label}
+    </button>
+  );
 
   return (
     <div className="space-y-8">
       {filters}
+      {dashboardLayout.message ? (
+        <InlineMessage tone={dashboardLayout.message.tone}>{dashboardLayout.message.text}</InlineMessage>
+      ) : null}
       <section className="overflow-hidden rounded-xl border border-[rgba(121,151,196,0.34)] bg-white text-sm text-[var(--app-text)] shadow-[0_18px_38px_rgba(44,58,86,0.08)]">
         <div className="border-b border-[var(--app-border-subtle)] px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -492,6 +523,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}
               />
               <StatusBadge label={`${activeJobsites} active jobsites`} tone={activeJobsites > 0 ? "info" : "neutral"} />
+              {renderPinButton("priority_queue", "Pin queue")}
               <button
                 type="button"
                 onClick={() => void load()}
@@ -580,6 +612,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Prevention snapshot"
         title="1. Current Safety Health"
         tone="elevated"
+        aside={renderPinButton("metric_primary", "Pin KPIs")}
         description={
           overviewVisibility.preventionHeadlineMode === "field"
             ? "Open exposure, overdue follow-up, and readiness for visible work."
@@ -688,6 +721,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Forward view"
         title="2. Smart Safety Forecast"
         tone="elevated"
+        aside={renderPinButton("graph_hazard_trends", "Pin forecast")}
         description="Incident and near-miss buckets compared across the period."
       >
         {incidentsHaveData ? (
@@ -732,6 +766,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
             : "3. Observation activity"
         }
         tone="panel"
+        aside={renderPinButton(
+          overviewVisibility.showObservationMix ? "graph_observation_mix" : "hazard_trends",
+          "Pin signal"
+        )}
         description={
           overviewVisibility.showEmergingThemes
             ? "Ranked themes and field observation mix."
@@ -812,6 +850,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Closure discipline"
         title="4. Corrective Action Control Center"
         tone="attention"
+        aside={renderPinButton("graph_risk_reduction", "Pin correctives")}
         description="Open, overdue, and closed posture plus follow-up list."
       >
         <StatusBarChart
@@ -866,6 +905,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Partners on site"
         title="6. Contractor Risk Scorecards"
         tone="elevated"
+        aside={renderPinButton("risk_ranking", "Pin scorecards")}
         description="Ranking from compliance documents and evaluations."
       >
         <ContractorRiskTable contractors={overview.contractorRiskScores} />
@@ -881,6 +921,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Permits and daily plans"
         title="5. JSA / Permit Compliance"
         tone="panel"
+        aside={renderPinButton("permit_followups", "Pin permits")}
         description="Type-level permit posture and JSA completion."
       >
         {overview.permitCompliance.length > 0 || missingPermitsTotal > 0 ? (
@@ -900,6 +941,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Credentials and roles"
         title="7. Workforce Readiness"
         tone="panel"
+        aside={renderPinButton("training_signal", "Pin training")}
         description="Training coverage and credential timing."
       >
         {trainingMeasured ? (
@@ -944,6 +986,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Evidence trail"
         title="8. Document Readiness"
         tone="elevated"
+        aside={renderPinButton("recent_documents", "Pin documents")}
         description="Lifecycle counts for documents in scope."
       >
         <DocumentReadinessPanel
@@ -963,6 +1006,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Narrative review"
         title="9. Safety Intelligence Review"
         tone="panel"
+        aside={renderPinButton("support_signals", "Pin review")}
         description="Rules-based takeaways and assignable recommended actions."
       >
         <AiInsightsPanel
@@ -991,6 +1035,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
         eyebrow="Signal pipeline"
         title="10. Smart Safety Engine Health"
         tone="elevated"
+        aside={renderPinButton("graph_workspace_signals", "Pin engine")}
         description="Status of the data paths that feed this overview."
       >
         <EngineHealthPanel items={smartEngineFinal} />

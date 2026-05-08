@@ -16,6 +16,7 @@ export type NavItem = {
   label: string;
   short: string;
   description?: string;
+  keywords?: string[];
   primaryActionLabel?: string;
   audience?: "operator" | "leadership" | "field" | "buyer" | "admin";
 };
@@ -62,13 +63,6 @@ export const adminQuickLinks: NavItem[] = [
   { href: "/billing", label: "Billing", short: "BI" },
   { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
   { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
-  { href: "/superadmin/system-test", label: "System test", short: "SY" },
-  { href: "/superadmin/system-health", label: "Superadmin System Health", short: "SH" },
-  { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
-  { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
-  { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
-  { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
-  { href: "/superadmin/osha-ipa-lab", label: "Compliance tracker", short: "OA" },
 ];
 
 export const companyAdminQuickLinks: NavItem[] = [
@@ -82,7 +76,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   },
   {
     href: "/dashboard",
-    label: "Home Dashboard",
+    label: "Dashboard",
     short: "DB",
     description: "Executive snapshot of urgent work, progress, and platform status.",
     primaryActionLabel: "Review today",
@@ -103,11 +97,11 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/training", label: "Training", short: "PT" },
   { href: "/company-users", label: "Team & Access", short: "TM" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
-  { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+  { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-  { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
-  { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
-  { href: "/analytics", label: "Safety analytics", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
+  { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
+  { href: "/analytics", label: "Safety Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -122,7 +116,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   },
   {
     href: "/dashboard",
-    label: "Home Dashboard",
+    label: "Dashboard",
     short: "DB",
     description: "Executive snapshot of urgent work, progress, and platform status.",
     primaryActionLabel: "Review today",
@@ -143,11 +137,11 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/purchases", label: "Purchases", short: "MP" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
-  { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+  { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-  { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
-  { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
-  { href: "/analytics", label: "Safety analytics", short: "AN" },
+  { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
+  { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
+  { href: "/analytics", label: "Safety Analytics", short: "AN" },
   { href: "/reports", label: "Reports", short: "RP" },
 ];
 
@@ -199,63 +193,72 @@ export const userSideSections: NavSection[] = [
 
 export const adminSideSections: NavSection[] = [
   {
-    title: "Review & approvals",
+    title: "Review",
+    description: "Queues that need an internal decision first.",
+    audience: "admin",
     items: [
-      { href: "/admin", label: "Admin dashboard", short: "AH" },
+      {
+        href: "/admin",
+        label: "Admin Dashboard",
+        short: "AH",
+        description: "Review the whole admin board and next highest-value action.",
+        primaryActionLabel: "Open admin home",
+        audience: "admin",
+      },
+      {
+        href: "/admin/review-documents",
+        label: "Document Review Queue",
+        short: "RQ",
+        description: "Review submitted documents, approve final files, and manage review flow.",
+        primaryActionLabel: "Open queue",
+        audience: "admin",
+      },
     ],
   },
   {
     title: "Documents",
+    description: "Template, library, archive, and marketplace controls.",
+    audience: "admin",
     items: [
-      { href: "/admin/review-documents", label: "Review queue", short: "RQ" },
-      { href: "/admin/marketplace", label: "Marketplace", short: "MK" },
+      { href: "/admin/marketplace", label: "Marketplace Admin", short: "MK" },
       { href: "/admin/archive", label: "Archive", short: "AR" },
       { href: "/library", label: "Library", short: "LB" },
       { href: "/search", label: "Search", short: "SR" },
     ],
   },
   {
-    title: "Audits",
-    items: [
-      { href: "/admin/sor-audit", label: "SOR audit", short: "SA" },
-      { href: "/admin/jobsite-audits", label: "Jobsite audits", short: "JA" },
-    ],
-  },
-  {
-    title: "People & records",
+    title: "Companies & Users",
+    description: "Customer accounts, users, agreements, and access.",
+    audience: "admin",
     items: [
       { href: "/admin/users", label: "Users", short: "US" },
       { href: "/admin/companies", label: "Companies", short: "CO" },
       { href: "/admin/agreements", label: "Agreements", short: "AG" },
+    ],
+  },
+  {
+    title: "Billing",
+    description: "Invoices, transactions, and customer billing support.",
+    audience: "admin",
+    items: [
       { href: "/billing", label: "Billing", short: "BI" },
-    ],
-  },
-  {
-    title: "Tools & systems",
-    items: [
-      { href: "/superadmin/system-test", label: "System test", short: "SY" },
-      { href: "/superadmin/system-health", label: "Superadmin System Health", short: "SH" },
-      { href: "/superadmin/csep-survey-test", label: "Survey test CSEP", short: "ST" },
-      { href: "/superadmin/csep-completeness-review", label: "CSEP completeness review", short: "CR" },
-      { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
-      { href: "/superadmin/builder-text", label: "Builder text", short: "BT" },
-      {
-        href: "/superadmin/jurisdiction-standards",
-        label: "Jurisdiction standards",
-        short: "JS",
-      },
-      { href: "/superadmin/injury-weather", label: "Injury weather", short: "IW" },
-      {
-        href: "/superadmin/osha-ipa-lab",
-        label: "Compliance tracker",
-        short: "OA",
-      },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
       { href: "/admin/transactions", label: "Transactions", short: "TX" },
+    ],
+  },
+  {
+    title: "Audits",
+    description: "Audit review tools and field audit administration.",
+    audience: "admin",
+    items: [
+      { href: "/admin/sor-audit", label: "SOR Audit", short: "SA" },
+      { href: "/admin/jobsite-audits", label: "Jobsite Audits", short: "JA" },
+    ],
+  },
+  {
+    title: "System Tools",
+    description: "Admin settings and platform operating controls.",
+    audience: "admin",
+    items: [
       { href: "/admin/settings", label: "Settings", short: "ST" },
     ],
   },
@@ -269,19 +272,37 @@ export const adminSideSections: NavSection[] = [
 
 export const superadminOnlySideSections: NavSection[] = [
   {
-    title: "AI control plane",
+    title: "Superadmin",
+    description: "Restricted diagnostics, validation, and AI operations.",
+    audience: "admin",
     items: [
       { href: "/superadmin/ai-engine", label: "AI Engine Operations", short: "AI" },
       { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
+      { href: "/superadmin/system-test", label: "System Test", short: "SY" },
+      { href: "/superadmin/system-health", label: "System Health", short: "SH" },
+      { href: "/superadmin/csep-survey-test", label: "Survey Test CSEP", short: "ST" },
+      { href: "/superadmin/csep-completeness-review", label: "CSEP Completeness Review", short: "CR" },
+      { href: "/superadmin/builder-text", label: "Builder Text", short: "BT" },
+      {
+        href: "/superadmin/jurisdiction-standards",
+        label: "Jurisdiction Standards",
+        short: "JS",
+      },
+      { href: "/superadmin/injury-weather", label: "Injury Weather", short: "IW" },
+      {
+        href: "/superadmin/osha-ipa-lab",
+        label: "Compliance Tracker",
+        short: "OA",
+      },
     ],
   },
 ];
 
 export const companyAdminSideSections: NavSection[] = [
   {
-    title: "Start here",
+    title: "Start Here",
     items: [
-      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/purchases", label: "Purchases & Credits", short: "CR" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -316,42 +337,51 @@ export const companyAdminSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Team & access",
+    title: "Programs & Training",
     items: [
       { href: "/company-users", label: "Team & Access", short: "US" },
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/company-contractors", label: "Contractor compliance", short: "CQ" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
-      { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/company-inductions", label: "Inductions", short: "IN" },
+      { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
+      { href: "/company-integrations", label: "Integrations", short: "IG" },
     ],
   },
   {
-    title: "Field work",
+    title: "Field & Sites",
     items: [
-      { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+      { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
     ],
   },
   {
-    title: "Insights & intelligence",
+    title: "Insights & Reports",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
-      { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
-      { href: "/analytics", label: "Safety analytics", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
+      { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
+      { href: "/safe-predict", label: "SafePredict AI", short: "SP" },
+      { href: "/analytics", label: "Safety Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { href: "/profile", label: "My Profile", short: "CP" },
     ],
   },
 ];
 
 export const companyManagerSideSections: NavSection[] = [
   {
-    title: "Start here",
+    title: "Start Here",
     items: [
-      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
@@ -388,22 +418,31 @@ export const companyManagerSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Field work",
+    title: "Field & Sites",
     items: [
-      { href: "/field-id-exchange", label: "Field Issue Log", short: "CA" },
+      { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
     ],
   },
   {
-    title: "Insights & intelligence",
+    title: "Programs & Training",
+    items: [
+      { href: "/company-inductions", label: "Inductions", short: "IN" },
+      { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
+      { href: "/company-integrations", label: "Integrations", short: "IG" },
+    ],
+  },
+  {
+    title: "Insights & Reports",
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/analytics/safety-intelligence", label: "Workflow activity", short: "WA" },
-      { href: "/analytics/predictive-model", label: "Predictive model", short: "PM" },
-      { href: "/analytics", label: "Safety analytics", short: "AN" },
+      { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
+      { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
+      { href: "/safe-predict", label: "SafePredict AI", short: "SP" },
+      { href: "/analytics", label: "Safety Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
@@ -415,9 +454,9 @@ export const companyManagerSideSections: NavSection[] = [
 
 export const companyUserSideSections: NavSection[] = [
   {
-    title: "Home",
+    title: "Start Here",
     items: [
-      { href: "/dashboard", label: "Home Dashboard", short: "HM" },
+      { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "Purchases", short: "MP" },
@@ -443,17 +482,22 @@ export const companyUserSideSections: NavSection[] = [
     ],
   },
   {
-    title: "Field forms",
+    title: "Field & Sites",
     items: [
       { href: "/field-audits", label: "Field Audits", short: "FA" },
       { href: "/jsa", label: "JSA Builder", short: "JA" },
     ],
   },
   {
-    title: "Training & profile",
+    title: "Programs & Training",
     items: [
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
       { href: "/profile", label: "My Profile", short: "CP" },
     ],
   },

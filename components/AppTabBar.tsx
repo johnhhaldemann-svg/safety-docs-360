@@ -15,7 +15,7 @@ const listClassName =
   "flex flex-wrap gap-1.5 rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.92)_100%)] p-1.5 shadow-[var(--app-shadow-soft)]";
 
 const triggerClassName =
-  "rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]";
+  "rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text)] transition data-[state=active]:!bg-[var(--app-accent-primary)] data-[state=active]:!text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]";
 
 /**
  * Radix tabs with at most five triggers; optional slot rendered below the tab list (e.g. filter chips).

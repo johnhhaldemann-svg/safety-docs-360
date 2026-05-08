@@ -108,7 +108,7 @@ export function RiskHeatList({
         className="min-w-0 max-w-full w-full rounded-2xl border border-[var(--app-border)] bg-white/90 p-2 shadow-[0_8px_18px_rgba(76,108,161,0.05)] sm:p-3"
         style={{ height: Math.min(480, Math.max(220, risks.length * 48)) }}
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart
             layout="vertical"
             data={chartData}

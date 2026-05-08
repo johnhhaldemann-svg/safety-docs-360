@@ -179,6 +179,7 @@ function mockLayout(role: DashboardRole, layoutOverride?: DashboardBlockId[]) {
     updateSlot: vi.fn(),
     save: vi.fn(),
     reset: vi.fn(),
+    pin: vi.fn(),
     refresh: vi.fn(),
   } as never);
 }

@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { DashboardDetailsTabs, readDashboardTab } from "@/src/components/dashboard/DashboardDetailsTabs";
+import {
+  DASHBOARD_TAB_IDS,
+  DashboardDetailsTabs,
+  readDashboardTab,
+} from "@/src/components/dashboard/DashboardDetailsTabs";
 
 describe("DashboardDetailsTabs", () => {
   it("renders the compact dashboard tabs and the active panel", () => {
@@ -31,5 +35,29 @@ describe("DashboardDetailsTabs", () => {
     expect(readDashboardTab("risks")).toBe("risks");
     expect(readDashboardTab("unknown")).toBe("operations");
     expect(readDashboardTab(null)).toBe("operations");
+  });
+
+  it("keeps every active tab label readable on the selected background", () => {
+    for (const activeTab of DASHBOARD_TAB_IDS) {
+      const html = renderToStaticMarkup(
+        <DashboardDetailsTabs
+          activeTab={activeTab}
+          onTabChange={vi.fn()}
+          panels={{
+            operations: <section>Current Safety Health</section>,
+            trends: <section>Smart Safety Forecast</section>,
+            risks: <section>Corrective Action Control Center</section>,
+            readiness: <section>Document Readiness</section>,
+            system: <section>Smart Safety Engine Health</section>,
+          }}
+        />
+      );
+
+      expect(html).toContain('data-state="active"');
+      expect(html).toContain("data-[state=active]:!bg-[var(--app-text-strong)]");
+      expect(html).toContain("data-[state=active]:!text-white");
+      expect(html).toContain("Risks");
+      expect(html).toContain("System Health");
+    }
   });
 });

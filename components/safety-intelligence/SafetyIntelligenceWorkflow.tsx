@@ -376,7 +376,7 @@ export function SafetyIntelligenceWorkflow({
             <Tabs.Trigger
               key={value}
               value={value}
-              className="rounded-xl border border-transparent px-4 py-3 text-left transition data-[state=active]:border-[var(--app-accent-border-24)] data-[state=active]:bg-[var(--app-accent-primary)] data-[state=active]:text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
+              className="rounded-xl border border-transparent px-4 py-3 text-left transition data-[state=active]:border-[var(--app-accent-border-24)] data-[state=active]:!bg-[var(--app-accent-primary)] data-[state=active]:!text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
             >
               <span className="block text-xs font-bold uppercase tracking-wide">{label}</span>
               <span className="mt-1 block text-[11px] font-semibold opacity-75">{detail}</span>

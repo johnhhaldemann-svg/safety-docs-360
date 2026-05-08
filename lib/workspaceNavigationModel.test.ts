@@ -101,7 +101,7 @@ describe("workspaceNavigationModel", () => {
     ]);
 
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
-      "Today:Dashboard, command hub, and submission inbox for daily work.",
+      "Start Here:Dashboard, command hub, and the first place to check today's work.",
       "Documents:Library, templates, uploads, submissions, search, and safety plan builders.",
       "Field & Sites:Job sites, JSAs, permits, incidents, and field issue tracking.",
       "Account:Billing, team access, profile, and purchases.",
@@ -110,7 +110,7 @@ describe("workspaceNavigationModel", () => {
       href: "/command-center",
       description: "Current risk, open work, and recommended next steps.",
     });
-    expect(grouped[1]?.items[0]).toMatchObject({
+    expect(grouped.find((s) => s.group === "documents")?.items[0]).toMatchObject({
       href: "/library",
       description: "Browse finished records, templates, and marketplace content.",
     });
@@ -243,7 +243,7 @@ describe("workspaceNavigationModel", () => {
 
     expect(grouped.map((s) => s.group)).toEqual(["today", "programs", "insights"]);
     const insights = grouped.find((s) => s.group === "insights");
-    expect(insights?.title).toBe("Insights");
+    expect(insights?.title).toBe("Insights & Reports");
     expect(insights?.items.map((i) => i.href)).toEqual(["/analytics"]);
     const programs = grouped.find((s) => s.group === "programs");
     expect(programs?.items.map((i) => i.href)).toEqual(["/safety-intelligence"]);

@@ -12,6 +12,23 @@ export const PUBLIC_ROUTES = [
   "/liability-waiver",
   "/company-signup",
   "/contractor-training-intake",
+  "/safe-predict",
+  "/safe-predict/jobsites",
+  "/safe-predict/jobsites/plant-1",
+  "/safe-predict/predictive-risk",
+  "/safe-predict/risk-mitigation",
+  "/safe-predict/workforce",
+  "/safe-predict/incidents",
+  "/safe-predict/observations",
+  "/safe-predict/corrective-actions",
+  "/safe-predict/inspections",
+  "/safe-predict/hazards",
+  "/safe-predict/training",
+  "/safe-predict/permits",
+  "/safe-predict/analytics",
+  "/safe-predict/reports",
+  "/safe-predict/platform-actions",
+  "/safe-predict/settings",
 ] as const;
 
 /**

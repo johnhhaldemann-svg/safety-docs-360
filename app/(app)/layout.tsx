@@ -35,6 +35,7 @@ import {
 } from "@/lib/workspaceNavigationModel";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
+import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AppLoading } from "@/components/app-shell/AppLoading";
 import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
@@ -492,6 +493,12 @@ export default function AppLayout({
     }
 
     if (isCompanyScopedUser) {
+      const safePredictRoute = mapSafePredictOperationHref(pathname);
+      if (safePredictRoute !== pathname) {
+        router.replace(safePredictRoute);
+        return;
+      }
+
       const canOpenCompanyRoute = (route: string) =>
         canAccessCompanyWorkspaceHref(route, userRole, permissionMap);
 
@@ -588,7 +595,8 @@ export default function AppLayout({
           "/command-center",
           "/settings/risk-memory",
           "/reports",
-          "/company-contractors"
+          "/company-contractors",
+          "/company-safety-forms"
         );
       }
 
@@ -615,7 +623,7 @@ export default function AppLayout({
       }
 
       if (canViewCompanyTrainingMatrix(userRole, permissionMap)) {
-        companyAllowedRoutes.push("/training-matrix");
+        companyAllowedRoutes.push("/training-matrix", "/company-contractors", "/company-inductions");
       }
 
       if (canSubmitCompanyDocuments(permissionMap)) {
@@ -627,7 +635,7 @@ export default function AppLayout({
       }
 
       if (permissionMap?.can_manage_company_users) {
-        companyAllowedRoutes.push("/company-users");
+        companyAllowedRoutes.push("/company-users", "/company-integrations");
       }
 
       // All company users may open My Purchases to see unlocked docs and history; only

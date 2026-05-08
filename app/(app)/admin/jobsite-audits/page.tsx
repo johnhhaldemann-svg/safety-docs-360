@@ -595,7 +595,7 @@ export default function AdminJobsiteAuditsPage() {
             <Tabs.Trigger
               key={t.id}
               value={t.id}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition-colors hover:text-white data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-emerald-400/30 data-[state=inactive]:text-emerald-100/80"
+              className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition-colors hover:text-white data-[state=active]:!bg-slate-950 data-[state=active]:!text-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-emerald-400/30 data-[state=inactive]:text-emerald-100/80"
             >
               {t.label}
             </Tabs.Trigger>

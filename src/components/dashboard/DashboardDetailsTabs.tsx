@@ -47,7 +47,7 @@ export function DashboardDetailsTabs({ activeTab, onTabChange, panels }: Dashboa
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              className="min-w-max rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-text)] transition hover:bg-white data-[state=active]:bg-[var(--app-text-strong)] data-[state=active]:text-white data-[state=active]:shadow-[0_6px_14px_rgba(22,50,79,0.16)]"
+              className="min-w-max rounded-md px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--app-text)] transition hover:bg-white data-[state=active]:!bg-[var(--app-text-strong)] data-[state=active]:!text-white data-[state=active]:shadow-[0_6px_14px_rgba(22,50,79,0.16)]"
             >
               {formatTitleCase(tab.label) || tab.label}
             </Tabs.Trigger>

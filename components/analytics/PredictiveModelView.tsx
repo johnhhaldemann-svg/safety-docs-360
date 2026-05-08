@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarDays,
+  Info,
   MapPin,
   RefreshCw,
   ShieldCheck,
@@ -28,6 +29,14 @@ function impactClass(impact: string) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
+function behaviorTone(level?: string) {
+  if (level === "Critical") return "text-red-700";
+  if (level === "High") return "text-red-600";
+  if (level === "Elevated") return "text-orange-600";
+  if (level === "Moderate") return "text-amber-600";
+  return "text-emerald-600";
+}
+
 function TrendChart({ points }: { points: PredictiveRiskPayload["trend"] }) {
   const safe = points.length > 0 ? points : [{ label: "Now", riskScore: 0 }];
   const width = 520;
@@ -47,7 +56,9 @@ function TrendChart({ points }: { points: PredictiveRiskPayload["trend"] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-[var(--app-text-strong)]">Risk score over time</h2>
-          <p className="mt-1 text-xs text-[var(--app-muted)]">Average predicted risk across visible locations.</p>
+          <p className="mt-1 text-xs text-[var(--app-muted)]">
+            Average predicted risk across visible locations. Each point is capped at 100.
+          </p>
         </div>
         <BarChart3 className="h-5 w-5 text-[var(--app-accent-primary)]" aria-hidden />
       </div>
@@ -73,11 +84,13 @@ function MetricCard({
   label,
   value,
   detail,
+  explanation,
   tone,
 }: {
   label: string;
   value: string | number;
   detail: string;
+  explanation?: string;
   tone: string;
 }) {
   return (
@@ -85,7 +98,185 @@ function MetricCard({
       <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{label}</p>
       <p className={`mt-2 font-app-display text-3xl font-black ${tone}`}>{value}</p>
       <p className="mt-1 text-xs text-[var(--app-muted)]">{detail}</p>
+      {explanation ? <p className="mt-3 border-t border-[var(--app-border)] pt-3 text-xs leading-5 text-[var(--app-text)]">{explanation}</p> : null}
     </div>
+  );
+}
+
+function ModelExplanationPanel({
+  data,
+  days,
+}: {
+  data: PredictiveRiskPayload | null;
+  days: number;
+}) {
+  const windowDays = data?.filters.days ?? days;
+  const signalCount = data?.summary.riskSignalCount ?? 0;
+  const sources = data?.leadershipTrust?.sourceCoverage ?? [];
+  const activeSources = sources.filter((source) => source.status === "connected").length;
+  const sourceTotal = sources.length;
+  const confidenceLabel = data?.model.confidenceLabel ?? "Pending";
+  const confidencePercent = data?.summary.confidencePercent ?? 0;
+  const topDriver = data?.drivers[0];
+  const driverLine = topDriver
+    ? `${topDriver.label} is the largest driver right now, representing ${topDriver.percent}% of active driver signals in this window.`
+    : "Driver percentages appear after the selected window has active risk categories.";
+  const coverageLine =
+    sourceTotal > 0
+      ? `${activeSources} of ${sourceTotal} source groups have records in this view.`
+      : "Source coverage appears after the model loads.";
+
+  return (
+    <section className="rounded-lg border border-[var(--app-border)] bg-white p-4 text-sm text-[var(--app-text)]">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[var(--app-accent-primary)]" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--app-muted)]">How these numbers work</p>
+          <p className="mt-2 max-w-5xl text-sm leading-6 text-[var(--app-text-strong)]">
+            This view turns company safety signals from the last {windowDays} days into a ranked prevention list. The score runs from 0 to 100: lower is better, higher is worse. A score of 100 is the maximum displayed risk pressure, not a perfect score.
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Score direction</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                0 means no active risk signals in this window. 100 means the location hit the cap and should be reviewed first.
+              </p>
+            </div>
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Formula inputs</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                Points come from severity, urgency, open or overdue work, SIF potential, stop-work signals, and repeated patterns.
+              </p>
+            </div>
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Trend direction</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                Positive trend means risk pressure is increasing. Negative trend means the location is improving compared with the prior half.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 text-xs leading-5 text-[var(--app-muted)] md:grid-cols-3">
+            <p>
+              {data ? (
+                <>
+                  <span className="font-bold text-[var(--app-text-strong)]">{signalCount}</span> risk signal{signalCount === 1 ? "" : "s"} {signalCount === 1 ? "is" : "are"} in the selected window.
+                </>
+              ) : (
+                "Risk signal counts appear after the model loads."
+              )}
+            </p>
+            <p>{coverageLine}</p>
+            <p>
+              Confidence is <span className="font-bold text-[var(--app-text-strong)]">{confidenceLabel.toLowerCase()}</span>
+              {data ? ` at ${confidencePercent}%` : ""}; it reflects model coverage, not a safety grade.
+            </p>
+          </div>
+          <details className="mt-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+            <summary className="cursor-pointer text-xs font-bold text-[var(--app-text-strong)]">Methodology notes</summary>
+            <div className="mt-3 grid gap-3 text-xs leading-5 text-[var(--app-text)] md:grid-cols-2">
+              <p>
+                Location scores add weight for severity, urgency, open items, overdue items, SIF potential, and stop-work signals. The display score is capped at 100 so extreme signal clusters stay readable.
+              </p>
+              <p>
+                Trend compares the recent half of the selected window with the earlier half. A positive number is bad because the location is getting more active risk signal pressure.
+              </p>
+              <p>
+                High risk locations are locations in view with a score of 70 or higher. The average risk score uses only locations with active risk, then falls back to the overall model score when none are active.
+              </p>
+              <p>{driverLine}</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HumanBehaviorRiskPanel({ data, loading }: { data: PredictiveRiskPayload | null; loading: boolean }) {
+  const behaviorRisk = data?.behaviorRisk;
+  const topDrivers = behaviorRisk?.topDrivers ?? [];
+  const primaryAction = behaviorRisk?.recommendedActions[0] ?? "Supervisor coaching recommended when behavior risk drivers appear.";
+  const byTrade = behaviorRisk?.byTrade ?? [];
+  const bySupervisor = behaviorRisk?.bySupervisor ?? [];
+
+  return (
+    <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-teal-700">Human Behavior Risk</p>
+          <h2 className="mt-2 text-lg font-black text-[var(--app-text-strong)]">Coaching and verification guidance</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-muted)]">
+            This layer looks for planning, verification, and control-quality signals before risky work starts. It supports coaching and field intervention, not discipline.
+          </p>
+        </div>
+        <div className="min-w-[180px] rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Current Level</p>
+          <p className={`mt-1 font-app-display text-2xl font-black ${behaviorTone(behaviorRisk?.riskLevel)}`}>
+            {loading ? "-" : behaviorRisk?.riskLevel ?? "Low"}
+          </p>
+          <p className="mt-1 text-xs font-bold text-[var(--app-text)]">Score: {loading ? "-" : behaviorRisk?.behaviorRiskScore ?? 0} / 100</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Top Drivers</h3>
+          <div className="mt-3 space-y-2">
+            {(loading ? [] : topDrivers.slice(0, 4)).map((driver, index) => (
+              <div key={driver.driver} className="flex items-start justify-between gap-3 rounded-lg border border-[var(--app-border)] bg-slate-50/70 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{index + 1}. {driver.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{driver.description}</p>
+                </div>
+                <span className="shrink-0 text-xs font-black text-[var(--app-text-strong)]">+{driver.points}</span>
+              </div>
+            ))}
+            {!loading && topDrivers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                No behavior risk drivers in this window.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-3">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Recommended Action</h3>
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-semibold leading-6 text-amber-900">
+            {loading ? "Loading behavior intervention guidance." : primaryAction}
+          </div>
+          {behaviorRisk && behaviorRisk.behaviorRiskScore >= 61 ? (
+            <p className="mt-3 text-xs leading-5 text-[var(--app-text)]">Field verification required for the highest-risk work before release.</p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 xl:col-span-4 md:grid-cols-2 xl:grid-cols-1">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Behavior Risk by Trade</h3>
+            <div className="mt-3 space-y-2">
+              {(loading ? [] : byTrade.slice(0, 4)).map((row) => (
+                <div key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-bold text-[var(--app-text-strong)]">{row.label}</span>
+                  <span className={`font-black ${behaviorTone(row.riskLevel)}`}>{row.riskLevel}</span>
+                </div>
+              ))}
+              {!loading && byTrade.length === 0 ? <p className="text-xs text-[var(--app-muted)]">Trade rollups appear when source rows include trade data.</p> : null}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Behavior Risk by Supervisor</h3>
+            <div className="mt-3 space-y-2">
+              {(loading ? [] : bySupervisor.slice(0, 4)).map((row) => (
+                <div key={row.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-bold text-[var(--app-text-strong)]">{row.label}</span>
+                  <span className={`font-black ${behaviorTone(row.riskLevel)}`}>{row.riskLevel}</span>
+                </div>
+              ))}
+              {!loading && bySupervisor.length === 0 ? <p className="text-xs text-[var(--app-muted)]">Supervisor rollups appear when verification data includes supervisor assignment.</p> : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -186,32 +377,40 @@ export function PredictiveModelView({
 
         {data?.leadershipTrust ? <TrustSummaryPanel trust={data.leadershipTrust} compact /> : null}
 
+        <ModelExplanationPanel data={data} days={days} />
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="High risk locations"
             value={loading ? "-" : data?.summary.highRiskLocationCount ?? 0}
             detail={loading ? "Loading" : `${locations.length} locations in view`}
+            explanation="Count of visible locations with a score of 70 or higher."
             tone="text-red-600"
           />
           <MetricCard
             label="Predicted incidents"
             value={loading ? "-" : data?.summary.predictedIncidents ?? 0}
             detail="Next model window"
+            explanation="Rounded forecast from the injury and risk model for the next model period."
             tone="text-red-600"
           />
           <MetricCard
             label="Average risk score"
             value={loading ? "-" : data?.summary.averageRiskScore ?? 0}
             detail="Out of 100"
+            explanation="Average of locations with active risk. Higher is worse; 100 is the cap for maximum displayed pressure."
             tone="text-orange-600"
           />
           <MetricCard
             label="Confidence level"
             value={loading ? "-" : `${data?.summary.confidencePercent ?? 0}%`}
             detail={data?.model.confidenceLabel ? `${data.model.confidenceLabel} model confidence` : "Model confidence"}
+            explanation="Confidence reflects data and model coverage, not a safety grade."
             tone="text-emerald-600"
           />
         </div>
+
+        <HumanBehaviorRiskPanel data={data} loading={loading} />
 
         {!loading && !hasSignals ? (
           <div className="rounded-lg border border-dashed border-[var(--app-border)] bg-white px-5 py-8 text-center">
@@ -228,17 +427,29 @@ export function PredictiveModelView({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-black text-[var(--app-text-strong)]">Top locations by predicted risk</h2>
-                <p className="mt-1 text-xs text-[var(--app-muted)]">Jobsite-aware risk records ranked by weighted severity and urgency.</p>
+                <p className="mt-1 text-xs text-[var(--app-muted)]">
+                  Ranked by weighted severity, urgency, open/overdue items, SIF potential, and stop-work signals. Lower is better; 100 means highest displayed risk pressure.
+                </p>
               </div>
               <MapPin className="h-5 w-5 text-teal-700" aria-hidden />
+            </div>
+            <div className="mt-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--app-text)]">
+              <span className="font-bold text-[var(--app-text-strong)]">Read the score like a risk pressure gauge:</span>{" "}
+              0 is good, 70+ is high risk, and 100 is the cap for the worst visible combination of active signals.
             </div>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[640px] text-left text-sm">
                 <thead className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">
                   <tr className="border-b border-[var(--app-border)]">
                     <th className="py-2 pr-3">Location</th>
-                    <th className="py-2 pr-3">Risk score</th>
-                    <th className="py-2 pr-3">Trend</th>
+                    <th className="py-2 pr-3">
+                      Risk score
+                      <span className="block text-[10px] font-semibold normal-case tracking-normal text-[var(--app-muted)]">0 is best, 100 is highest risk pressure</span>
+                    </th>
+                    <th className="py-2 pr-3">
+                      Trend
+                      <span className="block text-[10px] font-semibold normal-case tracking-normal text-[var(--app-muted)]">Positive is worsening, negative is improving</span>
+                    </th>
                     <th className="py-2 pr-3">Top driver</th>
                   </tr>
                 </thead>
@@ -274,7 +485,9 @@ export function PredictiveModelView({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-black text-[var(--app-text-strong)]">Top risk drivers</h2>
-                <p className="mt-1 text-xs text-[var(--app-muted)]">Largest contributors in the selected window.</p>
+                <p className="mt-1 text-xs text-[var(--app-muted)]">
+                  Share of active risk categories in the selected window.
+                </p>
               </div>
               <Target className="h-5 w-5 text-teal-700" aria-hidden />
             </div>

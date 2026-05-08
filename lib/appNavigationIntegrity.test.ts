@@ -121,10 +121,10 @@ describe("App Navigation Integrity", () => {
     ]);
 
     const adminInsightsSection = companyAdminSideSections.find(
-      (section) => section.title === "Insights & intelligence"
+      (section) => section.title === "Insights & Reports"
     );
     const managerInsightsSection = companyManagerSideSections.find(
-      (section) => section.title === "Insights & intelligence"
+      (section) => section.title === "Insights & Reports"
     );
 
     expect(adminInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([

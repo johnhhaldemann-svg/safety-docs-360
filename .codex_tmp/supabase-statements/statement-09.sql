@@ -1,0 +1,1 @@
+alter table public.injury_forecast_audit_log enable row level security;

@@ -288,6 +288,12 @@ export function canAccessCompanyWorkspaceHref(
   if (pathOnly === "/training-matrix" || pathOnly === "/company-contractors") {
     return canViewCompanyTrainingMatrix(role, permissionMap);
   }
+  if (pathOnly === "/company-inductions") {
+    return canViewCompanyTrainingMatrix(role, permissionMap);
+  }
+  if (pathOnly === "/company-safety-forms") {
+    return hasFeatureAccess(permissionMap, "can_access_field_work");
+  }
   if (pathOnly === "/jsa") {
     return canManageCompanyJsa(role, permissionMap);
   }

@@ -71,6 +71,19 @@ async function run() {
   console.log("5) Fetch analytics summary");
   await call("/api/company/analytics/summary?days=30");
 
+  console.log("6) Verify predictive behavior risk driver layer");
+  const predictive = await call("/api/company/predictive-risk?days=30");
+  const behaviorRisk = predictive?.behaviorRisk;
+  if (!behaviorRisk || typeof behaviorRisk.behaviorRiskScore !== "number" || typeof behaviorRisk.riskLevel !== "string") {
+    throw new Error("Predictive risk response did not include behaviorRisk score and level.");
+  }
+  if (!Array.isArray(behaviorRisk.topDrivers) || !Array.isArray(behaviorRisk.recommendedActions) || !Array.isArray(behaviorRisk.sourceEvents)) {
+    throw new Error("Predictive behaviorRisk response is missing driver/action/source event arrays.");
+  }
+  if (behaviorRisk.sourceEvents.length > 0 && behaviorRisk.topDrivers.length === 0) {
+    throw new Error("Behavior risk source events were found but no top drivers were returned.");
+  }
+
   console.log("Smoke test passed.");
 }
 
