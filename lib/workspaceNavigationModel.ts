@@ -199,8 +199,8 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/company-integrations",
     group: "programs",
-    description: "Webhooks, delivery logs, and HRIS roster import entry points.",
-    primaryActionLabel: "Open integrations",
+    description: "Installed apps, Microsoft Project, webhooks, and company data exchange tools.",
+    primaryActionLabel: "Open apps",
   },
   {
     matcher: (href) => href === "/training-matrix",

@@ -363,7 +363,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/company-inductions", label: "Inductions", short: "IN" },
       { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
-      { href: "/company-integrations", label: "Integrations", short: "IG" },
+      { href: "/company-integrations", label: "Apps & Integrations", short: "AI" },
     ],
   },
   {
@@ -450,7 +450,7 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/company-inductions", label: "Inductions", short: "IN" },
       { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
-      { href: "/company-integrations", label: "Integrations", short: "IG" },
+      { href: "/company-integrations", label: "Apps & Integrations", short: "AI" },
     ],
   },
   {

@@ -66,7 +66,7 @@ const originalSystemLinks: Record<SafePredictWorkspaceSlug | "risk-mitigation", 
     { href: "/analytics/predictive-model", label: "Predictive Model", detail: "Compare against the original model lab.", icon: Link2, tone: "green" },
   ],
   settings: [
-    { href: "/company-integrations", label: "Integrations", detail: "Connect future data sources.", icon: Link2, tone: "purple" },
+    { href: "/company-integrations", label: "Apps & Integrations", detail: "Install connected apps and data sources.", icon: Link2, tone: "purple" },
     { href: "/company-users", label: "Team & Access", detail: "Manage users and permissions.", icon: Users, tone: "blue" },
     { href: "/settings/risk-memory", label: "Risk Memory", detail: "Open existing risk memory setup.", icon: Settings, tone: "green" },
   ],
