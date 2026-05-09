@@ -212,13 +212,19 @@ export function ExportButton({
 }) {
   function exportPayload() {
     const content = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const mimeType = fileName.toLowerCase().endsWith(".json")
+      ? "application/json;charset=utf-8"
+      : "text/plain;charset=utf-8";
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName;
+    link.rel = "noopener";
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (

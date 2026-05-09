@@ -137,28 +137,38 @@ export async function POST(request: Request) {
   if (csepBlockPost) return csepBlockPost;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const linkedActivityId = String(body?.jsaActivityId ?? body?.dapActivityId ?? "").trim();
-  if (!linkedActivityId) {
-    return NextResponse.json({ error: "A linked JSA step is required to create a permit." }, { status: 400 });
+  let linkedActivity: {
+    id: string;
+    jobsite_id: string | null;
+    jsa_id: string;
+    activity_name: string;
+    permit_required: boolean | null;
+    permit_type: string | null;
+    planned_risk_level: string | null;
+  } | null = null;
+
+  if (linkedActivityId) {
+    const linkedActivityResult = await auth.supabase
+      .from("company_jsa_activities")
+      .select("id, jobsite_id, jsa_id, activity_name, permit_required, permit_type, planned_risk_level")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", linkedActivityId)
+      .maybeSingle();
+    if (linkedActivityResult.error) {
+      return NextResponse.json({ error: linkedActivityResult.error.message || "Failed to load linked JSA step." }, { status: 500 });
+    }
+    if (!linkedActivityResult.data) {
+      return NextResponse.json({ error: "Linked JSA step not found." }, { status: 404 });
+    }
+    linkedActivity = linkedActivityResult.data;
   }
-  const linkedActivity = await auth.supabase
-    .from("company_jsa_activities")
-    .select("id, jobsite_id, jsa_id, activity_name, permit_required, permit_type, planned_risk_level")
-    .eq("company_id", companyScope.companyId)
-    .eq("id", linkedActivityId)
-    .maybeSingle();
-  if (linkedActivity.error) {
-    return NextResponse.json({ error: linkedActivity.error.message || "Failed to load linked JSA step." }, { status: 500 });
-  }
-  if (!linkedActivity.data) {
-    return NextResponse.json({ error: "Linked JSA step not found." }, { status: 404 });
-  }
-  const title = String(body?.title ?? "").trim() || `${linkedActivity.data.activity_name} permit`;
+  const title = String(body?.title ?? "").trim() || (linkedActivity ? `${linkedActivity.activity_name} permit` : "");
   const permitType =
-    String(linkedActivity.data.permit_type ?? "").trim() ||
+    String(linkedActivity?.permit_type ?? "").trim() ||
     String(body?.permitType ?? "").trim();
   if (!title || !permitType) {
     return NextResponse.json(
-      { error: "The linked JSA step must provide a permit type or the permit type must be set." },
+      { error: "Permit title and permit type are required." },
       { status: 400 }
     );
   }
@@ -178,14 +188,17 @@ export async function POST(request: Request) {
   if (stopWorkStatus !== "normal" && !stopWorkReason) {
     return NextResponse.json({ error: "Stop work reason is required when stop work is requested or active." }, { status: 400 });
   }
-  const jobsiteId = String(body?.jobsiteId ?? "").trim() || linkedActivity.data.jobsite_id || null;
+  const jobsiteId = String(body?.jobsiteId ?? "").trim() || linkedActivity?.jobsite_id || null;
+  if (!jobsiteId) {
+    return NextResponse.json({ error: "Choose an active jobsite before creating a standalone permit." }, { status: 400 });
+  }
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
-  if (linkedActivity.data.jobsite_id && jobsiteId && jobsiteId !== linkedActivity.data.jobsite_id) {
+  if (linkedActivity?.jobsite_id && jobsiteId !== linkedActivity.jobsite_id) {
     return NextResponse.json(
       { error: "The permit jobsite must match the linked JSA step jobsite." },
       { status: 400 }
@@ -196,6 +209,22 @@ export async function POST(request: Request) {
       { error: "You can only create permits for assigned jobsites." },
       { status: 403 }
     );
+  }
+  const jobsiteResult = await auth.supabase
+    .from("company_jobsites")
+    .select("id, status")
+    .eq("company_id", companyScope.companyId)
+    .eq("id", jobsiteId)
+    .maybeSingle();
+  if (jobsiteResult.error) {
+    return NextResponse.json({ error: jobsiteResult.error.message || "Failed to verify jobsite." }, { status: 500 });
+  }
+  if (!jobsiteResult.data) {
+    return NextResponse.json({ error: "Selected jobsite was not found." }, { status: 404 });
+  }
+  const jobsiteStatus = String(jobsiteResult.data.status ?? "").trim().toLowerCase();
+  if (["archived", "closed", "completed", "inactive"].includes(jobsiteStatus)) {
+    return NextResponse.json({ error: "Permits can only be created for active jobsites." }, { status: 400 });
   }
   const result = await auth.supabase.from("company_permits").insert({
     company_id: companyScope.companyId,
@@ -214,7 +243,7 @@ export async function POST(request: Request) {
     stop_work_reason: stopWorkReason,
     escalated_at: escalationLevel !== "none" ? new Date().toISOString() : null,
     stop_work_at: stopWorkStatus === "stop_work_active" ? new Date().toISOString() : null,
-    dap_activity_id: linkedActivity.data.id,
+    dap_activity_id: linkedActivity?.id ?? null,
     observation_id: String(body?.observationId ?? "").trim() || null,
     created_by: auth.user.id,
     updated_by: auth.user.id,

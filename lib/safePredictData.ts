@@ -415,9 +415,32 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
     .filter((row) => textValue(row, ["userId", "user_id", "id"]) && textValue(row, ["name", "email"]))
     .map((row, index): SafePredictDemoEmployee => {
       const profile = (row.profileFields && typeof row.profileFields === "object" ? row.profileFields : {}) as SafePredictLiveRecordRow;
-      const cells = Array.isArray(row.cells) ? row.cells : [];
-      const overdue = cells.filter((cell) => String(cell).toLowerCase().includes("overdue") || String(cell).toLowerCase().includes("missing")).length;
-      const expiring = cells.filter((cell) => String(cell).toLowerCase().includes("expiring")).length;
+      const cellValues = Array.isArray(row.cells)
+        ? row.cells
+        : row.cells && typeof row.cells === "object"
+          ? Object.values(row.cells)
+          : [];
+      const cellDetails =
+        row.cellDetails && typeof row.cellDetails === "object"
+          ? Object.values(row.cellDetails as Record<string, unknown>)
+          : [];
+      const overdue =
+        cellValues.filter((cell) => {
+          const value = String(cell).toLowerCase();
+          return value.includes("gap") || value.includes("overdue") || value.includes("missing");
+        }).length +
+        cellDetails.filter((detail) => {
+          if (!detail || typeof detail !== "object") return false;
+          const record = detail as Record<string, unknown>;
+          return String(record.expiryStatus ?? "").toLowerCase() === "expired";
+        }).length;
+      const expiring =
+        cellValues.filter((cell) => String(cell).toLowerCase().includes("expiring")).length +
+        cellDetails.filter((detail) => {
+          if (!detail || typeof detail !== "object") return false;
+          const record = detail as Record<string, unknown>;
+          return String(record.expiryStatus ?? "").toLowerCase() === "soon";
+        }).length;
       const status: SafePredictDemoEmployee["status"] = overdue > 0 ? "overdue" : expiring > 0 ? "expiring" : "compliant";
       const assignedSite = jobsites[index % Math.max(jobsites.length, 1)]?.id ?? "riverside";
       return {
@@ -430,7 +453,17 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
         shift: "Day",
         readinessScore: Math.max(45, 96 - overdue * 18 - expiring * 8),
         status,
-        credentials: Array.isArray(row.certificationInventory) ? row.certificationInventory.map(String).slice(0, 4) : [],
+        credentials: Array.isArray(row.certificationInventory)
+          ? row.certificationInventory
+              .map((item) =>
+                item && typeof item === "object" && "name" in item
+                  ? String((item as { name?: unknown }).name ?? "")
+                  : String(item)
+              )
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .slice(0, 4)
+          : [],
         lastActivity: textValue(row, ["status"], "Training matrix synced"),
       };
     });

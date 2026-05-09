@@ -100,6 +100,11 @@ const CATEGORIES = [
 const ESCALATION_OPTIONS = ["none", "monitor", "urgent", "critical"] as const;
 const STOP_WORK_OPTIONS = ["normal", "stop_work_requested", "stop_work_active", "cleared"] as const;
 
+function isActiveJobsite(jobsite: JobsiteRow) {
+  const status = jobsite.status.trim().toLowerCase();
+  return !["archived", "closed", "completed", "inactive"].includes(status);
+}
+
 function buildEmptyForm(jobsiteId = ""): PermitForm {
   return {
     title: "",
@@ -247,20 +252,21 @@ export default function PermitsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, searchParams]);
 
-  useEffect(() => {
-    if (!form.jobsiteId && jobsites.length === 1) {
-      setForm((current) => ({ ...current, jobsiteId: jobsites[0].id }));
-    }
-  }, [jobsites, form.jobsiteId]);
-
   const jobsiteById = useMemo(
     () => new Map(jobsites.map((jobsite) => [jobsite.id, jobsite])),
     [jobsites]
   );
+  const activeJobsites = useMemo(() => jobsites.filter(isActiveJobsite), [jobsites]);
   const activityById = useMemo(
     () => new Map(jsaActivities.map((activity) => [activity.id, activity])),
     [jsaActivities]
   );
+
+  useEffect(() => {
+    if (!form.jobsiteId && activeJobsites.length === 1) {
+      setForm((current) => ({ ...current, jobsiteId: activeJobsites[0].id }));
+    }
+  }, [activeJobsites, form.jobsiteId]);
   const selectedActivity = useMemo(
     () => (form.jsaActivityId ? activityById.get(form.jsaActivityId) ?? null : null),
     [form.jsaActivityId, activityById]
@@ -311,7 +317,13 @@ export default function PermitsPage() {
   }, [selectedActivity]);
 
   async function createPermit() {
-    if (!form.title.trim() || !form.jsaActivityId.trim()) return;
+    const hasLinkedJsa = Boolean(form.jsaActivityId.trim());
+    const hasJobsite = Boolean(form.jobsiteId.trim());
+    if (!form.title.trim() || (!hasLinkedJsa && !hasJobsite)) {
+      setMessageTone("warning");
+      setMessage("Enter a permit title and choose an active jobsite or linked JSA step.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -465,7 +477,7 @@ export default function PermitsPage() {
                   onChange={(event) => setForm((prev) => ({ ...prev, jsaActivityId: event.target.value }))}
                   className="app-form-input"
                 >
-                  <option value="">Choose the JSA step that needs a permit</option>
+                  <option value="">No linked JSA step</option>
                   {jsaActivities.map((activity) => {
                     const jobsite = activity.jobsite_id ? jobsiteById.get(activity.jobsite_id) : null;
                     return (
@@ -478,7 +490,29 @@ export default function PermitsPage() {
                   })}
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  The permit inherits its jobsite and permit type from the selected JSA step.
+                  Optional. When selected, the permit inherits its jobsite and permit type from the JSA step.
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Active jobsite</label>
+                <select
+                  value={form.jobsiteId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jobsiteId: event.target.value }))}
+                  disabled={Boolean(selectedActivity?.jobsite_id)}
+                  className="app-form-input disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="">Choose an active jobsite</option>
+                  {activeJobsites.map((jobsite) => (
+                    <option key={jobsite.id} value={jobsite.id}>
+                      {jobsite.name}
+                      {jobsite.project_number ? ` - ${jobsite.project_number}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedActivity?.jobsite_id
+                    ? "Inherited from the linked JSA step."
+                    : "Required for standalone permits."}
                 </p>
               </div>
               <div>
@@ -614,7 +648,7 @@ export default function PermitsPage() {
                             ? jobsiteById.get(selectedActivity.jobsite_id)?.name ?? selectedActivity.jobsite_id
                             : "Not assigned"
                         }`
-                      : "The permit cannot be saved until a JSA step is linked."}
+                      : "Standalone permits can be saved when an active jobsite is selected."}
                   </div>
                 </div>
               </div>
@@ -640,7 +674,7 @@ export default function PermitsPage() {
                 <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-[var(--app-accent-primary)]" />
                 SIF flag
               </label>
-              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || !form.jsaActivityId.trim()} className="app-btn-primary rounded-xl px-4 py-2.5 text-sm disabled:opacity-60">
+              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || (!form.jobsiteId.trim() && !form.jsaActivityId.trim())} className="app-btn-primary rounded-xl px-4 py-2.5 text-sm disabled:opacity-60">
                 {saving ? "Creating..." : "Create Permit"}
               </button>
             </div>
@@ -709,7 +743,7 @@ export default function PermitsPage() {
                 </div>
               </div>
             </div>
-            <InlineMessage tone="neutral">Select a jobsite if you want the permit to show up on that jobsite board after creation.</InlineMessage>
+            <InlineMessage tone="neutral">Standalone permits use the active jobsite you select. JSA-linked permits inherit their jobsite from the selected JSA step.</InlineMessage>
           </div>
         </div>
       </SectionCard>

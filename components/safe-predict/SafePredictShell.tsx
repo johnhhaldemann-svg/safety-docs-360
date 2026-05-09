@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -47,6 +47,15 @@ const navItems = [
   { href: "/safe-predict/settings", label: "Settings", icon: Settings },
 ] as const;
 
+type AuthMeResponse = {
+  user?: {
+    role?: string | null;
+    permissionMap?: {
+      can_access_internal_admin?: boolean | null;
+    } | null;
+  };
+};
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -61,8 +70,36 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
+  const [viewerRole, setViewerRole] = useState("");
   const { dataset, mode, setMode } = useSafePredictData();
   const elevatedSiteCount = dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadViewerAccess() {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = (await response.json().catch(() => null)) as AuthMeResponse | null;
+      if (cancelled || !response.ok) return;
+
+      setViewerRole(data?.user?.role ?? "");
+      setCanAccessInternalAdmin(Boolean(data?.user?.permissionMap?.can_access_internal_admin));
+    }
+
+    void loadViewerAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -75,7 +112,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
 
   const navList = (
     <div className="space-y-1">
-      {navItems.map((item) => {
+      {[...navItems, ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck } as const] : []), ...(viewerRole === "super_admin" ? [{ href: "/superadmin/system-health", label: "Superadmin", icon: LayoutGrid } as const] : [])].map((item) => {
         const active = isActive(pathname, item.href);
         const Icon = item.icon;
         return (
@@ -122,51 +159,53 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {navList}
-        </nav>
+        <div className="safe-predict-sidebar-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-3">
+          <nav>
+            {navList}
+          </nav>
 
-        <div className="space-y-4 border-t border-white/10 p-4">
-          <Link href="/safe-predict/risk-mitigation" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 transition hover:bg-white/[0.075]">
-            <p className="mb-3 text-xs font-black uppercase tracking-wide text-blue-100/60">{dataset.company.name}</p>
-            <p className="text-sm font-bold">Predictive Risk Today</p>
-            <div className="mt-4 h-20 rounded-t-full bg-[conic-gradient(from_240deg,#22c55e_0_28%,#facc15_28%_58%,#f97316_58%_78%,#ef4444_78%_100%)] p-2">
-              <div className="flex h-full items-end justify-center rounded-t-full bg-[#061d35] pb-1 text-center">
-                <span>
-                  <span className="block text-lg font-black text-amber-300">Moderate</span>
-                  <span className="text-xs text-slate-200">Score: 56 / 100</span>
-                </span>
+          <div className="mt-4 space-y-4 border-t border-white/10 pt-4">
+            <Link href="/safe-predict/risk-mitigation" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 transition hover:bg-white/[0.075]">
+              <p className="mb-3 text-xs font-black uppercase tracking-wide text-blue-100/60">{dataset.company.name}</p>
+              <p className="text-sm font-bold">Predictive Risk Today</p>
+              <div className="mt-4 h-20 rounded-t-full bg-[conic-gradient(from_240deg,#22c55e_0_28%,#facc15_28%_58%,#f97316_58%_78%,#ef4444_78%_100%)] p-2">
+                <div className="flex h-full items-end justify-center rounded-t-full bg-[#061d35] pb-1 text-center">
+                  <span>
+                    <span className="block text-lg font-black text-amber-300">Moderate</span>
+                    <span className="text-xs text-slate-200">Score: 56 / 100</span>
+                  </span>
+                </div>
               </div>
-            </div>
-            <span className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-white/12 px-3 py-2 text-xs font-bold text-blue-100">
-              <BarChart3 className="h-4 w-4" aria-hidden />
-              View Risk Heat Map
-            </span>
-          </Link>
-          <Link href="/safe-predict/reports" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 text-sm transition hover:bg-white/[0.075]">
-            <span className="block font-bold text-white">Demo account</span>
+              <span className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-white/12 px-3 py-2 text-xs font-bold text-blue-100">
+                <BarChart3 className="h-4 w-4" aria-hidden />
+                View Risk Heat Map
+              </span>
+            </Link>
+            <Link href="/safe-predict/reports" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 text-sm transition hover:bg-white/[0.075]">
+              <span className="block font-bold text-white">Demo account</span>
               <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} shell employees</span>
               <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">{mode === "live" ? "Live beta data" : "Demo fallback"}</span>
             </Link>
-          <Link href="/safe-predict/settings" className="flex items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
-            <HelpCircle className="h-6 w-6" aria-hidden />
-            <span>
-              <span className="block font-bold text-white">Need help?</span>
-              Visit our Help Center
-            </span>
-          </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="flex w-full items-center gap-3 border-t border-white/10 pt-4 text-left text-sm text-slate-200 transition hover:text-white disabled:cursor-wait disabled:opacity-60"
-          >
-            <LogOut className="h-6 w-6" aria-hidden />
-            <span>
-              <span className="block font-bold text-white">{signingOut ? "Signing out..." : "Log out"}</span>
-              Return to secure access
-            </span>
-          </button>
+            <Link href="/safe-predict/settings" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
+              <HelpCircle className="h-6 w-6" aria-hidden />
+              <span>
+                <span className="block font-bold text-white">Need help?</span>
+                Visit our Help Center
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="flex min-h-14 w-full items-center gap-3 border-t border-white/10 pt-4 text-left text-sm text-slate-200 transition hover:text-white disabled:cursor-wait disabled:opacity-60"
+            >
+              <LogOut className="h-6 w-6" aria-hidden />
+              <span>
+                <span className="block font-bold text-white">{signingOut ? "Signing out..." : "Log out"}</span>
+                Return to secure access
+              </span>
+            </button>
+          </div>
         </div>
       </aside>
 

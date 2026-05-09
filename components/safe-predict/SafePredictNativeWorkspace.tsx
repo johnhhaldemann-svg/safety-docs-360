@@ -19,10 +19,12 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   TriangleAlert,
   Users,
 } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   Card,
   CorrectiveActionCard,
@@ -49,7 +51,7 @@ import {
   type SafePredictWorkspaceSlug,
 } from "@/lib/safePredictWorkspaceConfig";
 import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
-import type { SafePredictActionStatus, SafePredictRiskLevel } from "@/lib/safePredictMockData";
+import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
 
 type RowAction = {
   label: string;
@@ -78,6 +80,18 @@ type WorkspaceRows = {
   exportRows: unknown[];
   cardGrid?: ReactNode;
   rowIds?: string[];
+};
+
+type TrainingAssignmentResult = {
+  workerId: string;
+  workerName: string;
+  title: string;
+  action: "create_requirement" | "assign_training" | "update_record" | "review";
+  riskLevel: SafePredictRiskLevel;
+  requirementTitle: string;
+  detail: string;
+  createdRequirementId?: string | null;
+  createdActionId?: string | null;
 };
 
 function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
@@ -109,6 +123,56 @@ function siteName(siteId: string, jobsites: Array<{ id: string; name: string }>)
   return jobsites.find((site) => site.id === siteId)?.name ?? "All Sites";
 }
 
+function inferLocalTrainingTitle(employee: SafePredictDemoEmployee) {
+  const haystack = [employee.trade, employee.role, ...(employee.credentials ?? [])].join(" ").toLowerCase();
+  if (/\belectrical|electrician|loto|lockout|energy/.test(haystack)) return "LOTO Authorized Worker";
+  if (/\bweld|hot work|fire watch/.test(haystack)) return "Hot Work / Fire Watch Training";
+  if (/\bscaffold|height|fall|deck/.test(haystack)) return "Fall Protection / Scaffold User Training";
+  if (/\bexcavat|trench|civil|concrete/.test(haystack)) return "Excavation and Trenching Competent Person";
+  if (/\bsafety manager|site safety|supervisor|foreman/.test(haystack)) return "Supervisor Safety Leadership and Field Verification";
+  return "Site Safety Orientation and Hazard Reporting";
+}
+
+function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): TrainingAssignmentResult[] {
+  return employees.map((employee) => {
+    const requirementTitle = inferLocalTrainingTitle(employee);
+    const hasEvidence = employee.credentials.length > 0;
+    const action: TrainingAssignmentResult["action"] =
+      employee.status === "overdue"
+        ? "assign_training"
+        : employee.status === "expiring"
+          ? "assign_training"
+          : hasEvidence
+            ? "review"
+            : "update_record";
+    const riskLevel: SafePredictRiskLevel =
+      employee.status === "overdue" || employee.readinessScore < 70
+        ? "high"
+        : employee.status === "expiring" || employee.readinessScore < 85 || !hasEvidence
+          ? "medium"
+          : "low";
+    return {
+      workerId: employee.id,
+      workerName: employee.name,
+      title:
+        action === "update_record"
+          ? `Update training records for ${employee.name}`
+          : action === "review"
+            ? `Review training fit for ${employee.name}`
+            : `Assign ${requirementTitle} to ${employee.name}`,
+      action,
+      riskLevel,
+      requirementTitle,
+      detail:
+        action === "update_record"
+          ? `${employee.name} appears ready, but this view does not have training evidence attached. Verify and update the record.`
+          : action === "review"
+            ? `${employee.name} does not show an urgent gap. Review only.`
+            : `${employee.name} has a readiness gap or renewal signal. Assign training to mitigate jobsite risk.`,
+    };
+  });
+}
+
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
   const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard } = useSafePredictData();
   const router = useRouter();
@@ -127,6 +191,9 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     owner: "",
     dueDate: "",
   });
+  const [trainingAiLoading, setTrainingAiLoading] = useState(false);
+  const [trainingAiMessage, setTrainingAiMessage] = useState("");
+  const [trainingAiAssignments, setTrainingAiAssignments] = useState<TrainingAssignmentResult[]>([]);
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -198,6 +265,83 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     }, 50);
   }
 
+  async function assignTrainingWithAi(worker?: SafePredictDemoEmployee) {
+    const candidates = worker
+      ? [worker]
+      : scoped.employees
+          .filter((employee) => employee.status !== "compliant" || employee.credentials.length === 0 || employee.readinessScore < 85)
+          .slice(0, 12);
+    const selectedWorkers = candidates.length > 0 ? candidates : scoped.employees.slice(0, 6);
+    if (selectedWorkers.length === 0) {
+      setTrainingAiMessage("No workers are visible for AI training assignment.");
+      setTrainingAiAssignments([]);
+      return;
+    }
+
+    setTrainingAiLoading(true);
+    setTrainingAiMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+
+      if (!token) {
+        const localAssignments = buildLocalTrainingAssignments(selectedWorkers).map((assignment) => {
+          if (assignment.action === "review") return assignment;
+          const draft = addDraftAction({
+            title: assignment.title,
+            linkedRiskId: `training-${assignment.workerId}`,
+            linkedRisk: assignment.requirementTitle,
+            siteId: selectedWorkers.find((employee) => employee.id === assignment.workerId)?.assignedSiteId ?? dataset.jobsites[0]?.id ?? "riverside",
+            priority: assignment.riskLevel === "critical" || assignment.riskLevel === "high" ? "high" : "medium",
+            createdFrom: "Manual",
+          });
+          return { ...assignment, createdActionId: draft.id };
+        });
+        setTrainingAiAssignments(localAssignments);
+        setTrainingAiMessage("AI training assignments were queued locally. Turn on live beta to write them to company records.");
+        return;
+      }
+
+      const response = await fetch("/api/company/training-matrix/ai-assign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ workers: selectedWorkers }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            assignments?: TrainingAssignmentResult[];
+            createdActions?: number;
+            createdRequirements?: number;
+          }
+        | null;
+
+      if (!response.ok) {
+        setTrainingAiMessage(data?.error || "AI could not assign training.");
+        setTrainingAiAssignments([]);
+        return;
+      }
+
+      setTrainingAiAssignments(data?.assignments ?? []);
+      setTrainingAiMessage(
+        data?.message ||
+          `AI queued ${data?.createdActions ?? 0} training follow-up actions and ${data?.createdRequirements ?? 0} missing requirements.`
+      );
+    } catch (error) {
+      setTrainingAiMessage(error instanceof Error ? error.message : "AI could not assign training.");
+      setTrainingAiAssignments([]);
+    } finally {
+      setTrainingAiLoading(false);
+    }
+  }
+
   const pageRows = buildRows({
     workspace,
     query: normalizedQuery,
@@ -208,6 +352,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     updateActionStatus,
     closeActionWithPhoto,
     createActionFromSignal,
+    assignTrainingWithAi,
   });
 
   const selectedForecastSite = siteFilter === "all" ? dataset.jobsites[0]?.id ?? "riverside" : siteFilter;
@@ -244,7 +389,17 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             <Download className="h-4 w-4" />
             Export
           </ExportButton>
-          {workspace === "hazards" ? (
+          {workspace === "training" ? (
+            <button
+              type="button"
+              onClick={() => void assignTrainingWithAi()}
+              disabled={trainingAiLoading}
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              <Sparkles className="h-4 w-4" />
+              {trainingAiLoading ? "Assigning..." : config.primaryAction}
+            </button>
+          ) : workspace === "hazards" ? (
             <button
               type="button"
               onClick={() => setShowHazardComposer((current) => !current)}
@@ -346,6 +501,41 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               Log Hazard
             </button>
           </div>
+        </Card>
+      ) : null}
+
+      {workspace === "training" && (trainingAiMessage || trainingAiAssignments.length > 0) ? (
+        <Card className="mb-5 p-5">
+          <SectionTitle
+            title="AI Training Assignments"
+            action={<Link href="/training-matrix" className="text-sm font-black text-blue-600">Open training matrix</Link>}
+          />
+          {trainingAiMessage ? <p className="mt-2 text-sm font-semibold text-slate-600">{trainingAiMessage}</p> : null}
+          {trainingAiAssignments.length > 0 ? (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {trainingAiAssignments.slice(0, 6).map((assignment) => (
+                <article key={`${assignment.workerId}-${assignment.title}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">{assignment.title}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{assignment.workerName}</p>
+                    </div>
+                    <RiskBadge level={assignment.riskLevel} />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{assignment.detail}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{assignment.requirementTitle}</span>
+                    <span className="rounded-full bg-white px-3 py-1 text-slate-600">{assignment.action.replace(/_/g, " ")}</span>
+                  </div>
+                  {assignment.createdActionId ? (
+                    <Link href={`/safe-predict/corrective-actions#${assignment.createdActionId}`} className="mt-4 inline-flex text-sm font-black text-blue-600">
+                      View queued action
+                    </Link>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : null}
         </Card>
       ) : null}
 
@@ -513,6 +703,7 @@ function buildRows({
   updateActionStatus,
   closeActionWithPhoto,
   createActionFromSignal,
+  assignTrainingWithAi,
 }: {
   workspace: SafePredictWorkspaceSlug;
   query: string;
@@ -523,6 +714,7 @@ function buildRows({
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
   closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel }) => void;
+  assignTrainingWithAi: (worker?: SafePredictDemoEmployee) => void;
 }): WorkspaceRows {
   function textMatches(values: string[]) {
     return !query || values.join(" ").toLowerCase().includes(query);
@@ -572,7 +764,13 @@ function buildRows({
 
   if (workspace === "training") {
     const rows = scoped.employees.filter((employee) => textMatches([employee.name, employee.trade, employee.role, employee.status]));
-    return table("Training & Readiness Roster", ["Employee", "Jobsite", "Trade", "Role", "Readiness", "Status"], rows.map((row) => [row.name, siteName(row.assignedSiteId, jobsites), row.trade, row.role, `${row.readinessScore}`, row.status]), rows.map(() => ({ label: "Assign", href: mapSafePredictOperationHref("/training-matrix") })), rows);
+    return table(
+      "Training & Readiness Roster",
+      ["Employee", "Jobsite", "Trade", "Role", "Readiness", "Status"],
+      rows.map((row) => [row.name, siteName(row.assignedSiteId, jobsites), row.trade, row.role, `${row.readinessScore}`, row.status]),
+      rows.map((row) => ({ label: "Assign", onClick: () => assignTrainingWithAi(row) })),
+      rows
+    );
   }
 
   if (workspace === "permits") {

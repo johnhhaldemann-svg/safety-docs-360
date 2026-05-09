@@ -52,7 +52,7 @@ function sectionMatchesSource(
 
 export function SafePredictPlatformActions() {
   const [query, setQuery] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<SafePredictPlatformAction["source"] | "all">("company");
+  const [sourceFilter, setSourceFilter] = useState<SafePredictPlatformAction["source"] | "all">("all");
 
   const sections = useMemo(() => {
     return safePredictPlatformActionSections

@@ -45,6 +45,19 @@ type GeneratedReportPayload = {
   file_path?: string | null;
 };
 
+function downloadTextFile(fileName: string, content: string) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function getAuthHeaders() {
   const {
     data: { session },
@@ -164,11 +177,37 @@ export default function ReportsPage() {
   async function openStoredFile(path: string) {
     setOpeningPath(path);
     try {
-      const signed = await supabase.storage.from("documents").createSignedUrl(path, 60);
-      if (signed.error || !signed.data?.signedUrl) {
-        throw new Error(signed.error?.message || "Failed to open exported report file.");
+      if (path.startsWith("demo/")) {
+        downloadTextFile(path.split("/").pop() || "report.md", [
+          "# Demo Safety Report",
+          "",
+          "This demo export confirms the report workflow is wired correctly.",
+          "",
+          "- Source: SafetyDoc360 demo workspace",
+          "- Status: Published",
+        ].join("\n"));
+        setMessageTone("success");
+        setMessage("Demo report exported.");
+        return;
       }
-      window.open(signed.data.signedUrl, "_blank");
+
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/reports/export", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ filePath: path }),
+      });
+      const data = (await response.json().catch(() => null)) as { signedUrl?: string; error?: string } | null;
+      if (!response.ok || !data?.signedUrl) {
+        throw new Error(data?.error || "Failed to open exported report file.");
+      }
+      const link = document.createElement("a");
+      link.href = data.signedUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to open file.");
