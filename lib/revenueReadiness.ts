@@ -25,6 +25,7 @@ export type RevenueReadinessInput = {
   companyProfile?: RevenueReadinessCompanyProfile | null;
   companyUsers?: Array<{ status?: string | null; last_sign_in_at?: string | null }>;
   companyInvites?: Array<{ status?: string | null }>;
+  trackedEmployees?: Array<{ status?: string | null }>;
   jobsites?: Array<{ status?: string | null }>;
   documents?: Array<{
     status?: string | null;
@@ -154,6 +155,7 @@ export function buildRevenueReadinessSummary(
   const now = input.now ?? new Date();
   const companyUsers = input.companyUsers ?? [];
   const companyInvites = input.companyInvites ?? [];
+  const trackedEmployees = input.trackedEmployees ?? [];
   const jobsites = input.jobsites ?? [];
   const documents = input.documents ?? [];
   const correctiveActions = input.work?.correctiveActions ?? [];
@@ -169,6 +171,7 @@ export function buildRevenueReadinessSummary(
     companyProfile: input.companyProfile,
     companyUsers,
     companyInvites,
+    trackedEmployees,
     jobsites,
     documents,
     commandCenterViewed,
@@ -205,9 +208,10 @@ export function buildRevenueReadinessSummary(
 
   const adoptionPercent =
     adoption.totalCount > 0 ? (adoption.completedCount / adoption.totalCount) * 100 : 0;
+  const trackedRosterCount = trackedEmployees.filter((employee) => isActiveStatus(employee.status)).length;
   const activationPercent = clampPercent(
     (activeUsers > 0 ? 25 : 0) +
-      (activeUsers + invitedUsers > 1 ? 20 : 0) +
+      (activeUsers + invitedUsers > 1 || trackedRosterCount > 0 ? 20 : 0) +
       (activeJobsites > 0 ? 25 : 0) +
       (documentsStarted > 0 ? 20 : 0) +
       (commandCenterViewed ? 10 : 0)
@@ -277,7 +281,7 @@ export function buildRevenueReadinessSummary(
       id: "activation",
       label: "Activation",
       value: formatPercent(activationPercent),
-      detail: `${activeUsers} active users, ${activeJobsites} active jobsites, ${documentsStarted} documents started.`,
+      detail: `${activeUsers} active users, ${trackedRosterCount} tracked employees, ${activeJobsites} active jobsites, ${documentsStarted} documents started.`,
       tone: activationPercent >= 70 ? "success" : activationPercent >= 40 ? "warning" : "error",
     },
     {

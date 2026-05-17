@@ -25,6 +25,7 @@ export type AdoptionChecklistInput = {
   } | null;
   companyUsers?: Array<{ status?: string | null }>;
   companyInvites?: Array<{ status?: string | null }>;
+  trackedEmployees?: Array<{ status?: string | null }>;
   jobsites?: Array<{ status?: string | null }>;
   documents?: Array<{ status?: string | null; final_file_path?: string | null; draft_file_path?: string | null }>;
   commandCenterViewed?: boolean;
@@ -54,6 +55,10 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
   const hasTeamInvite =
     (input.companyInvites ?? []).some((invite) => isActiveStatus(invite.status)) ||
     (input.companyUsers ?? []).filter((user) => isActiveStatus(user.status)).length > 1;
+  const hasTrackedRoster = (input.trackedEmployees ?? []).some((employee) =>
+    isActiveStatus(employee.status)
+  );
+  const hasTeamRoster = hasTeamInvite || hasTrackedRoster;
   const hasJobsite = (input.jobsites ?? []).some((jobsite) => isActiveStatus(jobsite.status));
   const hasDocument = (input.documents ?? []).some(
     (document) => filled(document.final_file_path) || filled(document.draft_file_path) || filled(document.status)
@@ -71,12 +76,12 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
     },
     {
       id: "team_invites",
-      label: "Invite team members",
-      note: hasTeamInvite
-        ? "Team access has started."
-        : "Invite a safety lead, manager, or field supervisor so the workspace has more than one operator.",
-      href: "/company-users",
-      complete: hasTeamInvite,
+      label: "Add team roster",
+      note: hasTeamRoster
+        ? "Team access or tracked roster setup has started."
+        : "Invite licensed workspace users or add tracked employees for safety managers to manage training without using seats.",
+      href: "/company-onboarding",
+      complete: hasTeamRoster,
     },
     {
       id: "first_jobsite",

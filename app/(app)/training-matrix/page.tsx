@@ -102,6 +102,9 @@ type CertificationInventoryItem = {
 
 type MatrixRow = {
   userId: string;
+  trackedEmployeeId?: string;
+  personType?: "licensed_user" | "tracked_employee";
+  licenseStatus?: string;
   name: string;
   email: string;
   role: string;
@@ -1266,6 +1269,7 @@ export default function TrainingMatrixPage() {
   const [readinessJobsites, setReadinessJobsites] = useState<MatrixJobsiteOption[]>([]);
   const [personnelSearch, setPersonnelSearch] = useState("");
   const [personnelTypeFilter, setPersonnelTypeFilter] = useState<ReadinessPersonnelTypeFilter>("all");
+  const [matrixPersonTypeFilter, setMatrixPersonTypeFilter] = useState<"all" | "licensed_user" | "tracked_employee">("all");
   const [matrixViewMode, setMatrixViewMode] = useState<MatrixViewMode>("readiness");
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
@@ -1798,12 +1802,22 @@ export default function TrainingMatrixPage() {
     [isCompact]
   );
 
+  const filteredMatrixRows = useMemo(() => {
+    if (matrixPersonTypeFilter === "all") return rows;
+    return rows.filter((row) => (row.personType ?? "licensed_user") === matrixPersonTypeFilter);
+  }, [matrixPersonTypeFilter, rows]);
+
+  const licensedMatrixRows = rows.filter(
+    (row) => (row.personType ?? "licensed_user") !== "tracked_employee"
+  ).length;
+  const trackedMatrixRows = rows.filter((row) => row.personType === "tracked_employee").length;
+
   const trackerStats = useMemo(() => {
-    if (!rows.length || !requirements.length) return null;
+    if (!filteredMatrixRows.length || !requirements.length) return null;
     let met = 0;
     let gap = 0;
     let na = 0;
-    for (const row of rows) {
+    for (const row of filteredMatrixRows) {
       for (const r of requirements) {
         const s = row.cells[r.id] ?? "gap";
         if (s === "match") met++;
@@ -1812,11 +1826,11 @@ export default function TrainingMatrixPage() {
       }
     }
     return { met, gap, na, total: met + gap + na };
-  }, [rows, requirements]);
+  }, [filteredMatrixRows, requirements]);
 
   const coordinatorQueue = useMemo(
-    () => buildTrainingMatrixActionQueue(rows, requirements),
-    [requirements, rows]
+    () => buildTrainingMatrixActionQueue(filteredMatrixRows, requirements),
+    [filteredMatrixRows, requirements]
   );
 
   const attentionCountByUser = useMemo(() => {
@@ -1839,7 +1853,7 @@ export default function TrainingMatrixPage() {
   const visibleMatrixRequirements = useMemo(() => {
     if (matrixViewMode === "readiness" || matrixViewMode === "all") return requirements;
     return requirements.filter((requirement) =>
-      rows.some((row) => {
+      filteredMatrixRows.some((row) => {
         const state = row.cells[requirement.id] ?? "gap";
         const detail = row.cellDetails?.[requirement.id];
         if (matrixViewMode === "gaps") return state === "gap";
@@ -1850,7 +1864,7 @@ export default function TrainingMatrixPage() {
         );
       })
     );
-  }, [matrixViewMode, requirements, rows]);
+  }, [filteredMatrixRows, matrixViewMode, requirements]);
 
   const filteredReadinessChartRows = useMemo(
     () =>
@@ -1868,14 +1882,14 @@ export default function TrainingMatrixPage() {
       value: "gaps",
       label: "Only gaps",
       count: requirements.filter((requirement) =>
-        rows.some((row) => (row.cells[requirement.id] ?? "gap") === "gap")
+        filteredMatrixRows.some((row) => (row.cells[requirement.id] ?? "gap") === "gap")
       ).length,
     },
     {
       value: "expiring",
       label: "Expiring / no date",
       count: requirements.filter((requirement) =>
-        rows.some((row) => {
+        filteredMatrixRows.some((row) => {
           const detail = row.cellDetails?.[requirement.id];
           return (
             (row.cells[requirement.id] ?? "gap") === "match" &&
@@ -1920,6 +1934,12 @@ export default function TrainingMatrixPage() {
                   : "Loading…"
                 : "Refresh data"}
             </button>
+            <Link
+              href="/company-onboarding"
+              className={appButtonSecondaryClassName}
+            >
+              Import roster/training
+            </Link>
             <Link
               href="/dashboard"
               className={appButtonSecondaryClassName}
@@ -2341,10 +2361,10 @@ export default function TrainingMatrixPage() {
         isCompact={isCompact}
         onRefresh={() => void loadMatrix()}
         footer={
-          !loading && rows.length > 0 ? (
+          !loading && filteredMatrixRows.length > 0 ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
               <span>
-                <span className="font-semibold text-zinc-300">{rows.length}</span> people in this workspace
+                <span className="font-semibold text-zinc-300">{filteredMatrixRows.length}</span> people in this workspace
               </span>
               {trackerStats ? (
                 <>
@@ -2393,6 +2413,30 @@ export default function TrainingMatrixPage() {
             })}
           </div>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/55 p-3">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">People</span>
+          {[
+            { value: "all" as const, label: "All", count: rows.length },
+            { value: "licensed_user" as const, label: "Licensed users", count: licensedMatrixRows },
+            { value: "tracked_employee" as const, label: "Tracked employee, no license", count: trackedMatrixRows },
+          ].map((option) => {
+            const active = matrixPersonTypeFilter === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setMatrixPersonTypeFilter(option.value)}
+                className={
+                  active
+                    ? "rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-bold text-zinc-950"
+                    : "rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800"
+                }
+              >
+                {option.label} ({option.count})
+              </button>
+            );
+          })}
+        </div>
         {matrixViewMode === "readiness" ? (
           <ReadinessMatrixPanel
             rows={readinessRows}
@@ -2439,7 +2483,7 @@ export default function TrainingMatrixPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {filteredMatrixRows.map((row) => {
                 const positionRollup = buildPositionRollup(row, requirements);
                 const attentionCount = attentionCountByUser.get(row.userId) ?? 0;
                 return (
@@ -2458,6 +2502,11 @@ export default function TrainingMatrixPage() {
                         )}
                       </div>
                       <div className="text-xs text-zinc-500">{row.email || row.userId}</div>
+                      {row.personType === "tracked_employee" ? (
+                        <div className="mt-2 inline-flex rounded-full bg-cyan-500/12 px-2 py-0.5 text-[10px] font-bold text-cyan-200 ring-1 ring-cyan-500/25">
+                          {row.licenseStatus || "Tracked employee, no license"}
+                        </div>
+                      ) : null}
                       <dl className="mt-2 space-y-1 text-xs text-zinc-300">
                         <div className="flex gap-1">
                           <dt className="shrink-0 font-semibold text-zinc-500">Position</dt>
@@ -2484,12 +2533,21 @@ export default function TrainingMatrixPage() {
                         theme="light"
                       />
                       <div className="mt-2 text-[11px] text-zinc-600">Workspace access: {row.role}</div>
-                      <Link
-                        href={`/profile?userId=${encodeURIComponent(row.userId)}&returnTo=${encodeURIComponent("/training-matrix")}`}
-                        className="mt-2 inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline"
-                      >
-                        Update profile & dates
-                      </Link>
+                      {row.personType === "tracked_employee" ? (
+                        <Link
+                          href="/company-onboarding"
+                          className="mt-2 inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline"
+                        >
+                          Update tracked record
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/profile?userId=${encodeURIComponent(row.userId)}&returnTo=${encodeURIComponent("/training-matrix")}`}
+                          className="mt-2 inline-block text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline"
+                        >
+                          Update profile & dates
+                        </Link>
+                      )}
                     </td>
                     {visibleMatrixRequirements.map((r) => {
                       const state = row.cells[r.id] ?? "gap";

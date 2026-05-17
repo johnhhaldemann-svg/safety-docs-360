@@ -24,6 +24,12 @@ import {
   demoCompanyUsers,
   demoJobsiteAssignments,
 } from "@/lib/demoWorkspace";
+import type {
+  CompanyDataRequest,
+  CompanyDataRequestScope,
+  CompanyDataRequestType,
+  CompanySecurityEvent,
+} from "@/types/enterprise-readiness";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -63,6 +69,8 @@ type CompanyInvite = {
   created_at?: string | null;
   signup_url?: string | null;
 };
+
+type SecurityAuditView = "events" | "data_requests";
 
 type Jobsite = {
   id: string;
@@ -205,6 +213,22 @@ function formatDemoRole(role: string) {
   return role;
 }
 
+function formatSecurityEventLabel(value: string) {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function dataRequestStatusTone(status: string): "success" | "warning" | "error" | "neutral" | "info" {
+  if (status === "completed") return "success";
+  if (status === "denied" || status === "canceled") return "error";
+  if (status === "waiting_on_customer") return "warning";
+  if (status === "reviewing") return "info";
+  return "neutral";
+}
+
 async function isSalesDemoToken(token: string) {
   const response = await fetch("/api/auth/me", {
     headers: { Authorization: `Bearer ${token}` },
@@ -240,6 +264,15 @@ export default function CompanyUsersPage() {
   const [referenceTime] = useState(() => Date.now());
   const [demoMode, setDemoMode] = useState(false);
   const [leadershipScores, setLeadershipScores] = useState<LeadershipSafetyScoreSummary[]>([]);
+  const [securityEvents, setSecurityEvents] = useState<CompanySecurityEvent[]>([]);
+  const [dataRequests, setDataRequests] = useState<CompanyDataRequest[]>([]);
+  const [securityLoading, setSecurityLoading] = useState(true);
+  const [securityAuditView, setSecurityAuditView] = useState<SecurityAuditView>("events");
+  const [dataRequestSubmitting, setDataRequestSubmitting] = useState(false);
+  const [dataRequestType, setDataRequestType] = useState<CompanyDataRequestType>("export");
+  const [dataRequestScope, setDataRequestScope] = useState<CompanyDataRequestScope>("company");
+  const [dataRequestTitle, setDataRequestTitle] = useState("");
+  const [dataRequestDescription, setDataRequestDescription] = useState("");
 
   async function getAccessToken() {
     const {
@@ -399,12 +432,81 @@ export default function CompanyUsersPage() {
     }
   }, []);
 
+  const loadSecurityReadiness = useCallback(async () => {
+    setSecurityLoading(true);
+    try {
+      const token = await getAccessToken();
+      if (await isSalesDemoToken(token)) {
+        const now = Date.now();
+        setSecurityEvents([
+          {
+            id: "demo-event-invite",
+            company_id: "demo-company",
+            jobsite_id: null,
+            actor_user_id: "demo-admin",
+            actor_role: "company_admin",
+            event_type: "user_invited",
+            resource_type: "company_invite",
+            resource_id: demoCompanyInvites[0]?.id ?? null,
+            title: "Company invite created",
+            detail: "Demo invite evidence for IT review.",
+            ip_address: null,
+            user_agent: null,
+            metadata: {},
+            occurred_at: new Date(now - 12 * 60000).toISOString(),
+          },
+          {
+            id: "demo-event-role",
+            company_id: "demo-company",
+            jobsite_id: null,
+            actor_user_id: "demo-admin",
+            actor_role: "company_admin",
+            event_type: "user_access_updated",
+            resource_type: "company_user",
+            resource_id: demoCompanyUsers[0]?.id ?? null,
+            title: "Company access updated",
+            detail: "Role/status change evidence appears here after the migration is applied.",
+            ip_address: null,
+            user_agent: null,
+            metadata: {},
+            occurred_at: new Date(now - 28 * 60000).toISOString(),
+          },
+        ]);
+        setDataRequests([]);
+        setSecurityLoading(false);
+        return;
+      }
+
+      const [eventsResponse, requestsResponse] = await Promise.all([
+        fetch("/api/company/security/events?limit=12", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/company/data-requests?limit=10", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const eventData = (await eventsResponse.json().catch(() => null)) as
+        | { events?: CompanySecurityEvent[] }
+        | null;
+      const requestData = (await requestsResponse.json().catch(() => null)) as
+        | { requests?: CompanyDataRequest[] }
+        | null;
+      setSecurityEvents(eventsResponse.ok ? eventData?.events ?? [] : []);
+      setDataRequests(requestsResponse.ok ? requestData?.requests ?? [] : []);
+    } catch {
+      setSecurityEvents([]);
+      setDataRequests([]);
+    }
+    setSecurityLoading(false);
+  }, []);
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadUsers();
       void loadAssignmentData();
+      void loadSecurityReadiness();
     });
-  }, [loadAssignmentData, loadUsers]);
+  }, [loadAssignmentData, loadSecurityReadiness, loadUsers]);
 
   const pendingUsers = useMemo(
     () => users.filter((user) => user.status === "Pending"),
@@ -591,6 +693,47 @@ export default function CompanyUsersPage() {
         ];
   }, [invites, scopeCompanyName, scopeTeam, users]);
 
+  const securityEventItems = useMemo(() => {
+    const items = securityEvents.map((event) => ({
+      id: event.id,
+      title: event.title || formatSecurityEventLabel(event.event_type),
+      detail:
+        event.detail ||
+        `${formatSecurityEventLabel(event.event_type)} against ${formatSecurityEventLabel(
+          event.resource_type
+        )}.`,
+      meta: formatRelative(event.occurred_at),
+      tone:
+        event.event_type.includes("removed") || event.event_type.includes("suspended")
+          ? ("warning" as const)
+          : event.event_type.includes("download") || event.event_type.includes("export")
+            ? ("info" as const)
+            : ("neutral" as const),
+    }));
+
+    return items.length > 0
+      ? items
+      : [
+          {
+            id: "empty-security-events",
+            title: "No security ledger events yet",
+            detail: "Invite, access, upload, export, download, AI, and data request evidence will appear after events are recorded.",
+            meta: "Waiting",
+            tone: "neutral" as const,
+          },
+        ];
+  }, [securityEvents]);
+
+  const securityEvidenceStats = useMemo(
+    () => [
+      { label: "Ledger events", value: securityEvents.length, tone: "info" as const },
+      { label: "Suspended users", value: filteredSuspendedUsers.length, tone: filteredSuspendedUsers.length ? ("warning" as const) : ("success" as const) },
+      { label: "Pending invites", value: invites.length, tone: invites.length ? ("warning" as const) : ("success" as const) },
+      { label: "Data requests", value: dataRequests.length, tone: dataRequests.length ? ("info" as const) : ("neutral" as const) },
+    ],
+    [dataRequests.length, filteredSuspendedUsers.length, invites.length, securityEvents.length]
+  );
+
   async function handleInvite() {
     setInviteLoading(true);
     setMessage("");
@@ -651,6 +794,7 @@ export default function CompanyUsersPage() {
           "Company user invited successfully."
       );
       await loadUsers({ preserveMessage: true });
+      await loadSecurityReadiness();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to invite company user.");
@@ -731,6 +875,7 @@ export default function CompanyUsersPage() {
       setMessage("Company user updated.");
       await loadUsers({ preserveMessage: true });
       await loadAssignmentData();
+      await loadSecurityReadiness();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update company user.");
@@ -788,6 +933,7 @@ export default function CompanyUsersPage() {
           : `${user.name} has been suspended from the company workspace.`
       );
       await loadUsers({ preserveMessage: true });
+      await loadSecurityReadiness();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update company user.");
@@ -847,12 +993,153 @@ export default function CompanyUsersPage() {
         data?.message || "User removed from the company workspace successfully."
       );
       await loadUsers({ preserveMessage: true });
+      await loadSecurityReadiness();
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to remove company user.");
     }
 
     setRemoveLoading(false);
+  }
+
+  async function handleCreateDataRequest() {
+    setDataRequestSubmitting(true);
+    setMessage("");
+    setMessageTone("neutral");
+
+    try {
+      if (demoMode) {
+        const nowIso = new Date().toISOString();
+        setDataRequests((current) => [
+          {
+            id: `demo-data-request-${Date.now()}`,
+            company_id: "demo-company",
+            request_type: dataRequestType,
+            request_scope: dataRequestScope,
+            subject_user_id: null,
+            subject_email: null,
+            jobsite_id: null,
+            document_id: null,
+            status: "submitted",
+            requested_by: "demo-admin",
+            reviewed_by: null,
+            completed_by: null,
+            title: dataRequestTitle,
+            description: dataRequestDescription || null,
+            reviewer_notes: null,
+            completion_evidence: null,
+            evidence_storage_path: null,
+            metadata: {},
+            due_at: null,
+            reviewed_at: null,
+            completed_at: null,
+            created_at: nowIso,
+            updated_at: nowIso,
+          },
+          ...current,
+        ]);
+        setDataRequestTitle("");
+        setDataRequestDescription("");
+        setMessageTone("success");
+        setMessage("Demo data request added locally for this session.");
+        setDataRequestSubmitting(false);
+        return;
+      }
+
+      const token = await getAccessToken();
+      const response = await fetch("/api/company/data-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          requestType: dataRequestType,
+          requestScope: dataRequestScope,
+          title: dataRequestTitle,
+          description: dataRequestDescription,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; request?: CompanyDataRequest }
+        | null;
+
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to create data request.");
+        setDataRequestSubmitting(false);
+        return;
+      }
+
+      setDataRequestTitle("");
+      setDataRequestDescription("");
+      setMessageTone("success");
+      setMessage("Company data request created.");
+      await loadSecurityReadiness();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to create data request.");
+    }
+
+    setDataRequestSubmitting(false);
+  }
+
+  async function handleUpdateDataRequestStatus(
+    requestId: string,
+    status: CompanyDataRequest["status"]
+  ) {
+    try {
+      if (demoMode) {
+        setDataRequests((current) =>
+          current.map((item) =>
+            item.id === requestId
+              ? { ...item, status, updated_at: new Date().toISOString() }
+              : item
+          )
+        );
+        return;
+      }
+
+      const token = await getAccessToken();
+      const response = await fetch(`/api/company/data-requests/${requestId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to update data request.");
+        return;
+      }
+      await loadSecurityReadiness();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update data request.");
+    }
+  }
+
+  function handleExportAuditEvidence() {
+    const evidence = {
+      exportedAt: new Date().toISOString(),
+      company: scopeCompanyName,
+      securityEvents,
+      pendingInvites: invites,
+      suspendedUsers: filteredSuspendedUsers,
+      dataRequests,
+    };
+    const blob = new Blob([JSON.stringify(evidence, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `safety360docs-audit-evidence-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   const { density, setDensity, isCompact } = useTableDensity();
@@ -877,6 +1164,12 @@ export default function CompanyUsersPage() {
               className={`${appButtonSecondaryClassName} min-w-[9.5rem]`}
             >
               Training matrix
+            </Link>
+            <Link
+              href="/company-onboarding"
+              className={`${appButtonSecondaryClassName} min-w-[10.5rem]`}
+            >
+              Import roster
             </Link>
             <Link
               href="/billing"
@@ -1171,6 +1464,202 @@ export default function CompanyUsersPage() {
           items={activityItems}
         />
       </section>
+
+      <SectionCard
+        title="Security / Audit"
+        description="Company-scoped evidence for IT review, privacy requests, access changes, and exportable audit support."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {(["events", "data_requests"] as SecurityAuditView[]).map((view) => (
+              <button
+                key={view}
+                type="button"
+                onClick={() => setSecurityAuditView(view)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                  securityAuditView === view
+                    ? "border-sky-400 bg-sky-950/40 text-sky-100"
+                    : "border-slate-700 bg-slate-950/40 text-slate-400 hover:border-slate-500"
+                }`}
+              >
+                {view === "events" ? "Events" : "Data Requests"}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleExportAuditEvidence}
+              className="rounded-xl border border-emerald-400/50 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-950/30"
+            >
+              Export Evidence
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-4">
+          {securityEvidenceStats.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <span className="text-3xl font-black tracking-tight text-white">{item.value}</span>
+                <StatusBadge label={String(item.value)} tone={item.tone} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {securityAuditView === "events" ? (
+          <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+            {securityLoading ? (
+              <InlineMessage>Loading company security events...</InlineMessage>
+            ) : (
+              <ActivityFeed
+                title="Recent Security Events"
+                description="Centralized ledger events scoped to this company workspace."
+                items={securityEventItems}
+              />
+            )}
+            <div className="grid content-start gap-4">
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-100">Pending invites</p>
+                  <StatusBadge label={String(invites.length)} tone={invites.length ? "warning" : "success"} />
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {invites.slice(0, 4).map((invite) => (
+                    <div key={`security-invite-${invite.id}`} className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+                      <p className="truncate text-xs font-semibold text-slate-200">{invite.email}</p>
+                      <p className="mt-1 text-xs text-slate-500">{invite.role} / {formatRelative(invite.created_at)}</p>
+                    </div>
+                  ))}
+                  {invites.length === 0 ? <p className="text-sm text-slate-500">No pending invites.</p> : null}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-100">Suspended users</p>
+                  <StatusBadge
+                    label={String(filteredSuspendedUsers.length)}
+                    tone={filteredSuspendedUsers.length ? "warning" : "success"}
+                  />
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {filteredSuspendedUsers.slice(0, 4).map((user) => (
+                    <div key={`security-suspended-${user.id}`} className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+                      <p className="truncate text-xs font-semibold text-slate-200">{user.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">{user.email}</p>
+                    </div>
+                  ))}
+                  {filteredSuspendedUsers.length === 0 ? <p className="text-sm text-slate-500">No suspended users.</p> : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <p className="text-sm font-semibold text-slate-100">New data request</p>
+              <div className="mt-4 grid gap-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <select
+                    value={dataRequestType}
+                    onChange={(event) => setDataRequestType(event.target.value as CompanyDataRequestType)}
+                    className={appNativeSelectClassName}
+                    aria-label="Data request type"
+                  >
+                    <option value="export">Export</option>
+                    <option value="deletion">Deletion</option>
+                    <option value="correction">Correction</option>
+                    <option value="privacy_review">Privacy Review</option>
+                  </select>
+                  <select
+                    value={dataRequestScope}
+                    onChange={(event) => setDataRequestScope(event.target.value as CompanyDataRequestScope)}
+                    className={appNativeSelectClassName}
+                    aria-label="Data request scope"
+                  >
+                    <option value="company">Company</option>
+                    <option value="jobsite">Jobsite</option>
+                    <option value="user">User</option>
+                    <option value="document">Document</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <input
+                  value={dataRequestTitle}
+                  onChange={(event) => setDataRequestTitle(event.target.value)}
+                  placeholder="Request title"
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-500 focus:border-sky-500"
+                />
+                <textarea
+                  value={dataRequestDescription}
+                  onChange={(event) => setDataRequestDescription(event.target.value)}
+                  placeholder="Scope, requester, reviewer notes, or completion evidence"
+                  rows={4}
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-500 focus:border-sky-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCreateDataRequest()}
+                  disabled={dataRequestSubmitting || !dataRequestTitle.trim()}
+                  className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
+                >
+                  {dataRequestSubmitting ? "Creating..." : "Create Request"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid content-start gap-3">
+              {securityLoading ? (
+                <InlineMessage>Loading data requests...</InlineMessage>
+              ) : dataRequests.length === 0 ? (
+                <EmptyState
+                  title="No data requests yet"
+                  description="Export, deletion, correction, and privacy review requests will appear here."
+                />
+              ) : (
+                dataRequests.map((requestItem) => (
+                  <div key={requestItem.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-100">{requestItem.title}</p>
+                          <StatusBadge label={formatSecurityEventLabel(requestItem.status)} tone={dataRequestStatusTone(requestItem.status)} />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {formatSecurityEventLabel(requestItem.request_type)} / {formatSecurityEventLabel(requestItem.request_scope)} / {formatRelative(requestItem.created_at)}
+                        </p>
+                        {requestItem.description ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-400">{requestItem.description}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2 sm:justify-end">
+                        {requestItem.status === "submitted" ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleUpdateDataRequestStatus(requestItem.id, "reviewing")}
+                            className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
+                          >
+                            Review
+                          </button>
+                        ) : null}
+                        {requestItem.status !== "completed" ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleUpdateDataRequestStatus(requestItem.id, "completed")}
+                            className="rounded-xl border border-emerald-400/60 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-950/30"
+                          >
+                            Complete
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Invited employees"

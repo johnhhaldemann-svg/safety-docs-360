@@ -7,7 +7,7 @@ import {
   type NavItem,
   type NavSection,
 } from "@/lib/appNavigation";
-import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
+import { mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
 
 export type SafePredictPlatformAction = NavItem & {
   sectionTitle: string;
@@ -29,7 +29,7 @@ function actionSource(section: NavSection): SafePredictPlatformAction["source"] 
 }
 
 function normalizeAction(section: NavSection, item: NavItem): SafePredictPlatformAction {
-  const nativeHref = mapSafePredictOperationHref(item.href);
+  const nativeHref = mapSafePredictSurfaceHref(item.href);
   return {
     ...item,
     href: nativeHref,

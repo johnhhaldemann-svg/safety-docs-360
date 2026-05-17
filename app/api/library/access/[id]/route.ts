@@ -135,6 +135,10 @@ export async function GET(
     actorUserId: user.id,
     ownerUserId: document.user_id ?? null,
     fileKind: "final",
+    companyId: document.company_id ?? null,
+    actorRole: role,
+    filePath: document.final_file_path,
+    userAgent: request.headers.get("user-agent"),
     ipAddress: getClientIpAddress(request),
     metadata: {
       route: "library_access",

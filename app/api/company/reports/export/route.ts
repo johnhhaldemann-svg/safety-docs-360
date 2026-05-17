@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+import { getClientIpAddress } from "@/lib/legal";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -45,6 +47,25 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  await recordCompanySecurityEvent({
+    supabase: storageClient,
+    companyId: companyScope.companyId,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: "report_export_link_created",
+    resourceType: "report",
+    resourceId: filePath,
+    title: "Report export link created",
+    detail: "A signed report export link was created.",
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      filePath,
+      bucket: "documents",
+      signedUrlTtlSeconds: 120,
+    },
+  });
 
   return NextResponse.json({ signedUrl: signed.data.signedUrl });
 }

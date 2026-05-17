@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { companyAdminSideSections } from "@/lib/appNavigation";
-import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
+import { mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
 import {
   filterSafePredictPlatformActions,
   safePredictPlatformActions,
@@ -16,7 +16,7 @@ describe("safePredictPlatformActions", () => {
       .filter((href) => href !== "/safe-predict");
 
     for (const href of originalCompanyHrefs) {
-      expect(safePredictHrefs.has(mapSafePredictOperationHref(href)), href).toBe(true);
+      expect(safePredictHrefs.has(mapSafePredictSurfaceHref(href)), href).toBe(true);
     }
   });
 
@@ -28,7 +28,8 @@ describe("safePredictPlatformActions", () => {
 
   it("searches action labels, routes, and section names", () => {
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "permits").map((action) => action.href)).toContain("/safe-predict/permits");
-    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "team").map((action) => action.href)).toContain("/company-users");
+    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "apps").map((action) => action.href)).toContain("/safe-predict/apps-integrations");
+    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "team").map((action) => action.href)).toContain("/safe-predict/team-access");
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "superadmin").length).toBeGreaterThan(0);
   });
 });

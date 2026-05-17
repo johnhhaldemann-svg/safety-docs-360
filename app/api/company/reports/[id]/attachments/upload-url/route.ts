@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+import { getClientIpAddress } from "@/lib/legal";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -78,6 +80,27 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  await recordCompanySecurityEvent({
+    supabase: adminClient,
+    companyId: companyScope.companyId,
+    jobsiteId: reportResult.data.jobsite_id ?? null,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: "file_upload_link_created",
+    resourceType: "storage_object",
+    resourceId: path,
+    title: "Report attachment upload link created",
+    detail: "A signed upload token was created for a report attachment.",
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      bucket: "documents",
+      path,
+      reportId: id,
+      mimeType: body?.mimeType ?? null,
+    },
+  });
 
   return NextResponse.json({
     bucket: "documents",

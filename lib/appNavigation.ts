@@ -104,6 +104,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/company-users", label: "Team & Access", short: "TM" },
+  { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
@@ -152,6 +153,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
   { href: "/training", label: "Training", short: "PT" },
+  { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
   { href: "/field-id-exchange", label: "Field Issues", short: "CA" },
   { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
@@ -358,6 +360,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Programs & Training",
     items: [
       { href: "/company-users", label: "Team & Access", short: "US" },
+      { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/company-contractors", label: "Contractor compliance", short: "CQ" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
@@ -448,6 +451,7 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Programs & Training",
     items: [
+      { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
       { href: "/company-inductions", label: "Inductions", short: "IN" },
       { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
       { href: "/company-integrations", label: "Apps & Integrations", short: "AI" },

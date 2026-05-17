@@ -11,6 +11,7 @@ import { formatTitleCase } from "@/lib/formatTitleCase";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { getDashboardOverviewSectionVisibility } from "@/lib/dashboardVisibility";
 import { resolveDashboardRole } from "@/lib/dashboardRole";
+import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
 import type { PermissionMap } from "@/lib/rbac";
 import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
 import type { DashboardOverview, EngineHealthItem, TrendPoint } from "@/src/lib/dashboard/types";
@@ -52,7 +53,7 @@ import {
   trendHasPositiveValues,
   workforceReadinessHasSignals,
 } from "@/src/lib/dashboard/overviewDataPresence";
-import { Activity, AlertTriangle, Database, GraduationCap, ScanLine } from "lucide-react";
+import { Activity, AlertTriangle, Database, FileText, GraduationCap, ScanLine, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 const supabase = getSupabaseBrowserClient();
@@ -488,6 +489,30 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     credentialGaps: cred,
     documentPipelineTotal: pipelineTotal,
   });
+  const builderActions = [
+    canAccessCompanyWorkspaceHref("/csep", workspace.userRole, workspace.permissionMap)
+      ? {
+          href: "/csep",
+          label: "Build CSEP",
+          icon: ShieldCheck,
+          primary: true,
+        }
+      : null,
+    workspace.workspaceProduct !== "csep" &&
+    canAccessCompanyWorkspaceHref("/peshep", workspace.userRole, workspace.permissionMap)
+      ? {
+          href: "/peshep",
+          label: "Build PESHEP",
+          icon: FileText,
+          primary: false,
+        }
+      : null,
+  ].filter((item): item is {
+    href: string;
+    label: string;
+    icon: typeof ShieldCheck;
+    primary: boolean;
+  } => item != null);
   const renderPinButton = (blockId: DashboardBlockId, label = "Pin to dashboard") => (
     <button
       type="button"
@@ -553,6 +578,24 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              {builderActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition",
+                      action.primary
+                        ? "border border-[var(--app-accent-primary)] bg-[var(--app-accent-primary)] text-white hover:bg-[var(--app-link-hover)]"
+                        : "border border-[var(--app-accent-border-24)] bg-white text-[var(--app-accent-primary)] hover:border-[var(--app-accent-primary)]",
+                    ].join(" ")}
+                  >
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {action.label}
+                  </Link>
+                );
+              })}
               <StatusBadge
                 label={`${connectedSourceCount}/${totalSourceCount || 0} sources green`}
                 tone={connectedSourceCount === totalSourceCount ? "success" : "warning"}

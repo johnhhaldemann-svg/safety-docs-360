@@ -33,10 +33,13 @@ import { AppTabBar } from "@/components/AppTabBar";
 import { Sparkline } from "@/components/metrics/Sparkline";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import { useUrlTabState } from "@/hooks/useUrlTabState";
+import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import type { AnalyticsSummary } from "@/components/analytics/types";
 import type { PredictiveRiskPayload } from "@/lib/predictiveRisk";
+import type { PermissionMap } from "@/lib/rbac";
+import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 
 const COMMAND_CENTER_HUB_TABS = ["overview", "risk-memory", "predictive-risk", "insights", "open-work"] as const;
 const COMMAND_CENTER_URL_TABS = [...COMMAND_CENTER_HUB_TABS, "risk"] as const;
@@ -72,6 +75,11 @@ type CommandCenterAdoptionPayload = {
   companyInvites: Array<{ status?: string | null }>;
   documents: Array<{ status?: string | null; final_file_path?: string | null; draft_file_path?: string | null }>;
   onboardingState: OnboardingState;
+};
+
+type BuilderAccess = {
+  csep: boolean;
+  peshep: boolean;
 };
 
 function formatCategory(raw: string | null | undefined) {
@@ -334,6 +342,7 @@ export function CommandCenterWorkspace() {
   const [riskSnapWorking, setRiskSnapWorking] = useState(false);
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
   const [siWorkloadSummary, setSiWorkloadSummary] = useState<SafetyDashboardPayload["summary"] | null>(null);
+  const [builderAccess, setBuilderAccess] = useState<BuilderAccess>({ csep: false, peshep: false });
   const [adoption, setAdoption] = useState<CommandCenterAdoptionPayload>({
     companyProfile: null,
     companyUsers: [],
@@ -408,7 +417,14 @@ export function CommandCenterWorkspace() {
         | (PredictiveRiskPayload & { error?: string })
         | null;
       const meJson = (await meResponse.json().catch(() => null)) as
-        | { user?: { companyProfile?: CommandCenterAdoptionPayload["companyProfile"] } }
+        | {
+            user?: {
+              companyProfile?: CommandCenterAdoptionPayload["companyProfile"];
+              permissionMap?: PermissionMap;
+              role?: string;
+              workspaceProduct?: WorkspaceProduct;
+            };
+          }
         | null;
       const usersJson = (await usersResponse.json().catch(() => null)) as
         | {
@@ -446,6 +462,20 @@ export function CommandCenterWorkspace() {
         setPredictiveRisk(null);
       } else {
         setPredictiveRisk(predictiveJson);
+      }
+
+      if (meResponse.ok) {
+        const role = meJson?.user?.role ?? "";
+        const permissionMap = meJson?.user?.permissionMap ?? null;
+        const workspaceProduct = meJson?.user?.workspaceProduct === "csep" ? "csep" : "full";
+        setBuilderAccess({
+          csep: canAccessCompanyWorkspaceHref("/csep", role, permissionMap),
+          peshep:
+            workspaceProduct !== "csep" &&
+            canAccessCompanyWorkspaceHref("/peshep", role, permissionMap),
+        });
+      } else {
+        setBuilderAccess({ csep: false, peshep: false });
       }
 
       setAdoption({
@@ -508,6 +538,24 @@ export function CommandCenterWorkspace() {
       }),
     [adoption, workspace?.jobsites]
   );
+  const documentBuilderLaunches = [
+    builderAccess.csep
+      ? {
+          href: "/csep",
+          title: "CSEP builder",
+          description: "Create a contractor safety plan package.",
+          label: "Build CSEP",
+        }
+      : null,
+    builderAccess.peshep
+      ? {
+          href: "/peshep",
+          title: "PESHEP builder",
+          description: "Create a project environmental, safety, and health plan package.",
+          label: "Build PESHEP",
+        }
+      : null,
+  ].filter((item): item is { href: string; title: string; description: string; label: string } => item != null);
 
   async function getAuthHeaders() {
     const {
@@ -644,6 +692,26 @@ export function CommandCenterWorkspace() {
           ))}
         </div>
       </SectionCard>
+
+      {documentBuilderLaunches.length > 0 ? (
+        <SectionCard
+          eyebrow="Builders"
+          title="Document builders"
+          description="Start formal builder packages from the operating hub."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {documentBuilderLaunches.map((item) => (
+              <LaunchCard
+                key={item.href}
+                href={item.href}
+                title={item.title}
+                description={item.description}
+                label={item.label}
+              />
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         eyebrow="Drill-downs"

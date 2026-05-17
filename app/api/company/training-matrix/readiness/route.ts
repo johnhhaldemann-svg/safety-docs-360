@@ -7,6 +7,11 @@ import {
   loadCompanyWorkspaceUsers,
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
+import {
+  buildTrackedEmployeeMatrixProfile,
+  loadTrackedCompanyEmployees,
+  TRACKED_EMPLOYEE_SOURCE_LABEL,
+} from "@/lib/companyTrackedEmployees";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
 import {
   buildProfileCertificationInventory,
@@ -524,6 +529,44 @@ export async function GET(request: Request) {
       jobsiteName: jobsiteById.get(requestedJobsiteId)?.name ?? "Selected jobsite",
     }));
   }
+
+  const tracked = await loadTrackedCompanyEmployees({
+    db,
+    companyId,
+    jobsiteIds: scopedJobsiteIds.length > 0 ? scopedJobsiteIds : undefined,
+  });
+  if (tracked.error) {
+    return NextResponse.json({ error: tracked.error }, { status: 500 });
+  }
+  const trackedRows = tracked.employees.map((employee) => {
+    const profile = buildTrackedEmployeeMatrixProfile(employee, employee.trainingRecords);
+    const result = computeTrainingMatrixRow(
+      profile,
+      requirementInputs,
+      asOf,
+      matrixContext
+    );
+    const assignmentJobsiteId = requestedJobsiteId || employee.jobsiteAssignments[0]?.jobsite_id || null;
+    return buildEmployeeReadinessRow({
+      requirements: readinessRequirements,
+      jobsiteId: assignmentJobsiteId,
+      jobsiteName: assignmentJobsiteId ? jobsiteById.get(assignmentJobsiteId)?.name ?? "Assigned jobsite" : null,
+      row: {
+        userId: `tracked:${employee.id}`,
+        name: employee.full_name,
+        email: employee.email ?? employee.external_employee_id ?? "",
+        role: TRACKED_EMPLOYEE_SOURCE_LABEL,
+        cells: result.cells,
+        cellDetails: result.cellDetails,
+        certificationInventory: buildProfileCertificationInventory(profile.certifications, profile.certificationExpirations, asOf),
+        profileFields: {
+          tradeSpecialty: employee.trade_specialty ?? "",
+          jobTitle: employee.job_title ?? "",
+        },
+      },
+    });
+  });
+  employeeRows = [...employeeRows, ...trackedRows];
 
   let contractorRows = [] as ReturnType<typeof buildContractorReadinessRow>[];
   const inductionWarnings: string[] = [];

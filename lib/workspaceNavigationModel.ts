@@ -185,6 +185,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open training",
   },
   {
+    matcher: (href) => href === "/company-onboarding",
+    group: "programs",
+    description: "Import roster, jobsite, and training data without creating licensed users.",
+    primaryActionLabel: "Import data",
+  },
+  {
     matcher: (href) => href === "/company-inductions",
     group: "programs",
     description: "Configure induction programs and jobsite requirements for site access.",

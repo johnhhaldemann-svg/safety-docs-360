@@ -5,6 +5,7 @@ import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/cs
 import { emptyOnboardingState, getUserOnboardingState } from "@/lib/onboardingState";
 import { authorizeRequest } from "@/lib/rbac";
 import { buildRevenueReadinessSummary } from "@/lib/revenueReadiness";
+import { isMissingTrackedEmployeesSchemaError } from "@/lib/companyTrackedEmployees";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
     invitesResult,
     jobsitesResult,
     documentsResult,
+    trackedEmployeesResult,
     subscriptionResult,
     actionsResult,
     incidentsResult,
@@ -86,6 +88,10 @@ export async function GET(request: Request) {
     auth.supabase
       .from("documents")
       .select("status, final_file_path, draft_file_path")
+      .eq("company_id", companyScope.companyId),
+    auth.supabase
+      .from("company_employee_profiles")
+      .select("status")
       .eq("company_id", companyScope.companyId),
     auth.supabase
       .from("company_subscriptions")
@@ -128,12 +134,18 @@ export async function GET(request: Request) {
       .eq("dismissed", false),
   ]);
 
+  const trackedEmployeesHardError =
+    trackedEmployeesResult.error &&
+    !isMissingTrackedEmployeesSchemaError(trackedEmployeesResult.error.message)
+      ? trackedEmployeesResult.error
+      : null;
   const hardError =
     companyResult.error ||
     usersResult.error ||
     invitesResult.error ||
     jobsitesResult.error ||
     documentsResult.error ||
+    trackedEmployeesHardError ||
     subscriptionResult.error ||
     actionsResult.error ||
     incidentsResult.error ||
@@ -175,6 +187,9 @@ export async function GET(request: Request) {
         final_file_path?: string | null;
         draft_file_path?: string | null;
       }> | null) ?? [],
+    trackedEmployees: trackedEmployeesResult.error
+      ? []
+      : ((trackedEmployeesResult.data as Array<{ status?: string | null }> | null) ?? []),
     onboarding: onboardingResult.data,
     subscription: {
       status: subscription?.status ?? null,

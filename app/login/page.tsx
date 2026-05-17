@@ -21,7 +21,7 @@ const capabilityTiles = [
   "Compliance",
 ];
 
-const securityPills = ["ISO 45001", "SOC 2 Type II", "AES-256", "OSHA Ready"];
+const securityPills = ["Company scoped", "RBAC", "Audit evidence", "Human review"];
 
 export default function LoginPage() {
   return (
@@ -433,7 +433,7 @@ function LoginPageContent() {
                 </div>
 
                 <div className="app-success-panel mt-6 rounded-2xl px-4 py-4 text-sm">
-                  TLS 1.3 encrypted. Zero-knowledge architecture ready. 2FA supported.
+                  Company-scoped access, role-based controls, and audit evidence are built into the workspace.
                 </div>
 
                 <div className="app-info-panel mt-5 rounded-2xl border-[var(--app-accent-border-20)] bg-[rgba(234,241,255,0.92)] px-4 py-4 text-sm">

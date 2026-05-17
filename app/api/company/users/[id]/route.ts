@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+import { getClientIpAddress } from "@/lib/legal";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import {
   authorizeRequest,
@@ -165,6 +167,25 @@ export async function PATCH(
       );
     }
 
+    await recordCompanySecurityEvent({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+      actorUserId: auth.user.id,
+      actorRole: auth.role,
+      eventType: accountStatus === "suspended" ? "user_suspended" : "user_access_updated",
+      resourceType: "company_user",
+      resourceId: id,
+      title: accountStatus === "suspended" ? "Company user suspended" : "Company access updated",
+      detail: `Company user access changed to ${role} / ${accountStatus}.`,
+      ipAddress: getClientIpAddress(request),
+      userAgent: request.headers.get("user-agent"),
+      metadata: {
+        role,
+        accountStatus,
+        serviceRoleAvailable: false,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       role,
@@ -259,6 +280,25 @@ export async function PATCH(
       }
     );
   }
+
+  await recordCompanySecurityEvent({
+    supabase: adminClient,
+    companyId: companyScope.companyId,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: accountStatus === "suspended" ? "user_suspended" : "user_access_updated",
+    resourceType: "company_user",
+    resourceId: id,
+    title: accountStatus === "suspended" ? "Company user suspended" : "Company access updated",
+    detail: `Company user access changed to ${role} / ${accountStatus}.`,
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      role,
+      accountStatus,
+      serviceRoleAvailable: true,
+    },
+  });
 
   return NextResponse.json({
     success: true,
@@ -384,6 +424,25 @@ export async function DELETE(
       { status: 500 }
     );
   }
+
+  await recordCompanySecurityEvent({
+    supabase: adminClient,
+    companyId: companyScope.companyId,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: "user_removed",
+    resourceType: "company_membership",
+    resourceId: id,
+    title: "Company user removed",
+    detail: "User removed from the company workspace and account access suspended.",
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      removedUserId: id,
+      fallbackRole,
+      fallbackStatus,
+    },
+  });
 
   return NextResponse.json({
     success: true,

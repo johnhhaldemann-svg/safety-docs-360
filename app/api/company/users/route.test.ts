@@ -8,6 +8,7 @@ const {
   createSupabaseAdminClient,
   getCompanyScope,
   getSupabaseServerEnvStatus,
+  recordCompanySecurityEvent,
   sendCompanyInviteEmail,
 } = vi.hoisted(() => ({
   assertCompanyInviteAllowed: vi.fn(),
@@ -16,6 +17,7 @@ const {
   createSupabaseAdminClient: vi.fn(),
   getCompanyScope: vi.fn(),
   getSupabaseServerEnvStatus: vi.fn(),
+  recordCompanySecurityEvent: vi.fn(),
   sendCompanyInviteEmail: vi.fn(),
 }));
 
@@ -25,6 +27,7 @@ vi.mock("@/lib/companyScope", async () => {
   return { ...actual, getCompanyScope };
 });
 vi.mock("@/lib/inviteEmail", () => ({ buildCompanyInviteSignupUrl, sendCompanyInviteEmail }));
+vi.mock("@/lib/companySecurityEvents", () => ({ recordCompanySecurityEvent }));
 vi.mock("@/lib/supabaseAdmin", () => ({
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -45,6 +48,7 @@ describe("/api/company/users invite links", () => {
     assertCompanyInviteAllowed.mockResolvedValue({ ok: true });
     buildCompanyInviteSignupUrl.mockReturnValue("https://app.test/login?mode=signup&invite=company&email=worker%40example.com");
     sendCompanyInviteEmail.mockResolvedValue({ sent: true });
+    recordCompanySecurityEvent.mockResolvedValue({ skipped: false, error: null });
   });
 
   it("returns a copyable inviteUrl while preserving email invite behavior", async () => {
@@ -76,5 +80,10 @@ describe("/api/company/users invite links", () => {
     expect(response.status).toBe(200);
     expect(json.inviteUrl).toContain("mode=signup");
     expect(sendCompanyInviteEmail).toHaveBeenCalledWith(expect.objectContaining({ toEmail: "worker@example.com" }));
+    expect(recordCompanySecurityEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "user_invited",
+      companyId: "company-1",
+      metadata: expect.objectContaining({ email: "worker@example.com" }),
+    }));
   });
 });

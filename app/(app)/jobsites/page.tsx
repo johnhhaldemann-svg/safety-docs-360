@@ -540,6 +540,9 @@ export default function JobsitesPage() {
             <button type="button" onClick={openNewJobsiteForm} className={appButtonPrimaryClassName}>
               Add Jobsite
             </button>
+            <Link href="/company-onboarding" className={appButtonQuietClassName}>
+              Import Jobsites
+            </Link>
             <Link href="/submit" className={appButtonQuietClassName}>
               Submit Document
             </Link>

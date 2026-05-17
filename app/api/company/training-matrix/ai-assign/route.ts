@@ -158,6 +158,12 @@ function nextDueDate() {
   return due.toISOString();
 }
 
+function assignableUserId(workerId: string) {
+  const cleaned = clean(workerId);
+  if (!cleaned || cleaned.startsWith("tracked:")) return null;
+  return cleaned;
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request);
   if ("error" in auth) return auth.error;
@@ -284,7 +290,7 @@ export async function POST(request: Request) {
           category: "corrective_action",
           status: "open",
           workflow_status: "open",
-          assigned_user_id: clean(worker.id) || null,
+          assigned_user_id: assignableUserId(worker.id ?? ""),
           observation_type: "negative",
           sif_potential: plan.riskLevel === "critical",
           sif_category: plan.riskLevel === "critical" ? "line_of_fire" : null,

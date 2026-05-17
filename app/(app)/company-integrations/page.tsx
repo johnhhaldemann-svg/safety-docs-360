@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   AppWindow,
@@ -103,6 +104,7 @@ function getMicrosoftProjectStoreUrl() {
 }
 
 export default function CompanyIntegrationsPage() {
+  const pathname = usePathname();
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMicrosoft, setLoadingMicrosoft] = useState(true);
@@ -127,7 +129,10 @@ export default function CompanyIntegrationsPage() {
       ? "border-[rgba(46,158,91,0.26)] bg-[var(--semantic-success-bg)] text-[var(--semantic-success)]"
       : microsoftStatus?.configured.configured
         ? "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
-        : "border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)]";
+      : "border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)]";
+  const microsoftProjectReturnTo = pathname.startsWith("/safe-predict/")
+    ? pathname
+    : "/company-integrations";
 
   async function getAccessToken() {
     const {
@@ -236,7 +241,7 @@ export default function CompanyIntegrationsPage() {
         },
         body: JSON.stringify({
           dataverseEnvironmentUrl: dataverseEnvironmentUrl.trim(),
-          returnTo: "/company-integrations",
+          returnTo: microsoftProjectReturnTo,
         }),
       });
       const data = (await res.json().catch(() => null)) as { authorizationUrl?: string; error?: string } | null;

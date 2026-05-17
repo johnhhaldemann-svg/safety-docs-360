@@ -56,4 +56,17 @@ describe("buildAdoptionChecklist", () => {
 
     expect(summary.items.find((item) => item.id === "team_invites")?.complete).toBe(true);
   });
+
+  it("lets a tracked roster satisfy the team setup step without licensed users", () => {
+    const summary = buildAdoptionChecklist({
+      companyUsers: [{ status: "Active" }],
+      companyInvites: [],
+      trackedEmployees: [{ status: "active" }],
+      commandCenterViewed: false,
+    });
+
+    const teamStep = summary.items.find((item) => item.id === "team_invites");
+    expect(teamStep?.complete).toBe(true);
+    expect(teamStep?.href).toBe("/company-onboarding");
+  });
 });

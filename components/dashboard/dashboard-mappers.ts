@@ -5,6 +5,7 @@ import {
 } from "@/lib/documentStatus";
 import type { DashboardRole } from "@/lib/dashboardRole";
 import { CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL } from "@/lib/safetyBlueprintLabels";
+import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
 import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
 import { formatTitleCase } from "@/lib/formatTitleCase";
 import type {
@@ -85,6 +86,20 @@ function jobsites(data: DashboardDataState) {
 
 function metric(title: string, value: string, detail: string, tone?: DashboardMetric["tone"]) {
   return { title, value, detail, tone };
+}
+
+function documentBuilderHeroActions(data: DashboardDataState): DashboardViewModel["hero"]["actions"] {
+  const actions: DashboardViewModel["hero"]["actions"] = [];
+  if (canAccessCompanyWorkspaceHref("/csep", data.userRole, data.permissionMap)) {
+    actions.push({ label: "Build CSEP", href: "/csep", variant: "secondary" });
+  }
+  if (
+    data.workspaceProduct !== "csep" &&
+    canAccessCompanyWorkspaceHref("/peshep", data.userRole, data.permissionMap)
+  ) {
+    actions.push({ label: "Build PESHEP", href: "/peshep", variant: "secondary" });
+  }
+  return actions;
 }
 
 function feedSection(
@@ -1363,6 +1378,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
           href: "/command-center",
           variant: "primary",
         },
+        ...documentBuilderHeroActions(data),
         {
           label: "Invite team",
           href: "/company-users",
@@ -1596,6 +1612,7 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
         "The safety manager path starts with the daily queue, then moves into permits, incidents, documents, and training setup signals.",
       actions: [
         { label: "Open Command Center", href: "/command-center", variant: "primary" },
+        ...documentBuilderHeroActions(data),
         { label: "Open permits", href: "/permits", variant: "secondary" },
       ],
     },
@@ -1827,6 +1844,7 @@ export function getFieldSupervisorDashboardModel(data: DashboardDataState): Dash
         "The top of this dashboard stays focused on active site conditions, open observations, permit restrictions, and the fastest next action for the field.",
       actions: [
         { label: "Open jobsites", href: "/jobsites", variant: "primary" },
+        ...documentBuilderHeroActions(data),
         { label: "Review DAPs", href: "/jsa", variant: "secondary" },
       ],
     },
@@ -2098,6 +2116,7 @@ export function getFieldUserDashboardModel(data: DashboardDataState): DashboardV
         "This view stays narrow: what is open for you, what is overdue, required training signals, and recent observation activity—without company-wide executive tiles.",
       actions: [
         { label: "Field issue log", href: "/field-id-exchange", variant: "primary" },
+        ...documentBuilderHeroActions(data),
         { label: "Training tracker", href: "/training-matrix", variant: "secondary" },
       ],
     },
@@ -2293,6 +2312,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
         "This account does not map to a specialized role dashboard yet, so the home page stays focused on safe defaults and the next obvious workspace actions.",
       actions: [
         { label: "Open library", href: "/library", variant: "primary" },
+        ...documentBuilderHeroActions(data),
         { label: "Search records", href: "/search", variant: "secondary" },
       ],
     },

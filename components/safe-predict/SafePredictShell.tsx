@@ -38,11 +38,13 @@ const navItems = [
   { href: "/safe-predict/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck },
   { href: "/safe-predict/inspections", label: "Jobsite Audits", icon: Search },
   { href: "/safe-predict/hazards", label: "Hazards", icon: TriangleAlert },
+  { href: "/safe-predict/team-access", label: "Team Access", icon: Users },
   { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
   { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
   { href: "/safe-predict/permits", label: "Permits", icon: FileText },
   { href: "/safe-predict/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/safe-predict/reports", label: "Reports", icon: BarChart3 },
+  { href: "/safe-predict/apps-integrations", label: "Apps", icon: LayoutGrid },
   { href: "/safe-predict/platform-actions", label: "Platform Actions", icon: LayoutGrid },
   { href: "/safe-predict/settings", label: "Settings", icon: Settings },
 ] as const;

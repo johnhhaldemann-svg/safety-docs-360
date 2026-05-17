@@ -41,7 +41,7 @@ export async function GET(
 
     const { data: doc, error: docError } = await docClient
       .from("documents")
-      .select("id, project_name, user_id, status, draft_file_path")
+      .select("id, company_id, project_name, user_id, status, draft_file_path")
       .eq("id", id)
       .single();
 
@@ -80,6 +80,10 @@ export async function GET(
       actorUserId: user.id,
       ownerUserId: doc.user_id ?? null,
       fileKind: "draft",
+      companyId: doc.company_id ?? null,
+      actorRole: auth.role,
+      filePath: doc.draft_file_path,
+      userAgent: request.headers.get("user-agent"),
       ipAddress: getClientIpAddress(request),
       metadata: {
         route: "admin_draft_download",

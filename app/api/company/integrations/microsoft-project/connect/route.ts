@@ -7,17 +7,24 @@ import {
 
 export const runtime = "nodejs";
 
+function safeReturnTo(value: unknown) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/company-integrations";
+}
+
 export async function POST(request: Request) {
   const scoped = await authorizeMicrosoftProjectRequest(request, { requireManage: true });
   if ("error" in scoped) return scoped.error;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const returnTo = safeReturnTo(body?.returnTo);
+
   if (isDemoMicrosoftProjectRequest(scoped.auth)) {
-    return NextResponse.json({ authorizationUrl: "/company-integrations?microsoftProject=demo-connected" });
+    return NextResponse.json({ authorizationUrl: `${returnTo}?microsoftProject=demo-connected` });
   }
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const dataverseEnvironmentUrl =
     typeof body?.dataverseEnvironmentUrl === "string" ? body.dataverseEnvironmentUrl : null;
-  const returnTo = typeof body?.returnTo === "string" ? body.returnTo : "/company-integrations";
 
   try {
     const authUrl = buildMicrosoftAuthorizeUrl({

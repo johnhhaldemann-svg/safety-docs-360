@@ -10,6 +10,11 @@ import {
   loadCompanyWorkspaceUsers,
   loadCompanyWorkspaceUsersRls,
 } from "@/lib/companyWorkspaceDirectory";
+import {
+  buildTrackedEmployeeMatrixProfile,
+  loadTrackedCompanyEmployees,
+  TRACKED_EMPLOYEE_SOURCE_LABEL,
+} from "@/lib/companyTrackedEmployees";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
 import {
   buildProfileCertificationInventory,
@@ -917,27 +922,6 @@ async function getTrainingMatrix(request: Request) {
   }
 
   const userIds = directory.users.map((u) => u.id);
-  if (userIds.length === 0) {
-    return NextResponse.json({
-      requirements,
-      rows: [],
-      warning: null,
-      directoryNotice: adminClient
-        ? null
-        : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel Settings > Environment Variables). Never expose it to the browser.",
-      schemaMigrationNeeded,
-      filters: {
-        trades: availableTrades,
-        subTrades: availableSubTrades,
-        taskCodes: availableTaskCodes,
-      },
-      selectedFilters: matrixContext,
-      capabilities: {
-        canMutate: canMutateCompanyTrainingRequirements(auth.role, auth.permissionMap),
-      },
-    });
-  }
-
   const profileClient = adminClient ?? auth.supabase;
   const profileSelectAttempts = [
     "user_id, certifications, certification_expirations, job_title, trade_specialty, readiness_status, years_experience",
@@ -947,14 +931,18 @@ async function getTrainingMatrix(request: Request) {
 
   let profileData: ProfileRow[] | null = null;
   let profileError: { message: string } | null = null;
-  for (const columns of profileSelectAttempts) {
-    const res = await profileClient.from("user_profiles").select(columns).in("user_id", userIds);
-    if (!res.error) {
-      profileData = res.data as unknown as ProfileRow[] | null;
-      profileError = null;
-      break;
+  if (userIds.length === 0) {
+    profileData = [];
+  } else {
+    for (const columns of profileSelectAttempts) {
+      const res = await profileClient.from("user_profiles").select(columns).in("user_id", userIds);
+      if (!res.error) {
+        profileData = res.data as unknown as ProfileRow[] | null;
+        profileError = null;
+        break;
+      }
+      profileError = res.error;
     }
-    profileError = res.error;
   }
 
   if (profileError && adminClient) {
@@ -968,7 +956,7 @@ async function getTrainingMatrix(request: Request) {
     ? null
     : "Names, emails, and last sign-in use limited Auth data until you add SUPABASE_SERVICE_ROLE_KEY to the server environment (for example in Vercel Settings > Environment Variables). Never expose it to the browser.";
 
-  const warning: string | null =
+  let warning: string | null =
     profileError && !adminClient
       ? "Construction profiles could not be loaded for every row (permissions or configuration)."
       : null;
@@ -979,7 +967,7 @@ async function getTrainingMatrix(request: Request) {
   }
 
   const asOf = new Date();
-  const rows = directory.users.map((user) => {
+  const licensedRows = directory.users.map((user) => {
     const profile = profileMap.get(user.id);
     const expMap = parseCertificationExpirations(profile?.certification_expirations ?? undefined);
     const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
@@ -1014,8 +1002,59 @@ async function getTrainingMatrix(request: Request) {
         readinessStatus: profile?.readiness_status?.trim() || "",
         yearsExperience: profile?.years_experience ?? null,
       },
+      personType: "licensed_user",
+      licenseStatus: "Licensed user",
     };
   });
+
+  const tracked = await loadTrackedCompanyEmployees({
+    db: profileClient,
+    companyId: companyScope.companyId,
+  });
+  if (tracked.error) {
+    return NextResponse.json({ error: tracked.error }, { status: 500 });
+  }
+  if (tracked.warning) {
+    warning = warning ? `${warning} ${tracked.warning}` : tracked.warning;
+  }
+
+  const trackedRows = tracked.employees.map((employee) => {
+    const profile = buildTrackedEmployeeMatrixProfile(employee, employee.trainingRecords);
+    const expMap = profile.certificationExpirations;
+    const { cells, cellDetails, unmatchedCertifications } = computeTrainingMatrixRow(
+      profile,
+      requirementInputs,
+      asOf,
+      matrixContext
+    );
+
+    return {
+      userId: `tracked:${employee.id}`,
+      trackedEmployeeId: employee.id,
+      name: employee.full_name,
+      email: employee.email ?? employee.external_employee_id ?? "",
+      role: TRACKED_EMPLOYEE_SOURCE_LABEL,
+      status: employee.status === "inactive" ? "Inactive" : "Active",
+      cells,
+      cellDetails,
+      unmatchedCertifications,
+      certificationInventory: buildProfileCertificationInventory(
+        profile.certifications,
+        expMap,
+        asOf
+      ),
+      profileFields: {
+        tradeSpecialty: employee.trade_specialty?.trim() || "",
+        jobTitle: employee.job_title?.trim() || "",
+        readinessStatus: employee.readiness_status?.trim() || "",
+        yearsExperience: employee.years_experience ?? null,
+      },
+      personType: "tracked_employee",
+      licenseStatus: TRACKED_EMPLOYEE_SOURCE_LABEL,
+    };
+  });
+
+  const rows = [...licensedRows, ...trackedRows];
 
   return NextResponse.json({
     requirements,

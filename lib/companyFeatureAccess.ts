@@ -285,7 +285,11 @@ export function canAccessCompanyWorkspaceHref(
   if (pathOnly === "/marketplace-preview-approvals") {
     return hasFeatureAccess(permissionMap, "can_access_template_marketplace");
   }
-  if (pathOnly === "/training-matrix" || pathOnly === "/company-contractors") {
+  if (
+    pathOnly === "/training-matrix" ||
+    pathOnly === "/company-contractors" ||
+    pathOnly === "/company-onboarding"
+  ) {
     return canViewCompanyTrainingMatrix(role, permissionMap);
   }
   if (pathOnly === "/company-inductions") {

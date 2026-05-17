@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import { getClientIpAddress } from "@/lib/legal";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
@@ -104,6 +106,27 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  await recordCompanySecurityEvent({
+    supabase: adminClient,
+    companyId: companyScope.companyId,
+    jobsiteId: actionResult.data.jobsite_id ?? null,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: "file_upload_link_created",
+    resourceType: "storage_object",
+    resourceId: path,
+    title: "Corrective action evidence upload link created",
+    detail: "A signed upload token was created for corrective action evidence.",
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      bucket: "documents",
+      path,
+      correctiveActionId: id,
+      mimeType: body?.mimeType ?? null,
+    },
+  });
 
   return NextResponse.json({
     bucket: "documents",

@@ -5,11 +5,13 @@ const {
   authorizeRequest,
   createSupabaseAdminClient,
   getCompanyScope,
+  recordCompanySecurityEvent,
   getUserRoleContext,
 } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
   createSupabaseAdminClient: vi.fn(),
   getCompanyScope: vi.fn(),
+  recordCompanySecurityEvent: vi.fn(),
   getUserRoleContext: vi.fn(),
 }));
 
@@ -21,6 +23,8 @@ vi.mock("@/lib/companyScope", async () => {
 vi.mock("@/lib/supabaseAdmin", () => ({
   createSupabaseAdminClient,
 }));
+
+vi.mock("@/lib/companySecurityEvents", () => ({ recordCompanySecurityEvent }));
 
 vi.mock("@/lib/rbac", async () => {
   const actual = await vi.importActual<typeof import("@/lib/rbac")>("@/lib/rbac");
@@ -34,6 +38,7 @@ describe("/api/company/users/[id]", () => {
     vi.clearAllMocks();
     getCompanyScope.mockResolvedValue({ companyId: "company-1", companyName: "Builder Co" });
     getUserRoleContext.mockResolvedValue({ role: "company_user" });
+    recordCompanySecurityEvent.mockResolvedValue({ skipped: false, error: null });
     authorizeRequest.mockResolvedValue({
       role: "company_admin",
       team: "Builder Co",
@@ -115,5 +120,10 @@ describe("/api/company/users/[id]", () => {
       }),
       { onConflict: "user_id,company_id" }
     );
+    expect(recordCompanySecurityEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "user_suspended",
+      companyId: "company-1",
+      resourceId: "target-1",
+    }));
   });
 });

@@ -21,6 +21,7 @@ export const PUBLIC_ROUTES = [
   "/demo/load",
   "/safe-predict",
   "/safe-predict/analytics",
+  "/safe-predict/apps-integrations",
   "/safe-predict/corrective-actions",
   "/safe-predict/hazards",
   "/safe-predict/incidents",
@@ -34,6 +35,7 @@ export const PUBLIC_ROUTES = [
   "/safe-predict/reports",
   "/safe-predict/risk-mitigation",
   "/safe-predict/settings",
+  "/safe-predict/team-access",
   "/safe-predict/training",
   "/safe-predict/workforce",
 ] as const;

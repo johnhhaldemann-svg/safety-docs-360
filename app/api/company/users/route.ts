@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { assertCompanyInviteAllowed } from "@/lib/companySeats";
 import { ensureCompanyScope, getCompanyScope } from "@/lib/companyScope";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
 import { buildCompanyInviteSignupUrl, sendCompanyInviteEmail } from "@/lib/inviteEmail";
+import { getClientIpAddress } from "@/lib/legal";
 import {
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -592,6 +594,26 @@ export async function POST(request: Request) {
     companyName: companyScope.companyName,
     roleLabel: formatAppRole(role),
     invitedByName: getActorName(auth.user),
+  });
+
+  await recordCompanySecurityEvent({
+    supabase: adminClient ?? auth.supabase,
+    companyId: companyScope.companyId,
+    actorUserId: auth.user.id,
+    actorRole: auth.role,
+    eventType: "user_invited",
+    resourceType: "company_invite",
+    resourceId: (inviteData as CompanyInviteRow | null)?.id ?? email,
+    title: "Company invite created",
+    detail: `${email} invited as ${formatAppRole(role)}.`,
+    ipAddress: getClientIpAddress(request),
+    userAgent: request.headers.get("user-agent"),
+    metadata: {
+      email,
+      role,
+      accountStatus,
+      emailSent: emailResult.sent,
+    },
   });
 
   return NextResponse.json({

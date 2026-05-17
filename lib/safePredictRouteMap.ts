@@ -21,8 +21,12 @@ const nativeOperationRouteMap: Record<string, string> = {
   "/submit": "/safe-predict/reports",
   "/upload": "/safe-predict/reports",
   "/marketplace-preview-approvals": "/safe-predict/reports",
-  "/company-integrations": "/safe-predict/platform-actions",
   "/settings/risk-memory": "/safe-predict/settings",
+};
+
+const nativeSurfaceRouteMap: Record<string, string> = {
+  "/company-integrations": "/safe-predict/apps-integrations",
+  "/company-users": "/safe-predict/team-access",
 };
 
 function splitHref(href: string) {
@@ -54,6 +58,21 @@ export function mapSafePredictOperationHref(href: string) {
   const jobsiteMatch = path.match(/^\/jobsites\/([^/]+)/);
   if (jobsiteMatch?.[1]) {
     return appendContext(`/safe-predict/jobsites/${encodeURIComponent(decodeURIComponent(jobsiteMatch[1]))}`, query, hash);
+  }
+
+  return href;
+}
+
+export function mapSafePredictSurfaceHref(href: string) {
+  const operationHref = mapSafePredictOperationHref(href);
+  if (operationHref !== href) {
+    return operationHref;
+  }
+
+  const { path, query, hash } = splitHref(href);
+  const direct = nativeSurfaceRouteMap[path];
+  if (direct) {
+    return appendContext(direct, query, hash);
   }
 
   return href;

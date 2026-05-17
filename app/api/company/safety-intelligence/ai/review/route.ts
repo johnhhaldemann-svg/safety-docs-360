@@ -5,6 +5,8 @@ import { generateDocumentDraft } from "@/lib/safety-intelligence/ai/documentGene
 import { generateRiskIntelligence } from "@/lib/safety-intelligence/ai/riskIntelligenceService";
 import { buildSmartSafetyAiReviewContext } from "@/lib/safety-intelligence/engine/orchestrator";
 import { buildBucketedWorkItem } from "@/lib/safety-intelligence/buckets";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+import { getClientIpAddress } from "@/lib/legal";
 import { authorizeSafetyIntelligenceRequest, type SafetyIntelligenceAuthorized } from "@/lib/safety-intelligence/http";
 import { persistAiReview } from "@/lib/safety-intelligence/repository";
 import { parseRawTaskInput } from "@/lib/safety-intelligence/validation/intake";
@@ -66,6 +68,26 @@ export async function POST(request: Request) {
       companyId: resolved.companyScope.companyId,
       jobsiteId: input.jobsiteId ?? null,
     }).catch(() => {});
+
+    await recordCompanySecurityEvent({
+      supabase: resolved.supabase,
+      companyId: resolved.companyScope.companyId,
+      jobsiteId: input.jobsiteId ?? null,
+      actorUserId: resolved.user.id,
+      actorRole: resolved.role,
+      eventType: "security_sensitive_ai_action",
+      resourceType: "ai_review",
+      resourceId: aiReviewId ?? null,
+      title: "Safety Intelligence AI review created",
+      detail: `AI review generated for ${documentType}.`,
+      ipAddress: getClientIpAddress(request),
+      userAgent: request.headers.get("user-agent"),
+      metadata: {
+        documentType,
+        model: document.model ?? risk.model ?? null,
+        promptHash: document.promptHash ?? risk.promptHash ?? null,
+      },
+    });
 
     return NextResponse.json({
       aiReviewId,

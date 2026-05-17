@@ -1,3 +1,5 @@
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+
 type SupabaseLikeClient = {
   from: (table: string) => unknown;
 };
@@ -17,6 +19,10 @@ export async function logDocumentDownload(params: {
   actorUserId: string;
   ownerUserId?: string | null;
   fileKind: "draft" | "final" | "preview";
+  companyId?: string | null;
+  actorRole?: string | null;
+  filePath?: string | null;
+  userAgent?: string | null;
   ipAddress?: string | null;
   metadata?: Record<string, unknown>;
 }) {
@@ -34,6 +40,27 @@ export async function logDocumentDownload(params: {
     ip_address: params.ipAddress ?? null,
     metadata: params.metadata ?? {},
   });
+
+  if (params.companyId) {
+    await recordCompanySecurityEvent({
+      supabase: params.supabase,
+      companyId: params.companyId,
+      actorUserId: params.actorUserId,
+      actorRole: params.actorRole ?? null,
+      eventType: "file_downloaded",
+      resourceType: "document",
+      resourceId: params.documentId,
+      title: "Document downloaded",
+      detail: `${params.fileKind} document access was recorded.`,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+      metadata: {
+        ...params.metadata,
+        fileKind: params.fileKind,
+        filePath: params.filePath ?? null,
+      },
+    });
+  }
 
   if (isMissingDownloadAuditError(result.error)) {
     return { skipped: true, error: null };

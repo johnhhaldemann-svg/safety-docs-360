@@ -194,6 +194,18 @@ describe("DashboardView", () => {
     expect((html.match(/data-dashboard-block=/g) ?? []).length).toBe(10);
   });
 
+  it("surfaces CSEP and PESHEP builders on the company admin dashboard", () => {
+    mockLayout("company_admin");
+    const html = renderToStaticMarkup(
+      <DashboardView model={getCompanyAdminDashboardModel(baseData)} />
+    );
+
+    expect(html).toContain("Build CSEP");
+    expect(html).toContain("Build PESHEP");
+    expect(html).toContain("href=\"/csep\"");
+    expect(html).toContain("href=\"/peshep\"");
+  });
+
   it("renders 10 blocks for safety managers", () => {
     mockLayout("safety_manager");
     const html = renderToStaticMarkup(

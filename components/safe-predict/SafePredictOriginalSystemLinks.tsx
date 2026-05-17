@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { Card, SectionTitle, cx } from "@/components/safe-predict/SafePredictPrimitives";
-import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
+import { mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
 import type { SafePredictWorkspaceSlug } from "@/lib/safePredictWorkspaceConfig";
 
 type OriginalSystemLink = {
@@ -112,7 +112,7 @@ export function SafePredictOriginalSystemLinks({
             <button
               key={item.href}
               type="button"
-              onClick={() => window.location.assign(mapSafePredictOperationHref(item.href))}
+              onClick={() => window.location.assign(mapSafePredictSurfaceHref(item.href))}
               className="group flex w-full items-center gap-3 rounded-lg border border-slate-100 bg-white p-3 text-left shadow-sm transition hover:border-blue-200 hover:shadow-[0_12px_22px_rgba(15,23,42,0.08)]"
               aria-label={`Open ${item.label} in SafetyDoc360`}
             >
