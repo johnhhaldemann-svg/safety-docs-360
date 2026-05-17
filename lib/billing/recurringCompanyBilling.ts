@@ -205,7 +205,7 @@ export async function createRecurringCompanyInvoice(params: {
   const subscriptionResult = await supabase
     .from("company_subscriptions")
     .select(
-      "status, plan_name, credit_balance, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
+      "status, plan_name, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
     )
     .eq("company_id", companyId)
     .maybeSingle();
@@ -222,7 +222,6 @@ export async function createRecurringCompanyInvoice(params: {
     | {
         status?: string | null;
         plan_name?: string | null;
-        credit_balance?: number | null;
         max_user_seats?: number | null;
         annual_platform_price_cents?: number | null;
         onboarding_fee_cents?: number | null;

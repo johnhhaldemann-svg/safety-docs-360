@@ -34,7 +34,7 @@ export type PlatformAddonKey =
   | "professional_safety_review"
   | "monthly_executive_review_report"
   | "custom_document_templates"
-  | "additional_page_credits"
+  | "additional_document_pages"
   | "additional_jobsite"
   | "additional_users"
   | "implementation_onboarding"
@@ -58,7 +58,6 @@ export const ENTERPRISE_TIERS: Array<{
   annualPriceCents: number;
   includedJobsites: number;
   includedUsers: number;
-  includedPageCredits: number;
   customPrice?: boolean;
 }> = [
   {
@@ -67,7 +66,6 @@ export const ENTERPRISE_TIERS: Array<{
     annualPriceCents: 5000000,
     includedJobsites: 1,
     includedUsers: 25,
-    includedPageCredits: 500,
   },
   {
     key: "professional_network",
@@ -75,7 +73,6 @@ export const ENTERPRISE_TIERS: Array<{
     annualPriceCents: 8500000,
     includedJobsites: 3,
     includedUsers: 75,
-    includedPageCredits: 1250,
   },
   {
     key: "enterprise_safety_intelligence",
@@ -83,7 +80,6 @@ export const ENTERPRISE_TIERS: Array<{
     annualPriceCents: 15000000,
     includedJobsites: 6,
     includedUsers: 200,
-    includedPageCredits: 3000,
   },
   {
     key: "black_label_enterprise",
@@ -91,7 +87,6 @@ export const ENTERPRISE_TIERS: Array<{
     annualPriceCents: 25000000,
     includedJobsites: 12,
     includedUsers: 500,
-    includedPageCredits: 2500,
     customPrice: true,
   },
 ];
@@ -174,7 +169,7 @@ export const PLATFORM_ADDONS: Array<{ key: PlatformAddonKey; label: string }> = 
   { key: "professional_safety_review", label: "Professional Safety Review" },
   { key: "monthly_executive_review_report", label: "Monthly Executive Review Report" },
   { key: "custom_document_templates", label: "Custom Document Templates" },
-  { key: "additional_page_credits", label: "Additional Page Credit Package" },
+  { key: "additional_document_pages", label: "Additional Document Pages" },
   { key: "additional_jobsite", label: "Additional Job Site" },
   { key: "additional_users", label: "Additional Users" },
   { key: "implementation_onboarding", label: "Implementation / Onboarding" },

@@ -104,7 +104,7 @@ export default function BillingHubPage() {
       <PageHero
         eyebrow="Platform billing"
         title="Billing hub"
-        description="Create invoices, review recurring company billing, manage marketplace credits, and keep receipts and payment links in one place."
+        description="Create invoices, review recurring company billing, and keep receipts and payment links in one place."
       />
 
       <section className="grid gap-4 sm:grid-cols-3">
@@ -151,15 +151,6 @@ export default function BillingHubPage() {
               Invoice list
               <span className="mt-1 block text-xs font-normal text-slate-400">
                 Review totals, payment status, and billing source.
-              </span>
-            </Link>
-            <Link
-              href="/purchases"
-              className="rounded-2xl border border-violet-500/30 bg-violet-500/10 px-4 py-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-            >
-              Marketplace credits
-              <span className="mt-1 block text-xs font-normal text-slate-400">
-                Buy credits and inspect unlocked documents.
               </span>
             </Link>
             <Link

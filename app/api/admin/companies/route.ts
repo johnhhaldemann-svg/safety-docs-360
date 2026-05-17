@@ -43,7 +43,6 @@ type CompanySubscriptionRow = {
   annual_platform_price_cents: number | null;
   included_jobsite_limit: number | null;
   included_user_limit: number | null;
-  included_page_credits: number | null;
   onboarding_fee_cents: number | null;
   enabled_feature_keys?: unknown;
   selected_addons?: unknown;
@@ -104,7 +103,30 @@ type CompanyActionPayload = {
   annualPlatformPriceCents?: number | null;
   includedJobsiteLimit?: number | null;
   includedUserLimit?: number | null;
-  includedPageCredits?: number | null;
+  onboardingFeeCents?: number | null;
+  enabledFeatureKeys?: unknown;
+  selectedAddons?: unknown;
+  commercialNotes?: string | null;
+};
+
+type ManualCompanyPayload = {
+  companyName?: string;
+  industry?: string | null;
+  website?: string | null;
+  addressLine1?: string | null;
+  city?: string | null;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  phone?: string | null;
+  planName?: string;
+  pilotTrial?: boolean;
+  planTierKey?: string;
+  annualPlatformPriceCents?: number | null;
+  includedJobsiteLimit?: number | null;
+  includedUserLimit?: number | null;
   onboardingFeeCents?: number | null;
   enabledFeatureKeys?: unknown;
   selectedAddons?: unknown;
@@ -264,6 +286,254 @@ async function linkExistingOwnerAccount(params: {
   };
 }
 
+export async function POST(request: Request) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_view_all_company_data",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const supabase = createSupabaseAdminClient() ?? auth.supabase;
+  const adminClient = createSupabaseAdminClient();
+  const body = (await request.json().catch(() => null)) as ManualCompanyPayload | null;
+
+  const companyName = body?.companyName?.trim() || "";
+  const primaryContactEmail = body?.primaryContactEmail?.trim().toLowerCase() || "";
+  const primaryContactName = body?.primaryContactName?.trim() || "Company Owner";
+  const approvalPlanName = normalizeApprovalPlanName(body?.planName ?? null);
+  const enablePilotTrial = body?.pilotTrial !== false;
+  const tier = getEnterpriseTier(body?.planTierKey ?? null);
+  const enabledFeatureKeys = normalizeFeatureKeys(body?.enabledFeatureKeys ?? []) ?? [];
+  const selectedAddons = normalizeAddonSelections(body?.selectedAddons ?? []);
+  const annualPlatformPriceCents = parseOptionalNonnegativeInt(
+    body?.annualPlatformPriceCents,
+    tier.annualPriceCents
+  );
+  const includedJobsiteLimit = parseOptionalNonnegativeInt(
+    body?.includedJobsiteLimit,
+    tier.includedJobsites
+  );
+  const includedUserLimit = parseOptionalNonnegativeInt(
+    body?.includedUserLimit,
+    tier.includedUsers
+  );
+  const onboardingFeeCents = parseOptionalNonnegativeInt(body?.onboardingFeeCents, null);
+  const commercialNotes = body?.commercialNotes?.trim() || null;
+
+  if (!companyName) {
+    return NextResponse.json(
+      { error: "Enter a company name before creating the workspace." },
+      { status: 400 }
+    );
+  }
+
+  if (!primaryContactEmail) {
+    return NextResponse.json(
+      { error: "Enter the company owner email before creating the workspace." },
+      { status: 400 }
+    );
+  }
+
+  if (approvalPlanName !== "CSEP" && annualPlatformPriceCents == null) {
+    return NextResponse.json(
+      { error: "Enter a valid annual platform price before creating the workspace." },
+      { status: 400 }
+    );
+  }
+
+  if (approvalPlanName !== "CSEP" && enabledFeatureKeys.length === 0) {
+    return NextResponse.json(
+      { error: "Select at least one feature module before creating the workspace." },
+      { status: 400 }
+    );
+  }
+
+  let companyData:
+    | {
+        id: string;
+        name: string | null;
+        team_key: string | null;
+      }
+    | null = null;
+  let companyInsertError: string | null = null;
+  const pilotTrialEndsAt = enablePilotTrial
+    ? new Date(Date.now() + 30 * 86400000).toISOString()
+    : null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const insertResult = await supabase
+      .from("companies")
+      .insert({
+        name: companyName,
+        team_key: buildUniqueCompanyKey(companyName),
+        industry: body?.industry?.trim() || null,
+        phone: body?.phone?.trim() || null,
+        website: body?.website?.trim() || null,
+        address_line_1: body?.addressLine1?.trim() || null,
+        city: body?.city?.trim() || null,
+        state_region: body?.stateRegion?.trim() || null,
+        postal_code: body?.postalCode?.trim() || null,
+        country: body?.country?.trim() || null,
+        primary_contact_name: primaryContactName,
+        primary_contact_email: primaryContactEmail,
+        status: "approved",
+        pilot_trial_ends_at: pilotTrialEndsAt,
+        pilot_converted_at: null,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      })
+      .select("id, name, team_key")
+      .single();
+
+    if (!insertResult.error && insertResult.data) {
+      companyData = insertResult.data;
+      break;
+    }
+
+    companyInsertError = insertResult.error?.message || companyInsertError;
+  }
+
+  if (!companyData?.id) {
+    return NextResponse.json(
+      {
+        error:
+          companyInsertError ||
+          "Failed to create the company workspace. Confirm the companies table allows internal admin inserts.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const subscriptionUpsert = await supabase.from("company_subscriptions").upsert(
+    {
+      company_id: companyData.id,
+      status: "active",
+      plan_name: approvalPlanName,
+      plan_tier_key: approvalPlanName === "CSEP" ? null : tier.key,
+      annual_platform_price_cents:
+        approvalPlanName === "CSEP" ? null : annualPlatformPriceCents,
+      included_jobsite_limit: approvalPlanName === "CSEP" ? null : includedJobsiteLimit,
+      included_user_limit: approvalPlanName === "CSEP" ? null : includedUserLimit,
+      onboarding_fee_cents: approvalPlanName === "CSEP" ? null : onboardingFeeCents,
+      enabled_feature_keys: approvalPlanName === "CSEP" ? null : enabledFeatureKeys,
+      selected_addons: approvalPlanName === "CSEP" ? [] : selectedAddons,
+      commercial_notes: approvalPlanName === "CSEP" ? null : commercialNotes,
+      max_user_seats: approvalPlanName === "CSEP" ? null : includedUserLimit,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    { onConflict: "company_id" }
+  );
+
+  if (subscriptionUpsert.error) {
+    return NextResponse.json(
+      {
+        error:
+          subscriptionUpsert.error.message ||
+          "The company workspace was created, but the subscription record could not be saved.",
+      },
+      { status: 500 }
+    );
+  }
+
+  let ownerLinkMode: "linked_existing_user" | "invite_created" = "invite_created";
+  let linkedOwnerUserId: string | null = null;
+  let approvalWarning: string | null = null;
+
+  if (adminClient) {
+    const existingUserResult = await findAuthUserByEmail({
+      adminClient,
+      email: primaryContactEmail,
+    });
+
+    if (existingUserResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            existingUserResult.error.message ||
+            "The company workspace was created, but the company owner account could not be looked up.",
+        },
+        { status: 500 }
+      );
+    }
+
+    linkedOwnerUserId = existingUserResult.user?.id ?? null;
+  }
+
+  if (linkedOwnerUserId) {
+    ownerLinkMode = "linked_existing_user";
+
+    const linkResult = await linkExistingOwnerAccount({
+      supabase: supabase as SupabaseWriteClient,
+      adminClient,
+      ownerUserId: linkedOwnerUserId,
+      companyId: companyData.id,
+      companyName,
+      actorUserId: auth.user.id,
+      primaryContactEmail,
+    });
+
+    if (linkResult.error) {
+      return NextResponse.json(
+        {
+          error: linkResult.error,
+        },
+        { status: 500 }
+      );
+    }
+
+    approvalWarning = linkResult.metadataWarning;
+  }
+
+  if (ownerLinkMode === "invite_created") {
+    const inviteResult = await supabase.from("company_invites").insert({
+      email: primaryContactEmail,
+      role: "company_admin",
+      team: companyName,
+      company_id: companyData.id,
+      account_status: "active",
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    });
+
+    if (inviteResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            inviteResult.error.message ||
+            "The company workspace was created, but the company owner access record could not be created.",
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  const emailResult = await sendCompanyInviteEmail({
+    toEmail: primaryContactEmail,
+    companyName,
+    roleLabel: ownerLinkMode === "linked_existing_user" ? "Approved Company Owner" : "Company Owner",
+    invitedByName: auth.user.email?.trim() || "Internal Admin",
+    mode: ownerLinkMode === "linked_existing_user" ? "login" : "signup",
+  });
+
+  return NextResponse.json({
+    success: true,
+    companyId: companyData.id,
+    message: emailResult.sent
+      ? ownerLinkMode === "linked_existing_user"
+        ? "Company workspace created. The existing company owner account was linked and emailed to sign in."
+        : "Company workspace created. The company owner email was sent sign-in instructions."
+      : ownerLinkMode === "linked_existing_user"
+        ? "Company workspace created. The existing company owner account was linked and can now sign in."
+        : "Company workspace created. The company owner can now sign in with the approved email.",
+    warning:
+      approvalWarning ||
+      (emailResult.sent ? null : emailResult.warning),
+  });
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requirePermission: "can_view_all_company_data",
@@ -286,7 +556,7 @@ export async function GET(request: Request) {
     adminClient.from("documents").select("company_id, status, final_file_path"),
     adminClient
       .from("company_subscriptions")
-      .select("company_id, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, subscription_price_cents, seat_price_cents"),
+      .select("company_id, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, onboarding_fee_cents, enabled_feature_keys, selected_addons, subscription_price_cents, seat_price_cents"),
     adminClient
       .from("company_signup_requests")
       .select(
@@ -358,7 +628,6 @@ export async function GET(request: Request) {
       annualPlatformPriceCents: companySubscription?.annual_platform_price_cents ?? null,
       includedJobsiteLimit: companySubscription?.included_jobsite_limit ?? null,
       includedUserLimit: companySubscription?.included_user_limit ?? null,
-      includedPageCredits: companySubscription?.included_page_credits ?? null,
       totalUsers: companyMemberships.length,
       companyAdmins: companyMemberships.filter((row) => row.role === "company_admin").length,
       activeUsers: companyMemberships.filter((row) => row.status === "active").length,
@@ -402,7 +671,7 @@ export async function PATCH(request: Request) {
   const approvalPlanName = normalizeApprovalPlanName(body?.planName ?? null);
   const enablePilotTrial = body?.pilotTrial !== false;
   const tier = getEnterpriseTier(body?.planTierKey ?? null);
-  const enabledFeatureKeys = normalizeFeatureKeys(body?.enabledFeatureKeys ?? []);
+  const enabledFeatureKeys = normalizeFeatureKeys(body?.enabledFeatureKeys ?? []) ?? [];
   const selectedAddons = normalizeAddonSelections(body?.selectedAddons ?? []);
   const annualPlatformPriceCents = parseOptionalNonnegativeInt(
     body?.annualPlatformPriceCents,
@@ -415,10 +684,6 @@ export async function PATCH(request: Request) {
   const includedUserLimit = parseOptionalNonnegativeInt(
     body?.includedUserLimit,
     tier.includedUsers
-  );
-  const includedPageCredits = parseOptionalNonnegativeInt(
-    body?.includedPageCredits,
-    tier.includedPageCredits
   );
   const onboardingFeeCents = parseOptionalNonnegativeInt(body?.onboardingFeeCents, null);
   const commercialNotes = body?.commercialNotes?.trim() || null;
@@ -669,13 +934,11 @@ export async function PATCH(request: Request) {
         approvalPlanName === "CSEP" ? null : annualPlatformPriceCents,
       included_jobsite_limit: approvalPlanName === "CSEP" ? null : includedJobsiteLimit,
       included_user_limit: approvalPlanName === "CSEP" ? null : includedUserLimit,
-      included_page_credits: approvalPlanName === "CSEP" ? null : includedPageCredits,
       onboarding_fee_cents: approvalPlanName === "CSEP" ? null : onboardingFeeCents,
       enabled_feature_keys: approvalPlanName === "CSEP" ? null : enabledFeatureKeys,
       selected_addons: approvalPlanName === "CSEP" ? [] : selectedAddons,
       commercial_notes: approvalPlanName === "CSEP" ? null : commercialNotes,
       max_user_seats: approvalPlanName === "CSEP" ? null : includedUserLimit,
-      credit_balance: approvalPlanName === "CSEP" ? null : includedPageCredits,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     },

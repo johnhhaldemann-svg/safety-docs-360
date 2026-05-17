@@ -2,10 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient, getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
 import {
-  ensureInitialCompanyCredits,
-  listCompanyCreditTransactions,
-} from "@/lib/companyBilling";
-import {
   getCompanySeatCounts,
   normalizeCompanySubscriptionStatus,
 } from "@/lib/companySeats";
@@ -200,11 +196,6 @@ async function deleteCompanyRelatedRows(adminClient: ServiceSupabase, companyId:
       run: () => adminClient.from("company_memberships").delete().eq("company_id", companyId),
     },
     {
-      label: "company_credit_transactions",
-      run: () =>
-        adminClient.from("company_credit_transactions").delete().eq("company_id", companyId),
-    },
-    {
       label: "company_subscriptions",
       run: () => adminClient.from("company_subscriptions").delete().eq("company_id", companyId),
     },
@@ -267,7 +258,7 @@ export async function GET(request: Request, context: RouteContext) {
       .order("created_at", { ascending: false }),
     supabase
       .from("company_subscriptions")
-      .select("status, plan_name, credit_balance, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
+      .select("status, plan_name, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
       .eq("company_id", companyId)
       .maybeSingle(),
   ]);
@@ -308,13 +299,11 @@ export async function GET(request: Request, context: RouteContext) {
   const subscriptionRow = subscriptionResult.data as {
     status?: string | null;
     plan_name?: string | null;
-    credit_balance?: number | null;
     max_user_seats?: number | null;
     plan_tier_key?: string | null;
     annual_platform_price_cents?: number | null;
     included_jobsite_limit?: number | null;
     included_user_limit?: number | null;
-    included_page_credits?: number | null;
     onboarding_fee_cents?: number | null;
     enabled_feature_keys?: unknown;
     selected_addons?: unknown;
@@ -551,8 +540,6 @@ export async function GET(request: Request, context: RouteContext) {
     subscription: {
       status: normalizeCompanySubscriptionStatus(subscriptionRow?.status ?? null),
       planName: (subscriptionRow?.plan_name ?? "").trim() || "Pro",
-      creditBalance:
-        subscriptionRow?.credit_balance != null ? Number(subscriptionRow.credit_balance) : null,
       maxUserSeats:
         subscriptionRow?.max_user_seats != null ? Number(subscriptionRow.max_user_seats) : null,
       planTierKey: subscriptionRow?.plan_tier_key ?? null,
@@ -567,10 +554,6 @@ export async function GET(request: Request, context: RouteContext) {
       includedUserLimit:
         subscriptionRow?.included_user_limit != null
           ? Number(subscriptionRow.included_user_limit)
-          : null,
-      includedPageCredits:
-        subscriptionRow?.included_page_credits != null
-          ? Number(subscriptionRow.included_page_credits)
           : null,
       onboardingFeeCents:
         subscriptionRow?.onboarding_fee_cents != null
@@ -652,7 +635,6 @@ type SubscriptionPatchBody = {
   annualPlatformPriceCents?: number | null;
   includedJobsiteLimit?: number | null;
   includedUserLimit?: number | null;
-  includedPageCredits?: number | null;
   onboardingFeeCents?: number | null;
   enabledFeatureKeys?: unknown;
   selectedAddons?: unknown;
@@ -731,7 +713,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       Object.prototype.hasOwnProperty.call(body, "annualPlatformPriceCents") ||
       Object.prototype.hasOwnProperty.call(body, "includedJobsiteLimit") ||
       Object.prototype.hasOwnProperty.call(body, "includedUserLimit") ||
-      Object.prototype.hasOwnProperty.call(body, "includedPageCredits") ||
       Object.prototype.hasOwnProperty.call(body, "onboardingFeeCents") ||
       Object.prototype.hasOwnProperty.call(body, "enabledFeatureKeys") ||
       Object.prototype.hasOwnProperty.call(body, "selectedAddons") ||
@@ -806,7 +787,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const existingSub = await adminClient
     .from("company_subscriptions")
-    .select("status, plan_name, credit_balance, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
+    .select("status, plan_name, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -820,13 +801,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   const row = existingSub.data as {
     status?: string | null;
     plan_name?: string | null;
-    credit_balance?: number | null;
     max_user_seats?: number | null;
     plan_tier_key?: string | null;
     annual_platform_price_cents?: number | null;
     included_jobsite_limit?: number | null;
     included_user_limit?: number | null;
-    included_page_credits?: number | null;
     onboarding_fee_cents?: number | null;
     enabled_feature_keys?: unknown;
     selected_addons?: unknown;
@@ -834,8 +813,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     subscription_price_cents?: number | null;
     seat_price_cents?: number | null;
   } | null;
-
-  const previousStatus = row?.status ?? null;
 
   let nextStatus = normalizeCompanySubscriptionStatus(row?.status ?? null);
   if (body?.subscriptionStatus !== undefined && body.subscriptionStatus !== null) {
@@ -910,18 +887,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     maxUserSeats = parsedUserLimit.value;
   }
 
-  let includedPageCredits = row?.included_page_credits ?? null;
-  const parsedPageCredits = parseOptionalNonnegativeInteger(
-    body?.includedPageCredits,
-    "Included page credits"
-  );
-  if (parsedPageCredits.provided) {
-    if ("error" in parsedPageCredits) {
-      return NextResponse.json({ error: parsedPageCredits.error }, { status: 400 });
-    }
-    includedPageCredits = parsedPageCredits.value;
-  }
-
   let onboardingFeeCents = row?.onboarding_fee_cents ?? null;
   const parsedOnboardingFee = parseOptionalNonnegativeInteger(
     body?.onboardingFeeCents,
@@ -974,7 +939,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       annual_platform_price_cents: annualPlatformPriceCents,
       included_jobsite_limit: includedJobsiteLimit,
       included_user_limit: includedUserLimit,
-      included_page_credits: includedPageCredits,
       onboarding_fee_cents: onboardingFeeCents,
       enabled_feature_keys: enabledFeatureKeys,
       selected_addons: selectedAddons,
@@ -982,7 +946,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       max_user_seats: maxUserSeats,
       subscription_price_cents: subscriptionPriceCents,
       seat_price_cents: seatPriceCents,
-      credit_balance: includedPageCredits ?? row?.credit_balance ?? null,
       updated_by: auth.user.id,
     };
     if (!row) {
@@ -1000,16 +963,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const prevNorm = normalizeCompanySubscriptionStatus(previousStatus);
-    if (nextStatus === "active" && prevNorm !== "active") {
-      const { data: txs } = await listCompanyCreditTransactions(adminClient, companyId);
-      await ensureInitialCompanyCredits({
-        supabase: adminClient,
-        companyId,
-        subscriptionStatus: "active",
-        existingTransactions: txs,
-      });
-    }
   }
 
   return NextResponse.json({
@@ -1021,7 +974,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     annualPlatformPriceCents,
     includedJobsiteLimit,
     includedUserLimit,
-    includedPageCredits,
     onboardingFeeCents,
     enabledFeatureKeys,
     selectedAddons,

@@ -201,7 +201,7 @@ async function loadCompanyBillingPreview(auth: {
   const subscriptionResult = await auth.supabase
     .from("company_subscriptions")
     .select(
-      "status, plan_name, credit_balance, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
+      "status, plan_name, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
     )
     .eq("company_id", companyId)
     .maybeSingle();
@@ -214,7 +214,6 @@ async function loadCompanyBillingPreview(auth: {
     | {
         status?: string | null;
         plan_name?: string | null;
-        credit_balance?: number | null;
         max_user_seats?: number | null;
         annual_platform_price_cents?: number | null;
         onboarding_fee_cents?: number | null;
@@ -280,8 +279,6 @@ async function loadCompanyBillingPreview(auth: {
     subscription: {
       status: normalizeCompanySubscriptionStatus(subscription.status ?? null),
       planName,
-      creditBalance:
-        subscription.credit_balance != null ? Number(subscription.credit_balance) : null,
       maxUserSeats:
         subscription.max_user_seats != null ? Number(subscription.max_user_seats) : null,
       annualPlatformPriceCents:

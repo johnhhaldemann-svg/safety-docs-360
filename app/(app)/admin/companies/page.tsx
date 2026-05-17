@@ -71,11 +71,25 @@ type ApprovalDraft = {
   annualPlatformPriceCents: string;
   includedJobsiteLimit: string;
   includedUserLimit: string;
-  includedPageCredits: string;
   onboardingFeeCents: string;
   enabledFeatureKeys: PlatformFeatureKey[];
   selectedAddons: Record<PlatformAddonKey, string>;
   commercialNotes: string;
+};
+
+type ManualCompanyDraft = ApprovalDraft & {
+  companyName: string;
+  industry: string;
+  website: string;
+  addressLine1: string;
+  city: string;
+  stateRegion: string;
+  postalCode: string;
+  country: string;
+  primaryContactName: string;
+  primaryContactEmail: string;
+  phone: string;
+  pilotTrial: boolean;
 };
 
 function formatRelative(timestamp?: string | null) {
@@ -114,12 +128,46 @@ function defaultApprovalDraft(): ApprovalDraft {
     annualPlatformPriceCents: centsToDollarsInput(tier.annualPriceCents),
     includedJobsiteLimit: String(tier.includedJobsites),
     includedUserLimit: String(tier.includedUsers),
-    includedPageCredits: String(tier.includedPageCredits),
     onboardingFeeCents: "",
     enabledFeatureKeys: [],
     selectedAddons: {} as Record<PlatformAddonKey, string>,
     commercialNotes: "",
   };
+}
+
+function defaultManualCompanyDraft(): ManualCompanyDraft {
+  return {
+    ...defaultApprovalDraft(),
+    companyName: "",
+    industry: "",
+    website: "",
+    addressLine1: "",
+    city: "",
+    stateRegion: "",
+    postalCode: "",
+    country: "United States",
+    primaryContactName: "",
+    primaryContactEmail: "",
+    phone: "",
+    pilotTrial: true,
+  };
+}
+
+function buildSelectedAddonPayload(draft: ApprovalDraft) {
+  return Object.entries(draft.selectedAddons)
+    .map(([key, price]) => {
+      const addon = PLATFORM_ADDONS.find((item) => item.key === key);
+      const unitPriceCents = price.trim() ? moneyToCentsInput(price) : null;
+      return addon && unitPriceCents != null
+        ? {
+            key: addon.key,
+            label: addon.label,
+            quantity: 1,
+            unitPriceCents,
+          }
+        : null;
+    })
+    .filter(Boolean);
 }
 
 export default function AdminCompaniesPage() {
@@ -136,6 +184,11 @@ export default function AdminCompaniesPage() {
   const [approvalDraftByRequestId, setApprovalDraftByRequestId] = useState<Record<string, ApprovalDraft>>({});
   /** Per-request: when true (default), approval starts a 30-day pilot trial on the new company. */
   const [pilotTrialByRequestId, setPilotTrialByRequestId] = useState<Record<string, boolean>>({});
+  const [manualCompanyOpen, setManualCompanyOpen] = useState(false);
+  const [manualCompanyDraft, setManualCompanyDraft] = useState<ManualCompanyDraft>(() =>
+    defaultManualCompanyDraft()
+  );
+  const [creatingManualCompany, setCreatingManualCompany] = useState(false);
 
   const getApprovalDraft = useCallback(
     (requestId: string) => approvalDraftByRequestId[requestId] ?? defaultApprovalDraft(),
@@ -229,21 +282,7 @@ export default function AdminCompaniesPage() {
           : null;
         const includedJobsiteLimit = Math.max(0, Math.floor(Number(draft.includedJobsiteLimit || 0)));
         const includedUserLimit = Math.max(0, Math.floor(Number(draft.includedUserLimit || 0)));
-        const includedPageCredits = Math.max(0, Math.floor(Number(draft.includedPageCredits || 0)));
-        const selectedAddons = Object.entries(draft.selectedAddons)
-          .map(([key, price]) => {
-            const addon = PLATFORM_ADDONS.find((item) => item.key === key);
-            const unitPriceCents = price.trim() ? moneyToCentsInput(price) : null;
-            return addon && unitPriceCents != null
-              ? {
-                  key: addon.key,
-                  label: addon.label,
-                  quantity: 1,
-                  unitPriceCents,
-                }
-              : null;
-          })
-          .filter(Boolean);
+        const selectedAddons = buildSelectedAddonPayload(draft);
 
         if (action === "approve") {
           if (annualPlatformPriceCents == null) {
@@ -277,7 +316,6 @@ export default function AdminCompaniesPage() {
                   annualPlatformPriceCents,
                   includedJobsiteLimit,
                   includedUserLimit,
-                  includedPageCredits,
                   onboardingFeeCents,
                   enabledFeatureKeys: draft.enabledFeatureKeys,
                   selectedAddons,
@@ -318,6 +356,130 @@ export default function AdminCompaniesPage() {
     },
     [getApprovalDraft, loadCompanies, pilotTrialByRequestId]
   );
+
+  const handleCreateManualCompany = useCallback(async () => {
+    setCreatingManualCompany(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as an internal admin.");
+        setCreatingManualCompany(false);
+        return;
+      }
+
+      const annualPlatformPriceCents = moneyToCentsInput(
+        manualCompanyDraft.annualPlatformPriceCents
+      );
+      const onboardingFeeCents = manualCompanyDraft.onboardingFeeCents.trim()
+        ? moneyToCentsInput(manualCompanyDraft.onboardingFeeCents)
+        : null;
+      const includedJobsiteLimit = Math.max(
+        0,
+        Math.floor(Number(manualCompanyDraft.includedJobsiteLimit || 0))
+      );
+      const includedUserLimit = Math.max(
+        0,
+        Math.floor(Number(manualCompanyDraft.includedUserLimit || 0))
+      );
+      const selectedAddons = buildSelectedAddonPayload(manualCompanyDraft);
+
+      if (!manualCompanyDraft.companyName.trim()) {
+        setMessageTone("error");
+        setMessage("Enter a company name before creating the workspace.");
+        setCreatingManualCompany(false);
+        return;
+      }
+
+      if (!manualCompanyDraft.primaryContactEmail.trim()) {
+        setMessageTone("error");
+        setMessage("Enter the company owner email before creating the workspace.");
+        setCreatingManualCompany(false);
+        return;
+      }
+
+      if (manualCompanyDraft.planName !== "CSEP") {
+        if (annualPlatformPriceCents == null) {
+          setMessageTone("error");
+          setMessage("Enter a valid annual platform price before creating the workspace.");
+          setCreatingManualCompany(false);
+          return;
+        }
+
+        if (manualCompanyDraft.enabledFeatureKeys.length === 0) {
+          setMessageTone("error");
+          setMessage("Select at least one feature module before creating the workspace.");
+          setCreatingManualCompany(false);
+          return;
+        }
+      }
+
+      const res = await fetch("/api/admin/companies", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          companyName: manualCompanyDraft.companyName,
+          industry: manualCompanyDraft.industry,
+          website: manualCompanyDraft.website,
+          addressLine1: manualCompanyDraft.addressLine1,
+          city: manualCompanyDraft.city,
+          stateRegion: manualCompanyDraft.stateRegion,
+          postalCode: manualCompanyDraft.postalCode,
+          country: manualCompanyDraft.country,
+          primaryContactName: manualCompanyDraft.primaryContactName,
+          primaryContactEmail: manualCompanyDraft.primaryContactEmail,
+          phone: manualCompanyDraft.phone,
+          planName: manualCompanyDraft.planName,
+          pilotTrial: manualCompanyDraft.pilotTrial,
+          planTierKey: manualCompanyDraft.planTierKey,
+          annualPlatformPriceCents,
+          includedJobsiteLimit,
+          includedUserLimit,
+          onboardingFeeCents,
+          enabledFeatureKeys: manualCompanyDraft.enabledFeatureKeys,
+          selectedAddons,
+          commercialNotes: manualCompanyDraft.commercialNotes,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            warning?: string | null;
+          }
+        | null;
+
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to create the company workspace.");
+        setCreatingManualCompany(false);
+        return;
+      }
+
+      setMessageTone(data?.warning ? "warning" : "success");
+      setMessage(data?.warning || data?.message || "Company workspace created.");
+      setManualCompanyDraft(defaultManualCompanyDraft());
+      setManualCompanyOpen(false);
+      await loadCompanies();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(
+        error instanceof Error ? error.message : "Failed to create the company workspace."
+      );
+    }
+
+    setCreatingManualCompany(false);
+  }, [loadCompanies, manualCompanyDraft]);
 
   const handleCompanyAction = useCallback(
     async (companyId: string, action: "archive" | "restore") => {
@@ -459,12 +621,21 @@ export default function AdminCompaniesPage() {
         title="Company Workspaces"
         description="Approve new workspace requests and monitor live customer companies from one place."
         actions={
-          <Link
-            href="/admin/users"
-            className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-          >
-            Back to Platform Staff
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setManualCompanyOpen((open) => !open)}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+            >
+              {manualCompanyOpen ? "Close Manual Add" : "Manual Add Company"}
+            </button>
+            <Link
+              href="/admin/users"
+              className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+            >
+              Back to Platform Staff
+            </Link>
+          </div>
         }
       />
 
@@ -514,6 +685,247 @@ export default function AdminCompaniesPage() {
           </div>
         ))}
       </section>
+
+      {manualCompanyOpen ? (
+        <SectionCard
+          title="Manual Add Company"
+          description="Create a company workspace directly, assign the owner email, and set commercial terms without waiting for a customer request."
+        >
+          <div className="grid gap-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {[
+                ["Company name", "companyName", "text"],
+                ["Owner email", "primaryContactEmail", "email"],
+                ["Owner name", "primaryContactName", "text"],
+                ["Industry", "industry", "text"],
+                ["Phone", "phone", "tel"],
+                ["Website", "website", "url"],
+              ].map(([label, field, type]) => (
+                <label key={field} className="block text-sm">
+                  <span className="font-semibold text-slate-300">{label}</span>
+                  <input
+                    type={type}
+                    value={String(manualCompanyDraft[field as keyof ManualCompanyDraft] ?? "")}
+                    onChange={(event) =>
+                      setManualCompanyDraft((current) => ({
+                        ...current,
+                        [field]: event.target.value,
+                      }))
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {[
+                ["Address", "addressLine1"],
+                ["City", "city"],
+                ["State", "stateRegion"],
+                ["Postal code", "postalCode"],
+                ["Country", "country"],
+              ].map(([label, field]) => (
+                <label key={field} className="block text-sm">
+                  <span className="font-semibold text-slate-300">{label}</span>
+                  <input
+                    type="text"
+                    value={String(manualCompanyDraft[field as keyof ManualCompanyDraft] ?? "")}
+                    onChange={(event) =>
+                      setManualCompanyDraft((current) => ({
+                        ...current,
+                        [field]: event.target.value,
+                      }))
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Workspace product</span>
+                  <select
+                    value={manualCompanyDraft.planName}
+                    onChange={(event) =>
+                      setManualCompanyDraft((current) => ({
+                        ...current,
+                        planName: event.target.value,
+                      }))
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
+                  >
+                    <option value="Enterprise">Enterprise platform</option>
+                    <option value="CSEP">CSEP-only (comped / limited UI)</option>
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Internal tier label</span>
+                  <select
+                    value={manualCompanyDraft.planTierKey}
+                    onChange={(event) => {
+                      const tier = getEnterpriseTier(event.target.value);
+                      setManualCompanyDraft((current) => ({
+                        ...current,
+                        planTierKey: tier.key,
+                        annualPlatformPriceCents: centsToDollarsInput(tier.annualPriceCents),
+                        includedJobsiteLimit: String(tier.includedJobsites),
+                        includedUserLimit: String(tier.includedUsers),
+                      }));
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
+                  >
+                    {ENTERPRISE_TIERS.map((tier) => (
+                      <option key={tier.key} value={tier.key}>
+                        {tier.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-5">
+                {[
+                  ["Annual price ($)", "annualPlatformPriceCents"],
+                  ["Jobsites", "includedJobsiteLimit"],
+                  ["Users", "includedUserLimit"],
+                  ["Onboarding fee ($)", "onboardingFeeCents"],
+                ].map(([label, field]) => (
+                  <label key={field} className="block text-sm">
+                    <span className="font-semibold text-slate-300">{label}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={String(manualCompanyDraft[field as keyof ManualCompanyDraft] ?? "")}
+                      onChange={(event) =>
+                        setManualCompanyDraft((current) => ({
+                          ...current,
+                          [field]: event.target.value,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Enabled features
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {PLATFORM_FEATURES.map((feature) => (
+                    <label
+                      key={feature.key}
+                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 py-2 text-sm text-slate-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={manualCompanyDraft.enabledFeatureKeys.includes(feature.key)}
+                        onChange={(event) =>
+                          setManualCompanyDraft((current) => ({
+                            ...current,
+                            enabledFeatureKeys: event.target.checked
+                              ? [...current.enabledFeatureKeys, feature.key]
+                              : current.enabledFeatureKeys.filter((key) => key !== feature.key),
+                          }))
+                        }
+                      />
+                      <span>{feature.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Add-ons for draft invoice
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {PLATFORM_ADDONS.map((addon) => (
+                    <label
+                      key={addon.key}
+                      className="block rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 py-2 text-sm"
+                    >
+                      <span className="font-semibold text-slate-300">{addon.label}</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Price ($)"
+                        value={manualCompanyDraft.selectedAddons[addon.key] ?? ""}
+                        onChange={(event) =>
+                          setManualCompanyDraft((current) => ({
+                            ...current,
+                            selectedAddons: {
+                              ...current.selectedAddons,
+                              [addon.key]: event.target.value,
+                            },
+                          }))
+                        }
+                        className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <textarea
+                value={manualCompanyDraft.commercialNotes}
+                onChange={(event) =>
+                  setManualCompanyDraft((current) => ({
+                    ...current,
+                    commercialNotes: event.target.value,
+                  }))
+                }
+                rows={3}
+                placeholder="Commercial notes for onboarding and billing"
+                className="mt-5 w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              />
+            </div>
+
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-500"
+                  checked={manualCompanyDraft.pilotTrial}
+                  onChange={(event) =>
+                    setManualCompanyDraft((current) => ({
+                      ...current,
+                      pilotTrial: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  Start a <span className="font-semibold text-slate-100">30-day pilot trial</span> for this
+                  workspace.
+                </span>
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateManualCompany()}
+                  disabled={creatingManualCompany}
+                  className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creatingManualCompany ? "Creating..." : "Create Company Workspace"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManualCompanyDraft(defaultManualCompanyDraft())}
+                  disabled={creatingManualCompany}
+                  className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title="1. Workspace Requests"
@@ -588,7 +1000,6 @@ export default function AdminCompaniesPage() {
                                     annualPlatformPriceCents: centsToDollarsInput(tier.annualPriceCents),
                                     includedJobsiteLimit: String(tier.includedJobsites),
                                     includedUserLimit: String(tier.includedUsers),
-                                    includedPageCredits: String(tier.includedPageCredits),
                                   }));
                                 }}
                                 className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
@@ -606,7 +1017,6 @@ export default function AdminCompaniesPage() {
                               ["Annual price ($)", "annualPlatformPriceCents"],
                               ["Jobsites", "includedJobsiteLimit"],
                               ["Users", "includedUserLimit"],
-                              ["Page credits", "includedPageCredits"],
                               ["Onboarding fee ($)", "onboardingFeeCents"],
                             ].map(([label, field]) => (
                               <label key={field} className="block text-sm md:last:col-span-2">

@@ -333,7 +333,7 @@ export default function CompanySetupPage() {
               </div>
               <div className="mt-2 text-base font-bold text-slate-100">Internal onboarding terms</div>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                A Platform Admin will assign the internal tier, price, included jobsites, users, page credits,
+                A Platform Admin will assign the internal tier, price, included jobsites, users,
                 enabled feature modules, add-ons, and draft invoice after this request is submitted.
               </p>
             </div>
@@ -347,7 +347,7 @@ export default function CompanySetupPage() {
                 <p>1. Your company workspace request is submitted under the signed-in account.</p>
                 <p>2. Internal admin approves the company and activates the workspace.</p>
                 <p>3. You sign back in with this same email and the company workspace opens on that account.</p>
-                <p>4. Company admins can then manage billing, invoices, and marketplace credits from the company workspace.</p>
+                <p>4. Company admins can then manage billing, invoices, and marketplace purchases from the company workspace.</p>
                 <p>
                   Do not create another account after approval. The same owner email is attached automatically.
                 </p>

@@ -296,7 +296,7 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/admin/transactions",
     group: "account",
-    description: "Review payment, credit, and marketplace transaction activity.",
+    description: "Review payment, invoice, and marketplace transaction activity.",
     primaryActionLabel: "Open transactions",
   },
   {
@@ -332,7 +332,7 @@ const ITEM_META: Array<{
   {
     matcher: (href) => href === "/purchases",
     group: "account",
-    description: "Open purchases, credits, and previously unlocked records.",
+    description: "Open invoice-backed purchases and previously unlocked records.",
     primaryActionLabel: "Review history",
   },
   {

@@ -320,7 +320,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Start Here",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/purchases", label: "Purchases & Credits", short: "CR" },
+      { href: "/purchases", label: "Purchases", short: "PU" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],

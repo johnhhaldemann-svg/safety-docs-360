@@ -105,13 +105,11 @@ type CompanyActivityItem = {
 type CompanySubscriptionSummary = {
   status: string;
   planName: string;
-  creditBalance: number | null;
   maxUserSeats: number | null;
   planTierKey: string | null;
   annualPlatformPriceCents: number | null;
   includedJobsiteLimit: number | null;
   includedUserLimit: number | null;
-  includedPageCredits: number | null;
   onboardingFeeCents: number | null;
   enabledFeatureKeys: PlatformFeatureKey[] | null;
   selectedAddons: PlatformAddonSelection[];
@@ -226,7 +224,6 @@ export default function AdminCompanyDetailPage({
   const [annualPlatformPriceDraft, setAnnualPlatformPriceDraft] = useState("");
   const [includedJobsiteLimitDraft, setIncludedJobsiteLimitDraft] = useState("");
   const [includedUserLimitDraft, setIncludedUserLimitDraft] = useState("");
-  const [includedPageCreditsDraft, setIncludedPageCreditsDraft] = useState("");
   const [onboardingFeeDraft, setOnboardingFeeDraft] = useState("");
   const [enabledFeatureDraft, setEnabledFeatureDraft] = useState<PlatformFeatureKey[]>([]);
   const [addonPriceDraft, setAddonPriceDraft] = useState<Record<PlatformAddonKey, string>>(
@@ -343,9 +340,6 @@ export default function AdminCompanyDetailPage({
           sub.includedJobsiteLimit != null ? String(sub.includedJobsiteLimit) : ""
         );
         setIncludedUserLimitDraft(sub.includedUserLimit != null ? String(sub.includedUserLimit) : "");
-        setIncludedPageCreditsDraft(
-          sub.includedPageCredits != null ? String(sub.includedPageCredits) : ""
-        );
         setOnboardingFeeDraft(centsToDollarsInput(sub.onboardingFeeCents));
         setEnabledFeatureDraft(sub.enabledFeatureKeys ?? []);
         setAddonPriceDraft(
@@ -511,9 +505,6 @@ export default function AdminCompanyDetailPage({
       const includedUserLimit = includedUserLimitDraft.trim()
         ? parseInt(includedUserLimitDraft, 10)
         : null;
-      const includedPageCredits = includedPageCreditsDraft.trim()
-        ? parseInt(includedPageCreditsDraft, 10)
-        : null;
       const selectedAddons = Object.entries(addonPriceDraft)
         .map(([key, price]) => {
           const addon = PLATFORM_ADDONS.find((item) => item.key === key);
@@ -534,7 +525,7 @@ export default function AdminCompanyDetailPage({
         return;
       }
       if (
-        [annualPlatformPriceCents, onboardingFeeCents, includedJobsiteLimit, includedUserLimit, includedPageCredits].some(
+        [annualPlatformPriceCents, onboardingFeeCents, includedJobsiteLimit, includedUserLimit].some(
           (value) => value !== null && (!Number.isFinite(value) || value < 0)
         )
       ) {
@@ -557,7 +548,6 @@ export default function AdminCompanyDetailPage({
           annualPlatformPriceCents,
           includedJobsiteLimit,
           includedUserLimit,
-          includedPageCredits,
           onboardingFeeCents,
           enabledFeatureKeys: enabledFeatureDraft,
           selectedAddons,
@@ -598,7 +588,6 @@ export default function AdminCompanyDetailPage({
     commercialNotesDraft,
     enabledFeatureDraft,
     includedJobsiteLimitDraft,
-    includedPageCreditsDraft,
     includedUserLimitDraft,
     loadCompany,
     onboardingFeeDraft,
@@ -833,7 +822,6 @@ export default function AdminCompanyDetailPage({
             : "Unlimited",
       maxJobsites:
         subscription.includedJobsiteLimit != null ? String(subscription.includedJobsiteLimit) : "Unlimited",
-      creditBalance: subscription.creditBalance ?? null,
     };
   }, [subscription]);
 
@@ -956,7 +944,7 @@ export default function AdminCompanyDetailPage({
       ) : null}
 
       {pricingSummary ? (
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Subscription
@@ -982,15 +970,6 @@ export default function AdminCompanyDetailPage({
             </div>
             <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.maxUsers} users</div>
             <div className="mt-1 text-sm text-slate-500">{pricingSummary.maxJobsites} jobsites</div>
-          </div>
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Credits
-            </div>
-            <div className="mt-2 text-lg font-bold text-slate-100">
-              {pricingSummary.creditBalance ?? "—"}
-            </div>
-            <div className="mt-1 text-sm text-slate-500">Marketplace credit balance tied to billing</div>
           </div>
         </section>
       ) : null}
@@ -1187,7 +1166,7 @@ export default function AdminCompanyDetailPage({
 
       <SectionCard
         title="Commercial Terms, Capacity & Invoice"
-        description="Set internal pricing, included jobsites/users/pages, selected add-ons, and create a draft invoice for review."
+        description="Set internal pricing, included jobsites/users, selected add-ons, and create a draft invoice for review."
       >
         {loading ? (
           <InlineMessage>Loading subscription…</InlineMessage>
@@ -1198,7 +1177,7 @@ export default function AdminCompanyDetailPage({
           />
         ) : (
           <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                   Seat usage
@@ -1227,17 +1206,6 @@ export default function AdminCompanyDetailPage({
                 </div>
                 <p className="mt-2 text-sm text-slate-500">
                   Active jobsites counted against the contract.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Document credits (company)
-                </div>
-                <div className="mt-2 text-2xl font-bold text-slate-100">
-                  {subscription.creditBalance != null ? subscription.creditBalance : "—"}
-                </div>
-                <p className="mt-2 text-sm text-slate-500">
-                  Balance stored on the company subscription row.
                 </p>
               </div>
             </div>
@@ -1287,7 +1255,6 @@ export default function AdminCompanyDetailPage({
                       setAnnualPlatformPriceDraft(centsToDollarsInput(tier.annualPriceCents));
                       setIncludedJobsiteLimitDraft(String(tier.includedJobsites));
                       setIncludedUserLimitDraft(String(tier.includedUsers));
-                      setIncludedPageCreditsDraft(String(tier.includedPageCredits));
                     }}
                     className="app-dark-input mt-2"
                   >
@@ -1328,16 +1295,6 @@ export default function AdminCompanyDetailPage({
                       setIncludedUserLimitDraft(e.target.value);
                       setSubMaxSeatsDraft(e.target.value);
                     }}
-                    className="app-dark-input mt-2"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="font-semibold text-slate-300">Included page credits</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={includedPageCreditsDraft}
-                    onChange={(e) => setIncludedPageCreditsDraft(e.target.value)}
                     className="app-dark-input mt-2"
                   />
                 </label>

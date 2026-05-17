@@ -884,12 +884,6 @@ export default function CompanyUsersPage() {
             >
               Billing hub
             </Link>
-            <Link
-              href="/purchases"
-              className={`${appButtonSecondaryClassName} min-w-[8.5rem]`}
-            >
-              Buy credits
-            </Link>
             </div>
             <button
               onClick={handleInvite}
