@@ -39,35 +39,6 @@ type CompanyInviteRow = {
   created_at?: string | null;
 };
 
-async function saveCompanyInviteViaRpc(params: {
-  supabase: {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>
-    ) => Promise<{ data: unknown; error: { message?: string | null } | null }>;
-  };
-  email: string;
-  role: string;
-  team: string;
-  companyId: string;
-  accountStatus: string;
-}) {
-  const rpcResult = await params.supabase.rpc("upsert_company_invite", {
-    invite_email: params.email,
-    invite_role: params.role,
-    invite_team: params.team,
-    invite_company_id: params.companyId,
-    invite_account_status: params.accountStatus,
-  });
-
-  const rpcInvite = ((rpcResult.data as CompanyInviteRow[] | null) ?? [])[0] ?? null;
-
-  return {
-    data: rpcInvite,
-    error: rpcResult.error,
-  };
-}
-
 async function saveCompanyInvite(params: {
   supabase: {
     from: (table: string) => {
@@ -515,6 +486,16 @@ export async function POST(request: Request) {
 
   const role = getCompanySafeRole(body.role);
   const fallbackTeam = auth.team || "General";
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error: "Company invites require the Supabase service role to be available in this deployment.",
+        details: envStatus,
+      },
+      { status: 500 }
+    );
+  }
+
   const companyScope = isCompanyAdminRole(auth.role)
     ? await getCompanyScope({
         supabase: auth.supabase,
@@ -523,7 +504,7 @@ export async function POST(request: Request) {
         authUser: auth.user,
       })
     : await ensureCompanyScope({
-        supabase: adminClient ?? auth.supabase,
+        supabase: adminClient,
         userId: auth.user.id,
         fallbackTeam,
         role: auth.role,
@@ -554,27 +535,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const rpcInviteResult = await saveCompanyInviteViaRpc({
-    supabase: auth.supabase as never,
+  const inviteResult = await saveCompanyInvite({
+    supabase: adminClient as never,
     email,
     role,
     team,
     companyId: companyScope.companyId,
     accountStatus: accountStatus,
+    actorUserId: auth.user.id,
   });
-
-  const inviteResult =
-    rpcInviteResult.error && adminClient
-      ? await saveCompanyInvite({
-          supabase: adminClient as never,
-          email,
-          role,
-          team,
-          companyId: companyScope.companyId,
-          accountStatus: accountStatus,
-          actorUserId: auth.user.id,
-        })
-      : rpcInviteResult;
 
   const inviteData = inviteResult.data;
   const inviteError = inviteResult.error;

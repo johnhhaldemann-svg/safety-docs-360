@@ -37,29 +37,24 @@ async function lookupCompanyInvite(params: {
 }) {
   const { publicClient, adminClient, email } = params;
 
+  if (adminClient) {
+    const { data } = await adminClient
+      .from("company_invites")
+      .select("id, email, role, team, company_id, account_status")
+      .eq("email", email)
+      .is("consumed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return (data as CompanyInviteLookupRow | null) ?? null;
+  }
+
   const rpcResult = await publicClient.rpc("lookup_company_invite", {
     invite_email: email,
   });
 
-  const rpcInvite = ((rpcResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
-  if (rpcInvite) {
-    return rpcInvite;
-  }
-
-  if (!adminClient) {
-    return null;
-  }
-
-  const { data } = await adminClient
-    .from("company_invites")
-    .select("id, email, role, team, company_id, account_status")
-    .eq("email", email)
-    .is("consumed_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return (data as CompanyInviteLookupRow | null) ?? null;
+  return ((rpcResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
 }
 
 async function ensureCompanyInviteApplied(params: {
@@ -75,76 +70,70 @@ async function ensureCompanyInviteApplied(params: {
     return { error: null };
   }
 
-  const consumeInviteResult = await publicClient.rpc("consume_company_invite", {
-    invite_email: email,
-    invited_user_id: userId,
-  });
+  if (adminClient) {
+    const membershipStatus =
+      invite.account_status === "pending" || invite.account_status === "suspended"
+        ? invite.account_status
+        : "active";
 
-  if (!consumeInviteResult.error) {
+    const [roleResult, membershipResult, inviteResult] = await Promise.all([
+      adminClient.from("user_roles").upsert(
+        {
+          user_id: userId,
+          role: invite.role,
+          team: invite.team,
+          company_id: invite.company_id,
+          account_status: invite.account_status,
+          created_by: userId,
+          updated_by: userId,
+        },
+        {
+          onConflict: "user_id",
+        }
+      ),
+      adminClient.from("company_memberships").upsert(
+        {
+          user_id: userId,
+          company_id: invite.company_id,
+          role: invite.role,
+          status: membershipStatus,
+          created_by: userId,
+          updated_by: userId,
+        },
+        {
+          onConflict: "user_id,company_id",
+        }
+      ),
+      adminClient
+        .from("company_invites")
+        .update({
+          consumed_at: new Date().toISOString(),
+          consumed_by: userId,
+          updated_at: new Date().toISOString(),
+          updated_by: userId,
+        })
+        .eq("id", invite.id),
+    ]);
+
+    if (roleResult.error || membershipResult.error || inviteResult.error) {
+      return {
+        error: {
+          message:
+            roleResult.error?.message ||
+            membershipResult.error?.message ||
+            inviteResult.error?.message ||
+            "The company invite could not be applied automatically.",
+        },
+      };
+    }
+
     return { error: null };
   }
 
-  if (!adminClient) {
-    return consumeInviteResult;
-  }
-
-  const membershipStatus =
-    invite.account_status === "pending" || invite.account_status === "suspended"
-      ? invite.account_status
-      : "active";
-
-  const [roleResult, membershipResult, inviteResult] = await Promise.all([
-    adminClient.from("user_roles").upsert(
-      {
-        user_id: userId,
-        role: invite.role,
-        team: invite.team,
-        company_id: invite.company_id,
-        account_status: invite.account_status,
-        created_by: userId,
-        updated_by: userId,
-      },
-      {
-        onConflict: "user_id",
-      }
-    ),
-    adminClient.from("company_memberships").upsert(
-      {
-        user_id: userId,
-        company_id: invite.company_id,
-        role: invite.role,
-        status: membershipStatus,
-        created_by: userId,
-        updated_by: userId,
-      },
-      {
-        onConflict: "user_id,company_id",
-      }
-    ),
-    adminClient
-      .from("company_invites")
-      .update({
-        consumed_at: new Date().toISOString(),
-        consumed_by: userId,
-        updated_at: new Date().toISOString(),
-        updated_by: userId,
-      })
-      .eq("id", invite.id),
-  ]);
-
-  if (roleResult.error || membershipResult.error || inviteResult.error) {
-    return {
-      error: {
-        message:
-          roleResult.error?.message ||
-          membershipResult.error?.message ||
-          inviteResult.error?.message ||
-          "The company invite could not be applied automatically.",
-      },
-    };
-  }
-
-  return { error: null };
+  return publicClient.rpc("consume_company_invite", {
+    invite_email: email,
+    invited_user_id: userId,
+  });
 }
 
 function createPublicClient() {

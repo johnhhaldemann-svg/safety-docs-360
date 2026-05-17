@@ -354,6 +354,297 @@ async function ensureJobsite(supabase, config, companyId, userId) {
   return data;
 }
 
+const BETA_FIXTURE_IDS = {
+  jsa: "00000000-0000-4000-8000-000000000101",
+  activity: "00000000-0000-4000-8000-000000000102",
+  correctiveAction: "00000000-0000-4000-8000-000000000103",
+  permit: "00000000-0000-4000-8000-000000000104",
+  incident: "00000000-0000-4000-8000-000000000105",
+  trainingRequirement: "00000000-0000-4000-8000-000000000106",
+  document: "00000000-0000-4000-8000-000000000107",
+  report: "00000000-0000-4000-8000-000000000108",
+  billingCustomer: "00000000-0000-4000-8000-000000000109",
+  memoryItem: "00000000-0000-4000-8000-00000000010a",
+  invite: "00000000-0000-4000-8000-00000000010b",
+};
+
+async function safeUpsert(supabase, table, values, label) {
+  const { error } = await supabase.from(table).upsert(values, { onConflict: "id" });
+  if (error) {
+    console.warn(`  Skipped ${label}: ${error.message}`);
+    return false;
+  }
+
+  console.log(`  ${label} ready.`);
+  return true;
+}
+
+function addDaysIso(days) {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function ensureBetaExitFixtures(supabase, config, company, adminUserId, fieldUserId, jobsite) {
+  if (!config.betaExitFixtures) return;
+
+  const prefix = config.betaFixturePrefix;
+  const now = new Date().toISOString();
+  const todayYmd = now.slice(0, 10);
+  const jobsiteId = jobsite?.id ?? null;
+  const fieldOrAdminUserId = fieldUserId ?? adminUserId;
+
+  console.log("Seeding beta-exit QA fixtures...");
+
+  await safeUpsert(
+    supabase,
+    "company_jsas",
+    {
+      id: BETA_FIXTURE_IDS.jsa,
+      company_id: company.id,
+      jobsite_id: jobsiteId,
+      title: `${prefix} - Hot Work JSA`,
+      description: "Deterministic beta-exit JSA covering hot work, fall protection, and stop-work escalation.",
+      status: "active",
+      severity: "high",
+      category: "safety",
+      owner_user_id: adminUserId,
+      due_at: addDaysIso(7),
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "JSA"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_jsa_activities",
+    {
+      id: BETA_FIXTURE_IDS.activity,
+      company_id: company.id,
+      jsa_id: BETA_FIXTURE_IDS.jsa,
+      jobsite_id: jobsiteId,
+      work_date: todayYmd,
+      trade: "Ironworker",
+      activity_name: `${prefix} - Weld guardrail embeds`,
+      area: "Level 4 deck",
+      crew_size: 4,
+      hazard_category: "Hot work",
+      hazard_description: "Spark exposure near temporary decking and combustible packaging.",
+      mitigation: "Fire watch, extinguisher staged, combustibles cleared, and permit posted.",
+      permit_required: true,
+      permit_type: "hot_work",
+      planned_risk_level: "high",
+      status: "planned",
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "JSA activity"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_corrective_actions",
+    {
+      id: BETA_FIXTURE_IDS.correctiveAction,
+      company_id: company.id,
+      jobsite_id: jobsiteId,
+      title: `${prefix} - Stage fire watch kit`,
+      description: "Beta-exit corrective action used to validate dashboard, safety intelligence, and linked workflow access.",
+      severity: "medium",
+      category: "fire_hot_work_concern",
+      observation_type: "negative",
+      sif_potential: false,
+      priority: "medium",
+      immediate_action_required: false,
+      status: "open",
+      assigned_user_id: fieldOrAdminUserId,
+      due_at: addDaysIso(3),
+      dap_id: BETA_FIXTURE_IDS.jsa,
+      dap_activity_id: BETA_FIXTURE_IDS.activity,
+      workflow_status: "needs_review",
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "corrective action"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_permits",
+    {
+      id: BETA_FIXTURE_IDS.permit,
+      company_id: company.id,
+      jobsite_id: jobsiteId,
+      permit_type: "hot_work",
+      title: `${prefix} - Hot Work Permit`,
+      status: "active",
+      severity: "high",
+      category: "safety",
+      owner_user_id: adminUserId,
+      due_at: addDaysIso(1),
+      sif_flag: true,
+      escalation_level: "monitor",
+      escalation_reason: "Beta-exit fixture validates linked JSA permit escalation.",
+      stop_work_status: "normal",
+      dap_activity_id: BETA_FIXTURE_IDS.activity,
+      observation_id: BETA_FIXTURE_IDS.correctiveAction,
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "permit"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_incidents",
+    {
+      id: BETA_FIXTURE_IDS.incident,
+      company_id: company.id,
+      jobsite_id: jobsiteId,
+      title: `${prefix} - Near Miss Review`,
+      description: "Beta-exit near miss fixture used for safety intelligence and restricted field access checks.",
+      status: "open",
+      severity: "medium",
+      category: "incident",
+      owner_user_id: adminUserId,
+      occurred_at: addDaysIso(-1),
+      due_at: addDaysIso(5),
+      sif_flag: false,
+      escalation_level: "monitor",
+      escalation_reason: "Trend review for hot work controls.",
+      stop_work_status: "normal",
+      observation_id: BETA_FIXTURE_IDS.correctiveAction,
+      dap_activity_id: BETA_FIXTURE_IDS.activity,
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "incident"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_training_requirements",
+    {
+      id: BETA_FIXTURE_IDS.trainingRequirement,
+      company_id: company.id,
+      title: `${prefix} - OSHA Hot Work Orientation`,
+      sort_order: 10,
+      match_keywords: ["OSHA 10", "OSHA 30", "hot work"],
+      match_fields: ["certifications", "specialties"],
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "training requirement"
+  );
+
+  await safeUpsert(
+    supabase,
+    "documents",
+    {
+      id: BETA_FIXTURE_IDS.document,
+      user_id: adminUserId,
+      company_id: company.id,
+      title: `${prefix} - Safety Plan Export Fixture`,
+      document_title: `${prefix} - Safety Plan Export Fixture`,
+      document_type: "Safety Plan",
+      status: "active",
+      project_name: config.jobsiteName || company.name,
+      form_data: {
+        fixture: "beta_exit",
+        company_id: company.id,
+        jobsite_id: jobsiteId,
+      },
+      category: "safety_plan",
+      uploaded_by: config.adminEmail,
+      updated_at: now,
+    },
+    "document"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_reports",
+    {
+      id: BETA_FIXTURE_IDS.report,
+      company_id: company.id,
+      jobsite_id: jobsiteId,
+      title: `${prefix} - Daily Safety Report`,
+      report_type: "daily_safety",
+      status: "published",
+      source_module: "beta_exit",
+      file_path: null,
+      generated_at: now,
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "report"
+  );
+
+  await safeUpsert(
+    supabase,
+    "billing_customers",
+    {
+      id: BETA_FIXTURE_IDS.billingCustomer,
+      company_id: company.id,
+      company_name: company.name,
+      billing_contact_name: config.adminName,
+      billing_email: config.adminEmail,
+      billing_address_1: config.addressLine1,
+      city: config.city,
+      state: config.stateRegion,
+      zip: config.postalCode,
+      country: config.country,
+      phone: config.phone,
+      updated_at: now,
+    },
+    "billing customer"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_memory_items",
+    {
+      id: BETA_FIXTURE_IDS.memoryItem,
+      company_id: company.id,
+      source: "manual",
+      title: `${prefix} - Safety Intelligence Fixture`,
+      body: "Beta-exit fixture: hot work requires permit verification, posted fire watch, extinguisher readiness, and supervisor signoff.",
+      metadata: {
+        fixture: "beta_exit",
+        workflow: "safety_intelligence",
+      },
+      created_by: adminUserId,
+      updated_at: now,
+    },
+    "safety intelligence memory item"
+  );
+
+  await safeUpsert(
+    supabase,
+    "company_invites",
+    {
+      id: BETA_FIXTURE_IDS.invite,
+      email: config.betaInviteEmail,
+      role: "field_user",
+      team: company.name,
+      company_id: company.id,
+      account_status: "pending",
+      consumed_at: null,
+      consumed_by: null,
+      created_by: adminUserId,
+      updated_by: adminUserId,
+      updated_at: now,
+    },
+    "pending invite"
+  );
+}
+
 async function main() {
   loadEnvFile(".env.local");
   loadEnvFile(".env");
@@ -413,7 +704,18 @@ async function main() {
     jobsiteLocation: envOrArg(args, "PILOT_JOBSITE_LOCATION", "jobsite-location", "Chicago, IL"),
     projectNumber: envOrArg(args, "PILOT_PROJECT_NUMBER", "project-number", "PILOT-001"),
     customerCompanyName: envOrArg(args, "PILOT_CUSTOMER_COMPANY_NAME", "customer-company"),
+    betaExitFixtures: envOrArg(args, "PILOT_SEED_BETA_EXIT_FIXTURES", "beta-exit-fixtures").toUpperCase() === "YES",
+    betaFixturePrefix: envOrArg(args, "PILOT_BETA_FIXTURE_PREFIX", "beta-fixture-prefix", "Beta Exit QA"),
+    betaInviteEmail: envOrArg(
+      args,
+      "PILOT_BETA_INVITE_EMAIL",
+      "beta-invite-email",
+      "beta-exit-invitee@example.com"
+    ).toLowerCase(),
   };
+  if (config.betaExitFixtures) {
+    requireEmail("PILOT_BETA_INVITE_EMAIL", config.betaInviteEmail);
+  }
 
   const supabase = createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -476,6 +778,7 @@ async function main() {
   }
 
   const jobsite = await ensureJobsite(supabase, config, company.id, adminUserId);
+  await ensureBetaExitFixtures(supabase, config, company, adminUserId, fieldUserId, jobsite);
 
   console.log("Pilot company workspace ready.");
   console.log(`  Company: ${company.name} (${company.id})`);

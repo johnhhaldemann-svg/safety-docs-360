@@ -5,6 +5,12 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Vercel preview URL to run the beta-exit E2E suite against"
+        required: true
+        type: string
 
 jobs:
   lint-and-unit:
@@ -60,14 +66,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
 
   playwright-full:
-    # Skip until all E2E secrets are set; failures fail the job once configured.
     if: >-
       github.event_name == 'push'
       && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      && secrets.E2E_USER_EMAIL != ''
-      && secrets.E2E_USER_PASSWORD != ''
-      && secrets.E2E_NEXT_PUBLIC_SUPABASE_URL != ''
-      && secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +76,22 @@ jobs:
         with:
           node-version: "20.19"
           cache: npm
+      - name: Verify full E2E secrets
+        env:
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          E2E_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_URL }}
+          E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          missing=()
+          [ -n "$E2E_USER_EMAIL" ] || missing+=("E2E_USER_EMAIL")
+          [ -n "$E2E_USER_PASSWORD" ] || missing+=("E2E_USER_PASSWORD")
+          [ -n "$E2E_NEXT_PUBLIC_SUPABASE_URL" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_URL")
+          [ -n "$E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required full E2E secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
       - run: npm ci
       - run: npx playwright install chromium --with-deps
       - name: Full E2E (requires E2E_USER_* and E2E_NEXT_PUBLIC_* secrets)
@@ -83,5 +100,51 @@ jobs:
           CI: true
           E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+  beta-exit-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+      - name: Verify beta-exit inputs and secrets
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ inputs.preview_url }}
+          E2E_BETA_ADMIN_EMAIL: ${{ secrets.E2E_BETA_ADMIN_EMAIL }}
+          E2E_BETA_ADMIN_PASSWORD: ${{ secrets.E2E_BETA_ADMIN_PASSWORD }}
+          E2E_BETA_FIELD_EMAIL: ${{ secrets.E2E_BETA_FIELD_EMAIL }}
+          E2E_BETA_FIELD_PASSWORD: ${{ secrets.E2E_BETA_FIELD_PASSWORD }}
+          E2E_NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_URL }}
+          E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          missing=()
+          [ -n "$PLAYWRIGHT_BASE_URL" ] || missing+=("preview_url")
+          [ -n "$E2E_BETA_ADMIN_EMAIL" ] || missing+=("E2E_BETA_ADMIN_EMAIL")
+          [ -n "$E2E_BETA_ADMIN_PASSWORD" ] || missing+=("E2E_BETA_ADMIN_PASSWORD")
+          [ -n "$E2E_BETA_FIELD_EMAIL" ] || missing+=("E2E_BETA_FIELD_EMAIL")
+          [ -n "$E2E_BETA_FIELD_PASSWORD" ] || missing+=("E2E_BETA_FIELD_PASSWORD")
+          [ -n "$E2E_NEXT_PUBLIC_SUPABASE_URL" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_URL")
+          [ -n "$E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required beta-exit inputs/secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Beta-exit E2E against preview
+        run: npm run test:e2e:beta
+        env:
+          CI: true
+          PLAYWRIGHT_SKIP_WEBSERVER: true
+          PLAYWRIGHT_BASE_URL: ${{ inputs.preview_url }}
+          E2E_BETA_ADMIN_EMAIL: ${{ secrets.E2E_BETA_ADMIN_EMAIL }}
+          E2E_BETA_ADMIN_PASSWORD: ${{ secrets.E2E_BETA_ADMIN_PASSWORD }}
+          E2E_BETA_FIELD_EMAIL: ${{ secrets.E2E_BETA_FIELD_EMAIL }}
+          E2E_BETA_FIELD_PASSWORD: ${{ secrets.E2E_BETA_FIELD_PASSWORD }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY }}

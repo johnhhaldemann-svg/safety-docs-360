@@ -17,6 +17,10 @@ import {
 import { getCompanySeatCounts, normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { normalizeAddonSelections } from "@/lib/platformPricing";
 import type { InvoiceStatus, LineItemInput } from "@/lib/billing/types";
+import {
+  createSupabaseAdminClient,
+  getSupabaseServerEnvStatus,
+} from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -366,6 +370,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Billing is limited to platform billing staff." }, { status: 403 });
   }
 
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error: "Company billing invoice creation requires the Supabase service role to generate invoice numbers.",
+        details: getSupabaseServerEnvStatus(),
+      },
+      { status: 500 }
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -399,6 +414,7 @@ export async function POST(request: Request) {
 
     const result = await createRecurringCompanyInvoice({
       supabase: auth.supabase,
+      invoiceNumberSupabase: adminClient,
       companyId,
       createdByUserId: auth.user.id,
       issueDateYmd: issue_date,

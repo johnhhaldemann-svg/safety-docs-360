@@ -3025,6 +3025,16 @@ export default function CSEPPage() {
                 value={previewReadyForSubmit ? "Approved" : previewState ? "Review needed" : "Not generated"}
                 tone={previewReadyForSubmit ? "info" : "neutral"}
               />
+              {checklistLoading ? (
+                <CompactStatusRow
+                  label="Checklist"
+                  value="Refreshing..."
+                  tone="neutral"
+                />
+              ) : null}
+              {checklistError ? (
+                <InlineMessage tone="warning">{checklistError}</InlineMessage>
+              ) : null}
             </div>
           </SectionCard>
           <StartChecklist title="Readiness checklist" items={readinessChecklist} />

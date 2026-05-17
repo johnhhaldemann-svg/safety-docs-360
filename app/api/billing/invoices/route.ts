@@ -13,6 +13,10 @@ import {
 import { getBillableCompanyScope } from "@/lib/billing/queryScope";
 import { recordBillingEvent } from "@/lib/billing/recordEvent";
 import type { InvoiceStatus, LineItemInput } from "@/lib/billing/types";
+import {
+  createSupabaseAdminClient,
+  getSupabaseServerEnvStatus,
+} from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -171,6 +175,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Billing is limited to platform billing staff." }, { status: 403 });
   }
 
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error: "Billing invoice creation requires the Supabase service role to generate invoice numbers.",
+        details: getSupabaseServerEnvStatus(),
+      },
+      { status: 500 }
+    );
+  }
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -240,7 +255,7 @@ export async function POST(request: Request) {
       taxRateBps: tax_rate_bps,
     });
 
-    const { data: invoiceNumber, error: numErr } = await auth.supabase.rpc(
+    const { data: invoiceNumber, error: numErr } = await adminClient.rpc(
       "billing_generate_invoice_number"
     );
 

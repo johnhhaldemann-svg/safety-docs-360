@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import {
+  createSupabaseAdminClient,
+  getSupabaseServerEnvStatus,
+} from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -19,9 +23,21 @@ type CompanySetupPayload = {
 
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request);
+  const adminClient = createSupabaseAdminClient();
+  const envStatus = getSupabaseServerEnvStatus();
 
   if ("error" in auth) {
     return auth.error;
+  }
+
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error: "Company setup is not configured correctly.",
+        details: envStatus,
+      },
+      { status: 500 }
+    );
   }
 
   if (auth.permissionMap.can_access_internal_admin) {
@@ -77,7 +93,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const signupRequestResult = await auth.supabase.from("company_signup_requests").insert({
+  const signupRequestResult = await adminClient.from("company_signup_requests").insert({
     company_name: companyName,
     industry,
     phone,
@@ -127,7 +143,7 @@ export async function POST(request: Request) {
     );
   }
 
-  await auth.supabase
+  await adminClient
     .from("user_roles")
     .upsert(
       {

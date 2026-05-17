@@ -70,6 +70,29 @@ type CompanyInvite = {
   signup_url?: string | null;
 };
 
+type TrackedEmployee = {
+  id: string;
+  external_employee_id?: string | null;
+  full_name: string;
+  email?: string | null;
+  job_title?: string | null;
+  trade_specialty?: string | null;
+  readiness_status?: string | null;
+  status?: string | null;
+  trainingRecords?: Array<{ id: string }>;
+};
+
+type TrackedEmployeeForm = {
+  employee_id: string;
+  full_name: string;
+  email: string;
+  job_title: string;
+  trade_specialty: string;
+  readiness_status: string;
+  status: string;
+  certifications: string;
+};
+
 type SecurityAuditView = "events" | "data_requests";
 
 type Jobsite = {
@@ -100,6 +123,17 @@ const roleOptions = [
   "Read Only",
   "Company User",
 ];
+
+const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
+  employee_id: "",
+  full_name: "",
+  email: "",
+  job_title: "",
+  trade_specialty: "",
+  readiness_status: "ready",
+  status: "active",
+  certifications: "",
+};
 
 function roleNeedsAssignments(role: string) {
   return (
@@ -229,6 +263,16 @@ function dataRequestStatusTone(status: string): "success" | "warning" | "error" 
   return "neutral";
 }
 
+function readinessLabel(value?: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "Ready";
+  return normalized
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 async function isSalesDemoToken(token: string) {
   const response = await fetch("/api/auth/me", {
     headers: { Authorization: `Bearer ${token}` },
@@ -273,6 +317,16 @@ export default function CompanyUsersPage() {
   const [dataRequestScope, setDataRequestScope] = useState<CompanyDataRequestScope>("company");
   const [dataRequestTitle, setDataRequestTitle] = useState("");
   const [dataRequestDescription, setDataRequestDescription] = useState("");
+  const [trackedEmployees, setTrackedEmployees] = useState<TrackedEmployee[]>([]);
+  const [trackedEmployeesLoading, setTrackedEmployeesLoading] = useState(true);
+  const [trackedRosterMessage, setTrackedRosterMessage] = useState("");
+  const [trackedRosterMessageTone, setTrackedRosterMessageTone] = useState<
+    "neutral" | "success" | "warning" | "error"
+  >("neutral");
+  const [trackedEmployeeForm, setTrackedEmployeeForm] = useState<TrackedEmployeeForm>(
+    emptyTrackedEmployeeForm
+  );
+  const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
 
   async function getAccessToken() {
     const {
@@ -500,13 +554,57 @@ export default function CompanyUsersPage() {
     setSecurityLoading(false);
   }, []);
 
+  const loadTrackedEmployees = useCallback(async () => {
+    setTrackedEmployeesLoading(true);
+    setTrackedRosterMessage("");
+    setTrackedRosterMessageTone("neutral");
+    try {
+      const token = await getAccessToken();
+      if (await isSalesDemoToken(token)) {
+        setTrackedEmployees([]);
+        return;
+      }
+
+      const response = await fetch("/api/company/tracked-employees", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            employees?: TrackedEmployee[];
+            error?: string;
+            warning?: string | null;
+          }
+        | null;
+
+      if (!response.ok) {
+        setTrackedEmployees([]);
+        setTrackedRosterMessage(data?.error || "Failed to load training-only people.");
+        setTrackedRosterMessageTone("error");
+        return;
+      }
+
+      setTrackedEmployees(data?.employees ?? []);
+      setTrackedRosterMessage(data?.warning ?? "");
+      setTrackedRosterMessageTone(data?.warning ? "warning" : "neutral");
+    } catch (error) {
+      setTrackedEmployees([]);
+      setTrackedRosterMessage(
+        error instanceof Error ? error.message : "Failed to load training-only people."
+      );
+      setTrackedRosterMessageTone("error");
+    } finally {
+      setTrackedEmployeesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadUsers();
       void loadAssignmentData();
       void loadSecurityReadiness();
+      void loadTrackedEmployees();
     });
-  }, [loadAssignmentData, loadSecurityReadiness, loadUsers]);
+  }, [loadAssignmentData, loadSecurityReadiness, loadTrackedEmployees, loadUsers]);
 
   const pendingUsers = useMemo(
     () => users.filter((user) => user.status === "Pending"),
@@ -542,6 +640,10 @@ export default function CompanyUsersPage() {
   const filteredSuspendedUsers = useMemo(
     () => filteredTeamMembers.filter((user) => user.status === "Suspended"),
     [filteredTeamMembers]
+  );
+  const activeTrackedEmployees = useMemo(
+    () => trackedEmployees.filter((employee) => employee.status !== "archived"),
+    [trackedEmployees]
   );
   const onlineUsers = useMemo(
     () =>
@@ -606,7 +708,17 @@ export default function CompanyUsersPage() {
   const stats = useMemo(
     () => [
       {
-        title: "Invited Employees",
+        title: "Active App Users",
+        value: String(activeUsers.length),
+        note: "Licensed login users with live workspace access",
+      },
+      {
+        title: "Training-Only People",
+        value: String(activeTrackedEmployees.length),
+        note: "Non-users tracked in the Training Matrix with no login seat",
+      },
+      {
+        title: "Invited App Users",
         value: String(invites.length),
         note: "Invites waiting for employees to finish account setup",
       },
@@ -615,13 +727,8 @@ export default function CompanyUsersPage() {
         value: String(pendingUsers.length),
         note: "Employees who set up an account and need your approval",
       },
-      {
-        title: "Active Employees",
-        value: String(activeUsers.length),
-        note: "People with live access to this company workspace",
-      },
     ],
-    [activeUsers.length, invites.length, pendingUsers.length]
+    [activeTrackedEmployees.length, activeUsers.length, invites.length, pendingUsers.length]
   );
   const teamPulseScore = clampNumber(
     68 +
@@ -801,6 +908,80 @@ export default function CompanyUsersPage() {
     }
 
     setInviteLoading(false);
+  }
+
+  async function handleSaveTrackedEmployee() {
+    if (!trackedEmployeeForm.full_name.trim()) {
+      setTrackedRosterMessageTone("warning");
+      setTrackedRosterMessage("Full name is required before adding a training-only person.");
+      return;
+    }
+
+    setTrackedEmployeeSaving(true);
+    setTrackedRosterMessage("");
+    setTrackedRosterMessageTone("neutral");
+
+    try {
+      if (demoMode) {
+        setTrackedEmployees((current) => [
+          {
+            id: `demo-tracked-${Date.now()}`,
+            external_employee_id: trackedEmployeeForm.employee_id || null,
+            full_name: trackedEmployeeForm.full_name,
+            email: trackedEmployeeForm.email || null,
+            job_title: trackedEmployeeForm.job_title || null,
+            trade_specialty: trackedEmployeeForm.trade_specialty || null,
+            readiness_status: trackedEmployeeForm.readiness_status,
+            status: trackedEmployeeForm.status,
+            trainingRecords: [],
+          },
+          ...current,
+        ]);
+        setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+        setTrackedRosterMessageTone("success");
+        setTrackedRosterMessage("Demo training-only person added locally for this session.");
+        setTrackedEmployeeSaving(false);
+        return;
+      }
+
+      const token = await getAccessToken();
+      const response = await fetch("/api/company/tracked-employees", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(trackedEmployeeForm),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; rowErrors?: Array<{ message?: string }> }
+        | null;
+
+      if (!response.ok) {
+        setTrackedRosterMessageTone("error");
+        setTrackedRosterMessage(
+          data?.error ||
+            data?.rowErrors?.[0]?.message ||
+            "Failed to add training-only person."
+        );
+        setTrackedEmployeeSaving(false);
+        return;
+      }
+
+      setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+      await loadTrackedEmployees();
+      setTrackedRosterMessageTone("success");
+      setTrackedRosterMessage(
+        "Training-only person added to the Training Matrix roster without creating app access."
+      );
+    } catch (error) {
+      setTrackedRosterMessageTone("error");
+      setTrackedRosterMessage(
+        error instanceof Error ? error.message : "Failed to add training-only person."
+      );
+    }
+
+    setTrackedEmployeeSaving(false);
   }
 
   async function handleSaveUser() {
@@ -1146,7 +1327,7 @@ export default function CompanyUsersPage() {
   const jobsiteTableLayout = useMemo(() => simpleDataTableLayout(isCompact), [isCompact]);
 
   return (
-    <div className="space-y-8">
+    <div className="company-access-workspace space-y-8">
       <PageHero
         eyebrow="Company Workspace"
         title="Workforce Operations"
@@ -1207,6 +1388,10 @@ export default function CompanyUsersPage() {
             <span className="font-semibold text-slate-200">Company Admins</span> manage roles and membership here.
             Super admins do not need to hand-pick individual features per employee.
           </li>
+          <li>
+            <span className="font-semibold text-slate-200">Training-only people</span> are not app users. They do not
+            receive login access or use a licensed seat, but they can be tracked on the Training Matrix.
+          </li>
         </ul>
       </SectionCard>
 
@@ -1215,7 +1400,7 @@ export default function CompanyUsersPage() {
         description="A quick read on how the company access lane is moving today."
         aside={<StatusBadge label={teamPulseLabel} tone={teamPulseTone} />}
       >
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
               Pulse score
@@ -1240,6 +1425,7 @@ export default function CompanyUsersPage() {
                 invites.length > 0 ? "Invites in motion" : "Invite lane quiet",
                 pendingUsers.length > 0 ? "Approvals waiting" : "Approvals clear",
                 onlineUsers.length > 0 ? "Team online" : "Team offline",
+                activeTrackedEmployees.length > 0 ? "Training roster active" : "Training roster empty",
               ].map((label) => (
                 <StatusBadge
                   key={label}
@@ -1262,16 +1448,220 @@ export default function CompanyUsersPage() {
         </div>
       </SectionCard>
 
-      <section className="grid gap-5 sm:grid-cols-3">
+      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{item.title}</p>
             <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
-              {loading ? "-" : item.value}
+              {loading || (item.title === "Training-Only People" && trackedEmployeesLoading) ? "-" : item.value}
             </p>
             <p className="mt-2 text-sm text-slate-500">{item.note}</p>
           </div>
         ))}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <SectionCard
+          title="Active app users"
+          description="These people can sign in, consume company workspace access, and appear in app-user permissions."
+          aside={<StatusBadge label={`${activeUsers.length} active`} tone={activeUsers.length ? "success" : "neutral"} />}
+        >
+          {loading ? (
+            <InlineMessage>Loading active app users...</InlineMessage>
+          ) : activeUsers.length === 0 ? (
+            <EmptyState
+              title="No active app users yet"
+              description="Invite an employee, wait for account setup, then approve them for workspace access."
+            />
+          ) : (
+            <div className="grid gap-3">
+              {activeUsers.slice(0, 5).map((user) => (
+                <div key={`active-user-${user.id}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-100">{user.name}</p>
+                        <StatusBadge label="App user" tone="success" />
+                      </div>
+                      <p className="mt-1 truncate text-sm text-slate-500">{user.email}</p>
+                      <p className="mt-1 text-xs text-slate-500">{user.role} / Last seen {formatRelative(user.last_sign_in_at)}</p>
+                    </div>
+                    <Link
+                      href={getProfileHref(user.id)}
+                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                    >
+                      View Profile
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {activeUsers.length > 5 ? (
+                <p className="text-sm text-slate-500">{activeUsers.length - 5} more active app user{activeUsers.length - 5 === 1 ? "" : "s"} shown below.</p>
+              ) : null}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Training-only roster"
+          description="Add non-users here when they need Training Matrix tracking but should not receive app login access or a licensed seat."
+          aside={<StatusBadge label={`${activeTrackedEmployees.length} no-login`} tone={activeTrackedEmployees.length ? "info" : "neutral"} />}
+          actions={
+            <Link href="/training-matrix" className={appButtonSecondaryClassName}>
+              Open Training Matrix
+            </Link>
+          }
+        >
+          {trackedRosterMessage ? (
+            <InlineMessage tone={trackedRosterMessageTone}>{trackedRosterMessage}</InlineMessage>
+          ) : null}
+
+          <div className="grid gap-5 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="grid content-start gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={trackedEmployeeForm.full_name}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      full_name: event.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
+                <input
+                  type="email"
+                  placeholder="Email (optional)"
+                  value={trackedEmployeeForm.email}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  type="text"
+                  placeholder="Employee ID (optional)"
+                  value={trackedEmployeeForm.employee_id}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      employee_id: event.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
+                <select
+                  value={trackedEmployeeForm.readiness_status}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      readiness_status: event.target.value,
+                    }))
+                  }
+                  className={appNativeSelectClassName}
+                  aria-label="Training readiness status"
+                >
+                  <option value="ready">Ready</option>
+                  <option value="travel_ready">Travel ready</option>
+                  <option value="limited">Limited</option>
+                  <option value="needs_training">Needs training</option>
+                  <option value="onboarding">Onboarding</option>
+                </select>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  type="text"
+                  placeholder="Job title"
+                  value={trackedEmployeeForm.job_title}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      job_title: event.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Trade specialty"
+                  value={trackedEmployeeForm.trade_specialty}
+                  onChange={(event) =>
+                    setTrackedEmployeeForm((current) => ({
+                      ...current,
+                      trade_specialty: event.target.value,
+                    }))
+                  }
+                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Certifications, separated by semicolons"
+                value={trackedEmployeeForm.certifications}
+                onChange={(event) =>
+                  setTrackedEmployeeForm((current) => ({
+                    ...current,
+                    certifications: event.target.value,
+                  }))
+                }
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveTrackedEmployee()}
+                disabled={trackedEmployeeSaving || !trackedEmployeeForm.full_name.trim()}
+                className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
+              >
+                {trackedEmployeeSaving ? "Adding..." : "Add to Training Matrix"}
+              </button>
+            </div>
+
+            <div className="grid content-start gap-3">
+              {trackedEmployeesLoading ? (
+                <InlineMessage>Loading training-only roster...</InlineMessage>
+              ) : activeTrackedEmployees.length === 0 ? (
+                <EmptyState
+                  title="No training-only people yet"
+                  description="Add a non-user here when they need training compliance tracking without app access."
+                />
+              ) : (
+                activeTrackedEmployees.slice(0, 5).map((employee) => (
+                  <div key={`tracked-employee-${employee.id}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-100">{employee.full_name}</p>
+                          <StatusBadge label="No app login" tone="info" />
+                        </div>
+                        <p className="mt-1 truncate text-sm text-slate-500">
+                          {employee.email || employee.external_employee_id || "No email on file"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 sm:justify-end">
+                        <StatusBadge label={employee.status === "inactive" ? "Inactive" : "Active"} tone={employee.status === "inactive" ? "neutral" : "success"} />
+                        <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
+                        <StatusBadge label={`${employee.trainingRecords?.length ?? 0} records`} tone="neutral" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {activeTrackedEmployees.length > 5 ? (
+                <p className="text-sm text-slate-500">{activeTrackedEmployees.length - 5} more training-only person{activeTrackedEmployees.length - 5 === 1 ? "" : "s"} available in the Training Matrix.</p>
+              ) : null}
+            </div>
+          </div>
+        </SectionCard>
       </section>
 
       <SectionCard
@@ -1776,8 +2166,8 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="3. Active Team Members"
-        description="Approved employees with active access to your workspace appear here."
+        title="3. Active App Users"
+        description="Approved employees with active login access to your workspace appear here. Training-only people are shown in the roster section above and in the Training Matrix."
       >
         <div className="mb-4">
           <input
@@ -1856,8 +2246,8 @@ export default function CompanyUsersPage() {
       </SectionCard>
 
       <SectionCard
-        title="4. Assign Users To Jobsites"
-        description="Field-scoped roles only see the jobsites selected here. Company-wide roles automatically see every jobsite."
+        title="4. Assign App Users To Jobsites"
+        description="Field-scoped app users only see the jobsites selected here. Training-only people do not receive app jobsite access."
       >
         {loading ? (
           <InlineMessage>Loading assignment matrix...</InlineMessage>

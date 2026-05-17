@@ -154,6 +154,7 @@ async function getOrCreateBillingCustomer(params: {
 
 export async function createRecurringCompanyInvoice(params: {
   supabase: SupabaseClient;
+  invoiceNumberSupabase?: SupabaseClient;
   companyId: string;
   createdByUserId: string;
   issueDateYmd?: string;
@@ -170,6 +171,7 @@ export async function createRecurringCompanyInvoice(params: {
 }): Promise<RecurringCompanyInvoiceResult> {
   const {
     supabase,
+    invoiceNumberSupabase,
     companyId,
     createdByUserId,
     requestedCustomerId,
@@ -347,7 +349,9 @@ export async function createRecurringCompanyInvoice(params: {
     taxRateBps,
   });
 
-  const { data: invoiceNumber, error: numErr } = await supabase.rpc("billing_generate_invoice_number");
+  const { data: invoiceNumber, error: numErr } = await (invoiceNumberSupabase ?? supabase).rpc(
+    "billing_generate_invoice_number"
+  );
   if (numErr || !invoiceNumber || typeof invoiceNumber !== "string") {
     return {
       status: "error",

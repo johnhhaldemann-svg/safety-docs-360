@@ -52,22 +52,44 @@ describe("/api/company/users invite links", () => {
   });
 
   it("returns a copyable inviteUrl while preserving email invite behavior", async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: [{
-        id: "invite-1",
-        email: "worker@example.com",
-        role: "field_user",
-        team: "Builder Co",
-        company_id: "company-1",
-        account_status: "pending",
-      }],
-      error: null,
-    });
+    const inviteRow = {
+      id: "invite-1",
+      email: "worker@example.com",
+      role: "field_user",
+      team: "Builder Co",
+      company_id: "company-1",
+      account_status: "pending",
+    };
+    const adminClient = {
+      from: vi.fn((table: string) => {
+        if (table !== "company_invites") {
+          throw new Error(`Unexpected table ${table}`);
+        }
+
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                is: vi.fn(() => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                })),
+              })),
+            })),
+          })),
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: inviteRow, error: null }),
+            })),
+          })),
+        };
+      }),
+    };
+    createSupabaseAdminClient.mockReturnValue(adminClient);
     authorizeRequest.mockResolvedValue({
       role: "company_admin",
       team: "Builder Co",
       user: { id: "user-1", email: "admin@example.com" },
-      supabase: { rpc },
+      supabase: {},
     });
 
     const response = requireRouteResponse(await POST(new Request("https://example.com/api/company/users", {

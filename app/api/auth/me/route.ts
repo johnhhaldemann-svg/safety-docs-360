@@ -59,13 +59,6 @@ type CompanyInviteLookupRow = {
   account_status: string;
 };
 
-type ApprovedCompanyOwnerRow = {
-  company_id: string;
-  company_name: string;
-  linked_role: string;
-  account_status: string;
-};
-
 type CompanySignupRequestLookupRow = {
   id: string;
   company_name: string | null;
@@ -116,26 +109,57 @@ async function applyPendingCompanyInvite(params: {
   const normalizedEmail = params.email.trim().toLowerCase();
   if (!normalizedEmail) return;
 
-  const inviteLookupResult = await params.supabase.rpc("lookup_company_invite", {
-    invite_email: normalizedEmail,
-  });
-  const invite =
-    ((inviteLookupResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
+  let invite: CompanyInviteLookupRow | null = null;
+
+  if (params.adminClient) {
+    const inviteLookupResult = await (
+      params.adminClient.from("company_invites") as unknown as {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            is: (column: string, value: null) => {
+              order: (
+                column: string,
+                options?: Record<string, unknown>
+              ) => {
+                limit: (count: number) => {
+                  maybeSingle: () => Promise<{
+                    data: unknown;
+                    error: { message?: string | null } | null;
+                  }>;
+                };
+              };
+            };
+          };
+        };
+      }
+    )
+      .select("id, role, team, company_id, account_status")
+      .eq("email", normalizedEmail)
+      .is("consumed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    invite = !inviteLookupResult.error
+      ? ((inviteLookupResult.data as CompanyInviteLookupRow | null) ?? null)
+      : null;
+  } else {
+    const inviteLookupResult = await params.supabase.rpc("lookup_company_invite", {
+      invite_email: normalizedEmail,
+    });
+    invite =
+      ((inviteLookupResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
+  }
 
   if (!invite) {
     return;
   }
 
-  const consumeInviteResult = await params.supabase.rpc("consume_company_invite", {
-    invite_email: normalizedEmail,
-    invited_user_id: params.userId,
-  });
-
-  if (!consumeInviteResult.error) {
-    return;
-  }
-
   if (!params.adminClient) {
+    await params.supabase.rpc("consume_company_invite", {
+      invite_email: normalizedEmail,
+      invited_user_id: params.userId,
+    });
     return;
   }
 
@@ -215,18 +239,11 @@ async function applyApprovedCompanyOwnerLink(params: {
   const normalizedEmail = params.email.trim().toLowerCase();
   if (!normalizedEmail) return;
 
-  const rpcResult = await params.supabase.rpc("claim_approved_company_owner", {
-    approved_email: normalizedEmail,
-    approved_user_id: params.userId,
-  });
-  const linkedRow =
-    ((rpcResult.data as ApprovedCompanyOwnerRow[] | null) ?? [])[0] ?? null;
-
-  if (!rpcResult.error && linkedRow && params.adminClient) {
-    return;
-  }
-
   if (!params.adminClient) {
+    await params.supabase.rpc("claim_approved_company_owner", {
+      approved_email: normalizedEmail,
+      approved_user_id: params.userId,
+    });
     return;
   }
 
@@ -313,10 +330,14 @@ async function getPendingCompanySignupRequest(params: {
       args?: Record<string, unknown>
     ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
   };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
   userId: string;
   email: string;
 }) {
-  if (params.supabase.rpc) {
+  const lookupClient = params.adminClient ?? params.supabase;
+  const normalizedEmail = params.email.trim().toLowerCase();
+
+  if (!params.adminClient && params.supabase.rpc) {
     const rpcResult = await params.supabase.rpc("lookup_my_company_signup_request");
     const rpcRow =
       ((rpcResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
@@ -326,10 +347,8 @@ async function getPendingCompanySignupRequest(params: {
     }
   }
 
-  const normalizedEmail = params.email.trim().toLowerCase();
-
   const ownerResult = await (
-    params.supabase.from("company_signup_requests") as {
+    lookupClient.from("company_signup_requests") as {
       select: (columns: string) => {
         eq: (column: string, value: string) => {
           eq: (column: string, value: string) => {
@@ -367,7 +386,7 @@ async function getPendingCompanySignupRequest(params: {
   }
 
   const emailResult = await (
-    params.supabase.from("company_signup_requests") as {
+    lookupClient.from("company_signup_requests") as {
       select: (columns: string) => {
         eq: (column: string, value: string) => {
           eq: (column: string, value: string) => {
@@ -574,6 +593,7 @@ async function handleAuthMeGet(request: Request) {
     !companyScope.companyId && !isAdminRole(refreshedRoleContext.role)
       ? await getPendingCompanySignupRequest({
           supabase: (requestScopedSupabase ?? auth.supabase) as never,
+          adminClient,
           userId: auth.user.id,
           email: auth.user.email ?? "",
         })
