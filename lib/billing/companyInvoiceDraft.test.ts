@@ -10,6 +10,9 @@ describe("buildCompanyBillingLineItems", () => {
     const items = buildCompanyBillingLineItems({
       companyName: "Acme Builders",
       planName: "Pro",
+      annualPlatformPriceCents: null,
+      onboardingFeeCents: null,
+      selectedAddons: [],
       subscriptionPriceCents: 25000,
       seatPriceCents: 5000,
       seatsUsed: 3,
@@ -27,6 +30,9 @@ describe("buildCompanyBillingLineItems", () => {
     const items = buildCompanyBillingLineItems({
       companyName: "Acme Builders",
       planName: "Pro",
+      annualPlatformPriceCents: null,
+      onboardingFeeCents: null,
+      selectedAddons: [],
       subscriptionPriceCents: null,
       seatPriceCents: 5000,
       seatsUsed: 0,
@@ -35,6 +41,34 @@ describe("buildCompanyBillingLineItems", () => {
     });
 
     expect(items).toHaveLength(0);
+  });
+
+  it("builds enterprise annual, onboarding, and add-on lines", () => {
+    const items = buildCompanyBillingLineItems({
+      companyName: "Acme Builders",
+      planName: "Tier 2 - Professional Network",
+      annualPlatformPriceCents: 8500000,
+      onboardingFeeCents: 1250000,
+      selectedAddons: [
+        {
+          key: "sms_text_alerts",
+          label: "SMS / Text Alert Package",
+          quantity: 1,
+          unitPriceCents: 1000000,
+        },
+      ],
+      subscriptionPriceCents: null,
+      seatPriceCents: null,
+      seatsUsed: 75,
+      membershipSeats: 70,
+      pendingInviteCount: 5,
+    });
+
+    expect(items.map((item) => item.description)).toEqual([
+      "Tier 2 - Professional Network annual platform",
+      "Implementation / onboarding",
+      "SMS / Text Alert Package",
+    ]);
   });
 });
 
@@ -55,4 +89,3 @@ describe("buildCompanyBillingNote", () => {
     ).toContain("Acme Builders");
   });
 });
-

@@ -36,7 +36,7 @@ const navItems = [
   { href: "/safe-predict/incidents", label: "Incidents", icon: AlertTriangle },
   { href: "/safe-predict/observations", label: "Observations", icon: Eye },
   { href: "/safe-predict/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck },
-  { href: "/safe-predict/inspections", label: "Inspections", icon: Search },
+  { href: "/safe-predict/inspections", label: "Jobsite Audits", icon: Search },
   { href: "/safe-predict/hazards", label: "Hazards", icon: TriangleAlert },
   { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
   { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
@@ -63,6 +63,51 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function isActive(pathname: string, href: string) {
   if (href === "/safe-predict") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function Safety360DocsLockup({
+  className,
+  compact = false,
+  sizes,
+}: {
+  className: string;
+  compact?: boolean;
+  sizes: string;
+}) {
+  return (
+    <span className={cx("flex items-center overflow-hidden rounded-xl bg-white", compact ? "gap-2 px-2 py-1.5" : "gap-2 px-3 py-2", className)}>
+      <span className={cx("relative shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}>
+        <Image
+          src="/brand/safety360docs-reliance-icon.png"
+          alt=""
+          fill
+          priority
+          sizes={sizes}
+          className="object-contain"
+        />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className={cx("flex items-baseline leading-none", compact ? "text-[14px]" : "text-[16px]")}
+          style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+        >
+          <span className="font-black italic text-[#1977cf]">Safety</span>
+          <span className="font-black italic text-[#73b83b]">360</span>
+          <span className="font-black italic text-[#1977cf]">Docs</span>
+        </span>
+        <span
+          className={cx("block italic leading-none text-[#6e7683]", compact ? "mt-0 text-[6px]" : "mt-0.5 text-[8px]")}
+          style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+        >
+          by Reliance EHS
+        </span>
+        <span className={cx("block bg-[#c52828]", compact ? "mt-1 h-px" : "mt-1.5 h-[2px]")} />
+        <span className={cx("block truncate font-bold leading-none tracking-[0.02em] text-[#c52828]", compact ? "mt-1 text-[5px]" : "mt-1 text-[6.5px]")}>
+          ENVIRONMENT - HEALTH - SAFETY
+        </span>
+      </span>
+    </span>
+  );
 }
 
 export function SafePredictShell({ children }: { children: React.ReactNode }) {
@@ -138,24 +183,12 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f7faff] text-[#0f172a]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[252px] flex-col bg-[#061d35] text-white shadow-[18px_0_40px_rgba(5,24,44,0.16)] lg:flex">
-        <div className="px-6 pb-4 pt-6">
-          <Link href="/safe-predict" className="flex items-center gap-3">
-            <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-blue-300/30 bg-white shadow-[0_8px_18px_rgba(15,23,42,0.18)]">
-              <Image
-                src="/brand/safety360docs-reliance-icon.png"
-                alt="Safety360Docs by Reliance EHS"
-                fill
-                priority
-                sizes="44px"
-                className="object-contain p-1.5"
-              />
-            </span>
-            <span>
-              <span className="block text-2xl font-black leading-none tracking-tight">SafetyDoc360</span>
-              <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.22em] text-blue-100/70">
-                Predict. Prevent. Protect.
-              </span>
-            </span>
+        <div className="px-5 pb-4 pt-5">
+          <Link href="/safe-predict" className="block" aria-label="Safety360Docs home">
+            <Safety360DocsLockup
+              className="h-[74px] w-full border border-blue-100/70 shadow-[0_12px_24px_rgba(5,24,44,0.24)]"
+              sizes="48px"
+            />
           </Link>
         </div>
 
@@ -213,18 +246,12 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 bg-slate-950/50 lg:hidden" role="dialog" aria-modal="true">
           <div className="flex h-full w-[290px] max-w-[82vw] flex-col bg-[#061d35] text-white shadow-2xl">
             <div className="flex items-center justify-between px-5 py-5">
-              <Link href="/safe-predict" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3">
-                <span className="relative h-8 w-8 overflow-hidden rounded-lg bg-white">
-                  <Image
-                    src="/brand/safety360docs-reliance-icon.png"
-                    alt="Safety360Docs by Reliance EHS"
-                    fill
-                    priority
-                    sizes="32px"
-                    className="object-contain p-1"
-                  />
-                </span>
-                <span className="text-xl font-black">SafetyDoc360</span>
+              <Link href="/safe-predict" onClick={() => setMobileMenuOpen(false)} className="block" aria-label="Safety360Docs home">
+                <Safety360DocsLockup
+                  compact
+                  className="h-12 w-[176px] border border-blue-100/70 shadow-[0_8px_18px_rgba(5,24,44,0.2)]"
+                  sizes="32px"
+                />
               </Link>
               <button
                 type="button"
@@ -263,7 +290,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <Link href="/safe-predict" className="flex items-center gap-2 lg:hidden">
+              <Link href="/safe-predict" className="flex min-w-0 items-center gap-2 lg:hidden">
                 <span className="relative h-7 w-7 overflow-hidden rounded-md bg-white">
                   <Image
                     src="/brand/safety360docs-reliance-icon.png"
@@ -274,7 +301,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                     className="object-contain p-0.5"
                   />
                 </span>
-                <span className="text-lg font-black">SafetyDoc360</span>
+                <span className="truncate text-base font-black sm:text-lg">Safety360Docs</span>
               </Link>
             </div>
 

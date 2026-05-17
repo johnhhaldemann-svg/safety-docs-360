@@ -6,24 +6,6 @@ import { InlineMessage, PageHero, SectionCard } from "@/components/WorkspacePrim
 
 const supabase = getSupabaseBrowserClient();
 
-const planOptions = [
-  {
-    value: "Starter",
-    title: "Starter",
-    detail: "Small team rollout with core company workspace access.",
-  },
-  {
-    value: "Pro",
-    title: "Pro",
-    detail: "Company workspace, employee invites, and broader document access.",
-  },
-  {
-    value: "Enterprise",
-    title: "Enterprise",
-    detail: "Full company rollout with internal coordination and long-term scale.",
-  },
-];
-
 export default function CompanySetupPage() {
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -34,7 +16,6 @@ export default function CompanySetupPage() {
   const [stateRegion, setStateRegion] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [country, setCountry] = useState("");
-  const [planName, setPlanName] = useState("Pro");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -156,7 +137,6 @@ export default function CompanySetupPage() {
           stateRegion,
           postalCode,
           country,
-          planName,
         }),
       });
 
@@ -351,28 +331,11 @@ export default function CompanySetupPage() {
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Step 2
               </div>
-              <div className="mt-2 text-base font-bold text-slate-100">Choose plan</div>
-              <div className="mt-3 space-y-3">
-                {planOptions.map((option) => {
-                  const active = planName === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setPlanName(option.value)}
-                      className={[
-                        "w-full rounded-2xl border px-4 py-4 text-left transition",
-                        active
-                          ? "border-sky-300 bg-sky-950/35 shadow-sm"
-                          : "border-slate-700/80 bg-slate-900/90 hover:border-sky-500/35 hover:bg-sky-800/50",
-                      ].join(" ")}
-                    >
-                      <div className="text-sm font-semibold text-slate-100">{option.title}</div>
-                      <div className="mt-1 text-sm text-slate-500">{option.detail}</div>
-                    </button>
-                  );
-                })}
-              </div>
+              <div className="mt-2 text-base font-bold text-slate-100">Internal onboarding terms</div>
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                A Platform Admin will assign the internal tier, price, included jobsites, users, page credits,
+                enabled feature modules, add-ons, and draft invoice after this request is submitted.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">

@@ -3,6 +3,7 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
+import { assertCompanyJobsiteAllowed } from "@/lib/companyCapacity";
 
 export const runtime = "nodejs";
 
@@ -226,6 +227,19 @@ export async function POST(request: Request) {
       { error: "A jobsite with this name already exists for your company." },
       { status: 409 }
     );
+  }
+
+  if (status !== "archived") {
+    const jobsiteAllowed = await assertCompanyJobsiteAllowed({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+    });
+    if (!jobsiteAllowed.ok) {
+      return NextResponse.json(
+        { error: jobsiteAllowed.error },
+        { status: jobsiteAllowed.status }
+      );
+    }
   }
 
   const insertResult = await auth.supabase

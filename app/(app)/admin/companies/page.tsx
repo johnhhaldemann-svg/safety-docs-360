@@ -10,6 +10,14 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import {
+  ENTERPRISE_TIERS,
+  PLATFORM_ADDONS,
+  PLATFORM_FEATURES,
+  getEnterpriseTier,
+  type PlatformAddonKey,
+  type PlatformFeatureKey,
+} from "@/lib/platformPricing";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -57,6 +65,19 @@ type CompanySignupRequest = {
   created_at?: string | null;
 };
 
+type ApprovalDraft = {
+  planName: string;
+  planTierKey: string;
+  annualPlatformPriceCents: string;
+  includedJobsiteLimit: string;
+  includedUserLimit: string;
+  includedPageCredits: string;
+  onboardingFeeCents: string;
+  enabledFeatureKeys: PlatformFeatureKey[];
+  selectedAddons: Record<PlatformAddonKey, string>;
+  commercialNotes: string;
+};
+
 function formatRelative(timestamp?: string | null) {
   if (!timestamp) return "Recently";
   const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -75,6 +96,32 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
   return "neutral";
 }
 
+function moneyToCentsInput(value: string) {
+  const numeric = Number(value.replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.round(numeric * 100);
+}
+
+function centsToDollarsInput(cents: number) {
+  return String(Math.round(cents / 100));
+}
+
+function defaultApprovalDraft(): ApprovalDraft {
+  const tier = getEnterpriseTier("professional_network");
+  return {
+    planName: "Enterprise",
+    planTierKey: tier.key,
+    annualPlatformPriceCents: centsToDollarsInput(tier.annualPriceCents),
+    includedJobsiteLimit: String(tier.includedJobsites),
+    includedUserLimit: String(tier.includedUsers),
+    includedPageCredits: String(tier.includedPageCredits),
+    onboardingFeeCents: "",
+    enabledFeatureKeys: [],
+    selectedAddons: {} as Record<PlatformAddonKey, string>,
+    commercialNotes: "",
+  };
+}
+
 export default function AdminCompaniesPage() {
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
   const [signupRequests, setSignupRequests] = useState<CompanySignupRequest[]>([]);
@@ -86,10 +133,24 @@ export default function AdminCompaniesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [processingRequestId, setProcessingRequestId] = useState("");
   const [processingCompanyId, setProcessingCompanyId] = useState("");
-  /** Per-request workspace plan sent on approve (`CSEP` = CSEP-only UI). */
-  const [approvalPlanByRequestId, setApprovalPlanByRequestId] = useState<Record<string, string>>({});
+  const [approvalDraftByRequestId, setApprovalDraftByRequestId] = useState<Record<string, ApprovalDraft>>({});
   /** Per-request: when true (default), approval starts a 30-day pilot trial on the new company. */
   const [pilotTrialByRequestId, setPilotTrialByRequestId] = useState<Record<string, boolean>>({});
+
+  const getApprovalDraft = useCallback(
+    (requestId: string) => approvalDraftByRequestId[requestId] ?? defaultApprovalDraft(),
+    [approvalDraftByRequestId]
+  );
+
+  const updateApprovalDraft = useCallback(
+    (requestId: string, updater: (draft: ApprovalDraft) => ApprovalDraft) => {
+      setApprovalDraftByRequestId((prev) => ({
+        ...prev,
+        [requestId]: updater(prev[requestId] ?? defaultApprovalDraft()),
+      }));
+    },
+    []
+  );
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -143,7 +204,7 @@ export default function AdminCompaniesPage() {
   }, []);
 
   const handleSignupRequestAction = useCallback(
-    async (requestId: string, action: "approve" | "reject", planName?: string) => {
+    async (requestId: string, action: "approve" | "reject") => {
       setProcessingRequestId(requestId);
       setMessage("");
 
@@ -161,6 +222,43 @@ export default function AdminCompaniesPage() {
         }
 
         const pilotTrial = pilotTrialByRequestId[requestId] !== false;
+        const draft = getApprovalDraft(requestId);
+        const annualPlatformPriceCents = moneyToCentsInput(draft.annualPlatformPriceCents);
+        const onboardingFeeCents = draft.onboardingFeeCents.trim()
+          ? moneyToCentsInput(draft.onboardingFeeCents)
+          : null;
+        const includedJobsiteLimit = Math.max(0, Math.floor(Number(draft.includedJobsiteLimit || 0)));
+        const includedUserLimit = Math.max(0, Math.floor(Number(draft.includedUserLimit || 0)));
+        const includedPageCredits = Math.max(0, Math.floor(Number(draft.includedPageCredits || 0)));
+        const selectedAddons = Object.entries(draft.selectedAddons)
+          .map(([key, price]) => {
+            const addon = PLATFORM_ADDONS.find((item) => item.key === key);
+            const unitPriceCents = price.trim() ? moneyToCentsInput(price) : null;
+            return addon && unitPriceCents != null
+              ? {
+                  key: addon.key,
+                  label: addon.label,
+                  quantity: 1,
+                  unitPriceCents,
+                }
+              : null;
+          })
+          .filter(Boolean);
+
+        if (action === "approve") {
+          if (annualPlatformPriceCents == null) {
+            setMessageTone("error");
+            setMessage("Enter a valid annual platform price before approving the workspace.");
+            setProcessingRequestId("");
+            return;
+          }
+          if (draft.enabledFeatureKeys.length === 0 && draft.planName !== "CSEP") {
+            setMessageTone("error");
+            setMessage("Select at least one feature module before approving the workspace.");
+            setProcessingRequestId("");
+            return;
+          }
+        }
 
         const res = await fetch("/api/admin/companies", {
           method: "PATCH",
@@ -170,7 +268,21 @@ export default function AdminCompaniesPage() {
           },
           body: JSON.stringify(
             action === "approve"
-              ? { requestId, action, planName: planName ?? "Pro", pilotTrial }
+              ? {
+                  requestId,
+                  action,
+                  planName: draft.planName,
+                  pilotTrial,
+                  planTierKey: draft.planTierKey,
+                  annualPlatformPriceCents,
+                  includedJobsiteLimit,
+                  includedUserLimit,
+                  includedPageCredits,
+                  onboardingFeeCents,
+                  enabledFeatureKeys: draft.enabledFeatureKeys,
+                  selectedAddons,
+                  commercialNotes: draft.commercialNotes,
+                }
               : { requestId, action }
           ),
         });
@@ -204,7 +316,7 @@ export default function AdminCompaniesPage() {
 
       setProcessingRequestId("");
     },
-    [loadCompanies, pilotTrialByRequestId]
+    [getApprovalDraft, loadCompanies, pilotTrialByRequestId]
   );
 
   const handleCompanyAction = useCallback(
@@ -443,24 +555,147 @@ export default function AdminCompaniesPage() {
                     <div className="rounded-xl border border-amber-500/35 bg-amber-950/40 px-4 py-3 text-sm text-amber-100">
                       Approve this request to activate the workspace. After approval, the owner signs in again with the same email and the company workspace opens on that account.
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Workspace product
-                      </label>
-                      <select
-                        value={approvalPlanByRequestId[request.id] ?? "Pro"}
-                        onChange={(event) =>
-                          setApprovalPlanByRequestId((prev) => ({
-                            ...prev,
-                            [request.id]: event.target.value,
-                          }))
-                        }
-                        className="w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
-                      >
-                        <option value="Pro">Full workspace (Pro)</option>
-                        <option value="CSEP">CSEP-only (comped / limited UI)</option>
-                      </select>
-                    </div>
+                    {(() => {
+                      const draft = getApprovalDraft(request.id);
+                      return (
+                        <div className="space-y-4 rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-sm">
+                              <span className="font-semibold text-slate-300">Workspace product</span>
+                              <select
+                                value={draft.planName}
+                                onChange={(event) =>
+                                  updateApprovalDraft(request.id, (current) => ({
+                                    ...current,
+                                    planName: event.target.value,
+                                  }))
+                                }
+                                className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
+                              >
+                                <option value="Enterprise">Enterprise platform</option>
+                                <option value="CSEP">CSEP-only (comped / limited UI)</option>
+                              </select>
+                            </label>
+                            <label className="block text-sm">
+                              <span className="font-semibold text-slate-300">Internal tier label</span>
+                              <select
+                                value={draft.planTierKey}
+                                onChange={(event) => {
+                                  const tier = getEnterpriseTier(event.target.value);
+                                  updateApprovalDraft(request.id, (current) => ({
+                                    ...current,
+                                    planTierKey: tier.key,
+                                    annualPlatformPriceCents: centsToDollarsInput(tier.annualPriceCents),
+                                    includedJobsiteLimit: String(tier.includedJobsites),
+                                    includedUserLimit: String(tier.includedUsers),
+                                    includedPageCredits: String(tier.includedPageCredits),
+                                  }));
+                                }}
+                                className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm text-slate-200"
+                              >
+                                {ENTERPRISE_TIERS.map((tier) => (
+                                  <option key={tier.key} value={tier.key}>
+                                    {tier.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-4">
+                            {[
+                              ["Annual price ($)", "annualPlatformPriceCents"],
+                              ["Jobsites", "includedJobsiteLimit"],
+                              ["Users", "includedUserLimit"],
+                              ["Page credits", "includedPageCredits"],
+                              ["Onboarding fee ($)", "onboardingFeeCents"],
+                            ].map(([label, field]) => (
+                              <label key={field} className="block text-sm md:last:col-span-2">
+                                <span className="font-semibold text-slate-300">{label}</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={String(draft[field as keyof ApprovalDraft] ?? "")}
+                                  onChange={(event) =>
+                                    updateApprovalDraft(request.id, (current) => ({
+                                      ...current,
+                                      [field]: event.target.value,
+                                    }))
+                                  }
+                                  className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Enabled features
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {PLATFORM_FEATURES.map((feature) => (
+                                <label
+                                  key={feature.key}
+                                  className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 py-2 text-sm text-slate-300"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={draft.enabledFeatureKeys.includes(feature.key)}
+                                    onChange={(event) =>
+                                      updateApprovalDraft(request.id, (current) => ({
+                                        ...current,
+                                        enabledFeatureKeys: event.target.checked
+                                          ? [...current.enabledFeatureKeys, feature.key]
+                                          : current.enabledFeatureKeys.filter((key) => key !== feature.key),
+                                      }))
+                                    }
+                                  />
+                                  <span>{feature.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Add-ons for draft invoice
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {PLATFORM_ADDONS.map((addon) => (
+                                <label key={addon.key} className="block rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 py-2 text-sm">
+                                  <span className="font-semibold text-slate-300">{addon.label}</span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="Price ($)"
+                                    value={draft.selectedAddons[addon.key] ?? ""}
+                                    onChange={(event) =>
+                                      updateApprovalDraft(request.id, (current) => ({
+                                        ...current,
+                                        selectedAddons: {
+                                          ...current.selectedAddons,
+                                          [addon.key]: event.target.value,
+                                        },
+                                      }))
+                                    }
+                                    className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <textarea
+                            value={draft.commercialNotes}
+                            onChange={(event) =>
+                              updateApprovalDraft(request.id, (current) => ({
+                                ...current,
+                                commercialNotes: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            placeholder="Commercial notes for onboarding and billing"
+                            className="w-full rounded-xl border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                          />
+                        </div>
+                      );
+                    })()}
                     <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
                       <input
                         type="checkbox"
@@ -483,11 +718,7 @@ export default function AdminCompaniesPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          void handleSignupRequestAction(
-                            request.id,
-                            "approve",
-                            approvalPlanByRequestId[request.id] ?? "Pro"
-                          )
+                          void handleSignupRequestAction(request.id, "approve")
                         }
                         disabled={processingRequestId === request.id}
                         className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"

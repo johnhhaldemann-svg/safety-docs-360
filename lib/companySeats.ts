@@ -99,7 +99,7 @@ export async function assertCompanyInviteAllowed(params: {
 
   const subResult = await supabase
     .from("company_subscriptions")
-    .select("status, max_user_seats")
+    .select("status, max_user_seats, included_user_limit")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -112,7 +112,7 @@ export async function assertCompanyInviteAllowed(params: {
   }
 
   const sub = subResult.data as
-    | { status?: string | null; max_user_seats?: number | null }
+    | { status?: string | null; max_user_seats?: number | null; included_user_limit?: number | null }
     | null;
 
   if (!hasExistingPendingInvite) {
@@ -126,7 +126,7 @@ export async function assertCompanyInviteAllowed(params: {
       };
     }
 
-    const maxSeats = sub?.max_user_seats;
+    const maxSeats = sub?.included_user_limit ?? sub?.max_user_seats;
     if (maxSeats != null && maxSeats >= 1) {
       const counts = await getCompanySeatCounts(supabase, companyId);
       if (counts.error) {

@@ -94,6 +94,71 @@ type TrainingAssignmentResult = {
   createdActionId?: string | null;
 };
 
+type CorrectiveObservationType = "positive" | "negative" | "near_miss";
+
+type CorrectiveActionDraft = {
+  title: string;
+  description: string;
+  siteId: string;
+  severity: SafePredictRiskLevel;
+  category: string;
+  dueAt: string;
+  assignedUserId: string;
+  observationType: CorrectiveObservationType;
+  sifPotential: "yes" | "no";
+  sifCategory: string;
+};
+
+const correctiveActionCategories = [
+  { label: "Corrective action", value: "corrective_action" },
+  { label: "Hazard", value: "hazard" },
+  { label: "Near miss", value: "near_miss" },
+  { label: "Incident", value: "incident" },
+  { label: "Good catch", value: "good_catch" },
+  { label: "PPE violation", value: "ppe_violation" },
+  { label: "Housekeeping", value: "housekeeping" },
+  { label: "Equipment issue", value: "equipment_issue" },
+  { label: "Fall hazard", value: "fall_hazard" },
+  { label: "Electrical hazard", value: "electrical_hazard" },
+  { label: "Excavation/trench concern", value: "excavation_trench_concern" },
+  { label: "Fire/hot work concern", value: "fire_hot_work_concern" },
+];
+
+const sifCategories = [
+  { label: "Fall from height", value: "fall_from_height" },
+  { label: "Struck by", value: "struck_by" },
+  { label: "Caught between", value: "caught_between" },
+  { label: "Electrical", value: "electrical" },
+  { label: "Excavation collapse", value: "excavation_collapse" },
+  { label: "Confined space", value: "confined_space" },
+  { label: "Hazardous energy", value: "hazardous_energy" },
+  { label: "Crane/rigging", value: "crane_rigging" },
+  { label: "Line of fire", value: "line_of_fire" },
+];
+
+function buildEmptyCorrectiveActionDraft(siteId: string): CorrectiveActionDraft {
+  return {
+    title: "",
+    description: "",
+    siteId,
+    severity: "medium",
+    category: "corrective_action",
+    dueAt: "",
+    assignedUserId: "",
+    observationType: "negative",
+    sifPotential: "no",
+    sifCategory: "",
+  };
+}
+
+function correctivePriority(severity: SafePredictRiskLevel): Exclude<SafePredictRiskLevel, "low"> {
+  return severity === "critical" || severity === "high" ? "high" : "medium";
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+}
+
 function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
   if (workspace === "incidents") return mapSafePredictOperationHref("/incidents");
   if (workspace === "observations") return mapSafePredictOperationHref("/field-audits");
@@ -182,6 +247,12 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [riskFilter, setRiskFilter] = useState<SafePredictRiskLevel | "all">("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showHazardComposer, setShowHazardComposer] = useState(false);
+  const [showCorrectiveComposer, setShowCorrectiveComposer] = useState(false);
+  const [correctiveMessage, setCorrectiveMessage] = useState("");
+  const [correctiveSubmitting, setCorrectiveSubmitting] = useState(false);
+  const [correctiveDraft, setCorrectiveDraft] = useState(() =>
+    buildEmptyCorrectiveActionDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
+  );
   const [hazardDraft, setHazardDraft] = useState({
     title: "",
     description: "",
@@ -220,14 +291,19 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     setStatusFilter("all");
   }
 
-  function createActionFromSignal(signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel }) {
+  function createActionFromSignal(signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel; detail?: string; category?: string }) {
+    const createdFrom = workspace === "observations" ? "Observation" : workspace === "inspections" ? "Inspection" : workspace === "hazards" ? "Hazard" : "Manual";
     const draft = addDraftAction({
       title: `Resolve ${signal.title.toLowerCase()}`,
       linkedRiskId: signal.id,
       linkedRisk: signal.title,
       siteId: signal.siteId,
       priority: signal.riskLevel === "critical" || signal.riskLevel === "high" ? "high" : "medium",
-      createdFrom: workspace === "observations" ? "Observation" : workspace === "inspections" ? "Inspection" : workspace === "hazards" ? "Hazard" : "Manual",
+      createdFrom,
+      description: signal.detail || `Created from SafetyDoc360 ${createdFrom}: ${signal.title}`,
+      category: workspace === "incidents" ? "incident" : workspace === "hazards" ? "hazard" : signal.category === "near_miss" ? "near_miss" : "corrective_action",
+      observationType: "negative",
+      sifPotential: false,
     });
     router.push(`/safe-predict/corrective-actions#${draft.id}`);
   }
@@ -263,6 +339,101 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     window.setTimeout(() => {
       document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 50);
+  }
+
+  async function createCorrectiveAction() {
+    const title = correctiveDraft.title.trim();
+    const siteId = correctiveDraft.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
+    const assignedUserId = correctiveDraft.assignedUserId.trim();
+    if (!title) {
+      setCorrectiveMessage("Add a title before creating the corrective action.");
+      return;
+    }
+    if (!siteId) {
+      setCorrectiveMessage("Choose an active jobsite before creating the corrective action.");
+      return;
+    }
+    if (correctiveDraft.observationType === "negative" && correctiveDraft.sifPotential === "yes" && !correctiveDraft.sifCategory) {
+      setCorrectiveMessage("Choose a SIF category when SIF potential is yes.");
+      return;
+    }
+    if (assignedUserId && !isUuid(assignedUserId)) {
+      setCorrectiveMessage("Leave assignee blank or enter a valid user ID.");
+      return;
+    }
+
+    const payload = {
+      title,
+      description: correctiveDraft.description.trim(),
+      severity: correctiveDraft.severity,
+      category: correctiveDraft.category,
+      status: "open",
+      jobsiteId: siteId,
+      assignedUserId: assignedUserId || null,
+      dueAt: correctiveDraft.dueAt || null,
+      observationType: correctiveDraft.observationType,
+      sifPotential: correctiveDraft.observationType === "negative" ? correctiveDraft.sifPotential === "yes" : undefined,
+      sifCategory: correctiveDraft.observationType === "negative" && correctiveDraft.sifPotential === "yes" ? correctiveDraft.sifCategory : null,
+    };
+
+    setCorrectiveSubmitting(true);
+    setCorrectiveMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+
+      if (mode === "live" && token) {
+        const response = await fetch("/api/company/corrective-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+        if (!response.ok) {
+          setCorrectiveMessage(data?.error || "Could not create the corrective action.");
+          return;
+        }
+      }
+
+      const draft = addDraftAction({
+        title,
+        linkedRiskId: `manual-${Date.now()}`,
+        linkedRisk: correctiveDraft.category.replace(/_/g, " "),
+        siteId,
+        priority: correctivePriority(correctiveDraft.severity),
+        createdFrom: "Manual",
+        description: correctiveDraft.description,
+        category: correctiveDraft.category,
+        assignedUserId: assignedUserId || undefined,
+        dueAt: correctiveDraft.dueAt,
+        observationType: correctiveDraft.observationType,
+        sifPotential: correctiveDraft.observationType === "negative" ? correctiveDraft.sifPotential === "yes" : undefined,
+        sifCategory: correctiveDraft.sifCategory,
+        persistLive: false,
+        persistLocal: mode !== "live" || !token,
+      });
+      setSiteFilter(siteId);
+      setSelectedJobsiteId(siteId);
+      setStatusFilter("all");
+      setRiskFilter("all");
+      setQuery("");
+      setCorrectiveDraft(buildEmptyCorrectiveActionDraft(siteId));
+      setShowCorrectiveComposer(false);
+      setCorrectiveMessage(mode === "live" && token ? "Corrective action created and saved to the company tracker." : "Corrective action queued locally. Turn on live beta to save it to company records.");
+      window.setTimeout(() => {
+        document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    } catch (error) {
+      setCorrectiveMessage(error instanceof Error ? error.message : "Could not create the corrective action.");
+    } finally {
+      setCorrectiveSubmitting(false);
+    }
   }
 
   async function assignTrainingWithAi(worker?: SafePredictDemoEmployee) {
@@ -408,6 +579,15 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               <Plus className="h-4 w-4" />
               {config.primaryAction}
             </button>
+          ) : workspace === "corrective-actions" ? (
+            <button
+              type="button"
+              onClick={() => setShowCorrectiveComposer((current) => !current)}
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+            >
+              <Plus className="h-4 w-4" />
+              New Corrective Action
+            </button>
           ) : (
             <Link href={workspacePrimaryHref(workspace)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]">
               <Plus className="h-4 w-4" />
@@ -501,6 +681,138 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               Log Hazard
             </button>
           </div>
+        </Card>
+      ) : null}
+
+      {workspace === "corrective-actions" && (showCorrectiveComposer || correctiveMessage) ? (
+        <Card className="mb-5 p-5">
+          <SectionTitle
+            title="New Corrective Action"
+            action={
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCorrectiveComposer((current) => !current);
+                  if (showCorrectiveComposer) setCorrectiveMessage("");
+                }}
+                className="text-sm font-black text-blue-600"
+              >
+                {showCorrectiveComposer ? "Close" : "Open form"}
+              </button>
+            }
+          />
+          {correctiveMessage ? (
+            <p className={cx("mt-3 rounded-lg px-3 py-2 text-sm font-bold", correctiveMessage.includes("created") || correctiveMessage.includes("queued") ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+              {correctiveMessage}
+            </p>
+          ) : null}
+          {showCorrectiveComposer ? (
+            <>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_180px_210px]">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-600">Title</span>
+                  <input
+                    value={correctiveDraft.title}
+                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="Trash dumpster overflowing near north building"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                  />
+                </label>
+                <SelectShell
+                  label="Jobsite"
+                  value={correctiveDraft.siteId || (siteFilter === "all" ? dataset.jobsites[0]?.id ?? "" : siteFilter)}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, siteId: value }))}
+                  options={dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))}
+                />
+                <SelectShell
+                  label="Severity"
+                  value={correctiveDraft.severity}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, severity: value as SafePredictRiskLevel }))}
+                  options={[
+                    { label: "Critical", value: "critical" },
+                    { label: "High", value: "high" },
+                    { label: "Medium", value: "medium" },
+                    { label: "Low", value: "low" },
+                  ]}
+                />
+                <SelectShell
+                  label="Category"
+                  value={correctiveDraft.category}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, category: value }))}
+                  options={correctiveActionCategories}
+                />
+              </div>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_180px_190px_190px]">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-600">Description</span>
+                  <input
+                    value={correctiveDraft.description}
+                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, description: event.target.value }))}
+                    placeholder="Location, condition, immediate control, or evidence notes"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-600">Due date</span>
+                  <input
+                    type="date"
+                    value={correctiveDraft.dueAt}
+                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, dueAt: event.target.value }))}
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                  />
+                </label>
+                <SelectShell
+                  label="Observation"
+                  value={correctiveDraft.observationType}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, observationType: value as CorrectiveObservationType }))}
+                  options={[
+                    { label: "Negative", value: "negative" },
+                    { label: "Near miss", value: "near_miss" },
+                    { label: "Positive", value: "positive" },
+                  ]}
+                />
+                <SelectShell
+                  label="SIF potential"
+                  value={correctiveDraft.sifPotential}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, sifPotential: value as "yes" | "no" }))}
+                  options={[
+                    { label: "No", value: "no" },
+                    { label: "Yes", value: "yes" },
+                  ]}
+                />
+              </div>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-slate-600">Assignee user ID optional</span>
+                  <input
+                    value={correctiveDraft.assignedUserId}
+                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, assignedUserId: event.target.value }))}
+                    placeholder="Leave blank to assign later"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                  />
+                </label>
+                {correctiveDraft.observationType === "negative" && correctiveDraft.sifPotential === "yes" ? (
+                  <SelectShell
+                    label="SIF category"
+                    value={correctiveDraft.sifCategory}
+                    onChange={(value) => setCorrectiveDraft((current) => ({ ...current, sifCategory: value }))}
+                    options={[{ label: "Choose category", value: "" }, ...sifCategories]}
+                  />
+                ) : (
+                  <div />
+                )}
+                <button
+                  type="button"
+                  onClick={() => void createCorrectiveAction()}
+                  disabled={correctiveSubmitting || !correctiveDraft.title.trim()}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Plus className="h-4 w-4" />
+                  {correctiveSubmitting ? "Creating..." : "Create Action"}
+                </button>
+              </div>
+            </>
+          ) : null}
         </Card>
       ) : null}
 
@@ -713,7 +1025,7 @@ function buildRows({
   jobsites: Array<{ id: string; name: string }>;
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
   closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
-  createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel }) => void;
+  createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel; detail?: string; category?: string }) => void;
   assignTrainingWithAi: (worker?: SafePredictDemoEmployee) => void;
 }): WorkspaceRows {
   function textMatches(values: string[]) {

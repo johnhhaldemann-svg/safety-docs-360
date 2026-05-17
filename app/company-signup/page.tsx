@@ -11,24 +11,6 @@ type CompanySignupResponse = {
   warning?: string | null;
 };
 
-const planOptions = [
-  {
-    value: "Starter",
-    title: "Starter",
-    detail: "Small team rollout with core company workspace access.",
-  },
-  {
-    value: "Pro",
-    title: "Pro",
-    detail: "Company workspace, employee invites, and broader document access.",
-  },
-  {
-    value: "Enterprise",
-    title: "Enterprise",
-    detail: "Full company rollout with internal coordination and long-term scale.",
-  },
-];
-
 export default function CompanySignupPage() {
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -43,7 +25,6 @@ export default function CompanySignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [planName, setPlanName] = useState("Pro");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -113,7 +94,6 @@ export default function CompanySignupPage() {
           fullName,
           email,
           password,
-          planName,
           agreed,
         }),
       });
@@ -348,31 +328,8 @@ export default function CompanySignupPage() {
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
-                Plan
-              </div>
-              <div className="mt-3 space-y-3">
-                {planOptions.map((option) => {
-                  const active = planName === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setPlanName(option.value)}
-                      className={[
-                        "w-full rounded-2xl border px-4 py-4 text-left transition",
-                        active
-                          ? "border-[var(--app-accent-border-28)] bg-[var(--app-accent-primary-soft)] shadow-sm"
-                          : "border-[var(--app-border)] bg-white hover:border-[var(--app-accent-border-28)] hover:bg-[var(--app-accent-primary-soft)]",
-                      ].join(" ")}
-                    >
-                      <div className="text-sm font-semibold text-[var(--app-text-strong)]">{option.title}</div>
-                      <div className="mt-1 text-sm text-slate-600">{option.detail}</div>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="mt-6 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4 text-sm leading-6 text-slate-600">
+              Platform pricing and feature access are finalized during internal onboarding. Your request gives the Platform Admin team the company details needed to prepare the workspace, contract terms, invoice draft, users, jobsites, and enabled modules.
             </div>
 
             <div className="mt-6 rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-4">

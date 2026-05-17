@@ -3,6 +3,7 @@ import { addUtcDaysToYmd, buildCompanyBillingLineItems, buildCompanyBillingNote 
 import { computeBalanceDue, computeInvoiceTotals, computeLineTotalCents } from "@/lib/billing/invoiceTotals";
 import { recordBillingEvent } from "@/lib/billing/recordEvent";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
+import { normalizeAddonSelections } from "@/lib/platformPricing";
 import { getCompanySeatCounts, normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import type { InvoiceStatus, LineItemInput } from "@/lib/billing/types";
 
@@ -204,7 +205,7 @@ export async function createRecurringCompanyInvoice(params: {
   const subscriptionResult = await supabase
     .from("company_subscriptions")
     .select(
-      "status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents"
+      "status, plan_name, credit_balance, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
     )
     .eq("company_id", companyId)
     .maybeSingle();
@@ -223,6 +224,9 @@ export async function createRecurringCompanyInvoice(params: {
         plan_name?: string | null;
         credit_balance?: number | null;
         max_user_seats?: number | null;
+        annual_platform_price_cents?: number | null;
+        onboarding_fee_cents?: number | null;
+        selected_addons?: unknown;
         subscription_price_cents?: number | null;
         seat_price_cents?: number | null;
       }
@@ -299,6 +303,13 @@ export async function createRecurringCompanyInvoice(params: {
   const recurringLineItems = buildCompanyBillingLineItems({
     companyName,
     planName,
+    annualPlatformPriceCents:
+      subscription.annual_platform_price_cents != null
+        ? Number(subscription.annual_platform_price_cents)
+        : null,
+    onboardingFeeCents:
+      subscription.onboarding_fee_cents != null ? Number(subscription.onboarding_fee_cents) : null,
+    selectedAddons: normalizeAddonSelections(subscription.selected_addons ?? []),
     subscriptionPriceCents:
       subscription.subscription_price_cents != null
         ? Number(subscription.subscription_price_cents)

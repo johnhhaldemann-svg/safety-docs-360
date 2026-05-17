@@ -34,6 +34,15 @@ type SafePredictDataContextValue = {
     siteId: string;
     priority: SafePredictCorrectiveAction["priority"];
     createdFrom: SafePredictActionRecord["createdFrom"];
+    description?: string;
+    category?: string;
+    assignedUserId?: string;
+    dueAt?: string;
+    observationType?: "positive" | "negative" | "near_miss";
+    sifPotential?: boolean;
+    sifCategory?: string;
+    persistLive?: boolean;
+    persistLocal?: boolean;
   }) => SafePredictActionRecord;
   addDraftHazard: (input: {
     title: string;
@@ -466,14 +475,23 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       siteId: string;
       priority: SafePredictCorrectiveAction["priority"];
       createdFrom: SafePredictActionRecord["createdFrom"];
+      description?: string;
+      category?: string;
+      assignedUserId?: string;
+      dueAt?: string;
+      observationType?: "positive" | "negative" | "near_miss";
+      sifPotential?: boolean;
+      sifCategory?: string;
+      persistLive?: boolean;
+      persistLocal?: boolean;
     }) => {
       const draft: SafePredictActionRecord = {
         id: `draft-${Date.now()}`,
         title: input.title,
         linkedRiskId: input.linkedRiskId,
         linkedRisk: input.linkedRisk,
-        assignee: "Alex Morgan",
-        dueDate: "May 30",
+        assignee: input.assignedUserId || "Alex Morgan",
+        dueDate: input.dueAt ? new Date(input.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "May 30",
         status: "New",
         priority: input.priority,
         progress: 0,
@@ -482,8 +500,12 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         createdFrom: input.createdFrom,
         sourceHref: `/safe-predict/jobsites/${encodeURIComponent(input.siteId)}#actions`,
       };
-      persistDraftActions([draft, ...draftActions]);
-      if (mode === "live" && liveToken) {
+      if (input.persistLocal === false) {
+        setDraftActions([draft, ...draftActions]);
+      } else {
+        persistDraftActions([draft, ...draftActions]);
+      }
+      if (input.persistLive !== false && mode === "live" && liveToken) {
         void fetch("/api/company/corrective-actions", {
           method: "POST",
           headers: {
@@ -492,11 +514,16 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           },
           body: JSON.stringify({
             title: input.title,
-            description: `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
+            description: input.description || `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
             severity: input.priority,
-            category: "corrective_action",
+            category: input.category || "corrective_action",
             status: "open",
             jobsiteId: input.siteId,
+            assignedUserId: input.assignedUserId || null,
+            dueAt: input.dueAt || null,
+            observationType: input.observationType || "negative",
+            sifPotential: input.sifPotential ?? false,
+            sifCategory: input.sifCategory || null,
           }),
         }).catch(() => undefined);
       }

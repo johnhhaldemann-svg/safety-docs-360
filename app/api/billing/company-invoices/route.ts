@@ -15,6 +15,7 @@ import {
   computeInvoiceTotals,
 } from "@/lib/billing/invoiceTotals";
 import { getCompanySeatCounts, normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
+import { normalizeAddonSelections } from "@/lib/platformPricing";
 import type { InvoiceStatus, LineItemInput } from "@/lib/billing/types";
 
 export const runtime = "nodejs";
@@ -200,7 +201,7 @@ async function loadCompanyBillingPreview(auth: {
   const subscriptionResult = await auth.supabase
     .from("company_subscriptions")
     .select(
-      "status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents"
+      "status, plan_name, credit_balance, max_user_seats, annual_platform_price_cents, onboarding_fee_cents, selected_addons, subscription_price_cents, seat_price_cents"
     )
     .eq("company_id", companyId)
     .maybeSingle();
@@ -215,6 +216,9 @@ async function loadCompanyBillingPreview(auth: {
         plan_name?: string | null;
         credit_balance?: number | null;
         max_user_seats?: number | null;
+        annual_platform_price_cents?: number | null;
+        onboarding_fee_cents?: number | null;
+        selected_addons?: unknown;
         subscription_price_cents?: number | null;
         seat_price_cents?: number | null;
       }
@@ -250,6 +254,13 @@ async function loadCompanyBillingPreview(auth: {
   const lineItems = buildCompanyBillingLineItems({
     companyName,
     planName,
+    annualPlatformPriceCents:
+      subscription.annual_platform_price_cents != null
+        ? Number(subscription.annual_platform_price_cents)
+        : null,
+    onboardingFeeCents:
+      subscription.onboarding_fee_cents != null ? Number(subscription.onboarding_fee_cents) : null,
+    selectedAddons: normalizeAddonSelections(subscription.selected_addons ?? []),
     subscriptionPriceCents:
       subscription.subscription_price_cents != null
         ? Number(subscription.subscription_price_cents)
@@ -273,6 +284,13 @@ async function loadCompanyBillingPreview(auth: {
         subscription.credit_balance != null ? Number(subscription.credit_balance) : null,
       maxUserSeats:
         subscription.max_user_seats != null ? Number(subscription.max_user_seats) : null,
+      annualPlatformPriceCents:
+        subscription.annual_platform_price_cents != null
+          ? Number(subscription.annual_platform_price_cents)
+          : null,
+      onboardingFeeCents:
+        subscription.onboarding_fee_cents != null ? Number(subscription.onboarding_fee_cents) : null,
+      selectedAddons: normalizeAddonSelections(subscription.selected_addons ?? []),
       subscriptionPriceCents:
         subscription.subscription_price_cents != null
           ? Number(subscription.subscription_price_cents)

@@ -17,6 +17,15 @@ import {
   normalizePermissionOverrides,
   type PermissionOverrides,
 } from "@/lib/permissionOverrides";
+import {
+  ENTERPRISE_TIERS,
+  PLATFORM_ADDONS,
+  PLATFORM_FEATURES,
+  getEnterpriseTier,
+  type PlatformAddonKey,
+  type PlatformAddonSelection,
+  type PlatformFeatureKey,
+} from "@/lib/platformPricing";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -98,11 +107,21 @@ type CompanySubscriptionSummary = {
   planName: string;
   creditBalance: number | null;
   maxUserSeats: number | null;
+  planTierKey: string | null;
+  annualPlatformPriceCents: number | null;
+  includedJobsiteLimit: number | null;
+  includedUserLimit: number | null;
+  includedPageCredits: number | null;
+  onboardingFeeCents: number | null;
+  enabledFeatureKeys: PlatformFeatureKey[] | null;
+  selectedAddons: PlatformAddonSelection[];
+  commercialNotes: string;
   subscriptionPriceCents: number | null;
   seatPriceCents: number | null;
   seatsUsed: number;
   membershipSeats: number;
   pendingInviteCount: number;
+  activeJobsiteCount: number;
 };
 
 type CompanyHealthSummary = {
@@ -146,6 +165,16 @@ function formatCents(cents: number | null) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+function centsToDollarsInput(cents: number | null) {
+  return cents == null ? "" : String(Math.round(cents / 100));
+}
+
+function moneyToCentsInput(value: string) {
+  const numeric = Number(value.replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.round(numeric * 100);
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -193,6 +222,17 @@ export default function AdminCompanyDetailPage({
   const [subStatusDraft, setSubStatusDraft] = useState("inactive");
   const [subPlanDraft, setSubPlanDraft] = useState("Pro");
   const [subMaxSeatsDraft, setSubMaxSeatsDraft] = useState("");
+  const [subTierDraft, setSubTierDraft] = useState<string>(ENTERPRISE_TIERS[1].key);
+  const [annualPlatformPriceDraft, setAnnualPlatformPriceDraft] = useState("");
+  const [includedJobsiteLimitDraft, setIncludedJobsiteLimitDraft] = useState("");
+  const [includedUserLimitDraft, setIncludedUserLimitDraft] = useState("");
+  const [includedPageCreditsDraft, setIncludedPageCreditsDraft] = useState("");
+  const [onboardingFeeDraft, setOnboardingFeeDraft] = useState("");
+  const [enabledFeatureDraft, setEnabledFeatureDraft] = useState<PlatformFeatureKey[]>([]);
+  const [addonPriceDraft, setAddonPriceDraft] = useState<Record<PlatformAddonKey, string>>(
+    {} as Record<PlatformAddonKey, string>
+  );
+  const [commercialNotesDraft, setCommercialNotesDraft] = useState("");
   const [subSubscriptionPriceDraft, setSubSubscriptionPriceDraft] = useState("");
   const [subSeatPriceDraft, setSubSeatPriceDraft] = useState("");
   const [companyPermissionDraft, setCompanyPermissionDraft] = useState<PermissionOverrides>({
@@ -297,6 +337,26 @@ export default function AdminCompanyDetailPage({
         setSubStatusDraft(sub.status);
         setSubPlanDraft(sub.planName);
         setSubMaxSeatsDraft(sub.maxUserSeats != null ? String(sub.maxUserSeats) : "");
+        setSubTierDraft(sub.planTierKey ?? ENTERPRISE_TIERS[1].key);
+        setAnnualPlatformPriceDraft(centsToDollarsInput(sub.annualPlatformPriceCents));
+        setIncludedJobsiteLimitDraft(
+          sub.includedJobsiteLimit != null ? String(sub.includedJobsiteLimit) : ""
+        );
+        setIncludedUserLimitDraft(sub.includedUserLimit != null ? String(sub.includedUserLimit) : "");
+        setIncludedPageCreditsDraft(
+          sub.includedPageCredits != null ? String(sub.includedPageCredits) : ""
+        );
+        setOnboardingFeeDraft(centsToDollarsInput(sub.onboardingFeeCents));
+        setEnabledFeatureDraft(sub.enabledFeatureKeys ?? []);
+        setAddonPriceDraft(
+          sub.selectedAddons.reduce((acc, addon) => {
+            if (addon.unitPriceCents != null) {
+              acc[addon.key] = centsToDollarsInput(addon.unitPriceCents);
+            }
+            return acc;
+          }, {} as Record<PlatformAddonKey, string>)
+        );
+        setCommercialNotesDraft(sub.commercialNotes ?? "");
         setSubSubscriptionPriceDraft(
           sub.subscriptionPriceCents != null ? String(sub.subscriptionPriceCents) : ""
         );
@@ -439,6 +499,30 @@ export default function AdminCompanyDetailPage({
         subscriptionPriceParsed === "" ? null : parseInt(subscriptionPriceParsed, 10);
       const seatPriceParsed = subSeatPriceDraft.trim();
       const seatPriceCents = seatPriceParsed === "" ? null : parseInt(seatPriceParsed, 10);
+      const annualPlatformPriceCents = annualPlatformPriceDraft.trim()
+        ? moneyToCentsInput(annualPlatformPriceDraft)
+        : null;
+      const onboardingFeeCents = onboardingFeeDraft.trim()
+        ? moneyToCentsInput(onboardingFeeDraft)
+        : null;
+      const includedJobsiteLimit = includedJobsiteLimitDraft.trim()
+        ? parseInt(includedJobsiteLimitDraft, 10)
+        : null;
+      const includedUserLimit = includedUserLimitDraft.trim()
+        ? parseInt(includedUserLimitDraft, 10)
+        : null;
+      const includedPageCredits = includedPageCreditsDraft.trim()
+        ? parseInt(includedPageCreditsDraft, 10)
+        : null;
+      const selectedAddons = Object.entries(addonPriceDraft)
+        .map(([key, price]) => {
+          const addon = PLATFORM_ADDONS.find((item) => item.key === key);
+          const unitPriceCents = price.trim() ? moneyToCentsInput(price) : null;
+          return addon && unitPriceCents != null
+            ? { key: addon.key, label: addon.label, quantity: 1, unitPriceCents }
+            : null;
+        })
+        .filter(Boolean);
       if (
         [subscriptionPriceCents, seatPriceCents].some(
           (value) => value !== null && (!Number.isFinite(value) || value < 0)
@@ -446,6 +530,16 @@ export default function AdminCompanyDetailPage({
       ) {
         setMessageTone("error");
         setMessage("Pricing overrides must be blank or a whole number of cents ≥ 0.");
+        setSavingSubscription(false);
+        return;
+      }
+      if (
+        [annualPlatformPriceCents, onboardingFeeCents, includedJobsiteLimit, includedUserLimit, includedPageCredits].some(
+          (value) => value !== null && (!Number.isFinite(value) || value < 0)
+        )
+      ) {
+        setMessageTone("error");
+        setMessage("Commercial price and included limit fields must be blank or non-negative numbers.");
         setSavingSubscription(false);
         return;
       }
@@ -459,6 +553,15 @@ export default function AdminCompanyDetailPage({
         body: JSON.stringify({
           subscriptionStatus: subStatusDraft,
           planName: subPlanDraft.trim() || "Pro",
+          planTierKey: subTierDraft,
+          annualPlatformPriceCents,
+          includedJobsiteLimit,
+          includedUserLimit,
+          includedPageCredits,
+          onboardingFeeCents,
+          enabledFeatureKeys: enabledFeatureDraft,
+          selectedAddons,
+          commercialNotes: commercialNotesDraft,
           maxUserSeats,
           ...(canOverrideCompanyPricing
             ? {
@@ -489,13 +592,22 @@ export default function AdminCompanyDetailPage({
     setSavingSubscription(false);
   }, [
     companyId,
+    addonPriceDraft,
+    annualPlatformPriceDraft,
     canOverrideCompanyPricing,
+    commercialNotesDraft,
+    enabledFeatureDraft,
+    includedJobsiteLimitDraft,
+    includedPageCreditsDraft,
+    includedUserLimitDraft,
     loadCompany,
+    onboardingFeeDraft,
     subMaxSeatsDraft,
     subPlanDraft,
     subSeatPriceDraft,
     subSubscriptionPriceDraft,
     subStatusDraft,
+    subTierDraft,
   ]);
 
   const handleSaveCompanyPermissions = useCallback(async () => {
@@ -694,7 +806,11 @@ export default function AdminCompanyDetailPage({
 
   const canGenerateBillingDraft =
     Boolean(subscription) &&
-    (subscription?.subscriptionPriceCents != null || subscription?.seatPriceCents != null);
+    (subscription?.annualPlatformPriceCents != null ||
+      subscription?.onboardingFeeCents != null ||
+      (subscription?.selectedAddons ?? []).some((addon) => addon.unitPriceCents != null) ||
+      subscription?.subscriptionPriceCents != null ||
+      subscription?.seatPriceCents != null);
 
   const pricingSummary = useMemo(() => {
     if (!subscription) {
@@ -704,9 +820,19 @@ export default function AdminCompanyDetailPage({
     return {
       status: subscription.status,
       planName: subscription.planName,
+      tier: subscription.planTierKey ? getEnterpriseTier(subscription.planTierKey).label : "No tier set",
+      annualPlatformPrice: formatCents(subscription.annualPlatformPriceCents),
+      onboardingFee: formatCents(subscription.onboardingFeeCents),
       subscriptionPrice: formatCents(subscription.subscriptionPriceCents),
       seatPrice: formatCents(subscription.seatPriceCents),
-      maxUsers: subscription.maxUserSeats != null ? String(subscription.maxUserSeats) : "Unlimited",
+      maxUsers:
+        subscription.includedUserLimit != null
+          ? String(subscription.includedUserLimit)
+          : subscription.maxUserSeats != null
+            ? String(subscription.maxUserSeats)
+            : "Unlimited",
+      maxJobsites:
+        subscription.includedJobsiteLimit != null ? String(subscription.includedJobsiteLimit) : "Unlimited",
       creditBalance: subscription.creditBalance ?? null,
     };
   }, [subscription]);
@@ -837,22 +963,25 @@ export default function AdminCompanyDetailPage({
             </div>
             <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.status}</div>
             <div className="mt-1 text-sm text-slate-500">{pricingSummary.planName}</div>
+            <div className="mt-1 text-sm text-slate-500">{pricingSummary.tier}</div>
           </div>
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Pricing
             </div>
             <div className="mt-2 text-sm font-semibold text-slate-100">
-              Subscription {pricingSummary.subscriptionPrice}
+              Annual platform {pricingSummary.annualPlatformPrice}
             </div>
-            <div className="mt-1 text-sm text-slate-500">Seat license {pricingSummary.seatPrice}</div>
+            <div className="mt-1 text-sm text-slate-500">
+              Onboarding {pricingSummary.onboardingFee} · Seat license {pricingSummary.seatPrice}
+            </div>
           </div>
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              License cap
+              Capacity
             </div>
-            <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.maxUsers}</div>
-            <div className="mt-1 text-sm text-slate-500">Licensed users allowed in the workspace</div>
+            <div className="mt-2 text-lg font-bold text-slate-100">{pricingSummary.maxUsers} users</div>
+            <div className="mt-1 text-sm text-slate-500">{pricingSummary.maxJobsites} jobsites</div>
           </div>
           <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -1057,8 +1186,8 @@ export default function AdminCompanyDetailPage({
       </section>
 
       <SectionCard
-        title="Subscription, licenses & pricing"
-        description="Activate billing access for this workspace, cap how many licensed users it can hold, and let Super Admins override pricing when needed."
+        title="Commercial Terms, Capacity & Invoice"
+        description="Set internal pricing, included jobsites/users/pages, selected add-ons, and create a draft invoice for review."
       >
         {loading ? (
           <InlineMessage>Loading subscription…</InlineMessage>
@@ -1069,7 +1198,7 @@ export default function AdminCompanyDetailPage({
           />
         ) : (
           <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
                 <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                   Seat usage
@@ -1084,6 +1213,20 @@ export default function AdminCompanyDetailPage({
                   {subscription.membershipSeats} licensed members (active or pending approval) +{" "}
                   {subscription.pendingInviteCount} pending invite
                   {subscription.pendingInviteCount === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Jobsite usage
+                </div>
+                <div className="mt-2 text-2xl font-bold text-slate-100">
+                  {subscription.activeJobsiteCount}
+                  {subscription.includedJobsiteLimit != null
+                    ? ` / ${subscription.includedJobsiteLimit}`
+                    : " / unlimited"}
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Active jobsites counted against the contract.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4">
@@ -1131,6 +1274,89 @@ export default function AdminCompanyDetailPage({
                     value={subMaxSeatsDraft}
                     onChange={(e) => setSubMaxSeatsDraft(e.target.value)}
                     placeholder="Blank = unlimited"
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Enterprise tier</span>
+                  <select
+                    value={subTierDraft}
+                    onChange={(e) => {
+                      const tier = getEnterpriseTier(e.target.value);
+                      setSubTierDraft(tier.key);
+                      setAnnualPlatformPriceDraft(centsToDollarsInput(tier.annualPriceCents));
+                      setIncludedJobsiteLimitDraft(String(tier.includedJobsites));
+                      setIncludedUserLimitDraft(String(tier.includedUsers));
+                      setIncludedPageCreditsDraft(String(tier.includedPageCredits));
+                    }}
+                    className="app-dark-input mt-2"
+                  >
+                    {ENTERPRISE_TIERS.map((tier) => (
+                      <option key={tier.key} value={tier.key}>
+                        {tier.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Annual platform price ($)</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={annualPlatformPriceDraft}
+                    onChange={(e) => setAnnualPlatformPriceDraft(e.target.value)}
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Included jobsites</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={includedJobsiteLimitDraft}
+                    onChange={(e) => setIncludedJobsiteLimitDraft(e.target.value)}
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Included users</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={includedUserLimitDraft}
+                    onChange={(e) => {
+                      setIncludedUserLimitDraft(e.target.value);
+                      setSubMaxSeatsDraft(e.target.value);
+                    }}
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Included page credits</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={includedPageCreditsDraft}
+                    onChange={(e) => setIncludedPageCreditsDraft(e.target.value)}
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-semibold text-slate-300">Onboarding fee ($)</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={onboardingFeeDraft}
+                    onChange={(e) => setOnboardingFeeDraft(e.target.value)}
+                    className="app-dark-input mt-2"
+                  />
+                </label>
+                <label className="block text-sm md:col-span-3">
+                  <span className="font-semibold text-slate-300">Commercial notes</span>
+                  <textarea
+                    value={commercialNotesDraft}
+                    onChange={(e) => setCommercialNotesDraft(e.target.value)}
+                    rows={3}
                     className="app-dark-input mt-2"
                   />
                 </label>
@@ -1233,6 +1459,87 @@ export default function AdminCompanyDetailPage({
                 draft.
               </p>
             ) : null}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Feature Access"
+        description="Choose the company-level modules this workspace can use. User roles still decide each person's actions inside enabled modules."
+      >
+        {loading ? (
+          <InlineMessage>Loading feature access...</InlineMessage>
+        ) : !subscription ? (
+          <EmptyState
+            title="Feature access unavailable"
+            description="This workspace subscription could not be loaded."
+          />
+        ) : canManageCompanySubscription ? (
+          <div className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {PLATFORM_FEATURES.map((feature) => (
+                <label
+                  key={feature.key}
+                  className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-300"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4"
+                    checked={enabledFeatureDraft.includes(feature.key)}
+                    onChange={(event) =>
+                      setEnabledFeatureDraft((current) =>
+                        event.target.checked
+                          ? [...current, feature.key]
+                          : current.filter((key) => key !== feature.key)
+                      )
+                    }
+                  />
+                  <span>
+                    <span className="block font-semibold text-slate-100">{feature.label}</span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">
+                      {feature.permissions.length
+                        ? feature.permissions.join(", ")
+                        : "Commercial entitlement only"}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="text-sm font-semibold text-slate-100">Invoice add-ons</div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {PLATFORM_ADDONS.map((addon) => (
+                  <label key={addon.key} className="block text-sm">
+                    <span className="font-semibold text-slate-300">{addon.label}</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Price ($)"
+                      value={addonPriceDraft[addon.key] ?? ""}
+                      onChange={(event) =>
+                        setAddonPriceDraft((current) => ({
+                          ...current,
+                          [addon.key]: event.target.value,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950/50 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-400"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveSubscription()}
+              disabled={savingSubscription}
+              className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingSubscription ? "Saving..." : "Save commercial terms and features"}
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-4 text-sm text-slate-400">
+            Feature access is controlled by Platform Admins.
           </div>
         )}
       </SectionCard>

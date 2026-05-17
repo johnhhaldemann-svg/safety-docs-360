@@ -326,7 +326,11 @@ export function canAccessCompanyWorkspaceHref(
   if (pathOnly === "/jobsites" || pathOnly === "/companies") {
     return canAccessCompanyJobsites(role, permissionMap);
   }
-  if (pathOnly === "/safety-intelligence" || pathOnly === "/analytics/safety-intelligence") {
+  if (
+    pathOnly === "/safety-intelligence" ||
+    pathOnly === "/analytics/safety-intelligence" ||
+    pathOnly === "/safe-predict"
+  ) {
     return hasFeatureAccess(permissionMap, "can_access_safety_intelligence");
   }
   if (pathOnly === "/settings/risk-memory") {

@@ -21,6 +21,10 @@ import {
 } from "@/lib/supabaseAdmin";
 import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
 import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
+import {
+  applyCompanyFeatureEntitlementsToPermissionMap,
+  normalizeFeatureKeys,
+} from "@/lib/platformPricing";
 import { serverLog } from "@/lib/serverLog";
 import { demoCompanyProfile } from "@/lib/demoWorkspace";
 import { isOfflineDesktopEnabled } from "@/lib/offlineDesktopSession";
@@ -608,13 +612,15 @@ async function handleAuthMeGet(request: Request) {
 
   let workspaceProduct: WorkspaceProduct = "full";
   let subscriptionStatus = normalizeCompanySubscriptionStatus(null);
+  let effectivePermissionMap = refreshedRoleContext.permissionMap;
+  let effectivePermissions = refreshedRoleContext.permissions;
 
   if (companyScope.companyId) {
     const admin = createSupabaseAdminClient();
     const subscriptionClient = admin ?? auth.supabase;
     const subscriptionResult = await subscriptionClient
       .from("company_subscriptions")
-      .select("plan_name, status")
+      .select("plan_name, status, enabled_feature_keys")
       .eq("company_id", companyScope.companyId)
       .maybeSingle();
 
@@ -622,9 +628,19 @@ async function handleAuthMeGet(request: Request) {
       const row = subscriptionResult.data as {
         plan_name?: string | null;
         status?: string | null;
+        enabled_feature_keys?: unknown;
       };
       workspaceProduct = planNameToWorkspaceProduct(row.plan_name);
       subscriptionStatus = normalizeCompanySubscriptionStatus(row.status ?? null);
+      if (!isAdminRole(refreshedRoleContext.role)) {
+        effectivePermissionMap = applyCompanyFeatureEntitlementsToPermissionMap(
+          refreshedRoleContext.permissionMap,
+          normalizeFeatureKeys(row.enabled_feature_keys ?? null)
+        );
+        effectivePermissions = refreshedRoleContext.permissions.filter(
+          (permission) => effectivePermissionMap[permission]
+        );
+      }
     }
   } else {
     const { data: userSubscription } = await auth.supabase
@@ -672,8 +688,8 @@ async function handleAuthMeGet(request: Request) {
       companyProfile:
         companyProfile && !companyProfile.error ? companyProfile.data ?? null : null,
       isAdmin: isAdminRole(refreshedRoleContext.role),
-      permissions: refreshedRoleContext.permissions,
-      permissionMap: refreshedRoleContext.permissionMap,
+      permissions: effectivePermissions,
+      permissionMap: effectivePermissionMap,
       accountStatus: effectiveAccountStatus,
       pendingCompanySignupRequest:
         pendingCompanySignupRequest && !companyScope.companyId

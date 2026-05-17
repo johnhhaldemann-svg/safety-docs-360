@@ -4,6 +4,11 @@ import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
 import { authorizeRequest, normalizePermissionOverrides } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
+import {
+  getEnterpriseTier,
+  normalizeAddonSelections,
+  normalizeFeatureKeys,
+} from "@/lib/platformPricing";
 
 export const runtime = "nodejs";
 
@@ -34,6 +39,14 @@ type CompanyRow = {
 
 type CompanySubscriptionRow = {
   company_id: string;
+  plan_tier_key: string | null;
+  annual_platform_price_cents: number | null;
+  included_jobsite_limit: number | null;
+  included_user_limit: number | null;
+  included_page_credits: number | null;
+  onboarding_fee_cents: number | null;
+  enabled_feature_keys?: unknown;
+  selected_addons?: unknown;
   subscription_price_cents: number | null;
   seat_price_cents: number | null;
 };
@@ -87,6 +100,15 @@ type CompanyActionPayload = {
   planName?: string;
   /** When true (default), new approved workspace gets a 30-day pilot trial window. */
   pilotTrial?: boolean;
+  planTierKey?: string;
+  annualPlatformPriceCents?: number | null;
+  includedJobsiteLimit?: number | null;
+  includedUserLimit?: number | null;
+  includedPageCredits?: number | null;
+  onboardingFeeCents?: number | null;
+  enabledFeatureKeys?: unknown;
+  selectedAddons?: unknown;
+  commercialNotes?: string | null;
 };
 
 type SupabaseWriteClient = {
@@ -106,6 +128,13 @@ function buildCompanyKeyBase(companyName: string) {
 
 function buildUniqueCompanyKey(companyName: string) {
   return `${buildCompanyKeyBase(companyName)}-${randomUUID().slice(0, 8)}`;
+}
+
+function parseOptionalNonnegativeInt(value: unknown, fallback: number | null) {
+  if (value === undefined) return fallback;
+  if (value === null || value === "") return null;
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 async function findAuthUserByEmail(params: {
@@ -257,7 +286,7 @@ export async function GET(request: Request) {
     adminClient.from("documents").select("company_id, status, final_file_path"),
     adminClient
       .from("company_subscriptions")
-      .select("company_id, subscription_price_cents, seat_price_cents"),
+      .select("company_id, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, subscription_price_cents, seat_price_cents"),
     adminClient
       .from("company_signup_requests")
       .select(
@@ -296,7 +325,9 @@ export async function GET(request: Request) {
       permissionOverrides.allow.length > 0 || permissionOverrides.deny.length > 0;
     const hasPricingOverrides =
       companySubscription != null &&
-      (companySubscription.subscription_price_cents != null ||
+      (companySubscription.annual_platform_price_cents != null ||
+        companySubscription.onboarding_fee_cents != null ||
+        companySubscription.subscription_price_cents != null ||
         companySubscription.seat_price_cents != null);
 
     return {
@@ -323,6 +354,11 @@ export async function GET(request: Request) {
       restoredByEmail: company.restored_by_email?.trim() || "",
       hasAccessOverrides,
       hasPricingOverrides,
+      planTierKey: companySubscription?.plan_tier_key ?? null,
+      annualPlatformPriceCents: companySubscription?.annual_platform_price_cents ?? null,
+      includedJobsiteLimit: companySubscription?.included_jobsite_limit ?? null,
+      includedUserLimit: companySubscription?.included_user_limit ?? null,
+      includedPageCredits: companySubscription?.included_page_credits ?? null,
       totalUsers: companyMemberships.length,
       companyAdmins: companyMemberships.filter((row) => row.role === "company_admin").length,
       activeUsers: companyMemberships.filter((row) => row.status === "active").length,
@@ -365,6 +401,27 @@ export async function PATCH(request: Request) {
   const notes = body?.notes?.trim() ?? null;
   const approvalPlanName = normalizeApprovalPlanName(body?.planName ?? null);
   const enablePilotTrial = body?.pilotTrial !== false;
+  const tier = getEnterpriseTier(body?.planTierKey ?? null);
+  const enabledFeatureKeys = normalizeFeatureKeys(body?.enabledFeatureKeys ?? []);
+  const selectedAddons = normalizeAddonSelections(body?.selectedAddons ?? []);
+  const annualPlatformPriceCents = parseOptionalNonnegativeInt(
+    body?.annualPlatformPriceCents,
+    tier.annualPriceCents
+  );
+  const includedJobsiteLimit = parseOptionalNonnegativeInt(
+    body?.includedJobsiteLimit,
+    tier.includedJobsites
+  );
+  const includedUserLimit = parseOptionalNonnegativeInt(
+    body?.includedUserLimit,
+    tier.includedUsers
+  );
+  const includedPageCredits = parseOptionalNonnegativeInt(
+    body?.includedPageCredits,
+    tier.includedPageCredits
+  );
+  const onboardingFeeCents = parseOptionalNonnegativeInt(body?.onboardingFeeCents, null);
+  const commercialNotes = body?.commercialNotes?.trim() || null;
 
   if (action === "archive" || action === "restore") {
     if (!companyId) {
@@ -607,6 +664,18 @@ export async function PATCH(request: Request) {
       company_id: companyData.id,
       status: "active",
       plan_name: approvalPlanName,
+      plan_tier_key: approvalPlanName === "CSEP" ? null : tier.key,
+      annual_platform_price_cents:
+        approvalPlanName === "CSEP" ? null : annualPlatformPriceCents,
+      included_jobsite_limit: approvalPlanName === "CSEP" ? null : includedJobsiteLimit,
+      included_user_limit: approvalPlanName === "CSEP" ? null : includedUserLimit,
+      included_page_credits: approvalPlanName === "CSEP" ? null : includedPageCredits,
+      onboarding_fee_cents: approvalPlanName === "CSEP" ? null : onboardingFeeCents,
+      enabled_feature_keys: approvalPlanName === "CSEP" ? null : enabledFeatureKeys,
+      selected_addons: approvalPlanName === "CSEP" ? [] : selectedAddons,
+      commercial_notes: approvalPlanName === "CSEP" ? null : commercialNotes,
+      max_user_seats: approvalPlanName === "CSEP" ? null : includedUserLimit,
+      credit_balance: approvalPlanName === "CSEP" ? null : includedPageCredits,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     },

@@ -54,9 +54,9 @@ export const safePredictWorkspaceConfigs: Record<SafePredictWorkspaceSlug, SafeP
   },
   inspections: {
     slug: "inspections",
-    title: "Inspections",
-    subtitle: "See inspection coverage, failed checks, and upcoming verification work.",
-    primaryAction: "Schedule Inspection",
+    title: "Jobsite Audits",
+    subtitle: "Run standalone audits by company and active jobsite, then submit findings for review.",
+    primaryAction: "Start Audit",
     summary: [
       { label: "Completed", value: "128", detail: "This week" },
       { label: "Failed Checks", value: "9", detail: "4 repeat findings" },

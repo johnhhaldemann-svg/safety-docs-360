@@ -16,6 +16,12 @@ import {
   normalizePermissionOverrides,
 } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
+import { getCompanyActiveJobsiteCount } from "@/lib/companyCapacity";
+import {
+  getEnterpriseTier,
+  normalizeAddonSelections,
+  normalizeFeatureKeys,
+} from "@/lib/platformPricing";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
@@ -261,7 +267,7 @@ export async function GET(request: Request, context: RouteContext) {
       .order("created_at", { ascending: false }),
     supabase
       .from("company_subscriptions")
-      .select("status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents")
+      .select("status, plan_name, credit_balance, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
       .eq("company_id", companyId)
       .maybeSingle(),
   ]);
@@ -294,12 +300,25 @@ export async function GET(request: Request, context: RouteContext) {
   if (seatCounts.error) {
     return NextResponse.json({ error: seatCounts.error }, { status: 500 });
   }
+  const activeJobsites = await getCompanyActiveJobsiteCount(supabase as SupabaseClient, companyId);
+  if (activeJobsites.error) {
+    return NextResponse.json({ error: activeJobsites.error }, { status: 500 });
+  }
 
   const subscriptionRow = subscriptionResult.data as {
     status?: string | null;
     plan_name?: string | null;
     credit_balance?: number | null;
     max_user_seats?: number | null;
+    plan_tier_key?: string | null;
+    annual_platform_price_cents?: number | null;
+    included_jobsite_limit?: number | null;
+    included_user_limit?: number | null;
+    included_page_credits?: number | null;
+    onboarding_fee_cents?: number | null;
+    enabled_feature_keys?: unknown;
+    selected_addons?: unknown;
+    commercial_notes?: string | null;
     subscription_price_cents?: number | null;
     seat_price_cents?: number | null;
   } | null;
@@ -536,6 +555,30 @@ export async function GET(request: Request, context: RouteContext) {
         subscriptionRow?.credit_balance != null ? Number(subscriptionRow.credit_balance) : null,
       maxUserSeats:
         subscriptionRow?.max_user_seats != null ? Number(subscriptionRow.max_user_seats) : null,
+      planTierKey: subscriptionRow?.plan_tier_key ?? null,
+      annualPlatformPriceCents:
+        subscriptionRow?.annual_platform_price_cents != null
+          ? Number(subscriptionRow.annual_platform_price_cents)
+          : null,
+      includedJobsiteLimit:
+        subscriptionRow?.included_jobsite_limit != null
+          ? Number(subscriptionRow.included_jobsite_limit)
+          : null,
+      includedUserLimit:
+        subscriptionRow?.included_user_limit != null
+          ? Number(subscriptionRow.included_user_limit)
+          : null,
+      includedPageCredits:
+        subscriptionRow?.included_page_credits != null
+          ? Number(subscriptionRow.included_page_credits)
+          : null,
+      onboardingFeeCents:
+        subscriptionRow?.onboarding_fee_cents != null
+          ? Number(subscriptionRow.onboarding_fee_cents)
+          : null,
+      enabledFeatureKeys: normalizeFeatureKeys(subscriptionRow?.enabled_feature_keys ?? null),
+      selectedAddons: normalizeAddonSelections(subscriptionRow?.selected_addons ?? []),
+      commercialNotes: subscriptionRow?.commercial_notes ?? "",
       subscriptionPriceCents:
         subscriptionRow?.subscription_price_cents != null
           ? Number(subscriptionRow.subscription_price_cents)
@@ -545,6 +588,7 @@ export async function GET(request: Request, context: RouteContext) {
       seatsUsed: seatCounts.seatsUsed,
       membershipSeats: seatCounts.membershipSeats,
       pendingInviteCount: seatCounts.pendingInvites,
+      activeJobsiteCount: activeJobsites.count,
     },
     company: {
       id: company.id,
@@ -604,6 +648,15 @@ type SubscriptionPatchBody = {
   planName?: string | null;
   subscriptionStatus?: string | null;
   maxUserSeats?: number | null;
+  planTierKey?: string | null;
+  annualPlatformPriceCents?: number | null;
+  includedJobsiteLimit?: number | null;
+  includedUserLimit?: number | null;
+  includedPageCredits?: number | null;
+  onboardingFeeCents?: number | null;
+  enabledFeatureKeys?: unknown;
+  selectedAddons?: unknown;
+  commercialNotes?: string | null;
   subscriptionPriceCents?: number | null;
   seatPriceCents?: number | null;
   permissionOverrides?: unknown;
@@ -626,6 +679,22 @@ function parseOptionalCents(value: unknown) {
     provided: true as const,
     value: Math.floor(value),
   };
+}
+
+function parseOptionalNonnegativeInteger(value: unknown, label: string) {
+  if (value === undefined) {
+    return { provided: false as const, value: null as number | null };
+  }
+
+  if (value === null || value === "") {
+    return { provided: true as const, value: null as number | null };
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return { provided: true as const, error: `${label} must be null or an integer >= 0.` };
+  }
+
+  return { provided: true as const, value: Math.floor(value) };
 }
 
 /** Upsert `company_subscriptions` — subscription status, plan, and per-company user seat cap. */
@@ -658,6 +727,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     ? Object.prototype.hasOwnProperty.call(body, "subscriptionStatus") ||
       Object.prototype.hasOwnProperty.call(body, "planName") ||
       Object.prototype.hasOwnProperty.call(body, "maxUserSeats") ||
+      Object.prototype.hasOwnProperty.call(body, "planTierKey") ||
+      Object.prototype.hasOwnProperty.call(body, "annualPlatformPriceCents") ||
+      Object.prototype.hasOwnProperty.call(body, "includedJobsiteLimit") ||
+      Object.prototype.hasOwnProperty.call(body, "includedUserLimit") ||
+      Object.prototype.hasOwnProperty.call(body, "includedPageCredits") ||
+      Object.prototype.hasOwnProperty.call(body, "onboardingFeeCents") ||
+      Object.prototype.hasOwnProperty.call(body, "enabledFeatureKeys") ||
+      Object.prototype.hasOwnProperty.call(body, "selectedAddons") ||
+      Object.prototype.hasOwnProperty.call(body, "commercialNotes") ||
       Object.prototype.hasOwnProperty.call(body, "subscriptionPriceCents") ||
       Object.prototype.hasOwnProperty.call(body, "seatPriceCents")
     : false;
@@ -728,7 +806,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const existingSub = await adminClient
     .from("company_subscriptions")
-    .select("status, plan_name, credit_balance, max_user_seats, subscription_price_cents, seat_price_cents")
+    .select("status, plan_name, credit_balance, max_user_seats, plan_tier_key, annual_platform_price_cents, included_jobsite_limit, included_user_limit, included_page_credits, onboarding_fee_cents, enabled_feature_keys, selected_addons, commercial_notes, subscription_price_cents, seat_price_cents")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -744,6 +822,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     plan_name?: string | null;
     credit_balance?: number | null;
     max_user_seats?: number | null;
+    plan_tier_key?: string | null;
+    annual_platform_price_cents?: number | null;
+    included_jobsite_limit?: number | null;
+    included_user_limit?: number | null;
+    included_page_credits?: number | null;
+    onboarding_fee_cents?: number | null;
+    enabled_feature_keys?: unknown;
+    selected_addons?: unknown;
+    commercial_notes?: string | null;
     subscription_price_cents?: number | null;
     seat_price_cents?: number | null;
   } | null;
@@ -778,6 +865,88 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  const tier = getEnterpriseTier(body?.planTierKey ?? row?.plan_tier_key ?? null);
+  const planTierKey =
+    body?.planTierKey === null
+      ? null
+      : body?.planTierKey !== undefined
+        ? tier.key
+        : row?.plan_tier_key ?? null;
+
+  let annualPlatformPriceCents = row?.annual_platform_price_cents ?? null;
+  const parsedAnnualPlatformPrice = parseOptionalNonnegativeInteger(
+    body?.annualPlatformPriceCents,
+    "Annual platform price"
+  );
+  if (parsedAnnualPlatformPrice.provided) {
+    if ("error" in parsedAnnualPlatformPrice) {
+      return NextResponse.json({ error: parsedAnnualPlatformPrice.error }, { status: 400 });
+    }
+    annualPlatformPriceCents = parsedAnnualPlatformPrice.value;
+  }
+
+  let includedJobsiteLimit = row?.included_jobsite_limit ?? null;
+  const parsedJobsiteLimit = parseOptionalNonnegativeInteger(
+    body?.includedJobsiteLimit,
+    "Included jobsite limit"
+  );
+  if (parsedJobsiteLimit.provided) {
+    if ("error" in parsedJobsiteLimit) {
+      return NextResponse.json({ error: parsedJobsiteLimit.error }, { status: 400 });
+    }
+    includedJobsiteLimit = parsedJobsiteLimit.value;
+  }
+
+  let includedUserLimit = row?.included_user_limit ?? null;
+  const parsedUserLimit = parseOptionalNonnegativeInteger(
+    body?.includedUserLimit,
+    "Included user limit"
+  );
+  if (parsedUserLimit.provided) {
+    if ("error" in parsedUserLimit) {
+      return NextResponse.json({ error: parsedUserLimit.error }, { status: 400 });
+    }
+    includedUserLimit = parsedUserLimit.value;
+    maxUserSeats = parsedUserLimit.value;
+  }
+
+  let includedPageCredits = row?.included_page_credits ?? null;
+  const parsedPageCredits = parseOptionalNonnegativeInteger(
+    body?.includedPageCredits,
+    "Included page credits"
+  );
+  if (parsedPageCredits.provided) {
+    if ("error" in parsedPageCredits) {
+      return NextResponse.json({ error: parsedPageCredits.error }, { status: 400 });
+    }
+    includedPageCredits = parsedPageCredits.value;
+  }
+
+  let onboardingFeeCents = row?.onboarding_fee_cents ?? null;
+  const parsedOnboardingFee = parseOptionalNonnegativeInteger(
+    body?.onboardingFeeCents,
+    "Onboarding fee"
+  );
+  if (parsedOnboardingFee.provided) {
+    if ("error" in parsedOnboardingFee) {
+      return NextResponse.json({ error: parsedOnboardingFee.error }, { status: 400 });
+    }
+    onboardingFeeCents = parsedOnboardingFee.value;
+  }
+
+  const enabledFeatureKeys =
+    body && Object.prototype.hasOwnProperty.call(body, "enabledFeatureKeys")
+      ? normalizeFeatureKeys(body.enabledFeatureKeys ?? [])
+      : normalizeFeatureKeys(row?.enabled_feature_keys ?? null);
+  const selectedAddons =
+    body && Object.prototype.hasOwnProperty.call(body, "selectedAddons")
+      ? normalizeAddonSelections(body.selectedAddons ?? [])
+      : normalizeAddonSelections(row?.selected_addons ?? []);
+  const commercialNotes =
+    body && Object.prototype.hasOwnProperty.call(body, "commercialNotes")
+      ? body.commercialNotes?.trim() || null
+      : row?.commercial_notes ?? null;
+
   let subscriptionPriceCents: number | null = row?.subscription_price_cents ?? null;
   const parsedSubscriptionPrice = parseOptionalCents(body?.subscriptionPriceCents);
   if (parsedSubscriptionPrice.provided) {
@@ -801,10 +970,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       company_id: companyId,
       status: nextStatus,
       plan_name: planName,
+      plan_tier_key: planTierKey,
+      annual_platform_price_cents: annualPlatformPriceCents,
+      included_jobsite_limit: includedJobsiteLimit,
+      included_user_limit: includedUserLimit,
+      included_page_credits: includedPageCredits,
+      onboarding_fee_cents: onboardingFeeCents,
+      enabled_feature_keys: enabledFeatureKeys,
+      selected_addons: selectedAddons,
+      commercial_notes: commercialNotes,
       max_user_seats: maxUserSeats,
       subscription_price_cents: subscriptionPriceCents,
       seat_price_cents: seatPriceCents,
-      credit_balance: row?.credit_balance ?? null,
+      credit_balance: includedPageCredits ?? row?.credit_balance ?? null,
       updated_by: auth.user.id,
     };
     if (!row) {
@@ -839,6 +1017,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     planName,
     subscriptionStatus: nextStatus,
     maxUserSeats,
+    planTierKey,
+    annualPlatformPriceCents,
+    includedJobsiteLimit,
+    includedUserLimit,
+    includedPageCredits,
+    onboardingFeeCents,
+    enabledFeatureKeys,
+    selectedAddons,
+    commercialNotes,
     subscriptionPriceCents,
     seatPriceCents,
     permissionOverrides: permissionOverridesProvided

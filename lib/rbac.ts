@@ -13,6 +13,10 @@ import {
   readOfflineDemoTokenFromRequest,
 } from "@/lib/offlineDesktopSession";
 import { serverLog } from "@/lib/serverLog";
+import {
+  applyCompanyFeatureEntitlementsToPermissionMap,
+  normalizeFeatureKeys,
+} from "@/lib/platformPricing";
 
 export const APP_ROLES = [
   "platform_admin",
@@ -868,14 +872,21 @@ export async function getUserRoleContext(params: {
   if (effectiveRow) {
     const companyId = effectiveRow.company_id?.trim() || null;
     const companyOverrides = await getCompanyPermissionOverrides(supabase, companyId);
-    const permissionMap = getPermissionMap(
+    let permissionMap = getPermissionMap(
       normalizeAppRole(effectiveRow.role),
       companyOverrides,
       normalizePermissionOverrides(effectiveRow.permission_overrides)
     );
+    const normalizedRole = normalizeAppRole(effectiveRow.role);
+    if (!isAdminRole(normalizedRole) && companyId) {
+      permissionMap = applyCompanyFeatureEntitlementsToPermissionMap(
+        permissionMap,
+        await getCompanyEnabledFeatureKeys(supabase, companyId)
+      );
+    }
 
     return {
-      role: normalizeAppRole(effectiveRow.role),
+      role: normalizedRole,
       team: effectiveRow.team?.trim() || "General",
       accountStatus: normalizeAccountStatus(effectiveRow.account_status),
       companyId,
@@ -896,6 +907,35 @@ export async function getUserRoleContext(params: {
     permissionMap: effectivePermissionMap,
     source: roleRowResult.error ? ("canonical_unavailable" as const) : ("canonical_missing" as const),
   };
+}
+
+async function getCompanyEnabledFeatureKeys(
+  supabase: SupabaseLikeClient,
+  companyId?: string | null
+) {
+  const trimmedCompanyId = companyId?.trim() || "";
+  if (!trimmedCompanyId) {
+    return null;
+  }
+
+  const { data, error } = await (
+    supabase.from("company_subscriptions") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: MessageError | null }>;
+        };
+      };
+    }
+  )
+    .select("enabled_feature_keys")
+    .eq("company_id", trimmedCompanyId)
+    .maybeSingle();
+
+  if (error || !data || typeof data !== "object") {
+    return null;
+  }
+
+  return normalizeFeatureKeys((data as { enabled_feature_keys?: unknown }).enabled_feature_keys ?? null);
 }
 
 export async function authorizeRequest(
