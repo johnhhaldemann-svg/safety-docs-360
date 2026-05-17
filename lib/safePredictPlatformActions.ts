@@ -30,9 +30,14 @@ function actionSource(section: NavSection): SafePredictPlatformAction["source"] 
 
 function normalizeAction(section: NavSection, item: NavItem): SafePredictPlatformAction {
   const nativeHref = mapSafePredictSurfaceHref(item.href);
+  const keywords =
+    item.href === "/permits"
+      ? [...(item.keywords ?? []), "permits", "create permit", "permit center"]
+      : item.keywords;
   return {
     ...item,
     href: nativeHref,
+    keywords,
     sectionTitle: section.title,
     source: actionSource(section),
     description:

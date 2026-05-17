@@ -4,14 +4,22 @@ Expo/React Native app for field workflows only:
 
 - Login
 - Dashboard
+- Jobsites
 - JSA
 - Field Issues
 - Field Audits
+- Permit Requests
+- Incident / Near-Miss Reports
+- Toolbox Talks
+- Training Readiness
+- Documents
+- Safety Intelligence
+- Reports
 - Photos
 - Signatures
 - Profile
 
-Version 1 is online-only. Offline drafts are intentionally deferred to version 2.
+Version 1 is online-only. Offline drafts are intentionally deferred to version 2. Permit and incident workflows submit to review queues; manager/safety admin authority remains in the web platform.
 
 ## Setup
 
@@ -81,10 +89,17 @@ Before a production store build, confirm:
 
 - `EXPO_PUBLIC_API_BASE_URL` points to `https://safety360docs.com/api/mobile`.
 - Login succeeds with a real company user.
-- Dashboard loads assigned jobsites, module access, counts, and recent activity.
+- Dashboard loads assigned jobsites, expanded module access, counts, and recent activity.
 - JSA can submit with jobsite, trade, hazards, PPE, photo, and printed-name signoff.
 - Field Issue can submit with category, severity, observation type, SIF fields, due date, and photo.
 - Field Audit can submit with audited company, jobsite, trades, failed-item corrective action, photo, hours billed, and final signature.
+- Permit Request can submit as draft for manager/safety admin review.
+- Incident / Near-Miss Report can submit to safety submission review.
+- Toolbox Talk can create a jobsite session and attendee signoff note.
+- Training Readiness loads crew readiness rows.
+- Documents open approved final files through signed links.
+- Reports open published report files through signed links.
+- Safety Intelligence can build a briefing and pre-task checklist for a jobsite task.
 - Submitted audit appears in the platform Field Audits queue with AI/admin review status.
 - Company admin can approve the audit and send the customer report if a customer email is saved.
 - Wrong password, expired session, and slow connection show friendly messages.
@@ -99,3 +114,5 @@ Store materials to prepare:
 - App Store privacy answers.
 - Google Play Data Safety answers.
 - Demo login for app review if Apple/Google needs one.
+
+See `STORE_RELEASE.md` for the store submission packet.

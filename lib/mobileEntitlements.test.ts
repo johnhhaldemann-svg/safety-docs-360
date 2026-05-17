@@ -17,7 +17,7 @@ describe("mobile entitlements", () => {
     expect(features.mobile_signatures).toBe(true);
   });
 
-  it("keeps field users focused on issue and audit capture unless explicitly enabled", () => {
+  it("enables online field review tools for field users", () => {
     const features = resolveMobileFeatureMap({
       role: "field_user",
       permissionMap: getPermissionMap("field_user"),
@@ -25,8 +25,12 @@ describe("mobile entitlements", () => {
 
     expect(visibleMobileFeatures(features)).toEqual([
       "mobile_dashboard",
+      "mobile_jobsites",
       "mobile_field_issues",
       "mobile_field_audits",
+      "mobile_incidents",
+      "mobile_documents",
+      "mobile_reports",
       "mobile_photos",
     ]);
   });

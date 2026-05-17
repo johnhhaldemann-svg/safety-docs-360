@@ -50,7 +50,7 @@ import {
   safePredictWorkspaceConfigs,
   type SafePredictWorkspaceSlug,
 } from "@/lib/safePredictWorkspaceConfig";
-import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
+import { mapSafePredictOperationHref, mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
 import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
 
 type RowAction = {
@@ -165,7 +165,7 @@ function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
   if (workspace === "corrective-actions") return mapSafePredictOperationHref("/field-id-exchange");
   if (workspace === "inspections") return mapSafePredictOperationHref("/jobsites");
   if (workspace === "training") return mapSafePredictOperationHref("/training-matrix");
-  if (workspace === "permits") return mapSafePredictOperationHref("/permits");
+  if (workspace === "permits") return mapSafePredictSurfaceHref("/permits");
   if (workspace === "analytics") return mapSafePredictOperationHref("/analytics");
   if (workspace === "reports") return mapSafePredictOperationHref("/reports");
   return "/safe-predict/settings";
@@ -1087,7 +1087,7 @@ function buildRows({
 
   if (workspace === "permits") {
     const rows = scoped.permits.filter((row) => textMatches([row.type, row.status, row.owner]) && statusMatches(row.status) && riskMatches(row.riskLevel));
-    return table("Permit Register", ["Permit", "Jobsite", "Status", "Owner", "Expires", "Risk"], rows.map((row) => [row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.riskLevel]), rows.map(() => ({ label: "Renew", href: mapSafePredictOperationHref("/permits") })), rows);
+    return table("Permit Register", ["Permit", "Jobsite", "Status", "Owner", "Expires", "Risk"], rows.map((row) => [row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.riskLevel]), rows.map((row) => ({ label: "Renew", href: mapSafePredictSurfaceHref(`/permits?jobsiteId=${encodeURIComponent(row.siteId)}`) })), rows);
   }
 
   if (workspace === "analytics") {

@@ -25,7 +25,11 @@ describe("safePredictRouteMap", () => {
   it("keeps direct admin surfaces available but maps SafePredict surfaces to the beta shell", () => {
     expect(mapSafePredictOperationHref("/company-integrations")).toBe("/company-integrations");
     expect(mapSafePredictOperationHref("/company-users")).toBe("/company-users");
+    expect(mapSafePredictOperationHref("/permits")).toBe("/safe-predict/permits");
     expect(mapSafePredictSurfaceHref("/company-integrations")).toBe("/safe-predict/apps-integrations");
     expect(mapSafePredictSurfaceHref("/company-users")).toBe("/safe-predict/team-access");
+    expect(mapSafePredictSurfaceHref("/permits?jobsiteId=abc&jsaActivityId=step-1")).toBe(
+      "/safe-predict/permit-center?jobsiteId=abc&jsaActivityId=step-1"
+    );
   });
 });

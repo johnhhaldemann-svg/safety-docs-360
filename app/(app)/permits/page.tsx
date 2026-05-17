@@ -244,9 +244,13 @@ export default function PermitsPage() {
 
   useEffect(() => {
     const jsaActivityId = searchParams.get("jsaActivityId")?.trim() ?? "";
+    const jobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
+    const observationId = searchParams.get("observationId")?.trim() ?? "";
     setForm((current) => ({
       ...current,
       ...(jsaActivityId ? { jsaActivityId } : {}),
+      ...(jobsiteId ? { jobsiteId } : {}),
+      ...(observationId ? { observationId } : {}),
     }));
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps

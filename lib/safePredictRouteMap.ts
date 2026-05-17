@@ -27,6 +27,7 @@ const nativeOperationRouteMap: Record<string, string> = {
 const nativeSurfaceRouteMap: Record<string, string> = {
   "/company-integrations": "/safe-predict/apps-integrations",
   "/company-users": "/safe-predict/team-access",
+  "/permits": "/safe-predict/permit-center",
 };
 
 function splitHref(href: string) {
@@ -39,6 +40,12 @@ function appendContext(route: string, query: string, hash: string) {
   const params = new URLSearchParams(query);
   const context = params.get("jobsiteId") || params.get("siteId");
   const nextQuery = context ? `?jobsiteId=${encodeURIComponent(context)}` : "";
+  const nextHash = hash ? `#${hash}` : "";
+  return `${route}${nextQuery}${nextHash}`;
+}
+
+function appendQueryAndHash(route: string, query: string, hash: string) {
+  const nextQuery = query ? `?${query}` : "";
   const nextHash = hash ? `#${hash}` : "";
   return `${route}${nextQuery}${nextHash}`;
 }
@@ -64,15 +71,15 @@ export function mapSafePredictOperationHref(href: string) {
 }
 
 export function mapSafePredictSurfaceHref(href: string) {
-  const operationHref = mapSafePredictOperationHref(href);
-  if (operationHref !== href) {
-    return operationHref;
-  }
-
   const { path, query, hash } = splitHref(href);
   const direct = nativeSurfaceRouteMap[path];
   if (direct) {
-    return appendContext(direct, query, hash);
+    return appendQueryAndHash(direct, query, hash);
+  }
+
+  const operationHref = mapSafePredictOperationHref(href);
+  if (operationHref !== href) {
+    return operationHref;
   }
 
   return href;

@@ -62,6 +62,19 @@ function createRbacClient(params: {
           };
         }
 
+        if (table === "company_subscriptions") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: null,
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+
         throw new Error(`Unexpected table ${table}`);
       },
     },

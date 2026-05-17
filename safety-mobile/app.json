@@ -8,7 +8,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.safety360docs.field",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Safety360 Field uses the camera to attach field evidence photos to JSAs, audits, and field reports.",
+        "NSPhotoLibraryUsageDescription": "Safety360 Field can attach existing photos as evidence for field safety records.",
+        "NSLocationWhenInUseUsageDescription": "Safety360 Field may use location to support jobsite context for field safety records."
+      }
     },
     "android": {
       "package": "com.safety360docs.field",

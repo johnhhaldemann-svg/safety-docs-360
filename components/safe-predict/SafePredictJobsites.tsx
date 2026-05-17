@@ -497,7 +497,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           title="Permits"
           rows={sitePermits.map((permit) => [permit.type, permit.status, permit.owner, permit.expiresAt, permit.riskLevel])}
           headers={["Permit", "Status", "Owner", "Expires", "Risk", "Action"]}
-          actions={sitePermits.map(() => ({ label: "Renew", href: `/safe-predict/permits?jobsiteId=${encodeURIComponent(site.id)}` }))}
+          actions={sitePermits.map(() => ({ label: "Renew", href: `/safe-predict/permit-center?jobsiteId=${encodeURIComponent(site.id)}` }))}
         />
       ) : null}
 

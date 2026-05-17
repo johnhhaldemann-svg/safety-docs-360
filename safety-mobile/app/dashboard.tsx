@@ -88,6 +88,8 @@ export default function DashboardScreen() {
         <MetricTile label="Active JSAs" value={data.dashboard.activeJsas} />
         <MetricTile label="Recent Audits" value={data.dashboard.recentAudits} />
         <MetricTile label="Pending Review" value={data.dashboard.pendingAuditReviews ?? 0} tone={(data.dashboard.pendingAuditReviews ?? 0) > 0 ? "warning" : "success"} />
+        <MetricTile label="Permit Requests" value={data.dashboard.draftPermits ?? 0} tone={(data.dashboard.draftPermits ?? 0) > 0 ? "warning" : "neutral"} />
+        <MetricTile label="Incident Reviews" value={data.dashboard.pendingIncidentReviews ?? 0} tone={(data.dashboard.pendingIncidentReviews ?? 0) > 0 ? "warning" : "neutral"} />
       </View>
 
       <SectionHeader title="Start Work" detail={`${data.dashboard.assignedJobsites} assigned jobsite${data.dashboard.assignedJobsites === 1 ? "" : "s"}`} />
@@ -101,6 +103,18 @@ export default function DashboardScreen() {
         {featureEnabled(data.features, "mobile_field_audits") ? (
           <ModuleCard title="Start Audit" detail="Trade checklist, evidence, hours billed, and admin review." tone="success" iconName="clipboard-outline" onPress={() => router.push("/audits/new")} />
         ) : null}
+        {featureEnabled(data.features, "mobile_permits") ? (
+          <ModuleCard title="Request Permit" detail="Submit hot work, LOTO, excavation, confined space, or lift permits for review." iconName="construct-outline" onPress={() => router.push("/permits/new")} />
+        ) : null}
+        {featureEnabled(data.features, "mobile_incidents") ? (
+          <ModuleCard title="Report Incident" detail="Capture incident or near-miss details for manager review." tone="danger" iconName="medical-outline" onPress={() => router.push("/incidents/new")} />
+        ) : null}
+        {featureEnabled(data.features, "mobile_toolbox") ? (
+          <ModuleCard title="Toolbox Talk" detail="Start a toolbox session and collect attendee signoff notes." tone="neutral" iconName="chatbubbles-outline" onPress={() => router.push("/toolbox/new")} />
+        ) : null}
+        {featureEnabled(data.features, "mobile_safety_intelligence") ? (
+          <ModuleCard title="Safety Intelligence" detail="Generate a daily risk briefing or pre-task checklist." tone="neutral" iconName="bulb-outline" onPress={() => router.push("/safety-intelligence")} />
+        ) : null}
       </View>
 
       <SectionHeader title="Review Records" />
@@ -108,6 +122,13 @@ export default function DashboardScreen() {
         {featureEnabled(data.features, "mobile_jsa") ? <ModuleCard title="JSA Register" detail="Review submitted and active JSAs." tone="neutral" iconName="list-outline" onPress={() => router.push("/jsa")} /> : null}
         {featureEnabled(data.features, "mobile_field_issues") ? <ModuleCard title="Field Issue Register" detail="View open field issues and corrective actions." tone="neutral" iconName="warning-outline" onPress={() => router.push("/field-issues")} /> : null}
         {featureEnabled(data.features, "mobile_field_audits") ? <ModuleCard title="Audit Register" detail="Review audit submissions and status." tone="neutral" iconName="reader-outline" onPress={() => router.push("/audits")} /> : null}
+        {featureEnabled(data.features, "mobile_permits") ? <ModuleCard title="Permit Register" detail="Review draft, active, closed, and expired permits." tone="neutral" iconName="construct-outline" onPress={() => router.push("/permits")} /> : null}
+        {featureEnabled(data.features, "mobile_incidents") ? <ModuleCard title="Incident Register" detail="Review submitted incidents and near misses." tone="neutral" iconName="medkit-outline" onPress={() => router.push("/incidents")} /> : null}
+        {featureEnabled(data.features, "mobile_toolbox") ? <ModuleCard title="Toolbox Register" detail="Review jobsite toolbox sessions." tone="neutral" iconName="chatbox-ellipses-outline" onPress={() => router.push("/toolbox")} /> : null}
+        {featureEnabled(data.features, "mobile_training") ? <ModuleCard title="Training Readiness" detail="Check crew readiness and training gaps." tone="neutral" iconName="school-outline" onPress={() => router.push("/training")} /> : null}
+        {featureEnabled(data.features, "mobile_documents") ? <ModuleCard title="Documents" detail="Open approved field documents." tone="neutral" iconName="folder-open-outline" onPress={() => router.push("/documents")} /> : null}
+        {featureEnabled(data.features, "mobile_reports") ? <ModuleCard title="Reports" detail="Open published field reports." tone="neutral" iconName="document-attach-outline" onPress={() => router.push("/reports")} /> : null}
+        {featureEnabled(data.features, "mobile_jobsites") ? <ModuleCard title="Jobsites" detail="Review assigned jobsites and customer context." tone="neutral" iconName="location-outline" onPress={() => router.push("/jobsites")} /> : null}
         <ModuleCard title="Profile" detail="Account, role, and permissions." tone="neutral" iconName="person-circle-outline" onPress={() => router.push("/profile")} />
       </View>
 

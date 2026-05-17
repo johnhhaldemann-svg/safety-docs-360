@@ -33,6 +33,7 @@
 
 # misc
 .cursor/
+.codex_tmp/
 .DS_Store
 *.pem
 .npm-cache/

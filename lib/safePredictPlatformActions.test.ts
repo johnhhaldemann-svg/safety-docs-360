@@ -27,7 +27,7 @@ describe("safePredictPlatformActions", () => {
   });
 
   it("searches action labels, routes, and section names", () => {
-    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "permits").map((action) => action.href)).toContain("/safe-predict/permits");
+    expect(filterSafePredictPlatformActions(safePredictPlatformActions, "permits").map((action) => action.href)).toContain("/safe-predict/permit-center");
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "apps").map((action) => action.href)).toContain("/safe-predict/apps-integrations");
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "team").map((action) => action.href)).toContain("/safe-predict/team-access");
     expect(filterSafePredictPlatformActions(safePredictPlatformActions, "superadmin").length).toBeGreaterThan(0);

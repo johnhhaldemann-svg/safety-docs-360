@@ -65,6 +65,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".codex_tmp/**",
     ".codex-prod-deploy/**",
     "dist-electron-out/**",
     "out/**",

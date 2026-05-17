@@ -462,7 +462,7 @@ export default function SafePredictWorkforcePage() {
           <SectionTitle title="Recommended Next Steps" />
           <div className="mt-4 space-y-2">
             <NextStepRow href="/safe-predict/training" title="Address 28 overdue training items" detail="Focus on LOTO and Fall Protection." tone="critical" icon={<AlertCircle className="h-5 w-5" />} />
-            <NextStepRow href="/safe-predict/permits" title="Renew 11 expiring permits" detail="Confined Space and Hot Work expiring soon." tone="medium" icon={<Clock className="h-5 w-5" />} />
+            <NextStepRow href="/safe-predict/permit-center" title="Renew 11 expiring permits" detail="Confined Space and Hot Work expiring soon." tone="medium" icon={<Clock className="h-5 w-5" />} />
             <NextStepRow href="/safe-predict/training" title="Schedule refresher training" detail="First Aid and HazCom for 63 workers." tone="blue" icon={<Users className="h-5 w-5" />} />
             <NextStepRow href="/safe-predict/risk-mitigation" title="Reinforce pre-task planning" detail="Include permit and training verification." tone="low" icon={<ShieldCheck className="h-5 w-5" />} />
           </div>

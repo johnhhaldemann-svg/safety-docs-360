@@ -29,6 +29,7 @@ export const PUBLIC_ROUTES = [
   "/safe-predict/jobsites",
   `/safe-predict/jobsites/${E2E_PLACEHOLDER_UUID}`,
   "/safe-predict/observations",
+  "/safe-predict/permit-center",
   "/safe-predict/permits",
   "/safe-predict/platform-actions",
   "/safe-predict/predictive-risk",

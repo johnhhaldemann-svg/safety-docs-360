@@ -26,6 +26,17 @@ export default function RootLayout() {
         <Stack.Screen name="field-issues/new" options={{ title: "New Field Issue" }} />
         <Stack.Screen name="audits/index" options={{ title: "Audits" }} />
         <Stack.Screen name="audits/new" options={{ title: "New Audit" }} />
+        <Stack.Screen name="permits/index" options={{ title: "Permits" }} />
+        <Stack.Screen name="permits/new" options={{ title: "New Permit Request" }} />
+        <Stack.Screen name="incidents/index" options={{ title: "Incidents" }} />
+        <Stack.Screen name="incidents/new" options={{ title: "New Incident Report" }} />
+        <Stack.Screen name="toolbox/index" options={{ title: "Toolbox Talks" }} />
+        <Stack.Screen name="toolbox/new" options={{ title: "New Toolbox Talk" }} />
+        <Stack.Screen name="training/index" options={{ title: "Training" }} />
+        <Stack.Screen name="documents/index" options={{ title: "Documents" }} />
+        <Stack.Screen name="reports/index" options={{ title: "Reports" }} />
+        <Stack.Screen name="safety-intelligence/index" options={{ title: "Safety Intelligence" }} />
+        <Stack.Screen name="jobsites/index" options={{ title: "Jobsites" }} />
       </Stack>
     </QueryClientProvider>
   );

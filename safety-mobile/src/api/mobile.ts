@@ -118,3 +118,78 @@ export async function signAudit(id: string, signatureText: string) {
 export async function uploadAuditPhoto(id: string, photo: MobilePhoto) {
   return uploadPhoto(`/audits/${id}/photos`, photo);
 }
+
+export async function listPermits() {
+  const { data } = await api.get("/permits");
+  return data.permits ?? [];
+}
+
+export async function createPermitRequest(body: Record<string, unknown>) {
+  const { data } = await api.post("/permits", body);
+  return data;
+}
+
+export async function listIncidentReports() {
+  const { data } = await api.get("/incidents");
+  return data.incidents ?? [];
+}
+
+export async function createIncidentReport(body: Record<string, unknown>) {
+  const { data } = await api.post("/incidents", body);
+  return data;
+}
+
+export async function getToolboxTemplates() {
+  const { data } = await api.get("/toolbox/templates");
+  return data.templates ?? [];
+}
+
+export async function listToolboxSessions(jobsiteId: string) {
+  const { data } = await api.get("/toolbox/sessions", { params: { jobsiteId } });
+  return data.sessions ?? [];
+}
+
+export async function createToolboxSession(body: Record<string, unknown>) {
+  const { data } = await api.post("/toolbox/sessions", body);
+  return data;
+}
+
+export async function addToolboxAttendee(sessionId: string, body: Record<string, unknown>) {
+  const { data } = await api.post(`/toolbox/sessions/${sessionId}/attendees`, body);
+  return data;
+}
+
+export async function listTrainingReadiness(params?: Record<string, string | undefined>) {
+  const { data } = await api.get("/training/readiness", { params });
+  return data;
+}
+
+export async function listDocuments() {
+  const { data } = await api.get("/documents");
+  return data.documents ?? [];
+}
+
+export async function getDocumentLink(documentId: string) {
+  const { data } = await api.post("/documents", { documentId });
+  return data as { signedUrl: string };
+}
+
+export async function listReports() {
+  const { data } = await api.get("/reports");
+  return data.reports ?? [];
+}
+
+export async function getReportLink(filePath: string) {
+  const { data } = await api.post("/reports", { filePath });
+  return data as { signedUrl: string };
+}
+
+export async function getSafetyBriefing(input: Record<string, unknown>) {
+  const { data } = await api.post("/safety-intelligence/briefing", { input });
+  return data;
+}
+
+export async function getPreTaskChecklist(input: Record<string, unknown>) {
+  const { data } = await api.post("/safety-intelligence/pre-task-checklist", { input });
+  return data;
+}
