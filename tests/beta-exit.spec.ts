@@ -159,6 +159,10 @@ test.describe("Beta exit field and security checks", () => {
       headers,
       data: { limit: 10, offset: 0, prefix: "" },
     });
-    expect([400, 401, 403]).toContain(storageResponse.status());
+    if (storageResponse.status() === 200) {
+      await expect(storageResponse.json()).resolves.toEqual([]);
+    } else {
+      expect([400, 401, 403]).toContain(storageResponse.status());
+    }
   });
 });

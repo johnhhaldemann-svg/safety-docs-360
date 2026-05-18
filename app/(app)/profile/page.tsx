@@ -377,11 +377,16 @@ export default function ProfilePage() {
       throw new Error(uploadResult.error.message || "Failed to upload profile picture.");
     }
 
-    const publicUrl = supabase.storage.from("profile-photos").getPublicUrl(nextPhotoPath).data
-      .publicUrl;
+    const signedResult = await supabase.storage
+      .from("profile-photos")
+      .createSignedUrl(nextPhotoPath, 60 * 60);
+
+    if (signedResult.error || !signedResult.data?.signedUrl) {
+      throw new Error(signedResult.error?.message || "Failed to prepare profile picture preview.");
+    }
 
     return {
-      nextPhotoUrl: `${publicUrl}?v=${photoFile.lastModified}`,
+      nextPhotoUrl: signedResult.data.signedUrl,
       nextPhotoPath,
     };
   }

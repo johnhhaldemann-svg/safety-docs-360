@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest } from "@/lib/rbac";
 import { isAdminRole, isCompanyAdminRole } from "@/lib/rbac";
@@ -141,7 +142,25 @@ function isProfileComplete(profile: {
   );
 }
 
-function serializeProfile(profile: ProfileRow | null, fallbackFullName: string) {
+async function signedProfilePhotoUrl(
+  supabase: SupabaseClient,
+  profile: ProfileRow | null
+) {
+  const photoPath = profile?.photo_path?.trim();
+  if (!photoPath) return profile?.photo_url?.trim() || "";
+
+  const { data, error } = await supabase.storage
+    .from("profile-photos")
+    .createSignedUrl(photoPath, 60 * 60);
+
+  return error ? profile?.photo_url?.trim() || "" : data?.signedUrl || "";
+}
+
+function serializeProfile(
+  profile: ProfileRow | null,
+  fallbackFullName: string,
+  signedPhotoUrl?: string
+) {
   return {
     userId: profile?.user_id ?? "",
     fullName: profile?.full_name?.trim() || fallbackFullName,
@@ -160,7 +179,7 @@ function serializeProfile(profile: ProfileRow | null, fallbackFullName: string) 
     specialties: profile?.specialties ?? [],
     equipment: profile?.equipment ?? [],
     bio: profile?.bio?.trim() || "",
-    photoUrl: profile?.photo_url?.trim() || "",
+    photoUrl: signedPhotoUrl ?? profile?.photo_url?.trim() ?? "",
     photoPath: profile?.photo_path?.trim() || "",
     profileComplete: Boolean(profile?.profile_complete),
   };
@@ -288,10 +307,17 @@ export async function GET(request: Request) {
     );
   }
 
+  const profile = (data as ProfileRow | null) ?? null;
+  const signedPhotoUrl = await signedProfilePhotoUrl(
+    adminClient ?? auth.supabase,
+    profile
+  );
+
   return NextResponse.json({
     profile: serializeProfile(
-      (data as ProfileRow | null) ?? null,
-      targetAuthUser ? getFallbackFullName(targetAuthUser) : ""
+      profile,
+      targetAuthUser ? getFallbackFullName(targetAuthUser) : "",
+      signedPhotoUrl
     ),
     targetUser: {
       id: targetAccess.targetUserId,
@@ -354,8 +380,9 @@ export async function PATCH(request: Request) {
   );
   const specialties = normalizeList(body?.specialties, 20);
   const equipment = normalizeList(body?.equipment, 20);
-  const photoUrl = typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";
   const photoPath = typeof body?.photoPath === "string" ? body.photoPath.trim() : "";
+  const photoUrl =
+    photoPath ? "" : typeof body?.photoUrl === "string" ? body.photoUrl.trim() : "";
 
   const profileComplete = isProfileComplete({
     fullName,
@@ -423,11 +450,18 @@ export async function PATCH(request: Request) {
     });
   }
 
+  const savedProfile = (data as ProfileRow | null) ?? null;
+  const signedPhotoUrl = await signedProfilePhotoUrl(
+    adminClient ?? auth.supabase,
+    savedProfile
+  );
+
   return NextResponse.json({
     success: true,
     profile: serializeProfile(
-      (data as ProfileRow | null) ?? null,
-      targetAuthUser ? getFallbackFullName(targetAuthUser) : ""
+      savedProfile,
+      targetAuthUser ? getFallbackFullName(targetAuthUser) : "",
+      signedPhotoUrl
     ),
     message: profileComplete
       ? targetAccess.managed

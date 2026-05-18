@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
 import {
   authorizeRequest,
@@ -429,6 +429,20 @@ function getFallbackFullName(user: {
   return metadataFullName.trim() || user.email?.split("@")[0] || "";
 }
 
+async function signedProfilePhotoUrl(params: {
+  storageClient: SupabaseClient;
+  profile: UserProfileRow | null;
+}) {
+  const photoPath = params.profile?.photo_path?.trim();
+  if (!photoPath) return params.profile?.photo_url?.trim() || "";
+
+  const { data, error } = await params.storageClient.storage
+    .from("profile-photos")
+    .createSignedUrl(photoPath, 60 * 60);
+
+  return error ? params.profile?.photo_url?.trim() || "" : data?.signedUrl || "";
+}
+
 export async function GET(request: Request) {
   try {
     return await handleAuthMeGet(request);
@@ -616,6 +630,10 @@ async function handleAuthMeGet(request: Request) {
   const userProfile = !userProfileResult.error
     ? ((userProfileResult.data as UserProfileRow | null) ?? null)
     : null;
+  const profilePhotoUrl = await signedProfilePhotoUrl({
+    storageClient: adminClient ?? auth.supabase,
+    profile: userProfile,
+  });
   const fallbackFullName = getFallbackFullName(auth.user);
   const effectiveAccountStatus =
     pendingCompanySignupRequest && refreshedRoleContext.accountStatus === "active"
@@ -701,7 +719,7 @@ async function handleAuthMeGet(request: Request) {
         specialties: userProfile?.specialties ?? [],
         equipment: userProfile?.equipment ?? [],
         bio: userProfile?.bio?.trim() || "",
-        photoUrl: userProfile?.photo_url?.trim() || "",
+        photoUrl: profilePhotoUrl,
         photoPath: userProfile?.photo_path?.trim() || "",
       },
       profileComplete: Boolean(userProfile?.profile_complete),
