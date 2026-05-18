@@ -3,12 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
   Bell,
   Building2,
+  ChevronDown,
   ClipboardCheck,
   Eye,
   FileText,
@@ -25,29 +26,103 @@ import {
   Users,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-const navItems = [
-  { href: "/safe-predict", label: "Dashboard", icon: Home },
-  { href: "/safe-predict/jobsites", label: "Jobsites", icon: Building2 },
-  { href: "/safe-predict/predictive-risk", label: "Predictive Risk", icon: BarChart3 },
-  { href: "/safe-predict/risk-mitigation", label: "Risk Mitigation", icon: ShieldCheck },
-  { href: "/safe-predict/incidents", label: "Incidents", icon: AlertTriangle },
-  { href: "/safe-predict/observations", label: "Observations", icon: Eye },
-  { href: "/safe-predict/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck },
-  { href: "/safe-predict/inspections", label: "Jobsite Audits", icon: Search },
-  { href: "/safe-predict/hazards", label: "Hazards", icon: TriangleAlert },
-  { href: "/safe-predict/team-access", label: "Team Access", icon: Users },
-  { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
-  { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
-  { href: "/safe-predict/permits", label: "Permits", icon: FileText },
-  { href: "/safe-predict/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/safe-predict/reports", label: "Reports", icon: BarChart3 },
-  { href: "/safe-predict/apps-integrations", label: "Apps", icon: LayoutGrid },
-  { href: "/safe-predict/platform-actions", label: "Platform Actions", icon: LayoutGrid },
-  { href: "/safe-predict/settings", label: "Settings", icon: Settings },
-] as const;
+type NavChild = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: NavChild[];
+};
+
+const navGroups: NavGroup[] = [
+  {
+    id: "command-center",
+    label: "Command Center",
+    icon: Home,
+    items: [{ href: "/safe-predict", label: "Executive Overview", icon: Home }],
+  },
+  {
+    id: "sites-operations",
+    label: "Sites & Operations",
+    icon: Building2,
+    items: [
+      { href: "/safe-predict/jobsites", label: "Jobsites", icon: Building2 },
+      { href: "/safe-predict/inspections", label: "Jobsite Audits", icon: Search },
+    ],
+  },
+  {
+    id: "risk-intelligence",
+    label: "Risk Intelligence",
+    icon: BarChart3,
+    items: [
+      { href: "/safe-predict/predictive-risk", label: "Predictive Risk", icon: BarChart3 },
+      { href: "/safe-predict/risk-mitigation", label: "Risk Mitigation", icon: ShieldCheck },
+      { href: "/safe-predict/hazards", label: "Hazards", icon: TriangleAlert },
+    ],
+  },
+  {
+    id: "safety-management",
+    label: "Safety Management",
+    icon: AlertTriangle,
+    items: [
+      { href: "/safe-predict/incidents", label: "Incidents", icon: AlertTriangle },
+      { href: "/safe-predict/observations", label: "Observations", icon: Eye },
+      { href: "/safe-predict/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck },
+    ],
+  },
+  {
+    id: "compliance-assurance",
+    label: "Compliance & Assurance",
+    icon: ClipboardCheck,
+    items: [
+      { href: "/safe-predict/permits", label: "Permits", icon: FileText },
+      { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
+    ],
+  },
+  {
+    id: "document-control",
+    label: "Document Control",
+    icon: FileText,
+    items: [{ href: "/library", label: "Document Library", icon: FileText }],
+  },
+  {
+    id: "workforce-access",
+    label: "Workforce & Access",
+    icon: Users,
+    items: [
+      { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
+      { href: "/safe-predict/team-access", label: "Team Access", icon: Users },
+    ],
+  },
+  {
+    id: "insights-reporting",
+    label: "Insights & Reporting",
+    icon: BarChart3,
+    items: [
+      { href: "/safe-predict/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/safe-predict/reports", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    id: "platform-administration",
+    label: "Platform Administration",
+    icon: LayoutGrid,
+    items: [
+      { href: "/safe-predict/apps-integrations", label: "Apps & Integrations", icon: LayoutGrid },
+      { href: "/safe-predict/platform-actions", label: "Platform Actions", icon: LayoutGrid },
+      { href: "/safe-predict/settings", label: "Settings", icon: Settings },
+    ],
+  },
+];
 
 type AuthMeResponse = {
   user?: {
@@ -65,6 +140,10 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function isActive(pathname: string, href: string) {
   if (href === "/safe-predict") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getActiveNavGroupId(pathname: string, groups: NavGroup[]) {
+  return groups.find((group) => group.items.some((item) => isActive(pathname, item.href)))?.id ?? null;
 }
 
 function Safety360DocsLockup({
@@ -119,8 +198,35 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState("");
+  const [expandedNavState, setExpandedNavState] = useState(() => ({
+    pathname,
+    groupId: getActiveNavGroupId(pathname, navGroups) ?? navGroups[0]?.id ?? "",
+  }));
   const { dataset } = useSafePredictData();
   const elevatedSiteCount = dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length;
+
+  const visibleNavGroups = useMemo(() => {
+    const platformItems: NavChild[] = [
+      ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+      ...(viewerRole === "super_admin" ? [{ href: "/superadmin", label: "Superadmin", icon: LayoutGrid }] : []),
+    ];
+
+    if (platformItems.length === 0) {
+      return navGroups;
+    }
+
+    return navGroups.map((group) =>
+      group.id === "platform-administration"
+        ? { ...group, items: [...group.items, ...platformItems] }
+        : group
+    );
+  }, [canAccessInternalAdmin, viewerRole]);
+
+  const activeGroupId = getActiveNavGroupId(pathname, visibleNavGroups);
+  const expandedGroupId =
+    expandedNavState.pathname === pathname
+      ? expandedNavState.groupId
+      : activeGroupId ?? visibleNavGroups[0]?.id ?? "";
 
   useEffect(() => {
     let cancelled = false;
@@ -159,24 +265,86 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
 
   const navList = (
     <div className="space-y-1">
-      {[...navItems, ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck } as const] : []), ...(viewerRole === "super_admin" ? [{ href: "/superadmin", label: "Superadmin", icon: LayoutGrid } as const] : [])].map((item) => {
-        const active = isActive(pathname, item.href);
-        const Icon = item.icon;
+      {visibleNavGroups.map((group) => {
+        const groupActive = group.items.some((item) => isActive(pathname, item.href));
+        const groupExpanded = expandedGroupId === group.id;
+        const GroupIcon = group.icon;
+        const sectionContentId = `safe-predict-nav-section-${group.id}`;
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setMobileMenuOpen(false)}
-            className={cx(
-              "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-bold transition",
-              active
-                ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_12px_22px_rgba(37,99,235,0.28)]"
-                : "text-slate-200/86 hover:bg-white/8 hover:text-white"
-            )}
-          >
-            <Icon className="h-5 w-5 shrink-0" strokeWidth={2.2} aria-hidden />
-            <span>{item.label}</span>
-          </Link>
+          <div key={group.id}>
+            <button
+              type="button"
+              aria-expanded={groupExpanded}
+              aria-controls={sectionContentId}
+              onClick={() =>
+                setExpandedNavState((current) => ({
+                  pathname,
+                  groupId: current.pathname === pathname && current.groupId === group.id && !groupActive ? "" : group.id,
+                }))
+              }
+              className={cx(
+                "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-[13px] font-black transition",
+                groupActive
+                  ? "bg-white/[0.095] text-white ring-1 ring-white/10"
+                  : groupExpanded
+                    ? "bg-white/[0.065] text-white"
+                    : "text-slate-200/82 hover:bg-white/8 hover:text-white"
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className={cx(
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.055] text-blue-100/76 transition",
+                    groupActive && "border-blue-300/30 bg-blue-400/16 text-blue-100"
+                  )}
+                  aria-hidden
+                >
+                  <GroupIcon className="h-4 w-4" strokeWidth={2.3} />
+                </span>
+                <span className="truncate">{group.label}</span>
+              </span>
+              <ChevronDown
+                className={cx("h-4 w-4 shrink-0 text-slate-300 transition-transform", groupExpanded && "rotate-180 text-white")}
+                strokeWidth={2.4}
+                aria-hidden
+              />
+            </button>
+            <div
+              id={sectionContentId}
+              className={cx(
+                "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
+                groupExpanded ? "mt-1 grid-rows-[1fr] opacity-100" : "mt-0 grid-rows-[0fr] opacity-0"
+              )}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="ml-6 space-y-0.5 border-l border-white/10 py-1 pl-2">
+                  {group.items.map((item) => {
+                    const active = isActive(pathname, item.href);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={`${group.id}-${item.href}`}
+                        href={item.href}
+                        onClick={() => {
+                          setExpandedNavState({ pathname, groupId: group.id });
+                          setMobileMenuOpen(false);
+                        }}
+                        className={cx(
+                          "flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold transition",
+                          active
+                            ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_18px_rgba(37,99,235,0.22)]"
+                            : "text-slate-200/76 hover:bg-white/8 hover:text-white"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         );
       })}
     </div>
