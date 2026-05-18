@@ -54,6 +54,21 @@ function statusClasses(status: CyberSecurityStatus) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
+function reviewRank(status: CyberSecurityStatus) {
+  if (status === "critical") return 0;
+  if (status === "warning") return 1;
+  if (status === "unknown") return 2;
+  return 3;
+}
+
+function categoryLabel(category: CyberSecurityCheck["category"]) {
+  if (category === "website") return "Website";
+  if (category === "headers") return "Headers";
+  if (category === "telemetry") return "Telemetry";
+  if (category === "access") return "Access";
+  return "Compliance";
+}
+
 function StatusIconMark({
   status,
   className,
@@ -157,6 +172,57 @@ function MetricTile({
   );
 }
 
+function ReviewFindingsPanel({ findings }: { findings: CyberSecurityCheck[] }) {
+  return (
+    <section className="space-y-4">
+      <SectionHeader
+        eyebrow="Review Queue"
+        title="Items Needing Review"
+        description="Active critical, review, or unknown checks from the current cyber monitor run."
+      />
+      {findings.length > 0 ? (
+        <ul className="grid gap-3 xl:grid-cols-2">
+          {findings.map((item) => (
+            <li
+              key={`${item.category}-${item.id}`}
+              className="rounded-lg border border-[var(--app-border)] bg-white p-4 shadow-[0_10px_22px_rgba(44,58,86,0.055)]"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">
+                    {categoryLabel(item.category)}
+                  </p>
+                  <p className="mt-1 font-semibold text-[var(--app-text-strong)]">
+                    {item.label}
+                  </p>
+                </div>
+                <StatusPill status={item.status} />
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--app-text)]">
+                {item.message}
+              </p>
+              {item.evidence ? (
+                <p className="mt-2 break-words font-mono text-xs text-[var(--app-muted)]">
+                  {item.evidence}
+                </p>
+              ) : null}
+              {item.recommendedAction ? (
+                <p className="mt-3 text-xs font-semibold text-amber-900">
+                  {item.recommendedAction}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+          No active cyber monitor findings need review.
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CheckRow({ item }: { item: CyberSecurityCheck }) {
   return (
     <li className="rounded-lg border border-[var(--app-border)] bg-white px-4 py-3 shadow-[0_8px_18px_rgba(44,58,86,0.045)]">
@@ -248,6 +314,18 @@ export default function SuperadminCyberSecurityPage() {
     [payload?.website.headers]
   );
   const recentEvents = payload?.telemetry.recentEvents ?? [];
+  const reviewFindings = useMemo(() => {
+    if (!payload) return [];
+    return [
+      ...payload.website.checks,
+      ...payload.website.headers,
+      ...payload.telemetry.checks,
+      ...payload.compliance.checks,
+      ...payload.controlGroups,
+    ]
+      .filter((item) => item.status !== "healthy")
+      .sort((a, b) => reviewRank(a.status) - reviewRank(b.status));
+  }, [payload]);
 
   return (
     <div className="space-y-8">
@@ -328,6 +406,8 @@ export default function SuperadminCyberSecurityPage() {
               icon={FileCheck2}
             />
           </section>
+
+          <ReviewFindingsPanel findings={reviewFindings} />
 
           <section className="space-y-4">
             <SectionHeader
