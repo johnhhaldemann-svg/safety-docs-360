@@ -326,6 +326,7 @@ export default function CompanyUsersPage() {
   const [trackedEmployeeForm, setTrackedEmployeeForm] = useState<TrackedEmployeeForm>(
     emptyTrackedEmployeeForm
   );
+  const [editingTrackedEmployee, setEditingTrackedEmployee] = useState<TrackedEmployee | null>(null);
   const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
 
   async function getAccessToken() {
@@ -910,6 +911,27 @@ export default function CompanyUsersPage() {
     setInviteLoading(false);
   }
 
+  function openTrackedEmployeeEditor(employee: TrackedEmployee) {
+    setEditingTrackedEmployee(employee);
+    setTrackedEmployeeForm({
+      employee_id: employee.external_employee_id ?? "",
+      full_name: employee.full_name ?? "",
+      email: employee.email ?? "",
+      job_title: employee.job_title ?? "",
+      trade_specialty: employee.trade_specialty ?? "",
+      readiness_status: employee.readiness_status ?? "ready",
+      status: employee.status ?? "active",
+      certifications: "",
+    });
+    setTrackedRosterMessage("");
+    setTrackedRosterMessageTone("neutral");
+  }
+
+  function resetTrackedEmployeeEditor() {
+    setEditingTrackedEmployee(null);
+    setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+  }
+
   async function handleSaveTrackedEmployee() {
     if (!trackedEmployeeForm.full_name.trim()) {
       setTrackedRosterMessageTone("warning");
@@ -923,30 +945,42 @@ export default function CompanyUsersPage() {
 
     try {
       if (demoMode) {
-        setTrackedEmployees((current) => [
-          {
-            id: `demo-tracked-${Date.now()}`,
-            external_employee_id: trackedEmployeeForm.employee_id || null,
-            full_name: trackedEmployeeForm.full_name,
-            email: trackedEmployeeForm.email || null,
-            job_title: trackedEmployeeForm.job_title || null,
-            trade_specialty: trackedEmployeeForm.trade_specialty || null,
-            readiness_status: trackedEmployeeForm.readiness_status,
-            status: trackedEmployeeForm.status,
-            trainingRecords: [],
-          },
-          ...current,
-        ]);
-        setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+        const nextEmployee = {
+          id: editingTrackedEmployee?.id ?? `demo-tracked-${Date.now()}`,
+          external_employee_id: trackedEmployeeForm.employee_id || null,
+          full_name: trackedEmployeeForm.full_name,
+          email: trackedEmployeeForm.email || null,
+          job_title: trackedEmployeeForm.job_title || null,
+          trade_specialty: trackedEmployeeForm.trade_specialty || null,
+          readiness_status: trackedEmployeeForm.readiness_status,
+          status: trackedEmployeeForm.status,
+          trainingRecords: editingTrackedEmployee?.trainingRecords ?? [],
+        };
+        setTrackedEmployees((current) =>
+          editingTrackedEmployee
+            ? current.map((employee) =>
+                employee.id === editingTrackedEmployee.id ? nextEmployee : employee
+              )
+            : [nextEmployee, ...current]
+        );
+        resetTrackedEmployeeEditor();
         setTrackedRosterMessageTone("success");
-        setTrackedRosterMessage("Demo training-only person added locally for this session.");
+        setTrackedRosterMessage(
+          editingTrackedEmployee
+            ? "Demo training-only person updated locally for this session."
+            : "Demo training-only person added locally for this session."
+        );
         setTrackedEmployeeSaving(false);
         return;
       }
 
       const token = await getAccessToken();
-      const response = await fetch("/api/company/tracked-employees", {
-        method: "POST",
+      const response = await fetch(
+        editingTrackedEmployee
+          ? `/api/company/tracked-employees/${editingTrackedEmployee.id}`
+          : "/api/company/tracked-employees",
+        {
+        method: editingTrackedEmployee ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -962,22 +996,31 @@ export default function CompanyUsersPage() {
         setTrackedRosterMessage(
           data?.error ||
             data?.rowErrors?.[0]?.message ||
-            "Failed to add training-only person."
+            (editingTrackedEmployee
+              ? "Failed to update training-only person."
+              : "Failed to add training-only person.")
         );
         setTrackedEmployeeSaving(false);
         return;
       }
 
-      setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+      const wasEditing = Boolean(editingTrackedEmployee);
+      resetTrackedEmployeeEditor();
       await loadTrackedEmployees();
       setTrackedRosterMessageTone("success");
       setTrackedRosterMessage(
-        "Training-only person added to the Training Matrix roster without creating app access."
+        wasEditing
+          ? "Training-only person updated."
+          : "Training-only person added to the Training Matrix roster without creating app access."
       );
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
-        error instanceof Error ? error.message : "Failed to add training-only person."
+        error instanceof Error
+          ? error.message
+          : editingTrackedEmployee
+            ? "Failed to update training-only person."
+            : "Failed to add training-only person."
       );
     }
 
@@ -1575,6 +1618,21 @@ export default function CompanyUsersPage() {
                   <option value="onboarding">Onboarding</option>
                 </select>
               </div>
+              <select
+                value={trackedEmployeeForm.status}
+                onChange={(event) =>
+                  setTrackedEmployeeForm((current) => ({
+                    ...current,
+                    status: event.target.value,
+                  }))
+                }
+                className={appNativeSelectClassName}
+                aria-label="Training-only employee status"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
                   type="text"
@@ -1619,8 +1677,23 @@ export default function CompanyUsersPage() {
                 disabled={trackedEmployeeSaving || !trackedEmployeeForm.full_name.trim()}
                 className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
               >
-                {trackedEmployeeSaving ? "Adding..." : "Add to Training Matrix"}
+                {trackedEmployeeSaving
+                  ? editingTrackedEmployee
+                    ? "Saving..."
+                    : "Adding..."
+                  : editingTrackedEmployee
+                    ? "Save Training-Only Person"
+                    : "Add to Training Matrix"}
               </button>
+              {editingTrackedEmployee ? (
+                <button
+                  type="button"
+                  onClick={resetTrackedEmployeeEditor}
+                  className={appButtonSecondaryClassName}
+                >
+                  Cancel Edit
+                </button>
+              ) : null}
             </div>
 
             <div className="grid content-start gap-3">
@@ -1632,7 +1705,7 @@ export default function CompanyUsersPage() {
                   description="Add a non-user here when they need training compliance tracking without app access."
                 />
               ) : (
-                activeTrackedEmployees.slice(0, 5).map((employee) => (
+                activeTrackedEmployees.map((employee) => (
                   <div key={`tracked-employee-${employee.id}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -1651,14 +1724,18 @@ export default function CompanyUsersPage() {
                         <StatusBadge label={employee.status === "inactive" ? "Inactive" : "Active"} tone={employee.status === "inactive" ? "neutral" : "success"} />
                         <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
                         <StatusBadge label={`${employee.trainingRecords?.length ?? 0} records`} tone="neutral" />
+                        <button
+                          type="button"
+                          onClick={() => openTrackedEmployeeEditor(employee)}
+                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
+                        >
+                          Edit
+                        </button>
                       </div>
                     </div>
                   </div>
                 ))
               )}
-              {activeTrackedEmployees.length > 5 ? (
-                <p className="text-sm text-slate-500">{activeTrackedEmployees.length - 5} more training-only person{activeTrackedEmployees.length - 5 === 1 ? "" : "s"} available in the Training Matrix.</p>
-              ) : null}
             </div>
           </div>
         </SectionCard>

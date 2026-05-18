@@ -68,6 +68,7 @@ type CompanySummary = {
   pendingUsers: number;
   suspendedUsers: number;
   pendingInvites: number;
+  trackedEmployees: number;
   completedDocuments: number;
   submittedDocuments: number;
 };
@@ -88,6 +89,52 @@ type CompanyInvite = {
   role: string;
   status: string;
   created_at?: string | null;
+};
+
+type TrackedEmployee = {
+  id: string;
+  external_employee_id?: string | null;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  trade_specialty?: string | null;
+  readiness_status?: string | null;
+  years_experience?: number | null;
+  status?: string | null;
+  certifications?: string[] | null;
+  source?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  training_record_count?: number;
+  jobsite_assignment_count?: number;
+};
+
+type TrackedEmployeeForm = {
+  employee_id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  job_title: string;
+  trade_specialty: string;
+  readiness_status: string;
+  years_experience: string;
+  status: string;
+  certifications: string;
+};
+
+const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
+  employee_id: "",
+  full_name: "",
+  email: "",
+  phone: "",
+  job_title: "",
+  trade_specialty: "",
+  readiness_status: "ready",
+  years_experience: "",
+  status: "active",
+  certifications: "",
 };
 
 type CompanyDocument = {
@@ -200,6 +247,16 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
   return "neutral";
 }
 
+function readinessLabel(value?: string | null) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "Ready";
+  return normalized
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 const IMPORT_TABS: Array<{ id: CompanyOnboardingImportType; label: string }> = [
   { id: "employees", label: "Non-users" },
   { id: "jobsites", label: "Jobsites" },
@@ -236,6 +293,7 @@ export default function AdminCompanyDetailPage({
   const [summary, setSummary] = useState<CompanySummary | null>(null);
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [invites, setInvites] = useState<CompanyInvite[]>([]);
+  const [trackedEmployees, setTrackedEmployees] = useState<TrackedEmployee[]>([]);
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [activity, setActivity] = useState<CompanyActivityItem[]>([]);
   const [message, setMessage] = useState("");
@@ -285,6 +343,11 @@ export default function AdminCompanyDetailPage({
     useState<"success" | "warning" | "error" | "neutral">("neutral");
   const [importRowErrors, setImportRowErrors] = useState<ImportRowError[]>([]);
   const [importSaving, setImportSaving] = useState(false);
+  const [editingTrackedEmployee, setEditingTrackedEmployee] = useState<TrackedEmployee | null>(null);
+  const [trackedEmployeeForm, setTrackedEmployeeForm] = useState<TrackedEmployeeForm>(
+    emptyTrackedEmployeeForm
+  );
+  const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
 
   const activeImportRows = importPreview[importTab];
   const activeImportValidation = useMemo(
@@ -336,6 +399,7 @@ export default function AdminCompanyDetailPage({
             summary?: CompanySummary;
             users?: CompanyUser[];
             invites?: CompanyInvite[];
+            trackedEmployees?: TrackedEmployee[];
             documents?: CompanyDocument[];
             activity?: CompanyActivityItem[];
           }
@@ -354,6 +418,7 @@ export default function AdminCompanyDetailPage({
         setSummary(null);
         setUsers([]);
         setInvites([]);
+        setTrackedEmployees([]);
         setDocuments([]);
         setActivity([]);
         setCanPermanentlyDeleteCompanies(false);
@@ -414,6 +479,7 @@ export default function AdminCompanyDetailPage({
       setSummary(data?.summary ?? null);
       setUsers(data?.users ?? []);
       setInvites(data?.invites ?? []);
+      setTrackedEmployees(data?.trackedEmployees ?? []);
       setDocuments(data?.documents ?? []);
       setActivity(data?.activity ?? []);
       setCompanyHealth(healthRes.ok ? healthData?.health ?? null : null);
@@ -428,6 +494,7 @@ export default function AdminCompanyDetailPage({
       setSummary(null);
       setUsers([]);
       setInvites([]);
+      setTrackedEmployees([]);
       setDocuments([]);
       setActivity([]);
       setCompanyHealth(null);
@@ -941,6 +1008,86 @@ export default function AdminCompanyDetailPage({
     loadCompany,
   ]);
 
+  const openTrackedEmployeeEditor = useCallback((employee: TrackedEmployee) => {
+    setEditingTrackedEmployee(employee);
+    setTrackedEmployeeForm({
+      employee_id: employee.external_employee_id ?? "",
+      full_name: employee.full_name ?? "",
+      email: employee.email ?? "",
+      phone: employee.phone ?? "",
+      job_title: employee.job_title ?? "",
+      trade_specialty: employee.trade_specialty ?? "",
+      readiness_status: employee.readiness_status ?? "ready",
+      years_experience:
+        employee.years_experience == null ? "" : String(employee.years_experience),
+      status: employee.status ?? "active",
+      certifications: (employee.certifications ?? []).join("; "),
+    });
+    setMessage("");
+    setMessageTone("neutral");
+  }, []);
+
+  const resetTrackedEmployeeEditor = useCallback(() => {
+    setEditingTrackedEmployee(null);
+    setTrackedEmployeeForm(emptyTrackedEmployeeForm);
+  }, []);
+
+  const handleSaveTrackedEmployee = useCallback(async () => {
+    if (!companyId || !editingTrackedEmployee) return;
+    if (!trackedEmployeeForm.full_name.trim()) {
+      setMessageTone("warning");
+      setMessage("Full name is required before saving a training-only employee.");
+      return;
+    }
+
+    setTrackedEmployeeSaving(true);
+    setMessage("");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setMessageTone("error");
+        setMessage("You must be logged in as a Super Admin.");
+        setTrackedEmployeeSaving(false);
+        return;
+      }
+
+      const response = await fetch(
+        `/api/admin/companies/${companyId}/tracked-employees/${editingTrackedEmployee.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(trackedEmployeeForm),
+        }
+      );
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to update training-only employee.");
+        setTrackedEmployeeSaving(false);
+        return;
+      }
+
+      resetTrackedEmployeeEditor();
+      setMessageTone("success");
+      setMessage("Training-only employee updated.");
+      await loadCompany();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update training-only employee.");
+    }
+
+    setTrackedEmployeeSaving(false);
+  }, [companyId, editingTrackedEmployee, loadCompany, resetTrackedEmployeeEditor, trackedEmployeeForm]);
+
   useEffect(() => {
     if (!companyId) return;
     queueMicrotask(() => {
@@ -961,6 +1108,11 @@ export default function AdminCompanyDetailPage({
               title: "Invites",
               value: String(summary.pendingInvites),
               note: `${summary.pendingUsers} pending people`,
+            },
+            {
+              title: "Training-Only",
+              value: String(summary.trackedEmployees),
+              note: "No-login employees in the Training Matrix",
             },
             {
               title: "Completed Docs",
@@ -1330,7 +1482,7 @@ export default function AdminCompanyDetailPage({
           )}
         </SectionCard>
 
-        <section className="grid gap-5 sm:grid-cols-3 lg:grid-cols-1">
+        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
           {statCards.map((card) => (
             <div key={card.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
               <p className="text-sm font-medium text-slate-500">{card.title}</p>
@@ -1454,6 +1606,198 @@ export default function AdminCompanyDetailPage({
           </div>
         </SectionCard>
       ) : null}
+
+      <SectionCard
+        title="Training-Only Employees"
+        description="Non-user employees saved to this company profile. They do not have app login access or consume licensed seats."
+        aside={
+          <StatusBadge
+            label={`${trackedEmployees.filter((employee) => employee.status !== "archived").length} active`}
+            tone={trackedEmployees.length ? "info" : "neutral"}
+          />
+        }
+      >
+        {loading ? (
+          <InlineMessage>Loading training-only employees...</InlineMessage>
+        ) : trackedEmployees.length === 0 ? (
+          <EmptyState
+            title="No training-only employees"
+            description="Imported non-user employees will appear here after a successful Superadmin Template Import."
+          />
+        ) : (
+          <div className="space-y-5">
+            {editingTrackedEmployee ? (
+              <div className="rounded-2xl border border-sky-400/30 bg-sky-950/20 p-4">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      Edit {editingTrackedEmployee.full_name}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Update the no-login employee record used by the Training Matrix.
+                    </p>
+                  </div>
+                  <StatusBadge label="No app login" tone="info" />
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <input
+                    type="text"
+                    value={trackedEmployeeForm.full_name}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, full_name: event.target.value }))
+                    }
+                    placeholder="Full name"
+                    className="app-dark-input"
+                  />
+                  <input
+                    type="email"
+                    value={trackedEmployeeForm.email}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, email: event.target.value }))
+                    }
+                    placeholder="Email"
+                    className="app-dark-input"
+                  />
+                  <input
+                    type="text"
+                    value={trackedEmployeeForm.employee_id}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, employee_id: event.target.value }))
+                    }
+                    placeholder="Employee ID"
+                    className="app-dark-input"
+                  />
+                  <input
+                    type="text"
+                    value={trackedEmployeeForm.job_title}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, job_title: event.target.value }))
+                    }
+                    placeholder="Job title"
+                    className="app-dark-input"
+                  />
+                  <input
+                    type="text"
+                    value={trackedEmployeeForm.trade_specialty}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, trade_specialty: event.target.value }))
+                    }
+                    placeholder="Trade specialty"
+                    className="app-dark-input"
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={trackedEmployeeForm.years_experience}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, years_experience: event.target.value }))
+                    }
+                    placeholder="Years experience"
+                    className="app-dark-input"
+                  />
+                  <select
+                    value={trackedEmployeeForm.readiness_status}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, readiness_status: event.target.value }))
+                    }
+                    className="app-dark-input"
+                    aria-label="Readiness status"
+                  >
+                    <option value="ready">Ready</option>
+                    <option value="travel_ready">Travel ready</option>
+                    <option value="limited">Limited</option>
+                    <option value="needs_training">Needs training</option>
+                    <option value="onboarding">Onboarding</option>
+                  </select>
+                  <select
+                    value={trackedEmployeeForm.status}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, status: event.target.value }))
+                    }
+                    className="app-dark-input"
+                    aria-label="Employee status"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={trackedEmployeeForm.certifications}
+                    onChange={(event) =>
+                      setTrackedEmployeeForm((current) => ({ ...current, certifications: event.target.value }))
+                    }
+                    placeholder="Certifications"
+                    className="app-dark-input"
+                  />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveTrackedEmployee()}
+                    disabled={trackedEmployeeSaving || !trackedEmployeeForm.full_name.trim()}
+                    className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {trackedEmployeeSaving ? "Saving..." : "Save training-only employee"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetTrackedEmployeeEditor}
+                    className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div className="overflow-x-auto rounded-2xl border border-slate-700/80">
+              <div className="grid min-w-[1080px] grid-cols-[1.25fr_0.9fr_0.9fr_0.8fr_0.7fr_0.7fr_0.55fr] gap-3 border-b border-slate-700/80 bg-slate-950/50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <div>Employee</div>
+                <div>Role</div>
+                <div>Trade</div>
+                <div>Readiness</div>
+                <div>Records</div>
+                <div>Status</div>
+                <div>Action</div>
+              </div>
+              {trackedEmployees.map((employee) => (
+                <div
+                  key={employee.id}
+                  className="grid min-w-[1080px] grid-cols-[1.25fr_0.9fr_0.9fr_0.8fr_0.7fr_0.7fr_0.55fr] gap-3 border-t border-slate-700/60 px-5 py-4 text-sm text-slate-400 first:border-t-0"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-100">{employee.full_name}</div>
+                    <div className="mt-1 truncate text-slate-500">
+                      {employee.email || employee.external_employee_id || "No email or employee ID"}
+                    </div>
+                  </div>
+                  <div>{employee.job_title || "Not set"}</div>
+                  <div>{employee.trade_specialty || "Not set"}</div>
+                  <div>
+                    <StatusBadge
+                      label={readinessLabel(employee.readiness_status)}
+                      tone={employee.readiness_status === "needs_training" ? "warning" : "success"}
+                    />
+                  </div>
+                  <div>{employee.training_record_count ?? 0}</div>
+                  <div>
+                    <StatusBadge label={employee.status || "active"} tone={statusTone(employee.status || "active")} />
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => openTrackedEmployeeEditor(employee)}
+                      className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-900"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Commercial Terms, Capacity & Invoice"

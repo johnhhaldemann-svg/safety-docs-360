@@ -133,7 +133,7 @@ export function SafePredictLaunchReadiness() {
 
   return (
     <Card className="mb-5 overflow-hidden border-blue-100">
-      <div className="grid gap-0 2xl:grid-cols-[1.05fr_1.35fr_0.8fr]">
+      <div className="grid gap-0 2xl:grid-cols-[0.9fr_1.4fr]">
         <div className="border-b border-blue-100 bg-blue-50/55 p-5 2xl:border-b-0 2xl:border-r">
           <div className="flex items-start gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-white text-blue-600 shadow-sm">
@@ -187,9 +187,9 @@ export function SafePredictLaunchReadiness() {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 p-5 2xl:border-l 2xl:border-t-0">
+        <div className="border-t border-slate-100 p-5 2xl:col-span-2">
           <SectionTitle title="Launch Checklist" />
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
             <Link href="/login" className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-white">
               <ShieldCheck className="h-5 w-5 text-blue-600" />
               <span className="min-w-0 flex-1">

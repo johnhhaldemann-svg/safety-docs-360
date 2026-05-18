@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import {
   Card,
   ExportButton,
@@ -17,6 +18,7 @@ import {
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
   safePredictMitigations,
+  type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
 import { SafePredictLaunchReadiness } from "@/components/safe-predict/SafePredictLaunchReadiness";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
@@ -51,11 +53,50 @@ function SourceStatCard({
   );
 }
 
+type ForecastWindow = 30 | 60 | 90;
+
+function monthIndex(label: string) {
+  return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(label);
+}
+
+function formatForecastDate(date: Date) {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function extendForecastWindow(points: SafePredictForecastPoint[], windowDays: ForecastWindow) {
+  if (windowDays === 30 || points.length === 0) return points;
+
+  const last = points[points.length - 1];
+  const [month = "Jun", day = "9"] = last.date.split(" ");
+  const startMonth = Math.max(0, monthIndex(month));
+  const cursor = new Date(2025, startMonth, Number(day) || 9);
+  const extraPoints = windowDays === 60 ? 6 : 12;
+  let risk = last.predictedRisk;
+
+  return [
+    ...points,
+    ...Array.from({ length: extraPoints }, (_, index) => {
+      cursor.setDate(cursor.getDate() + 5);
+      const swing = index % 3 === 0 ? 8 : index % 3 === 1 ? -5 : 3;
+      risk = Math.max(18, Math.min(92, risk + swing - Math.floor(index / 3)));
+      return {
+        date: formatForecastDate(cursor),
+        predictedRisk: risk,
+      };
+    }),
+  ];
+}
+
 export default function SafePredictDashboardPage() {
   const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
+  const [forecastWindow, setForecastWindow] = useState<ForecastWindow>(30);
   const totals = summarizeSafePredictDataset(dataset);
   const selectedSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "riverside" : selectedJobsiteId;
   const forecast = riskForecastForSite(dataset, selectedSiteId);
+  const displayedForecast = useMemo(
+    () => extendForecastWindow(forecast, forecastWindow),
+    [forecast, forecastWindow]
+  );
   const completedInspections = dataset.inspections.filter((inspection) => inspection.status === "Completed").length;
   const complianceRate = totals.workforce.compliantPercent;
 
@@ -78,11 +119,15 @@ export default function SafePredictDashboardPage() {
               fileName="safe-predict-dashboard.json"
               label="Export dashboard snapshot"
               payload={{ company: dataset.company, jobsites: dataset.jobsites, employees: dataset.employees, alerts: dataset.alerts, mitigations: safePredictMitigations, actions: dataset.actions, permits: dataset.permits }}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm"
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
             >
-              <CalendarDays className="h-4 w-4" />
-              May 11 - May 17, 2025
+              <Download className="h-4 w-4" />
+              Export
             </ExportButton>
+            <span className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm">
+              <CalendarDays className="h-4 w-4" aria-hidden />
+              May 11 - May 17, 2025
+            </span>
           </>
         }
       />
@@ -123,14 +168,14 @@ export default function SafePredictDashboardPage() {
               title="Open Actions"
               value={totals.openActions}
               detail="Across all jobsites"
-              href="#jobsite-source-cards"
+              href="/safe-predict/risk-mitigation#corrective-action-tracker"
               accentClassName="text-slate-600"
             />
             <SourceStatCard
               title="Avg. Site Risk"
               value={totals.riskScore}
               detail={dataset.mode === "live" ? "Live score" : "Elevated"}
-              href="#jobsite-source-cards"
+              href="/safe-predict/risk-mitigation#prioritized-risk-queue"
               accentClassName="text-orange-600"
             />
           </div>
@@ -223,24 +268,27 @@ export default function SafePredictDashboardPage() {
             title="Predictive Risk Trend"
             action={
               <div className="hidden rounded-lg border border-slate-200 bg-white p-1 sm:flex">
-                {["30 Days", "60 Days", "90 Days"].map((label, index) => (
+                {([30, 60, 90] as const).map((days) => (
                   <button
-                    key={label}
+                    key={days}
+                    type="button"
+                    onClick={() => setForecastWindow(days)}
+                    aria-pressed={forecastWindow === days}
                     className={cx(
                       "rounded-md px-3 py-1.5 text-xs font-bold",
-                      index === 0 ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
+                      forecastWindow === days ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    {label}
+                    {days} Days
                   </button>
                 ))}
               </div>
             }
           />
           <div className="mt-4 inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
-            AI models indicate risk levels will remain elevated over the next 30 days.
+            AI models indicate risk levels will remain elevated over the next {forecastWindow} days.
           </div>
-          <ForecastTrendChart data={forecast} />
+          <ForecastTrendChart data={displayedForecast} />
           <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
             <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-red-500" /> Historical Risk</span>
             <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 border-t border-dashed border-orange-500" /> Predicted Risk</span>

@@ -18,6 +18,10 @@ import {
   normalizeAddonSelections,
   normalizeFeatureKeys,
 } from "@/lib/platformPricing";
+import {
+  loadTrackedCompanyEmployees,
+  type TrackedEmployeeWithRecords,
+} from "@/lib/companyTrackedEmployees";
 
 type ServiceSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
@@ -97,6 +101,29 @@ type RpcCompanyUserRow = {
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
 };
+
+function serializeTrackedEmployee(employee: TrackedEmployeeWithRecords) {
+  return {
+    id: employee.id,
+    external_employee_id: employee.external_employee_id,
+    full_name: employee.full_name,
+    email: employee.email,
+    phone: employee.phone,
+    job_title: employee.job_title,
+    trade_specialty: employee.trade_specialty,
+    readiness_status: employee.readiness_status,
+    years_experience: employee.years_experience,
+    status: employee.status,
+    certifications: employee.certifications ?? [],
+    certification_expirations: employee.certification_expirations ?? {},
+    source: employee.source ?? null,
+    archived_at: employee.archived_at ?? null,
+    created_at: employee.created_at ?? null,
+    updated_at: employee.updated_at ?? null,
+    training_record_count: employee.trainingRecords.length,
+    jobsite_assignment_count: employee.jobsiteAssignments.length,
+  };
+}
 
 function getDisplayName(user: {
   email?: string | null;
@@ -295,6 +322,14 @@ export async function GET(request: Request, context: RouteContext) {
   if (activeJobsites.error) {
     return NextResponse.json({ error: activeJobsites.error }, { status: 500 });
   }
+  const trackedEmployees = await loadTrackedCompanyEmployees({
+    db: supabase as SupabaseClient,
+    companyId,
+    includeArchived: true,
+  });
+  if (trackedEmployees.error) {
+    return NextResponse.json({ error: trackedEmployees.error }, { status: 500 });
+  }
 
   const subscriptionRow = subscriptionResult.data as {
     status?: string | null;
@@ -433,6 +468,7 @@ export async function GET(request: Request, context: RouteContext) {
     pendingUsers: memberships.filter((row) => row.status === "pending").length,
     suspendedUsers: memberships.filter((row) => row.status === "suspended").length,
     pendingInvites: invites.length,
+    trackedEmployees: trackedEmployees.employees.filter((row) => row.status !== "archived").length,
     completedDocuments: documents.filter(
       (row) =>
         (row.status ?? "").trim().toLowerCase() === "approved" || Boolean(row.final_file_path)
@@ -604,6 +640,7 @@ export async function GET(request: Request, context: RouteContext) {
       status: formatAccountStatus(invite.account_status),
       created_at: invite.created_at ?? null,
     })),
+    trackedEmployees: trackedEmployees.employees.map(serializeTrackedEmployee),
     documents: documents.map((document) => ({
       id: document.id,
       title: document.document_title?.trim() || document.project_name?.trim() || "Untitled document",
@@ -619,7 +656,7 @@ export async function GET(request: Request, context: RouteContext) {
     warning:
       companyUserDirectoryMode === "partial"
         ? "Showing partial company directory because the Supabase service role key is unavailable at runtime."
-        : null,
+        : trackedEmployees.warning ?? null,
   });
 }
 
