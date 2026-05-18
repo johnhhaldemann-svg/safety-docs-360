@@ -10,12 +10,15 @@ describe("safePredictRouteMap", () => {
     expect(mapSafePredictOperationHref("/dashboard")).toBe("/safe-predict");
     expect(mapSafePredictOperationHref("/jobsites")).toBe("/safe-predict/jobsites");
     expect(mapSafePredictOperationHref("/analytics/predictive-model")).toBe("/safe-predict/predictive-risk");
+    expect(mapSafePredictOperationHref("/safety-submit")).toBe("/safe-predict/observations");
     expect(mapSafePredictOperationHref("/library?tab=marketplace")).toBe("/safe-predict/reports");
+    expect(mapSafePredictOperationHref("/csep")).toBe("/safe-predict/reports");
+    expect(mapSafePredictOperationHref("/peshep")).toBe("/safe-predict/reports");
   });
 
   it("preserves jobsite identity and leaves SafePredict routes alone", () => {
     expect(mapSafePredictOperationHref("/jobsites/riverside/permits")).toBe("/safe-predict/jobsites/riverside");
-    expect(mapSafePredictOperationHref("/incidents")).toBe("/incidents");
+    expect(mapSafePredictOperationHref("/incidents")).toBe("/safe-predict/incidents");
     expect(mapSafePredictOperationHref("/profile")).toBe("/profile");
     expect(mapSafePredictOperationHref("/safe-predict/jobsites")).toBe("/safe-predict/jobsites");
     expect(isLegacyOperationHref("/permits")).toBe(true);

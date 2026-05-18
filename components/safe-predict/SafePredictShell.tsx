@@ -92,7 +92,11 @@ const navGroups: NavGroup[] = [
     id: "document-control",
     label: "Document Control",
     icon: FileText,
-    items: [{ href: "/library", label: "Document Library", icon: FileText }],
+    items: [
+      { href: "/safe-predict/reports", label: "Document Library", icon: FileText },
+      { href: "/safe-predict/reports?surface=csep", label: "CSEP Build", icon: FileText },
+      { href: "/safe-predict/reports?surface=peshep", label: "PESHEP Build", icon: FileText },
+    ],
   },
   {
     id: "workforce-access",

@@ -179,6 +179,8 @@ export type SafePredictLiveCompanyInput = Partial<SafePredictDemoCompany> & {
   safetyLead?: string | null;
   operationsLead?: string | null;
   primaryContactEmail?: string | null;
+  logoDataUrl?: string | null;
+  logoFileName?: string | null;
 };
 
 const alertSiteIds: Record<string, string> = {
@@ -243,6 +245,8 @@ function normalizeLiveCompany(input?: SafePredictLiveCompanyInput | null): SafeP
     safetyLead: liveTextValue(input.safetyLead, "Company safety team"),
     operationsLead: liveTextValue(input.operationsLead, "Operations team"),
     primaryContactEmail: liveTextValue(input.primaryContactEmail, "Not set"),
+    logoDataUrl: input.logoDataUrl?.trim() || null,
+    logoFileName: input.logoFileName?.trim() || null,
   };
 }
 
@@ -476,6 +480,7 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
       return {
         id: textValue(row, ["userId", "user_id", "id"], `live-employee-${index}`),
         name: textValue(row, ["name", "email"], "Unnamed worker"),
+        email: textValue(row, ["email"]),
         role: textValue(profile, ["jobTitle"], textValue(row, ["role"], "Worker")),
         trade: textValue(profile, ["tradeSpecialty"], "General Construction"),
         assignedSiteId: assignedSite,
@@ -515,6 +520,7 @@ export function normalizeLiveUsers(rows: SafePredictLiveRecordRow[], jobsites: S
       return {
         id: textValue(row, ["id", "user_id", "userId"], `live-user-${index}`),
         name: textValue(row, ["name", "email"], "Unnamed worker"),
+        email: textValue(row, ["email"]),
         role,
         trade: textValue(row, ["trade", "team"], role.includes("manager") ? "Safety Leadership" : "General Construction"),
         assignedSiteId: assignedSite,

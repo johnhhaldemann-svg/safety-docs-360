@@ -183,6 +183,7 @@ export async function GET(request: Request) {
       "can_view_all_company_data",
       "can_view_analytics",
       "can_view_dashboards",
+      "can_access_field_work",
     ],
   });
 
@@ -391,7 +392,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
+    requireAnyPermission: ["can_access_field_work", "can_create_documents", "can_view_all_company_data"],
   });
 
   if ("error" in auth) {
@@ -483,7 +484,7 @@ export async function POST(request: Request) {
 
   if (!canManageCorrectiveActions(auth.role)) {
     return NextResponse.json(
-      { error: "Only company admins and operations managers can create corrective actions." },
+      { error: "Only permitted field leaders can create corrective actions." },
       { status: 403 }
     );
   }

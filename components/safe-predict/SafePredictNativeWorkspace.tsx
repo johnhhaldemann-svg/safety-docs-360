@@ -117,6 +117,47 @@ type CorrectiveActionDraft = {
   sifCategory: string;
 };
 
+type PermitDraft = {
+  title: string;
+  siteId: string;
+  type: string;
+  status: SafePredictDataset["permits"][number]["status"];
+  owner: string;
+  expiresAt: string;
+  riskLevel: SafePredictRiskLevel;
+};
+
+const permitTypeOptions = [
+  { label: "Hot Work", value: "Hot Work" },
+  { label: "Confined Space", value: "Confined Space" },
+  { label: "Electrical", value: "Electrical" },
+  { label: "Excavation", value: "Excavation" },
+  { label: "Work at Heights", value: "Work at Heights" },
+  { label: "Lockout / Tagout", value: "Lockout / Tagout" },
+];
+
+const permitStatusOptions: Array<{ label: string; value: SafePredictDataset["permits"][number]["status"] }> = [
+  { label: "Active", value: "Active" },
+  { label: "Expiring Soon", value: "Expiring Soon" },
+  { label: "Expired", value: "Expired" },
+];
+
+function buildEmptyPermitDraft(siteId: string): PermitDraft {
+  return {
+    title: "",
+    siteId,
+    type: "Hot Work",
+    status: "Active",
+    owner: "",
+    expiresAt: "",
+    riskLevel: "medium",
+  };
+}
+
+function permitTypeApiValue(type: string) {
+  return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
 const correctiveActionCategories = [
   { label: "Corrective action", value: "corrective_action" },
   { label: "Hazard", value: "hazard" },
@@ -169,7 +210,7 @@ function isUuid(value: string) {
 
 function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
   if (workspace === "incidents") return mapSafePredictOperationHref("/incidents");
-  if (workspace === "observations") return mapSafePredictOperationHref("/field-audits");
+  if (workspace === "observations") return mapSafePredictOperationHref("/safety-submit");
   if (workspace === "corrective-actions") return mapSafePredictOperationHref("/field-id-exchange");
   if (workspace === "inspections") return mapSafePredictOperationHref("/jobsites");
   if (workspace === "training") return mapSafePredictOperationHref("/training-matrix");
@@ -308,7 +349,7 @@ function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): Tr
 }
 
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
-  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard } = useSafePredictData();
+  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftPermit } = useSafePredictData();
   const router = useRouter();
   const config = safePredictWorkspaceConfigs[workspace];
   const [query, setQuery] = useState("");
@@ -317,10 +358,16 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [statusFilter, setStatusFilter] = useState("all");
   const [showHazardComposer, setShowHazardComposer] = useState(false);
   const [showCorrectiveComposer, setShowCorrectiveComposer] = useState(false);
+  const [showPermitComposer, setShowPermitComposer] = useState(false);
   const [correctiveMessage, setCorrectiveMessage] = useState("");
   const [correctiveSubmitting, setCorrectiveSubmitting] = useState(false);
+  const [permitMessage, setPermitMessage] = useState("");
+  const [permitSubmitting, setPermitSubmitting] = useState(false);
   const [correctiveDraft, setCorrectiveDraft] = useState(() =>
     buildEmptyCorrectiveActionDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
+  );
+  const [permitDraft, setPermitDraft] = useState(() =>
+    buildEmptyPermitDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
   );
   const [hazardDraft, setHazardDraft] = useState({
     title: "",
@@ -469,6 +516,97 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     window.setTimeout(() => {
       document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 50);
+  }
+
+  function openPermitComposer(siteId?: string) {
+    const nextSiteId = siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
+    setPermitDraft((current) => ({ ...current, siteId: nextSiteId || current.siteId }));
+    setPermitMessage("");
+    setShowPermitComposer(true);
+    window.setTimeout(() => {
+      document.getElementById("safe-predict-permit-composer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
+  async function createPermit() {
+    const title = permitDraft.title.trim();
+    const siteId = permitDraft.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
+    if (!title) {
+      setPermitMessage("Add a permit title before creating the permit.");
+      return;
+    }
+    if (!siteId) {
+      setPermitMessage("Choose an active jobsite before creating the permit.");
+      return;
+    }
+
+    setPermitSubmitting(true);
+    setPermitMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+
+      if (mode === "live" && token) {
+        const dueAt = permitDraft.expiresAt ? new Date(`${permitDraft.expiresAt}T17:00:00`).toISOString() : null;
+        const response = await fetch("/api/company/permits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title,
+            permitType: permitTypeApiValue(permitDraft.type),
+            severity: permitDraft.riskLevel,
+            category: "safety",
+            jobsiteId: siteId,
+            ownerUserId: null,
+            dueAt,
+            sifFlag: permitDraft.riskLevel === "critical" || permitDraft.riskLevel === "high",
+            escalationLevel: permitDraft.riskLevel === "critical" ? "urgent" : "none",
+            escalationReason: "",
+            stopWorkStatus: permitDraft.status === "Expired" ? "stop_work_requested" : "normal",
+            stopWorkReason: permitDraft.status === "Expired" ? "Expired permit requires hold before work proceeds." : "",
+            jsaActivityId: null,
+            observationId: null,
+            status: "draft",
+          }),
+        });
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          setPermitMessage(data?.error || "Could not create the permit.");
+          return;
+        }
+      }
+
+      const draft = addDraftPermit({
+        title,
+        siteId,
+        type: permitDraft.type,
+        status: permitDraft.status,
+        owner: permitDraft.owner.trim() || "Unassigned",
+        expiresAt: permitDraft.expiresAt || "No expiration set",
+        riskLevel: permitDraft.riskLevel,
+      });
+      setSiteFilter(siteId);
+      setSelectedJobsiteId(siteId);
+      setStatusFilter("all");
+      setRiskFilter("all");
+      setQuery("");
+      setPermitDraft(buildEmptyPermitDraft(siteId));
+      setShowPermitComposer(false);
+      setPermitMessage(mode === "live" && token ? "Permit created and saved to the company permit register." : "Permit queued locally in SafePredict sample data.");
+      window.setTimeout(() => {
+        document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+    } catch (error) {
+      setPermitMessage(error instanceof Error ? error.message : "Could not create the permit.");
+    } finally {
+      setPermitSubmitting(false);
+    }
   }
 
   async function createCorrectiveAction() {
@@ -653,6 +791,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     updateActionStatus,
     closeActionWithPhoto,
     createActionFromSignal,
+    openPermitComposer,
     assignTrainingWithAi,
   });
 
@@ -690,7 +829,27 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             <Download className="h-4 w-4" />
             Export
           </ExportButton>
-          {workspace === "training" ? (
+          {workspace === "observations" ? (
+            <Link
+              href="/api/company/sor/import/template"
+              download="sor-import-template.csv"
+              prefetch={false}
+              className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm"
+            >
+              <Download className="h-4 w-4" />
+              SOR Template
+            </Link>
+          ) : null}
+          {workspace === "permits" ? (
+            <button
+              type="button"
+              onClick={() => openPermitComposer()}
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+            >
+              <Plus className="h-4 w-4" />
+              {config.primaryAction}
+            </button>
+          ) : workspace === "training" ? (
             <button
               type="button"
               onClick={() => void assignTrainingWithAi()}
@@ -726,6 +885,103 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           )}
         </div>
       </div>
+
+      {workspace === "permits" && (showPermitComposer || permitMessage) ? (
+        <Card id="safe-predict-permit-composer" className="mb-5 p-5">
+          <SectionTitle
+            title="Create Permit"
+            action={
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPermitComposer((current) => !current);
+                  if (showPermitComposer) setPermitMessage("");
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700 shadow-sm"
+              >
+                {showPermitComposer ? "Close" : "Open form"}
+              </button>
+            }
+            hint="Creates a permit directly in the SafePredict permit register without leaving the native workspace."
+          />
+          {permitMessage ? (
+            <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+              {permitMessage}
+            </p>
+          ) : null}
+          {showPermitComposer ? (
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_180px_180px_180px]">
+              <label className="block xl:col-span-2">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Permit title</span>
+                <input
+                  value={permitDraft.title}
+                  onChange={(event) => setPermitDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Level 3 hot work permit"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              <SelectShell
+                label="Jobsite"
+                value={permitDraft.siteId || (siteFilter === "all" ? dataset.jobsites[0]?.id ?? "" : siteFilter)}
+                onChange={(value) => setPermitDraft((current) => ({ ...current, siteId: value }))}
+                options={dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))}
+              />
+              <SelectShell
+                label="Permit type"
+                value={permitDraft.type}
+                onChange={(value) => setPermitDraft((current) => ({ ...current, type: value }))}
+                options={permitTypeOptions}
+              />
+              <SelectShell
+                label="Status"
+                value={permitDraft.status}
+                onChange={(value) => setPermitDraft((current) => ({ ...current, status: value as PermitDraft["status"] }))}
+                options={permitStatusOptions}
+              />
+              <SelectShell
+                label="Risk"
+                value={permitDraft.riskLevel}
+                onChange={(value) => setPermitDraft((current) => ({ ...current, riskLevel: value as SafePredictRiskLevel }))}
+                options={[
+                  { label: "Low", value: "low" },
+                  { label: "Medium", value: "medium" },
+                  { label: "High", value: "high" },
+                  { label: "Critical", value: "critical" },
+                ]}
+              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Owner</span>
+                <input
+                  value={permitDraft.owner}
+                  onChange={(event) => setPermitDraft((current) => ({ ...current, owner: event.target.value }))}
+                  placeholder="Safety lead"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Expiration</span>
+                <input
+                  type="date"
+                  value={permitDraft.expiresAt}
+                  onChange={(event) => setPermitDraft((current) => ({ ...current, expiresAt: event.target.value }))}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => void createPermit()}
+                  disabled={permitSubmitting || !permitDraft.title.trim()}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Plus className="h-4 w-4" />
+                  {permitSubmitting ? "Creating..." : "Create Permit"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {workspace === "hazards" && showHazardComposer ? (
         <Card className="mb-5 p-5">
@@ -1186,6 +1442,7 @@ function buildRows({
   updateActionStatus,
   closeActionWithPhoto,
   createActionFromSignal,
+  openPermitComposer,
   assignTrainingWithAi,
 }: {
   workspace: SafePredictWorkspaceSlug;
@@ -1197,6 +1454,7 @@ function buildRows({
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
   closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel; detail?: string; category?: string }) => void;
+  openPermitComposer: (siteId?: string) => void;
   assignTrainingWithAi: (worker?: SafePredictDemoEmployee) => void;
 }): WorkspaceRows {
   function textMatches(values: string[]) {
@@ -1258,7 +1516,7 @@ function buildRows({
 
   if (workspace === "permits") {
     const rows = scoped.permits.filter((row) => textMatches([row.type, row.status, row.owner]) && statusMatches(row.status) && riskMatches(row.riskLevel));
-    return table("Permit Register", ["Permit", "Jobsite", "Status", "Owner", "Expires", "Risk"], rows.map((row) => [row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.riskLevel]), rows.map((row) => ({ label: "Renew", href: mapSafePredictSurfaceHref(`/permits?jobsiteId=${encodeURIComponent(row.siteId)}`) })), rows);
+    return table("Permit Register", ["Permit", "Jobsite", "Status", "Owner", "Expires", "Risk"], rows.map((row) => [row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.riskLevel]), rows.map((row) => ({ label: "Renew", onClick: () => openPermitComposer(row.siteId) })), rows, rows.map((row) => row.id));
   }
 
   if (workspace === "analytics") {

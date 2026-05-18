@@ -43,7 +43,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"],
+    requireAnyPermission: ["can_access_field_work", "can_edit_documents", "can_view_all_company_data"],
   });
   if ("error" in auth) return auth.error;
   if (!canUploadEvidence(auth.role)) {

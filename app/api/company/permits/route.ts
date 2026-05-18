@@ -74,6 +74,7 @@ export async function GET(request: Request) {
       "can_view_all_company_data",
       "can_view_analytics",
       "can_view_dashboards",
+      "can_access_field_work",
     ],
   });
   if ("error" in auth) return auth.error;
@@ -123,11 +124,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await authorizeRequest(request, { requireAnyPermission: ["can_create_documents", "can_view_all_company_data"] });
+  const auth = await authorizeRequest(request, { requireAnyPermission: ["can_access_field_work", "can_create_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
   if (!canManageCompanyPermits(auth.role, auth.permissionMap)) {
     return NextResponse.json(
-      { error: "Only company admins and managers can create permits." },
+      { error: "Only permitted field leaders can create permits." },
       { status: 403 }
     );
   }
@@ -273,11 +274,11 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await authorizeRequest(request, { requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"] });
+  const auth = await authorizeRequest(request, { requireAnyPermission: ["can_access_field_work", "can_edit_documents", "can_view_all_company_data"] });
   if ("error" in auth) return auth.error;
   if (!canManageCompanyPermits(auth.role, auth.permissionMap)) {
     return NextResponse.json(
-      { error: "Only company admins and managers can update permits." },
+      { error: "Only permitted field leaders can update permits." },
       { status: 403 }
     );
   }

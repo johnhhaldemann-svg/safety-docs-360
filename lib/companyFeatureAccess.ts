@@ -109,6 +109,9 @@ const PERMIT_WORKSPACE_ROLES = new Set([
   "company_admin",
   "manager",
   "safety_manager",
+  "project_manager",
+  "field_supervisor",
+  "foreman",
 ]);
 
 const INCIDENT_WORKSPACE_ROLES = new Set([
@@ -216,15 +219,12 @@ export function canManageCompanyPermits(
 ) {
   if (!role) return false;
   if (!hasFeatureAccess(permissionMap, "can_access_field_work")) return false;
-  if (isAdminLikeRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
-  if (isSalesDemoRole(role)) return hasDocumentWorkspaceCapability(permissionMap);
+  if (isAdminLikeRole(role)) return true;
+  if (isSalesDemoRole(role)) return true;
   const normalized = normalizeRole(role);
   if (NON_COMPANY_INTERNAL_ROLES.has(normalized)) return false;
 
-  return (
-    PERMIT_WORKSPACE_ROLES.has(normalized) &&
-    hasDocumentWorkspaceCapability(permissionMap)
-  );
+  return PERMIT_WORKSPACE_ROLES.has(normalized);
 }
 
 export function canManageCompanyIncidents(

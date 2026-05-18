@@ -64,15 +64,21 @@ describe("companyFeatureAccess", () => {
     expect(canAccessCompanyJobsites("field_supervisor", permissions)).toBe(true);
   });
 
-  it("keeps permits and incidents scoped to company leadership roles", () => {
+  it("allows field leadership to manage permits while keeping incidents scoped to company leadership", () => {
     const permissions = buildPermissionMap({
       can_create_documents: true,
       can_edit_documents: true,
       can_access_field_work: true,
     });
+    const fieldWorkOnly = buildPermissionMap({ can_access_field_work: true });
 
-    expect(canManageCompanyPermits("project_manager", permissions)).toBe(false);
-    expect(canManageCompanyPermits("field_supervisor", permissions)).toBe(false);
+    expect(canManageCompanyPermits("project_manager", permissions)).toBe(true);
+    expect(canManageCompanyPermits("field_supervisor", permissions)).toBe(true);
+    expect(canManageCompanyPermits("foreman", permissions)).toBe(true);
+    expect(canManageCompanyPermits("foreman", fieldWorkOnly)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/permits", "project_manager", permissions)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/permits", "field_supervisor", permissions)).toBe(true);
+    expect(canAccessCompanyWorkspaceHref("/permits", "foreman", permissions)).toBe(true);
     expect(canManageCompanyIncidents("foreman", permissions)).toBe(false);
     expect(canManageCompanyIncidents("field_supervisor", permissions)).toBe(false);
     expect(canManageCompanyPermits("safety_manager", permissions)).toBe(true);

@@ -17,6 +17,8 @@ export type SafePredictDemoCompany = {
   safetyLead: string;
   operationsLead: string;
   primaryContactEmail: string;
+  logoDataUrl?: string | null;
+  logoFileName?: string | null;
 };
 
 export type SafePredictDemoJobsite = {
@@ -40,6 +42,7 @@ export type SafePredictDemoEmployeeStatus = "compliant" | "expiring" | "overdue"
 export type SafePredictDemoEmployee = {
   id: string;
   name: string;
+  email?: string;
   role: string;
   trade: string;
   assignedSiteId: string;

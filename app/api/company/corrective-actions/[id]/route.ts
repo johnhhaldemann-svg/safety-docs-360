@@ -160,7 +160,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_edit_documents", "can_view_all_company_data"],
+    requireAnyPermission: ["can_access_field_work", "can_edit_documents", "can_view_all_company_data"],
   });
 
   if ("error" in auth) {
@@ -223,7 +223,7 @@ export async function PATCH(
 
   if (!canManageCorrectiveActions(auth.role)) {
     return NextResponse.json(
-      { error: "Only company admins and operations managers can update corrective actions." },
+      { error: "Only permitted field leaders can update corrective actions." },
       { status: 403 }
     );
   }

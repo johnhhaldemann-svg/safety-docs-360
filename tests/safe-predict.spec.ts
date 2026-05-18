@@ -11,8 +11,11 @@ test.describe("SafePredict beta platform routes", () => {
     ["/field-audits", "/safe-predict/inspections"],
     ["/safety-intelligence", "/safe-predict/hazards"],
     ["/permits", "/safe-predict/permits"],
+    ["/incidents", "/safe-predict/incidents"],
     ["/analytics", "/safe-predict/analytics"],
     ["/reports", "/safe-predict/reports"],
+    ["/csep", "/safe-predict/reports"],
+    ["/peshep", "/safe-predict/reports"],
     ["/command-center", "/safe-predict"],
     ["/settings/risk-memory", "/safe-predict/settings"],
   ] as const;
@@ -35,12 +38,6 @@ test.describe("SafePredict beta platform routes", () => {
     const response = await request.get("/training-matrix", { maxRedirects: 0 });
     expect([200, 401]).toContain(response.status());
     expect(response.headers().location ?? "").not.toContain("/safe-predict/training");
-  });
-
-  test("keeps the canonical incident log route in the app shell", async ({ request }) => {
-    const response = await request.get("/incidents", { maxRedirects: 0 });
-    expect([200, 401]).toContain(response.status());
-    expect(response.headers().location ?? "").not.toContain("/safe-predict/incidents");
   });
 
   test("keeps the canonical team access route in the app shell", async ({ request }) => {

@@ -13,6 +13,7 @@ import {
   type SafePredictHazardRecord,
   type SafePredictLiveJobsiteRow,
   type SafePredictLiveRecordRow,
+  type SafePredictPermitRecord,
   type SafePredictJobsiteRecord,
 } from "@/lib/safePredictData";
 import type { SafePredictActionStatus, SafePredictCorrectiveAction } from "@/lib/safePredictMockData";
@@ -53,6 +54,15 @@ type SafePredictDataContextValue = {
     dueDate: string;
     description?: string;
   }) => SafePredictHazardRecord;
+  addDraftPermit: (input: {
+    title: string;
+    siteId: string;
+    type: string;
+    status: SafePredictPermitRecord["status"];
+    owner: string;
+    expiresAt: string;
+    riskLevel: SafePredictPermitRecord["riskLevel"];
+  }) => SafePredictPermitRecord;
   addDraftJobsite: (input: {
     name: string;
     code: string;
@@ -68,6 +78,7 @@ const SafePredictDataContext = createContext<SafePredictDataContextValue | null>
 
 const actionStorageKey = "safe-predict-live-beta-actions-v1";
 const hazardStorageKey = "safe-predict-live-beta-hazards-v1";
+const permitStorageKey = "safe-predict-live-beta-permits-v1";
 const jobsiteStorageKey = "safe-predict-live-beta-jobsites-v1";
 const actionStatusStorageKey = "safe-predict-action-status-overrides-v1";
 const selectedJobsiteStorageKey = "safe-predict-selected-jobsite-v1";
@@ -91,6 +102,15 @@ function normalizeHazardRows(value: unknown): SafePredictHazardRecord[] | null {
   const rows = value.filter((row): row is SafePredictHazardRecord => {
     if (!isRecord(row)) return false;
     return typeof row.id === "string" && typeof row.title === "string" && typeof row.siteId === "string";
+  });
+  return rows.length > 0 ? rows : null;
+}
+
+function normalizePermitRows(value: unknown): SafePredictPermitRecord[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows = value.filter((row): row is SafePredictPermitRecord => {
+    if (!isRecord(row)) return false;
+    return typeof row.id === "string" && typeof row.type === "string" && typeof row.siteId === "string";
   });
   return rows.length > 0 ? rows : null;
 }
@@ -140,6 +160,15 @@ function textPayloadValue(payload: Record<string, unknown> | null, keys: string[
   return "";
 }
 
+function objectPayloadValue(payload: Record<string, unknown> | null, keys: string[]) {
+  if (!payload) return null;
+  for (const key of keys) {
+    const value = payload[key];
+    if (isRecord(value)) return value;
+  }
+  return null;
+}
+
 function loadInitialMode(): SafePredictDataMode {
   return window.localStorage.getItem(modeStorageKey) === "live" ? "live" : "demo";
 }
@@ -159,6 +188,14 @@ function loadInitialActions() {
 function loadInitialHazards() {
   try {
     return normalizeHazardRows(JSON.parse(window.localStorage.getItem(hazardStorageKey) || "null"))?.filter((hazard) => hazard.id.startsWith("draft-hazard-")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function loadInitialPermits() {
+  try {
+    return normalizePermitRows(JSON.parse(window.localStorage.getItem(permitStorageKey) || "null"))?.filter((permit) => permit.id.startsWith("draft-permit-")) ?? [];
   } catch {
     return [];
   }
@@ -186,6 +223,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [baseDataset, setBaseDataset] = useState<SafePredictDataset>(demoSafePredictDataset);
   const [draftActions, setDraftActions] = useState<SafePredictActionRecord[]>([]);
   const [draftHazards, setDraftHazards] = useState<SafePredictHazardRecord[]>([]);
+  const [draftPermits, setDraftPermits] = useState<SafePredictPermitRecord[]>([]);
   const [draftJobsites, setDraftJobsites] = useState<SafePredictJobsiteRecord[]>([]);
   const [actionStatuses, setActionStatuses] = useState<Record<string, SafePredictActionStatus>>({});
   const [selectedJobsiteId, setSelectedJobsiteIdState] = useState("all");
@@ -196,6 +234,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       setModeState(loadInitialMode());
       setDraftActions(loadInitialActions());
       setDraftHazards(loadInitialHazards());
+      setDraftPermits(loadInitialPermits());
       setDraftJobsites(loadInitialJobsites());
       setActionStatuses(loadInitialActionStatuses());
       setSelectedJobsiteIdState(loadInitialSelectedJobsite());
@@ -231,6 +270,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           reportsPayload,
           documentsPayload,
           usersPayload,
+          mePayload,
         ] = await Promise.all([
           fetchJsonWithToken("/api/company/jobsites", token),
           fetchJsonWithToken("/api/company/incidents", token),
@@ -242,6 +282,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           fetchJsonWithToken("/api/company/reports", token),
           fetchJsonWithToken("/api/workspace/documents", token),
           fetchJsonWithToken("/api/company/users", token),
+          fetchJsonWithToken("/api/auth/me", token),
         ]);
         const liveJobsites = extractRows(jobsitesPayload, ["jobsites"]) as SafePredictLiveJobsiteRow[];
         const liveIncidents = extractRows(incidentsPayload, ["incidents"]) as SafePredictLiveRecordRow[];
@@ -253,14 +294,26 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         const liveReports = extractRows(reportsPayload, ["reports"]) as SafePredictLiveRecordRow[];
         const liveDocuments = extractRows(documentsPayload, ["documents"]) as SafePredictLiveRecordRow[];
         const liveUsers = extractRows(usersPayload, ["users"]) as SafePredictLiveRecordRow[];
+        const authUser = objectPayloadValue(mePayload, ["user"]);
+        const liveCompanyProfile = objectPayloadValue(authUser, ["companyProfile"]);
         const liveCompanyName =
+          textPayloadValue(liveCompanyProfile, ["name"]) ||
           textPayloadValue(usersPayload, ["scopeCompanyName", "scopeTeam"]) ||
           textPayloadValue(jobsitesPayload, ["scopeCompanyName", "scopeTeam"]);
+        const logoDataUrl = textPayloadValue(liveCompanyProfile, ["logo_data_url", "logoDataUrl"]);
+        const logoFileName = textPayloadValue(liveCompanyProfile, ["logo_file_name", "logoFileName"]);
         if (!cancelled) {
           setLiveToken(token);
           setBaseDataset(buildSafePredictDataset({
             mode: "live",
-            liveCompany: liveCompanyName ? { name: liveCompanyName, accountType: "Live workspace" } : null,
+            liveCompany: liveCompanyName
+              ? {
+                  name: liveCompanyName,
+                  accountType: "Live workspace",
+                  logoDataUrl: logoDataUrl || null,
+                  logoFileName: logoFileName || null,
+                }
+              : null,
             liveJobsites,
             liveIncidents,
             liveObservations,
@@ -294,6 +347,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       ...baseDataset,
       jobsites: [...draftJobsites, ...baseDataset.jobsites],
       hazards: [...draftHazards, ...baseDataset.hazards],
+      permits: [...draftPermits, ...baseDataset.permits],
       actions: [
         ...draftActions,
         ...baseDataset.actions.map((action) => {
@@ -306,7 +360,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         }),
       ],
     }),
-    [actionStatuses, baseDataset, draftActions, draftHazards, draftJobsites]
+    [actionStatuses, baseDataset, draftActions, draftHazards, draftJobsites, draftPermits]
   );
 
   const setMode = useCallback((nextMode: SafePredictDataMode) => {
@@ -337,6 +391,11 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const persistDraftHazards = useCallback((nextHazards: SafePredictHazardRecord[]) => {
     setDraftHazards(nextHazards);
     window.localStorage.setItem(hazardStorageKey, JSON.stringify(nextHazards));
+  }, []);
+
+  const persistDraftPermits = useCallback((nextPermits: SafePredictPermitRecord[]) => {
+    setDraftPermits(nextPermits);
+    window.localStorage.setItem(permitStorageKey, JSON.stringify(nextPermits));
   }, []);
 
   const setActionStatusLocal = useCallback(
@@ -599,6 +658,31 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     [draftHazards, liveToken, mode, persistDraftHazards]
   );
 
+  const addDraftPermit = useCallback(
+    (input: {
+      title: string;
+      siteId: string;
+      type: string;
+      status: SafePredictPermitRecord["status"];
+      owner: string;
+      expiresAt: string;
+      riskLevel: SafePredictPermitRecord["riskLevel"];
+    }) => {
+      const draft: SafePredictPermitRecord = {
+        id: `draft-permit-${Date.now()}`,
+        siteId: input.siteId,
+        type: input.type || input.title,
+        status: input.status,
+        owner: input.owner || "Unassigned",
+        expiresAt: input.expiresAt || "No expiration set",
+        riskLevel: input.riskLevel,
+      };
+      persistDraftPermits([draft, ...draftPermits]);
+      return draft;
+    },
+    [draftPermits, persistDraftPermits]
+  );
+
   const addDraftJobsite = useCallback(
     (input: {
       name: string;
@@ -673,6 +757,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         advanceActionStatus,
         addDraftAction,
         addDraftHazard,
+        addDraftPermit,
         addDraftJobsite,
       }}
     >
