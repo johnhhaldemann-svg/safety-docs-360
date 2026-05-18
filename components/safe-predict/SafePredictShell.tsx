@@ -283,7 +283,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                 }))
               }
               className={cx(
-                "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-[13px] font-black transition",
+                "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-black leading-tight transition",
                 groupActive
                   ? "bg-white/[0.095] text-white ring-1 ring-white/10"
                   : groupExpanded
@@ -291,7 +291,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                     : "text-slate-200/82 hover:bg-white/8 hover:text-white"
               )}
             >
-              <span className="flex min-w-0 items-center gap-2.5">
+              <span className="flex min-w-0 flex-1 items-center gap-2.5">
                 <span
                   className={cx(
                     "grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.055] text-blue-100/76 transition",
@@ -301,7 +301,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                 >
                   <GroupIcon className="h-4 w-4" strokeWidth={2.3} />
                 </span>
-                <span className="truncate">{group.label}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words">{group.label}</span>
               </span>
               <ChevronDown
                 className={cx("h-4 w-4 shrink-0 text-slate-300 transition-transform", groupExpanded && "rotate-180 text-white")}
@@ -330,14 +330,14 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                           setMobileMenuOpen(false);
                         }}
                         className={cx(
-                          "flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold transition",
+                          "flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold leading-tight transition",
                           active
                             ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_18px_rgba(37,99,235,0.22)]"
                             : "text-slate-200/76 hover:bg-white/8 hover:text-white"
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
-                        <span className="truncate">{item.label}</span>
+                        <span className="min-w-0 flex-1 whitespace-normal break-words">{item.label}</span>
                       </Link>
                     );
                   })}
