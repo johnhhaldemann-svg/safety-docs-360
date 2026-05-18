@@ -137,6 +137,7 @@ export default function AppLayout({
   const lastSidebarSyncPathRef = useRef<string | null>(null);
   const isAdminArea = pathname.startsWith("/admin");
   const isSuperadminRoute = pathname.startsWith("/superadmin");
+  const isSuperadminCyberSecurityRoute = pathname === "/superadmin/cyber-security";
   /** Platform admin sidebar: /admin/* or superadmin-only analytics (Injury Weather, OSHA IPA lab). */
   const showPlatformAdminShell =
     isAdminArea || (isSuperadminRoute && userRole === "super_admin");
@@ -487,7 +488,7 @@ export default function AppLayout({
       return;
     }
 
-    if (isSuperadminRoute && userRole !== "super_admin") {
+    if (isSuperadminRoute && userRole !== "super_admin" && !isSuperadminCyberSecurityRoute) {
       router.replace("/dashboard");
       return;
     }
@@ -638,6 +639,10 @@ export default function AppLayout({
         companyAllowedRoutes.push("/company-users", "/company-integrations");
       }
 
+      if (isSuperadminCyberSecurityRoute) {
+        companyAllowedRoutes.push("/superadmin/cyber-security");
+      }
+
       // All company users may open My Purchases to see unlocked docs and history; only
       // can_manage_billing can manage invoice-backed purchases (enforced in UI + APIs).
       companyAllowedRoutes.push("/purchases");
@@ -677,6 +682,7 @@ export default function AppLayout({
     companyId,
     isAdminArea,
     isCompanyScopedUser,
+    isSuperadminCyberSecurityRoute,
     isSuperadminRoute,
     loading,
     needsCompanySetup,

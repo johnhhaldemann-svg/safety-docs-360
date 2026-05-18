@@ -314,6 +314,7 @@ export default function SuperadminCyberSecurityPage() {
     [payload?.website.headers]
   );
   const recentEvents = payload?.telemetry.recentEvents ?? [];
+  const isSuperadminAccessError = /super admin access required/i.test(error);
   const reviewFindings = useMemo(() => {
     if (!payload) return [];
     return [
@@ -357,8 +358,31 @@ export default function SuperadminCyberSecurityPage() {
       />
 
       {error ? (
-        <InlineMessage tone="error" onRetry={() => void loadSnapshot()} retryLabel="Retry">
-          {error}
+        <InlineMessage
+          tone={isSuperadminAccessError ? "warning" : "error"}
+          onRetry={isSuperadminAccessError ? undefined : () => void loadSnapshot()}
+          retryLabel="Retry"
+        >
+          {isSuperadminAccessError ? (
+            <div className="space-y-2">
+              <p className="font-semibold text-[var(--app-text-strong)]">
+                This cyber compliance monitor is only available to Super Admin accounts.
+              </p>
+              <p>
+                The account shown in your screenshot is a company workspace user. Sign out from the top-right menu,
+                then sign back in with a Super Admin account to review the posture score, findings queue, audit
+                telemetry, and evidence documents.
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex rounded-lg border border-current/25 bg-white/60 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-white/90"
+              >
+                Go to login
+              </Link>
+            </div>
+          ) : (
+            error
+          )}
         </InlineMessage>
       ) : null}
 
