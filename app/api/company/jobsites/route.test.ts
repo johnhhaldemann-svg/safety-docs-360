@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 
 const { authorizeRequest, getCompanyScope, assertCompanyJobsiteAllowed, isAdminRole } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
@@ -65,12 +66,12 @@ describe("/api/company/jobsites", () => {
   it("POST requires a jobsite number", async () => {
     authWithBuilders([]);
 
-    const response = await POST(
+    const response = requireRouteResponse(await POST(
       new Request("https://example.com/api/company/jobsites", {
         method: "POST",
         body: JSON.stringify({ name: "North Tower", projectNumber: "P-100" }),
       })
-    );
+    ));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: "Jobsite number is required." });
@@ -82,12 +83,12 @@ describe("/api/company/jobsites", () => {
       queryBuilder({ count: 1, error: null }),
     ]);
 
-    const response = await POST(
+    const response = requireRouteResponse(await POST(
       new Request("https://example.com/api/company/jobsites", {
         method: "POST",
         body: JSON.stringify({ name: "North Tower", jobsiteNumber: "SITE-0001", projectNumber: "P-100" }),
       })
-    );
+    ));
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({
@@ -106,12 +107,12 @@ describe("/api/company/jobsites", () => {
       insert,
     ]);
 
-    const response = await POST(
+    const response = requireRouteResponse(await POST(
       new Request("https://example.com/api/company/jobsites", {
         method: "POST",
         body: JSON.stringify({ name: "North Tower", jobsiteNumber: "SITE-0001", projectNumber: "P-100" }),
       })
-    );
+    ));
 
     expect(response.status).toBe(200);
     expect(insert.insert).toHaveBeenCalledWith(
@@ -127,13 +128,13 @@ describe("/api/company/jobsites", () => {
       queryBuilder({ data: { id: "jobsite-1", company_id: "company-1" }, error: null }),
     ]);
 
-    const response = await PATCH(
+    const response = requireRouteResponse(await PATCH(
       new Request("https://example.com/api/company/jobsites/jobsite-1", {
         method: "PATCH",
         body: JSON.stringify({ jobsiteNumber: " " }),
       }),
       { params: Promise.resolve({ jobsiteId: "jobsite-1" }) }
-    );
+    ));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: "Jobsite number cannot be empty." });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { requireRouteResponse } from "@/lib/routeResponseTest";
 
 const { authorizeRequest, getCompanyScope, isAdminRole } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
@@ -129,9 +130,9 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
       }),
     ]);
 
-    const response = await GET(new Request("https://example.com/api/company/jobsites/jobsite-1/schedule"), {
+    const response = requireRouteResponse(await GET(new Request("https://example.com/api/company/jobsites/jobsite-1/schedule"), {
       params: Promise.resolve({ jobsiteId: "jobsite-1" }),
-    });
+    }));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -158,13 +159,13 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
       insert,
     ]);
 
-    const response = await POST(
+    const response = requireRouteResponse(await POST(
       new Request("https://example.com/api/company/jobsites/jobsite-1/schedule", {
         method: "POST",
         body: JSON.stringify({ title: "Decking release", workStartDate: "2026-05-20" }),
       }),
       { params: Promise.resolve({ jobsiteId: "jobsite-1" }) }
-    );
+    ));
 
     expect(response.status).toBe(200);
     expect(insert.insert).toHaveBeenCalledWith(
@@ -184,13 +185,13 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
     });
     authWithBuilders([update]);
 
-    const response = await PATCH(
+    const response = requireRouteResponse(await PATCH(
       new Request("https://example.com/api/company/jobsites/jobsite-1/schedule", {
         method: "PATCH",
         body: JSON.stringify({ itemId: "manual-1", archived: true }),
       }),
       { params: Promise.resolve({ jobsiteId: "jobsite-1" }) }
-    );
+    ));
 
     expect(response.status).toBe(200);
     expect(update.update).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" }));
