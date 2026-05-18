@@ -7,6 +7,11 @@ import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { useTableDensity } from "@/hooks/useTableDensity";
 import { simpleDataTableLayout } from "@/lib/tableDensityLayout";
 import {
+  normalizeRowsArray,
+  type ImportRowError,
+  validateEmployeeImportRows,
+} from "@/lib/companyOnboardingImport";
+import {
   ActivityFeed,
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
@@ -328,6 +333,8 @@ export default function CompanyUsersPage() {
   );
   const [editingTrackedEmployee, setEditingTrackedEmployee] = useState<TrackedEmployee | null>(null);
   const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
+  const [trackedRosterImporting, setTrackedRosterImporting] = useState(false);
+  const [trackedRosterRowErrors, setTrackedRosterRowErrors] = useState<ImportRowError[]>([]);
 
   async function getAccessToken() {
     const {
@@ -932,6 +939,116 @@ export default function CompanyUsersPage() {
     setTrackedEmployeeForm(emptyTrackedEmployeeForm);
   }
 
+  function scrollToTrackedRoster() {
+    document
+      .getElementById("training-only-roster")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function handleTrackedRosterUpload(file: File | null) {
+    if (!file) return;
+    setTrackedRosterImporting(true);
+    setTrackedRosterMessage("");
+    setTrackedRosterMessageTone("neutral");
+    setTrackedRosterRowErrors([]);
+
+    try {
+      const XLSX = await import("xlsx");
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) throw new Error("The uploaded file does not contain a worksheet.");
+
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet], {
+        defval: "",
+        raw: false,
+      });
+      const rows = normalizeRowsArray(rawRows);
+      const validation = validateEmployeeImportRows(rows);
+
+      if (rows.length === 0) {
+        setTrackedRosterMessageTone("warning");
+        setTrackedRosterMessage("The roster file did not contain any rows to import.");
+        return;
+      }
+
+      if (validation.validRows.length === 0) {
+        setTrackedRosterRowErrors(validation.rowErrors);
+        setTrackedRosterMessageTone("error");
+        setTrackedRosterMessage(validation.rowErrors[0]?.message ?? "No valid roster rows were found.");
+        return;
+      }
+
+      if (demoMode) {
+        setTrackedEmployees((current) => [
+          ...validation.validRows.map((row) => ({
+            id: `demo-imported-${row.rowNumber}-${Date.now()}`,
+            external_employee_id: row.externalEmployeeId,
+            full_name: row.fullName,
+            email: row.email,
+            job_title: row.jobTitle,
+            trade_specialty: row.tradeSpecialty,
+            readiness_status: row.readinessStatus,
+            status: row.status,
+            trainingRecords: [],
+          })),
+          ...current,
+        ]);
+        setTrackedRosterRowErrors(validation.rowErrors);
+        setTrackedRosterMessageTone(validation.rowErrors.length ? "warning" : "success");
+        setTrackedRosterMessage(
+          `Imported ${validation.validRows.length} demo roster row${validation.validRows.length === 1 ? "" : "s"}.`
+        );
+        return;
+      }
+
+      const token = await getAccessToken();
+      const response = await fetch("/api/company/onboarding/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          employees: rows,
+          source: "company_users_roster_upload",
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            acceptedCount?: number;
+            error?: string;
+            rowErrors?: ImportRowError[];
+          }
+        | null;
+
+      setTrackedRosterRowErrors(data?.rowErrors ?? validation.rowErrors);
+
+      if (!response.ok) {
+        setTrackedRosterMessageTone("error");
+        setTrackedRosterMessage(
+          data?.error || data?.rowErrors?.[0]?.message || "Roster import failed."
+        );
+        return;
+      }
+
+      await loadTrackedEmployees();
+      const acceptedCount = data?.acceptedCount ?? validation.validRows.length;
+      const skippedCount = data?.rowErrors?.length ?? 0;
+      setTrackedRosterMessageTone(skippedCount ? "warning" : "success");
+      setTrackedRosterMessage(
+        `Imported ${acceptedCount} roster row${acceptedCount === 1 ? "" : "s"} into Training-only people${
+          skippedCount ? `; ${skippedCount} row${skippedCount === 1 ? "" : "s"} need review.` : "."
+        }`
+      );
+    } catch (error) {
+      setTrackedRosterMessageTone("error");
+      setTrackedRosterMessage(error instanceof Error ? error.message : "Roster import failed.");
+    } finally {
+      setTrackedRosterImporting(false);
+    }
+  }
+
   async function handleSaveTrackedEmployee() {
     if (!trackedEmployeeForm.full_name.trim()) {
       setTrackedRosterMessageTone("warning");
@@ -1389,12 +1506,13 @@ export default function CompanyUsersPage() {
             >
               Training matrix
             </Link>
-            <Link
-              href="/company-onboarding"
+            <button
+              type="button"
+              onClick={scrollToTrackedRoster}
               className={`${appButtonSecondaryClassName} min-w-[10.5rem]`}
             >
               Import roster
-            </Link>
+            </button>
             <Link
               href="/billing"
               className={`${appButtonSecondaryClassName} min-w-[8.5rem]`}
@@ -1545,19 +1663,60 @@ export default function CompanyUsersPage() {
           )}
         </SectionCard>
 
-        <SectionCard
-          title="Training-only roster"
-          description="Add non-users here when they need Training Matrix tracking but should not receive app login access or a licensed seat."
-          aside={<StatusBadge label={`${activeTrackedEmployees.length} no-login`} tone={activeTrackedEmployees.length ? "info" : "neutral"} />}
-          actions={
-            <Link href="/training-matrix" className={appButtonSecondaryClassName}>
-              Open Training Matrix
-            </Link>
-          }
-        >
-          {trackedRosterMessage ? (
-            <InlineMessage tone={trackedRosterMessageTone}>{trackedRosterMessage}</InlineMessage>
-          ) : null}
+        <div id="training-only-roster" className="scroll-mt-24">
+          <SectionCard
+            title="Training-only roster"
+            description="Add or import non-users here when they need Training Matrix tracking but should not receive app login access or a licensed seat."
+            aside={<StatusBadge label={`${activeTrackedEmployees.length} no-login`} tone={activeTrackedEmployees.length ? "info" : "neutral"} />}
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/api/company/onboarding/import/template?type=employees"
+                  className={appButtonSecondaryClassName}
+                >
+                  Download roster template
+                </a>
+                <Link href="/training-matrix" className={appButtonSecondaryClassName}>
+                  Open Training Matrix
+                </Link>
+              </div>
+            }
+          >
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-600 bg-slate-950/50 px-4 py-5 text-center transition hover:border-sky-400 hover:bg-slate-900/80">
+              <span className="text-sm font-semibold text-slate-100">
+                {trackedRosterImporting ? "Importing roster..." : "Upload roster CSV or XLSX"}
+              </span>
+              <span className="text-xs leading-5 text-slate-500">
+                Valid rows are added as training-only people and appear here immediately.
+              </span>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                disabled={trackedRosterImporting}
+                className="sr-only"
+                onChange={(event) => {
+                  void handleTrackedRosterUpload(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+
+            {trackedRosterMessage ? (
+              <InlineMessage tone={trackedRosterMessageTone}>{trackedRosterMessage}</InlineMessage>
+            ) : null}
+
+            {trackedRosterRowErrors.length > 0 ? (
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-950/30 p-4 text-sm text-amber-100">
+                <div className="font-semibold">Rows to review</div>
+                <ul className="mt-2 space-y-1">
+                  {trackedRosterRowErrors.slice(0, 8).map((error, index) => (
+                    <li key={`${error.rowNumber}-${error.field ?? "row"}-${index}`}>
+                      Row {error.rowNumber}: {error.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
           <div className="grid gap-5 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
             <div className="grid content-start gap-3">
@@ -1674,7 +1833,7 @@ export default function CompanyUsersPage() {
               <button
                 type="button"
                 onClick={() => void handleSaveTrackedEmployee()}
-                disabled={trackedEmployeeSaving || !trackedEmployeeForm.full_name.trim()}
+                disabled={trackedEmployeeSaving || trackedRosterImporting || !trackedEmployeeForm.full_name.trim()}
                 className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
               >
                 {trackedEmployeeSaving
@@ -1738,7 +1897,8 @@ export default function CompanyUsersPage() {
               )}
             </div>
           </div>
-        </SectionCard>
+          </SectionCard>
+        </div>
       </section>
 
       <SectionCard

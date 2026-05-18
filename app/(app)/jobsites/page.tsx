@@ -29,6 +29,7 @@ type PanelMode = "detail" | "form";
 
 type ComposerState = {
   name: string;
+  jobsiteNumber: string;
   projectNumber: string;
   location: string;
   status: "planned" | "active" | "completed" | "archived";
@@ -44,6 +45,7 @@ type ComposerState = {
 
 const EMPTY_COMPOSER: ComposerState = {
   name: "",
+  jobsiteNumber: "",
   projectNumber: "",
   location: "",
   status: "planned",
@@ -73,6 +75,7 @@ function getJobsiteTone(
 function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
   return {
     name: jobsite.name,
+    jobsiteNumber: jobsite.jobsiteNumber || "",
     projectNumber: jobsite.projectNumber || "",
     location: jobsite.location || "",
     status: jobsite.rawStatus,
@@ -175,6 +178,7 @@ export default function JobsitesPage() {
         [
           jobsite.name,
           jobsite.location,
+          jobsite.jobsiteNumber,
           jobsite.projectNumber,
           jobsite.projectManager || "",
           jobsite.safetyLead || "",
@@ -344,6 +348,11 @@ export default function JobsitesPage() {
       setMessageTone("error");
       return;
     }
+    if (!composer.jobsiteNumber.trim()) {
+      setMessage("Jobsite number is required.");
+      setMessageTone("error");
+      return;
+    }
 
     setSaving(true);
     setMessage(null);
@@ -363,6 +372,7 @@ export default function JobsitesPage() {
         },
         body: JSON.stringify({
           name: composer.name,
+          jobsiteNumber: composer.jobsiteNumber,
           projectNumber: composer.projectNumber,
           location: composer.location,
           status: composer.status,
@@ -704,6 +714,7 @@ export default function JobsitesPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 {[
                   ["jobsite-name", "Jobsite Name", composer.name, "North Tower Expansion", "name"],
+                  ["jobsite-number", "Jobsite Number", composer.jobsiteNumber, "SITE-0001", "jobsiteNumber"],
                   ["jobsite-project-number", "Project Number", composer.projectNumber, "PRJ-2026-014", "projectNumber"],
                   ["jobsite-location", "Location", composer.location, companyLocation, "location"],
                   ["jobsite-project-manager", "Project Manager", composer.projectManager, "Project lead", "projectManager"],
@@ -843,6 +854,7 @@ export default function JobsitesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-black tracking-tight text-[var(--app-text-strong)]">{selectedJobsite.name}</h2>
                       <StatusBadge label={selectedJobsite.status} tone={getJobsiteTone(selectedJobsite.status)} />
+                      <StatusBadge label={`Jobsite ${selectedJobsite.jobsiteNumber}`} tone="success" />
                       <StatusBadge label={selectedJobsite.projectNumber} tone="info" />
                     </div>
                     <p className="mt-2 text-sm text-[var(--app-muted)]">{selectedJobsite.location || companyLocation}</p>
@@ -864,10 +876,10 @@ export default function JobsitesPage() {
                   {[
                     ["Report Customer", selectedCustomerName],
                     ["Report Email", selectedCustomerEmail],
+                    ["Jobsite Number", selectedJobsite.jobsiteNumber || "Not assigned"],
+                    ["Project Number", selectedJobsite.projectNumber || "Not assigned"],
                     ["Project Manager", selectedJobsite.projectManager || "Not assigned"],
                     ["Safety Lead", selectedJobsite.safetyLead || "Not assigned"],
-                    ["Start Date", selectedJobsite.startDate || "Not set"],
-                    ["End Date", selectedJobsite.endDate || "Not set"],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{label}</p>

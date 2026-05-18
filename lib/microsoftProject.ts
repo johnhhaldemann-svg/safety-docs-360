@@ -601,6 +601,9 @@ async function resolveOrCreateJobsite(params: {
 }) {
   const { supabase, companyId, actorUserId, project } = params;
   let existing: { id?: string } | null = null;
+  const jobsiteNumber =
+    project.projectNumber ||
+    `MSP-${project.sourceProjectId.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 24).toUpperCase() || "PROJECT"}`;
 
   if (project.projectNumber) {
     const byProjectNumber = await table(supabase, "company_jobsites")
@@ -609,6 +612,15 @@ async function resolveOrCreateJobsite(params: {
       .eq("project_number", project.projectNumber)
       .maybeSingle();
     existing = byProjectNumber.data ?? null;
+  }
+
+  if (!existing?.id) {
+    const byJobsiteNumber = await table(supabase, "company_jobsites")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("jobsite_number", jobsiteNumber)
+      .maybeSingle();
+    existing = byJobsiteNumber.data ?? null;
   }
 
   if (!existing?.id) {
@@ -626,6 +638,7 @@ async function resolveOrCreateJobsite(params: {
     .insert({
       company_id: companyId,
       name: project.name,
+      jobsite_number: jobsiteNumber,
       project_number: project.projectNumber || null,
       status: project.status === "archived" ? "archived" : project.status,
       project_manager: project.ownerName || null,

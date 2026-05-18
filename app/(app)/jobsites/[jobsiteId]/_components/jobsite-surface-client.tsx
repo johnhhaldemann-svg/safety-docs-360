@@ -37,6 +37,7 @@ type PermitRow = {
 type JobsiteRow = {
   id?: string;
   name?: string;
+  jobsite_number?: string | null;
   project_number?: string | null;
   location?: string | null;
   status?: string;
@@ -221,6 +222,12 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
       action: "Open JSA",
     },
     {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/schedule`,
+      title: "Schedule",
+      detail: "Review the active 30-day work outlook for this jobsite",
+      action: "Open schedule",
+    },
+    {
       href: links.permits ?? `/jobsites/${encodeURIComponent(jobsiteId)}/permits`,
       title: "Permits",
       detail: `${Number(overview.permits ?? 0)} permit record${Number(overview.permits ?? 0) === 1 ? "" : "s"}`,
@@ -289,6 +296,7 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge label={labelize(jobsite?.status ?? "active")} tone="success" />
+              {jobsite?.jobsite_number ? <StatusBadge label={`Jobsite ${jobsite.jobsite_number}`} tone="success" /> : null}
               {jobsite?.project_number ? <StatusBadge label={jobsite.project_number} tone="info" /> : null}
               {jobsite?.location ? <StatusBadge label={jobsite.location} tone="neutral" /> : null}
             </div>
@@ -303,8 +311,9 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <FieldCard label="Location" value={jobsite?.location ?? "No location listed"} />
+          <FieldCard label="Jobsite number" value={jobsite?.jobsite_number ?? "Not assigned"} />
           <FieldCard label="Project number" value={jobsite?.project_number ?? "Not assigned"} />
           <FieldCard label="Project manager" value={jobsite?.project_manager ?? "Not assigned"} />
           <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />

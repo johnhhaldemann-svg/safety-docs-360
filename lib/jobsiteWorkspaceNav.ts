@@ -7,7 +7,7 @@ export type JobsiteNavPhase = {
 
 export const JOBSITE_NAV_PHASES: readonly JobsiteNavPhase[] = [
   { id: "overview", label: "Overview", segments: ["overview", "live-view", "team", "contractor-training"] },
-  { id: "field_work", label: "Field work", segments: ["jsa", "toolbox", "permits", "inductions"] },
+  { id: "field_work", label: "Field work", segments: ["schedule", "jsa", "toolbox", "permits", "inductions"] },
   { id: "compliance", label: "Compliance", segments: ["safety-forms", "incidents", "chemicals"] },
   { id: "documents", label: "Documents", segments: ["documents", "reports"] },
   { id: "insights", label: "Insights", segments: ["analytics", "safety-intelligence"] },
@@ -49,6 +49,7 @@ function segmentLabel(segment: string) {
     "live-view": "Live view",
     team: "Team",
     "contractor-training": "Contractor Training",
+    schedule: "Schedule",
     jsa: "JSA",
     toolbox: "Toolbox",
     permits: "Permits",

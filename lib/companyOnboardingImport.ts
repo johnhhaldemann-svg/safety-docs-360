@@ -36,6 +36,7 @@ export const EMPLOYEE_TEMPLATE_COLUMNS = [
 
 export const JOBSITE_TEMPLATE_COLUMNS = [
   "name",
+  "jobsite_number",
   "project_number",
   "location",
   "status",
@@ -88,6 +89,7 @@ export type NormalizedEmployeeImportRow = {
 export type NormalizedJobsiteImportRow = {
   rowNumber: number;
   name: string;
+  jobsiteNumber: string;
   projectNumber: string | null;
   location: string | null;
   status: string;
@@ -133,6 +135,7 @@ export function templateCsvFor(type: CompanyOnboardingImportType): string {
       : type === "jobsites"
         ? [
             "North Tower",
+            "SITE-0001",
             "NT-001",
             "Austin, TX",
             "active",
@@ -274,11 +277,16 @@ export function validateJobsiteImportRows(
   rows.forEach((row, index) => {
     const rowNumber = index + 2;
     const name = cleanString(valueFor(row, ["name", "jobsite", "jobsite_name", "jobsite name"]));
+    const jobsiteNumber = cleanString(valueFor(row, ["jobsite_number", "jobsite number", "jobsiteNumber"]));
     const startDate = normalizeDateOnly(valueFor(row, ["start_date", "start date"]));
     const endDate = normalizeDateOnly(valueFor(row, ["end_date", "end date"]));
 
     if (!name) {
       rowErrors.push({ rowNumber, entity: "jobsites", field: "name", message: "Jobsite name is required." });
+      return;
+    }
+    if (!jobsiteNumber) {
+      rowErrors.push({ rowNumber, entity: "jobsites", field: "jobsite_number", message: "Jobsite number is required." });
       return;
     }
     if (cleanString(valueFor(row, ["start_date", "start date"])) && !startDate) {
@@ -297,6 +305,7 @@ export function validateJobsiteImportRows(
     validRows.push({
       rowNumber,
       name,
+      jobsiteNumber,
       projectNumber: cleanNullable(valueFor(row, ["project_number", "project number", "projectNumber"])),
       location: cleanNullable(valueFor(row, ["location", "address"])),
       status: normalizeJobsiteStatus(valueFor(row, ["status"])),

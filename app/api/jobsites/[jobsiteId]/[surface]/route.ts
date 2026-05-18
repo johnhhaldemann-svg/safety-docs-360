@@ -16,6 +16,7 @@ type SupabaseLike = {
             company_id: string;
             name: string | null;
             status: string | null;
+            jobsite_number: string | null;
             project_number: string | null;
             location: string | null;
             project_manager?: string | null;
@@ -32,7 +33,7 @@ type SupabaseLike = {
 async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
   return supabase
     .from("company_jobsites")
-    .select("id, company_id, name, status, project_number, location, project_manager, safety_lead")
+    .select("id, company_id, name, status, jobsite_number, project_number, location, project_manager, safety_lead")
     .eq("id", jobsiteId)
     .maybeSingle();
 }
@@ -235,6 +236,7 @@ export async function GET(
     },
     links: {
       liveView: `/jobsites/${jobsiteId}/live-view`,
+      schedule: `/jobsites/${jobsiteId}/schedule`,
       jsa: `/jobsites/${jobsiteId}/jsa`,
       permits: `/jobsites/${jobsiteId}/permits`,
       incidents: `/jobsites/${jobsiteId}/incidents`,

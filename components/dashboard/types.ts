@@ -59,6 +59,7 @@ export type DashboardJobsite = {
   id?: string;
   company_id?: string;
   name: string;
+  jobsite_number?: string | null;
   project_number?: string | null;
   location?: string | null;
   status?: string | null;

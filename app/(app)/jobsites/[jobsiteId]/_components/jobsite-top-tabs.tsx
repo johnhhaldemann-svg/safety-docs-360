@@ -1,7 +1,9 @@
 "use client";
 
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { SegmentedRouteChips } from "@/components/AppTabBar";
 import {
   JOBSITE_NAV_PHASES,
@@ -13,6 +15,8 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+const supabase = getSupabaseBrowserClient();
+
 export function JobsiteTopTabs({
   jobsiteId,
 }: {
@@ -20,6 +24,31 @@ export function JobsiteTopTabs({
 }) {
   const pathname = usePathname();
   const activePhaseId = getJobsiteWorkspacePhaseId(pathname) ?? "overview";
+  const [jobsiteLabel, setJobsiteLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadJobsiteLabel() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const response = await fetch("/api/company/jobsites", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { jobsites?: Array<{ id: string; name?: string; jobsite_number?: string | null; project_number?: string | null }> }
+        | null;
+      const jobsite = payload?.jobsites?.find((row) => row.id === jobsiteId);
+      if (!cancelled && jobsite) {
+        const number = jobsite.jobsite_number || jobsite.project_number || jobsiteId;
+        setJobsiteLabel(`${jobsite.name ?? "Jobsite"} · ${number}`);
+      }
+    }
+    void loadJobsiteLabel();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobsiteId]);
 
   return (
     <div
@@ -30,7 +59,7 @@ export function JobsiteTopTabs({
     >
       <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Job site Workspace</div>
       <div className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text-strong)]">
-        Job site {jobsiteId}
+        {jobsiteLabel ?? `Jobsite ${jobsiteId}`}
       </div>
       <div className="mt-4 space-y-3">
         <div className="overflow-x-auto">

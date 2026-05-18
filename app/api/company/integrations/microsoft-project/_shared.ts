@@ -140,6 +140,7 @@ export const demoMicrosoftProjectRows = {
     {
       id: "demo-source-1",
       name: "Candler Court Structural Steel",
+      jobsite_number: "MSP-1001",
       project_number: "MSP-1001",
       status: "active",
       start_date: "2026-05-11",
@@ -152,6 +153,7 @@ export const demoMicrosoftProjectRows = {
     {
       id: "demo-source-2",
       name: "North Dock Fit-Out",
+      jobsite_number: "MSP-1002",
       project_number: "MSP-1002",
       status: "planned",
       start_date: "2026-06-01",

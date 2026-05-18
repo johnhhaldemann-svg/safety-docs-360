@@ -18,6 +18,7 @@ type JobsiteRow = {
   id: string;
   company_id: string;
   name: string;
+  jobsite_number?: string | null;
   status: string | null;
 };
 
@@ -101,7 +102,7 @@ async function loadExistingTrackedEmployees(db: SupabaseClient, companyId: strin
 async function loadJobsites(db: SupabaseClient, companyId: string) {
   const result = await db
     .from("company_jobsites")
-    .select("id, company_id, name, status")
+    .select("id, company_id, name, jobsite_number, status")
     .eq("company_id", companyId);
   return {
     jobsites: (result.data ?? []) as JobsiteRow[],
@@ -312,6 +313,7 @@ export async function upsertJobsiteRows(params: {
     const payload = {
       company_id: params.companyId,
       name: row.name,
+      jobsite_number: row.jobsiteNumber,
       project_number: row.projectNumber,
       location: row.location,
       status: row.status,
@@ -330,12 +332,12 @@ export async function upsertJobsiteRows(params: {
           .update(payload)
           .eq("company_id", params.companyId)
           .eq("id", match.id)
-          .select("id, company_id, name, status")
+          .select("id, company_id, name, jobsite_number, status")
           .single()
       : await params.db
           .from("company_jobsites")
           .insert({ ...payload, created_by: params.actorUserId })
-          .select("id, company_id, name, status")
+          .select("id, company_id, name, jobsite_number, status")
           .single();
 
     if (result.error || !result.data) {

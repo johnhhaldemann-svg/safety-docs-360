@@ -72,6 +72,7 @@ const EMPTY_EMPLOYEE = {
 
 const EMPTY_JOBSITE = {
   name: "",
+  jobsite_number: "",
   project_number: "",
   location: "",
   status: "active",
@@ -434,11 +435,14 @@ export default function CompanyOnboardingPage() {
             <div className="grid gap-3">
               <input className={inputClassName} placeholder="Jobsite name" value={jobsiteForm.name} onChange={(e) => setJobsiteForm({ ...jobsiteForm, name: e.target.value })} />
               <div className="grid gap-3 sm:grid-cols-2">
+                <input className={inputClassName} placeholder="Jobsite number" value={jobsiteForm.jobsite_number} onChange={(e) => setJobsiteForm({ ...jobsiteForm, jobsite_number: e.target.value })} />
                 <input className={inputClassName} placeholder="Project number" value={jobsiteForm.project_number} onChange={(e) => setJobsiteForm({ ...jobsiteForm, project_number: e.target.value })} />
-                <input className={inputClassName} placeholder="Location" value={jobsiteForm.location} onChange={(e) => setJobsiteForm({ ...jobsiteForm, location: e.target.value })} />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
+                <input className={inputClassName} placeholder="Location" value={jobsiteForm.location} onChange={(e) => setJobsiteForm({ ...jobsiteForm, location: e.target.value })} />
                 <input className={inputClassName} placeholder="Project manager" value={jobsiteForm.project_manager} onChange={(e) => setJobsiteForm({ ...jobsiteForm, project_manager: e.target.value })} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <input className={inputClassName} placeholder="Safety lead" value={jobsiteForm.safety_lead} onChange={(e) => setJobsiteForm({ ...jobsiteForm, safety_lead: e.target.value })} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -549,7 +553,10 @@ export default function CompanyOnboardingPage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Tracked roster" description="These people are available in the Training Matrix as tracked employees with no license usage.">
+      <SectionCard
+        title="Tracked roster"
+        description={`These ${activeEmployees.length} people are available in the Training Matrix as tracked employees with no license usage.`}
+      >
         {activeEmployees.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -563,7 +570,7 @@ export default function CompanyOnboardingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--app-border)]">
-                {activeEmployees.slice(0, 15).map((employee) => (
+                {activeEmployees.map((employee) => (
                   <tr key={employee.id}>
                     <td className="py-3 pr-4">
                       <div className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</div>

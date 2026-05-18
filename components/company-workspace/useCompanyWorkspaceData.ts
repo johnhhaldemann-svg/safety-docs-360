@@ -78,6 +78,7 @@ export type CompanyJobsite = {
   lastActivity: string | null;
   totalDocuments: number;
   pendingDocuments: number;
+  jobsiteNumber: string;
   projectNumber: string;
   status: "Planned" | "Action needed" | "Active" | "Completed" | "Archived";
   rawStatus: "planned" | "active" | "completed" | "archived";
@@ -115,6 +116,7 @@ type CompanyJobsiteRow = {
   id: string;
   company_id: string;
   name: string;
+  jobsite_number?: string | null;
   project_number: string | null;
   location: string | null;
   status: string | null;
@@ -480,6 +482,7 @@ export function useCompanyWorkspaceData() {
       totalDocuments: jobsite.totalDocuments,
       pendingDocuments: jobsite.pendingDocuments,
       projectNumber: "",
+      jobsiteNumber: "",
       status:
         jobsite.pendingDocuments > 0
           ? ("Action needed" as const)
@@ -536,6 +539,7 @@ export function useCompanyWorkspaceData() {
         totalDocuments: groupedJobsite?.totalDocuments ?? 0,
         pendingDocuments: groupedJobsite?.pendingDocuments ?? 0,
         projectNumber: row.project_number?.trim() || "",
+        jobsiteNumber: row.jobsite_number?.trim() || "",
         status: displayStatus,
         rawStatus,
         projectManager: row.project_manager,
@@ -569,6 +573,10 @@ export function useCompanyWorkspaceData() {
         ...jobsite,
         projectNumber:
           jobsite.projectNumber || `SITE-${String(index + 1).padStart(2, "0")}`,
+        jobsiteNumber:
+          jobsite.jobsiteNumber ||
+          jobsite.projectNumber ||
+          `SITE-${String(index + 1).padStart(4, "0")}`,
       }));
   }, [companyLocation, documents, jobsiteRows, referenceTime]);
 

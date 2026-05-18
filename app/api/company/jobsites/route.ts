@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 type JobsitePayload = {
   name?: string;
+  jobsiteNumber?: string;
   projectNumber?: string;
   location?: string;
   status?: string;
@@ -38,6 +39,11 @@ function isDuplicateNameViolation(code?: string | null, message?: string | null)
   return code === "23505" && (message ?? "").toLowerCase().includes("company_jobsites");
 }
 
+function isDuplicateJobsiteNumberViolation(code?: string | null, message?: string | null) {
+  const normalized = (message ?? "").toLowerCase();
+  return code === "23505" && normalized.includes("jobsite_number");
+}
+
 function normalizeEmail(value?: string | null) {
   const email = (value ?? "").trim().toLowerCase();
   if (!email) return null;
@@ -45,7 +51,7 @@ function normalizeEmail(value?: string | null) {
 }
 
 const JOBSITE_SELECT =
-  "id, company_id, name, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+  "id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
@@ -161,6 +167,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as JobsitePayload | null;
   const name = body?.name?.trim() ?? "";
+  const jobsiteNumber = body?.jobsiteNumber?.trim() ?? "";
   const projectNumber = body?.projectNumber?.trim() ?? "";
   const location = body?.location?.trim() ?? "";
   const projectManager = body?.projectManager?.trim() ?? "";
@@ -175,6 +182,9 @@ export async function POST(request: Request) {
 
   if (!name) {
     return NextResponse.json({ error: "Jobsite name is required." }, { status: 400 });
+  }
+  if (!jobsiteNumber) {
+    return NextResponse.json({ error: "Jobsite number is required." }, { status: 400 });
   }
   if (customerReportEmail === "invalid") {
     return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
@@ -229,6 +239,37 @@ export async function POST(request: Request) {
     );
   }
 
+  const escapedJobsiteNumber = jobsiteNumber.replace(/[%_]/g, "\\$&");
+  const duplicateJobsiteNumberCheck = await auth.supabase
+    .from("company_jobsites")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyScope.companyId)
+    .ilike("jobsite_number", escapedJobsiteNumber);
+
+  if (duplicateJobsiteNumberCheck.error) {
+    if (isMissingJobsitesTable(duplicateJobsiteNumberCheck.error.message)) {
+      return NextResponse.json(
+        {
+          error:
+            "The company jobsites table is not available yet. Run the latest Supabase jobsites migration first.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: duplicateJobsiteNumberCheck.error.message || "Failed to validate the jobsite number." },
+      { status: 500 }
+    );
+  }
+
+  if (duplicateJobsiteNumberCheck.count && duplicateJobsiteNumberCheck.count > 0) {
+    return NextResponse.json(
+      { error: "A jobsite with this jobsite number already exists for your company." },
+      { status: 409 }
+    );
+  }
+
   if (status !== "archived") {
     const jobsiteAllowed = await assertCompanyJobsiteAllowed({
       supabase: auth.supabase,
@@ -247,6 +288,7 @@ export async function POST(request: Request) {
     .insert({
       company_id: companyScope.companyId,
       name,
+      jobsite_number: jobsiteNumber,
       project_number: projectNumber || null,
       location: location || null,
       status,
@@ -279,6 +321,13 @@ export async function POST(request: Request) {
     if (isDuplicateNameViolation(insertResult.error.code, insertResult.error.message)) {
       return NextResponse.json(
         { error: "A jobsite with this name already exists for your company." },
+        { status: 409 }
+      );
+    }
+
+    if (isDuplicateJobsiteNumberViolation(insertResult.error.code, insertResult.error.message)) {
+      return NextResponse.json(
+        { error: "A jobsite with this jobsite number already exists for your company." },
         { status: 409 }
       );
     }

@@ -403,7 +403,7 @@ export function CompanyAdminDashboard({
     const matchesJobsite = selectedJobsite === "all" || jobsite.name === selectedJobsite;
     const matchesSearch =
       !normalizedSearch ||
-      [jobsite.name, jobsite.location, jobsite.projectNumber].some((value) =>
+      [jobsite.name, jobsite.location, jobsite.jobsiteNumber, jobsite.projectNumber].some((value) =>
         value.toLowerCase().includes(normalizedSearch)
       );
     return matchesJobsite && matchesSearch;
@@ -1166,10 +1166,10 @@ export function CompanyAdminDashboard({
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">
                       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                        Project number
+                        Jobsite number
                       </div>
                       <div className="mt-2 text-sm font-semibold text-slate-100">
-                        {jobsite.projectNumber}
+                        {jobsite.jobsiteNumber}
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 px-4 py-3">

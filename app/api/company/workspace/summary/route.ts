@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     await Promise.all([
       auth.supabase
         .from("company_jobsites")
-        .select("id, company_id, name, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at")
+        .select("id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, start_date, end_date, notes, created_at, updated_at")
         .eq("company_id", companyScope.companyId)
         .order("updated_at", { ascending: false }),
       auth.supabase

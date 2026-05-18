@@ -68,6 +68,7 @@ on conflict (company_id) do update set
 insert into public.company_jobsites (
   company_id,
   name,
+  jobsite_number,
   project_number,
   location,
   status,
@@ -77,17 +78,18 @@ insert into public.company_jobsites (
   end_date,
   notes
 )
-select c.id, v.name, v.project_number, v.location, v.status, v.project_manager, v.safety_lead, current_date + v.start_offset, current_date + v.end_offset, v.notes
+select c.id, v.name, v.jobsite_number, v.project_number, v.location, v.status, v.project_manager, v.safety_lead, current_date + v.start_offset, current_date + v.end_offset, v.notes
 from public.companies c
 cross join (
   values
-    ('LKC Phase 3', 'DEMO-LKC-03', 'Austin, TX', 'active', 'Jordan Lee', 'Maria Chen', -42, 120, 'High-rise phase with steel erection, roofing, hot work, and crane picks.'),
-    ('Hospital Expansion', 'DEMO-HOSP-02', 'San Antonio, TX', 'active', 'Nora Williams', 'Grace Kim', -18, 180, 'Occupied healthcare expansion with electrical, confined-space, and infection-control interfaces.'),
-    ('Warehouse Buildout', 'DEMO-WH-11', 'Round Rock, TX', 'planned', 'Eli Brooks', 'Maria Chen', 7, 95, 'Warehouse fit-out with roofing, loading dock, and material-handling exposure.')
-) as v(name, project_number, location, status, project_manager, safety_lead, start_offset, end_offset, notes)
+    ('LKC Phase 3', 'DEMO-LKC-03', 'DEMO-LKC-03', 'Austin, TX', 'active', 'Jordan Lee', 'Maria Chen', -42, 120, 'High-rise phase with steel erection, roofing, hot work, and crane picks.'),
+    ('Hospital Expansion', 'DEMO-HOSP-02', 'DEMO-HOSP-02', 'San Antonio, TX', 'active', 'Nora Williams', 'Grace Kim', -18, 180, 'Occupied healthcare expansion with electrical, confined-space, and infection-control interfaces.'),
+    ('Warehouse Buildout', 'DEMO-WH-11', 'DEMO-WH-11', 'Round Rock, TX', 'planned', 'Eli Brooks', 'Maria Chen', 7, 95, 'Warehouse fit-out with roofing, loading dock, and material-handling exposure.')
+) as v(name, jobsite_number, project_number, location, status, project_manager, safety_lead, start_offset, end_offset, notes)
 where c.team_key = 'demo-construction-sql'
   and c.demo_company = true
 on conflict (company_id, name) do update set
+  jobsite_number = excluded.jobsite_number,
   project_number = excluded.project_number,
   location = excluded.location,
   status = excluded.status,
