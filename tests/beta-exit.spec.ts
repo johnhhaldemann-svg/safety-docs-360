@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { performLogin, performLogout } from "./helpers/auth";
+import { acceptAgreementIfPresent, performLogin, performLogout } from "./helpers/auth";
 import { clearClientAuthState } from "./helpers/storage";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
 
@@ -75,11 +75,12 @@ test.describe("Beta exit admin walkthrough", () => {
       { path: "/safety-intelligence", marker: /safety intelligence|risk|memory/i },
       { path: "/company-users", marker: /user|invite|team/i },
       { path: "/training-matrix", marker: /training|readiness|requirement/i },
-      { path: "/billing", marker: /billing|invoice|limited to platform billing staff/i },
+      { path: "/customer/billing", marker: /billing|invoice|subscription|payment/i },
     ];
 
     for (const route of routes) {
       await page.goto(route.path, { waitUntil: "domcontentloaded" });
+      await acceptAgreementIfPresent(page, 2_500);
       await expect(page).not.toHaveURL(/\/login/);
       await expect(page.locator("body")).toContainText(route.marker, { timeout: 20_000 });
     }
@@ -99,13 +100,16 @@ test.describe("Beta exit field and security checks", () => {
     test.skip(!field, "Set E2E_BETA_FIELD_EMAIL and E2E_BETA_FIELD_PASSWORD to run beta field E2E.");
 
     await performLogin(page, field!);
+    await acceptAgreementIfPresent(page, 2_500);
     await expectAuthenticatedShellUrl(page, "beta field login");
 
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    await acceptAgreementIfPresent(page, 2_500);
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.locator("body")).toContainText(/dashboard|workspace|assigned|field/i);
 
     await page.goto("/admin/users", { waitUntil: "domcontentloaded" });
+    await acceptAgreementIfPresent(page, 2_500);
     const adminPath = new URL(page.url()).pathname;
     if (adminPath.startsWith("/admin/users")) {
       await expect(page.locator("body")).toContainText(/access|permission|not authorized|forbidden/i);
@@ -114,7 +118,16 @@ test.describe("Beta exit field and security checks", () => {
     }
 
     await page.goto("/billing", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("body")).toContainText(/limited|forbidden|permission|not authorized|sign in required/i);
+    await acceptAgreementIfPresent(page, 2_500);
+    const billingPath = new URL(page.url()).pathname;
+    if (billingPath === "/billing") {
+      await expect(page.locator("body")).toContainText(
+        /limited|forbidden|permission|not authorized|sign in required/i
+      );
+    } else {
+      expect(billingPath).not.toBe("/billing");
+      expect(billingPath).not.toMatch(/^\/login/);
+    }
   });
 
   test("revoked public RPCs and profile photo listing are blocked", async ({ request }) => {

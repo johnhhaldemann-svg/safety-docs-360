@@ -7,6 +7,10 @@ import {
 } from "@/lib/postLoginRoute";
 
 describe("resolvePostLoginRoute", () => {
+  it("uses the Superadmin hub as the platform superadmin entry point", () => {
+    expect(PLATFORM_SUPERADMIN_ROUTE).toBe("/superadmin");
+  });
+
   it("keeps company users in the Beta working platform", () => {
     expect(resolvePostLoginRoute("company_admin")).toBe(COMPANY_PLATFORM_ROUTE);
     expect(resolvePostLoginRoute("manager")).toBe(COMPANY_PLATFORM_ROUTE);

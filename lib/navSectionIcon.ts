@@ -27,6 +27,10 @@ const GROUP_ICONS: Record<WorkspaceNavGroup, LucideIcon> = {
 
 const TITLE_HINTS: Array<{ test: (t: string) => boolean; Icon: LucideIcon }> = [
   { test: (t) => /superadmin|system|platform/i.test(t), Icon: Shield },
+  { test: (t) => /monitor/i.test(t), Icon: Shield },
+  { test: (t) => /ai|prediction/i.test(t), Icon: BarChart3 },
+  { test: (t) => /builder|content/i.test(t), Icon: FolderOpen },
+  { test: (t) => /compliance/i.test(t), Icon: ClipboardList },
   { test: (t) => /admin|platform/i.test(t), Icon: Shield },
   { test: (t) => /document|library|template/i.test(t), Icon: FolderOpen },
   { test: (t) => /company|user|account|team|billing/i.test(t), Icon: Users },

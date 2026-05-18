@@ -86,6 +86,7 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/billing/invoices",
   "/billing/invoices/new",
   "/companies",
+  "/superadmin/cyber-security",
   "/superadmin/csep-programs",
   "/superadmin/csep-completeness-review",
   "/superadmin/injury-forecast-lab",

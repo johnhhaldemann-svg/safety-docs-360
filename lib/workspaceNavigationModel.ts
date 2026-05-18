@@ -324,6 +324,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open audits",
   },
   {
+    matcher: (href) => href === "/superadmin/cyber-security",
+    group: "insights",
+    description: "Superadmin cyber security monitor for website headers, audit events, and evidence readiness.",
+    primaryActionLabel: "Open cyber monitor",
+  },
+  {
     matcher: (href) => href === "/superadmin/ai-engine",
     group: "insights",
     description: "Superadmin-only AI operations health, calls, feedback, and evaluation visibility.",
@@ -363,7 +369,7 @@ export function getWorkspaceNavItemMeta(item: NavItem): WorkspaceNavItem {
   return {
     ...item,
     group: match?.group ?? "insights",
-    description: match?.description ?? "Open this workspace area.",
+    description: item.description ?? match?.description ?? "Open this workspace area.",
     primaryActionLabel: item.primaryActionLabel ?? match?.primaryActionLabel,
   };
 }

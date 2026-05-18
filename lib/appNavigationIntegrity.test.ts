@@ -92,6 +92,29 @@ describe("App Navigation Integrity", () => {
     expect(companyHrefs).not.toContain(aiEngineHref);
   });
 
+  it("exposes the Superadmin hub and CSEP program settings only in superadmin navigation", () => {
+    const superadminHrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    const ordinaryAdminHrefs = adminSideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+
+    expect(superadminHrefs).toContain("/superadmin");
+    expect(superadminHrefs).toContain("/superadmin/cyber-security");
+    expect(superadminHrefs).toContain("/superadmin/csep-programs");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin/cyber-security");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin/csep-programs");
+  });
+
+  it("does not repeat superadmin tool hrefs across grouped sections", () => {
+    const hrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
   it("quick-link rows do not repeat the same href twice in one list", () => {
     const lists = [
       ["userQuickLinks", userQuickLinks],

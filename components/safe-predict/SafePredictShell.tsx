@@ -159,7 +159,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
 
   const navList = (
     <div className="space-y-1">
-      {[...navItems, ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck } as const] : []), ...(viewerRole === "super_admin" ? [{ href: "/superadmin/system-health", label: "Superadmin", icon: LayoutGrid } as const] : [])].map((item) => {
+      {[...navItems, ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck } as const] : []), ...(viewerRole === "super_admin" ? [{ href: "/superadmin", label: "Superadmin", icon: LayoutGrid } as const] : [])].map((item) => {
         const active = isActive(pathname, item.href);
         const Icon = item.icon;
         return (

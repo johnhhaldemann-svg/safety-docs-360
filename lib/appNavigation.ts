@@ -6,6 +6,7 @@
  */
 
 import type { WorkspaceNavGroup } from "@/lib/workspaceNavGroup";
+import { superadminToolGroups } from "@/lib/superadminNavigation";
 import {
   CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL,
   SITE_SAFETY_BLUEPRINT_NAV_LABEL,
@@ -289,33 +290,7 @@ export const adminSideSections: NavSection[] = [
   },
 ];
 
-export const superadminOnlySideSections: NavSection[] = [
-  {
-    title: "Superadmin",
-    description: "Restricted diagnostics, validation, and AI operations.",
-    audience: "admin",
-    items: [
-      { href: "/superadmin/ai-engine", label: "AI Engine Operations", short: "AI" },
-      { href: "/superadmin/prediction-validation", label: "Prediction validation", short: "PV" },
-      { href: "/superadmin/system-test", label: "System Test", short: "SY" },
-      { href: "/superadmin/system-health", label: "System Health", short: "SH" },
-      { href: "/superadmin/csep-survey-test", label: "Survey Test CSEP", short: "ST" },
-      { href: "/superadmin/csep-completeness-review", label: "CSEP Completeness Review", short: "CR" },
-      { href: "/superadmin/builder-text", label: "Builder Text", short: "BT" },
-      {
-        href: "/superadmin/jurisdiction-standards",
-        label: "Jurisdiction Standards",
-        short: "JS",
-      },
-      { href: "/superadmin/injury-weather", label: "Injury Weather", short: "IW" },
-      {
-        href: "/superadmin/osha-ipa-lab",
-        label: "Compliance Tracker",
-        short: "OA",
-      },
-    ],
-  },
-];
+export const superadminOnlySideSections: NavSection[] = superadminToolGroups;
 
 export const companyAdminSideSections: NavSection[] = [
   {

@@ -4,7 +4,7 @@ export type PostLoginPermissionMap = {
 
 export const COMPANY_PLATFORM_ROUTE = "/safe-predict";
 export const PLATFORM_ADMIN_ROUTE = "/admin";
-export const PLATFORM_SUPERADMIN_ROUTE = "/superadmin/system-health";
+export const PLATFORM_SUPERADMIN_ROUTE = "/superadmin";
 
 function normalizePostLoginRole(role?: string | null) {
   const normalized = (role ?? "")

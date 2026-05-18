@@ -7,6 +7,27 @@ export function hasE2ECredentials(): boolean {
 }
 
 /**
+ * Accepts the platform agreement gate when it is visible.
+ */
+export async function acceptAgreementIfPresent(
+  page: Page,
+  timeout = 5_000
+): Promise<boolean> {
+  const accept = page.getByRole("button", { name: "Accept & Continue" });
+
+  try {
+    await accept.waitFor({ state: "visible", timeout });
+  } catch {
+    return false;
+  }
+
+  await accept.click();
+  await accept.waitFor({ state: "hidden", timeout: 20_000 }).catch(() => undefined);
+  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined);
+  return true;
+}
+
+/**
  * Completes the login form and optional first-run agreement gate.
  */
 export async function performLogin(
@@ -49,18 +70,23 @@ export async function performLogin(
     throw new Error(`Login failed (still on /login): ${msg || "unknown error"}`);
   }
 
-  const accept = page.getByRole("button", { name: "Accept & Continue" });
-  try {
-    await accept.waitFor({ state: "visible", timeout: 5000 });
-    await accept.click();
-    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined);
-  } catch {
-    // No agreement gate for this user
-  }
+  await acceptAgreementIfPresent(page);
 }
 
 export async function performLogout(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Logout" }).click();
+  let logout = page.getByRole("button", { name: /log\s*out/i });
+  const canLogoutFromCurrentPage = await logout
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!canLogoutFromCurrentPage) {
+    await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
+    await acceptAgreementIfPresent(page, 2_500);
+    logout = page.getByRole("button", { name: /log\s*out/i });
+  }
+
+  await logout.click();
   await page.waitForFunction(
     () => {
       const p = window.location.pathname;

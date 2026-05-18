@@ -22,7 +22,7 @@ export type SafePredictPlatformActionSection = {
 };
 
 function actionSource(section: NavSection): SafePredictPlatformAction["source"] {
-  if (section.title === "Superadmin") return "superadmin";
+  if (section.items.some((item) => item.href.startsWith("/superadmin"))) return "superadmin";
   if (section.title === "Platform") return "platform";
   if (section.audience === "admin" || section.group === "review") return "admin";
   return "company";
