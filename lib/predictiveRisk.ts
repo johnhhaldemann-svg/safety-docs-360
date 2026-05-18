@@ -82,6 +82,12 @@ export type PredictiveRiskPayload = {
     generatedAt: string;
     confidenceLabel: "High" | "Medium" | "Low";
     provenanceNote: string;
+    source: NonNullable<InjuryWeatherDashboardData["predictabilityDataSource"]>["source"];
+    predictionSource: NonNullable<InjuryWeatherDashboardData["predictabilityDataSource"]>["predictionSource"];
+    fallbackUsed: boolean;
+    fallbackReason: string | null;
+    confidenceLevel: NonNullable<InjuryWeatherDashboardData["predictabilityDataSource"]>["confidenceLevel"];
+    dataScope: NonNullable<InjuryWeatherDashboardData["predictabilityDataSource"]>["dataScope"];
   };
   behaviorRisk: BehaviorRiskResult;
   leadershipTrust: LeadershipTrustMetadata;
@@ -520,6 +526,14 @@ export function buildPredictiveRiskPayload(input: {
     confidencePercent: confidencePercent(input.forecast),
   }));
   const confidence = confidencePercent(input.forecast);
+  const predictabilityDataSource = input.forecast.predictabilityDataSource ?? {
+    source: "company",
+    predictionSource: "company",
+    fallbackUsed: false,
+    fallbackReason: null,
+    confidenceLevel: confidenceLabel(confidence).toLowerCase() as "high" | "medium" | "low",
+    dataScope: "company_specific",
+  };
   const positiveLocations = locations.filter((row) => row.riskScore > 0);
   const averageRiskScore =
     positiveLocations.length > 0
@@ -634,6 +648,12 @@ export function buildPredictiveRiskPayload(input: {
       generatedAt: input.forecast.summary.lastUpdatedAt,
       confidenceLabel: confidenceLabel(confidence),
       provenanceNote: provenanceNote(input.forecast, rows.length),
+      source: predictabilityDataSource.source,
+      predictionSource: predictabilityDataSource.predictionSource,
+      fallbackUsed: predictabilityDataSource.fallbackUsed,
+      fallbackReason: predictabilityDataSource.fallbackReason,
+      confidenceLevel: predictabilityDataSource.confidenceLevel,
+      dataScope: predictabilityDataSource.dataScope,
     },
     behaviorRisk,
     leadershipTrust,

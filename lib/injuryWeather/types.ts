@@ -2,6 +2,7 @@ import type { InjuryType } from "@/lib/incidents/injuryType";
 import type { SorHazardCategoryCode } from "@/lib/incidents/sorHazardCategory";
 import type { OshaNationalConstructionReference } from "@/lib/benchmarking/oshaConstructionNationalReference";
 import type { DynamicForecastOutput } from "@/lib/injuryForecast/types";
+import type { PredictabilitySourceMetadata } from "@/lib/predictability/settings";
 import type {
   ForecastDataBucket,
   ForecastIntegrityMetadata,
@@ -410,6 +411,8 @@ export type InjuryWeatherDashboardData = {
    * Legacy headline tiles (`structuralRiskScore`, `increasedIncidentRiskPercent`, etc.) remain unchanged for compatibility.
    */
   dynamicInjuryForecast?: DynamicForecastOutput | null;
+  /** Tenant-safe data source used for the Predictability Engine response. */
+  predictabilityDataSource?: PredictabilitySourceMetadata;
 };
 
 /** AI Safety Advisor: priority theme row (not verified open items). */

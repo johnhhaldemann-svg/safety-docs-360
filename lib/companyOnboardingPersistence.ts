@@ -27,6 +27,14 @@ type RequirementRow = {
   match_keywords: string[] | null;
 };
 
+type TrainingRecordIdentityRow = {
+  id: string;
+  employee_id: string;
+  title: string;
+  completed_on: string | null;
+  expires_on: string | null;
+};
+
 function lower(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
@@ -374,6 +382,32 @@ function findRequirement(requirements: RequirementRow[], title: string | null) {
   );
 }
 
+async function loadTrainingRecordIdentities(db: SupabaseClient, companyId: string) {
+  const result = await db
+    .from("company_employee_training_records")
+    .select("id, employee_id, title, completed_on, expires_on")
+    .eq("company_id", companyId);
+
+  return {
+    records: (result.data ?? []) as TrainingRecordIdentityRow[],
+    error: result.error?.message ?? null,
+  };
+}
+
+function trainingRecordKey(input: {
+  employeeId: string;
+  title: string;
+  completedOn?: string | null;
+  expiresOn?: string | null;
+}) {
+  return [
+    input.employeeId,
+    lower(input.title),
+    input.completedOn ?? "",
+    input.expiresOn ?? "",
+  ].join("|");
+}
+
 export async function insertTrainingRecordRows(params: {
   db: SupabaseClient;
   companyId: string;
@@ -399,6 +433,22 @@ export async function insertTrainingRecordRows(params: {
   if (requirementsResult.error) {
     return { acceptedCount: 0, rowErrors: [], error: requirementsResult.error };
   }
+
+  const trainingRecordsResult = await loadTrainingRecordIdentities(params.db, params.companyId);
+  if (trainingRecordsResult.error) {
+    return { acceptedCount: 0, rowErrors: [], error: trainingRecordsResult.error };
+  }
+
+  const existingTrainingKeys = new Set(
+    trainingRecordsResult.records.map((record) =>
+      trainingRecordKey({
+        employeeId: record.employee_id,
+        title: record.title,
+        completedOn: record.completed_on,
+        expiresOn: record.expires_on,
+      })
+    )
+  );
 
   const employees = [...existing.employees];
   const rowErrors: ImportRowError[] = [];
@@ -454,6 +504,21 @@ export async function insertTrainingRecordRows(params: {
     }
 
     const requirement = findRequirement(requirementsResult.requirements, row.requirementTitle);
+    const duplicateKey = trainingRecordKey({
+      employeeId: employee.id,
+      title: row.trainingTitle,
+      completedOn: row.completedOn,
+      expiresOn: row.expiresOn,
+    });
+    if (existingTrainingKeys.has(duplicateKey)) {
+      rowErrors.push({
+        rowNumber: row.rowNumber,
+        entity: "training_records",
+        message: "Matching training record already exists and was skipped.",
+      });
+      continue;
+    }
+
     const result = await params.db.from("company_employee_training_records").insert({
       company_id: params.companyId,
       employee_id: employee.id,
@@ -478,6 +543,7 @@ export async function insertTrainingRecordRows(params: {
     }
 
     acceptedCount++;
+    existingTrainingKeys.add(duplicateKey);
   }
 
   return { acceptedCount, rowErrors, error: null };

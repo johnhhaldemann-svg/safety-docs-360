@@ -123,7 +123,7 @@ export function SafePredictLaunchReadiness() {
     activeUsers: dataset.employees.length,
     demoCompanyName: dataset.company.name,
   });
-  const modeLabel = mode === "live" ? "Live beta data active" : "Demo fallback active";
+  const modeLabel = mode === "live" ? "Live data active" : "Workspace data active";
   const criticalGaps = [
     dataset.jobsites.length === 0 ? "Add at least one jobsite." : "",
     dataset.employees.length === 0 ? "Add workforce records." : "",

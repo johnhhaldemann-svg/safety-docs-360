@@ -2,22 +2,9 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyTrainingRequirements } from "@/lib/companyTrainingAccess";
 import {
-  buildImportTypeFromPayload,
-  countValidRowsByType,
-  dedupeImportRows,
-  makeEmployeeImportKey,
-  makeJobsiteImportKey,
-  makeTrainingImportKey,
-  normalizeRowsArray,
-  validateEmployeeImportRows,
-  validateJobsiteImportRows,
-  validateTrainingRecordImportRows,
-} from "@/lib/companyOnboardingImport";
-import {
-  insertTrainingRecordRows,
-  upsertJobsiteRows,
-  upsertTrackedEmployeeRows,
-} from "@/lib/companyOnboardingPersistence";
+  runCompanyOnboardingImport,
+  type CompanyOnboardingImportPayload,
+} from "@/lib/companyOnboardingImportService";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -55,114 +42,19 @@ export async function POST(request: Request) {
   }
 
   const payload = (await request.json().catch(() => null)) as
-    | {
-        employees?: unknown;
-        jobsites?: unknown;
-        trainingRecords?: unknown;
-        training_records?: unknown;
-        source?: unknown;
-        notes?: unknown;
-      }
+    | CompanyOnboardingImportPayload
     | null;
   if (!payload) {
     return NextResponse.json({ error: "Import payload is required." }, { status: 400 });
   }
 
-  const employeeValidation = validateEmployeeImportRows(normalizeRowsArray(payload.employees));
-  const jobsiteValidation = validateJobsiteImportRows(normalizeRowsArray(payload.jobsites));
-  const trainingValidation = validateTrainingRecordImportRows(
-    normalizeRowsArray(payload.trainingRecords ?? payload.training_records)
-  );
-
-  const employees = dedupeImportRows(employeeValidation.validRows, makeEmployeeImportKey);
-  const jobsites = dedupeImportRows(jobsiteValidation.validRows, makeJobsiteImportKey);
-  const trainingRecords = dedupeImportRows(trainingValidation.validRows, makeTrainingImportKey);
-  const validationErrors = [
-    ...employeeValidation.rowErrors,
-    ...jobsiteValidation.rowErrors,
-    ...trainingValidation.rowErrors,
-  ];
-
-  if (employees.length + jobsites.length + trainingRecords.length === 0) {
-    return NextResponse.json(
-      {
-        error: validationErrors[0]?.message ?? "No valid import rows were provided.",
-        rowErrors: validationErrors,
-      },
-      { status: 400 }
-    );
-  }
-
   const db = createSupabaseAdminClient() ?? auth.supabase;
-  const rowErrors = [...validationErrors];
-  let acceptedCount = 0;
-  let hardError: string | null = null;
-
-  if (jobsites.length > 0) {
-    const result = await upsertJobsiteRows({
-      db,
-      companyId: companyScope.companyId,
-      actorUserId: auth.user.id,
-      rows: jobsites,
-    });
-    if (result.error) hardError = result.error;
-    acceptedCount += result.acceptedCount;
-    rowErrors.push(...result.rowErrors);
-  }
-
-  if (!hardError && employees.length > 0) {
-    const result = await upsertTrackedEmployeeRows({
-      db,
-      companyId: companyScope.companyId,
-      actorUserId: auth.user.id,
-      rows: employees,
-      source: typeof payload.source === "string" ? payload.source.trim() || "manual_upload" : "manual_upload",
-    });
-    if (result.error) hardError = result.error;
-    acceptedCount += result.acceptedCount;
-    rowErrors.push(...result.rowErrors);
-  }
-
-  if (!hardError && trainingRecords.length > 0) {
-    const result = await insertTrainingRecordRows({
-      db,
-      companyId: companyScope.companyId,
-      actorUserId: auth.user.id,
-      rows: trainingRecords,
-    });
-    if (result.error) hardError = result.error;
-    acceptedCount += result.acceptedCount;
-    rowErrors.push(...result.rowErrors);
-  }
-
-  if (hardError) {
-    return NextResponse.json({ error: hardError, rowErrors }, { status: 500 });
-  }
-
-  const validCounts = countValidRowsByType({ employees, jobsites, trainingRecords });
-  const totalValidRows = validCounts.employees + validCounts.jobsites + validCounts.training_records;
-  const skippedCount =
-    validationErrors.length +
-    Math.max(0, totalValidRows - acceptedCount);
-
-  const importType = buildImportTypeFromPayload(payload);
-  await db.from("company_onboarding_imports").insert({
-    company_id: companyScope.companyId,
-    import_type: importType,
-    source: typeof payload.source === "string" ? payload.source.trim() || "manual_upload" : "manual_upload",
-    entity_counts: validCounts,
-    accepted_count: acceptedCount,
-    skipped_count: skippedCount,
-    notes: typeof payload.notes === "string" ? payload.notes.trim() || null : null,
-    created_by: auth.user.id,
+  const result = await runCompanyOnboardingImport({
+    db,
+    companyId: companyScope.companyId,
+    actorUserId: auth.user.id,
+    payload,
   });
 
-  return NextResponse.json({
-    success: true,
-    importType,
-    acceptedCount,
-    skippedCount,
-    entityCounts: validCounts,
-    rowErrors,
-  });
+  return NextResponse.json(result.body, { status: result.status });
 }

@@ -46,6 +46,18 @@ import {
   buildForecastRunContextFromLegacy,
   buildInjuryTypeContextFromLegacy,
 } from "@/lib/injuryForecast/legacyMapper";
+import {
+  DEFAULT_PREDICTABILITY_THRESHOLDS,
+  resolvePredictabilityDataSource,
+} from "@/lib/predictability/dataSourceResolver";
+import {
+  getCompanyPredictabilityMaturity,
+  getPlatformAggregateMaturity,
+  getPlatformAggregatePredictionRows,
+  loadCompanyPredictabilitySettings,
+} from "@/lib/predictability/dataProviders";
+import { getOshaBaselinePrediction } from "@/lib/predictability/oshaBaselineProvider";
+import { sourceMetadataForPrediction, type PredictabilitySourceMetadata } from "@/lib/predictability/settings";
 import { buildMonthlyFocusItems } from "@/lib/injuryWeather/monthlyFocus";
 import {
   applyDuplicateIntegrityRules,
@@ -771,6 +783,7 @@ function computeDynamicInjuryForecastSnapshot(args: {
   hoursWorked?: number;
   behaviorSignals?: Partial<BehaviorSignals>;
   workSchedule: WorkScheduleInputs;
+  predictabilityDataSource?: PredictabilitySourceMetadata;
 }) {
   const input = buildForecastInputFromLegacyContext({
     rows: args.rows,
@@ -790,10 +803,20 @@ function computeDynamicInjuryForecastSnapshot(args: {
     workforceTotal: args.workforceTotal,
     hoursWorked: args.hoursWorked,
   });
-  return runDynamicInjuryForecastEngine(input, {
+  const output = runDynamicInjuryForecastEngine(input, {
     injuryTypeContext: buildInjuryTypeContextFromLegacy(args.rows, args.location),
     runContext,
   });
+  if (!args.predictabilityDataSource) return output;
+  return {
+    ...output,
+    source: args.predictabilityDataSource.source,
+    predictionSource: args.predictabilityDataSource.predictionSource,
+    fallbackUsed: args.predictabilityDataSource.fallbackUsed,
+    sourceFallbackReason: args.predictabilityDataSource.fallbackReason,
+    confidenceLevel: args.predictabilityDataSource.confidenceLevel,
+    dataScope: args.predictabilityDataSource.dataScope,
+  };
 }
 
 function withFinalInjuryDashboardFields(
@@ -901,13 +924,45 @@ export async function getInjuryWeatherDashboardData(filters?: {
               : "All dates (no month filter on SOR / corrective actions / incidents)",
         };
   const recordWindowLabel = `${baseRecordWindow}${scopeNote}`;
+  let predictabilityDataSource = sourceMetadataForPrediction("company");
+  let predictionRows = liveSourceRows;
+  let predictionRecordWindowLabel = recordWindowLabel;
+
+  if (cid) {
+    const settings = await loadCompanyPredictabilitySettings(admin, cid);
+    const resolvedSource = await resolvePredictabilityDataSource(
+      cid,
+      settings,
+      {
+        getCompanyMaturity: () => getCompanyPredictabilityMaturity(admin, cid),
+        getPlatformAggregateMaturity: () =>
+          getPlatformAggregateMaturity(admin, DEFAULT_PREDICTABILITY_THRESHOLDS),
+      },
+      DEFAULT_PREDICTABILITY_THRESHOLDS
+    );
+    predictabilityDataSource = resolvedSource.metadata;
+
+    if (resolvedSource.source === "platform_aggregate") {
+      predictionRows = await getPlatformAggregatePredictionRows(admin, DEFAULT_PREDICTABILITY_THRESHOLDS);
+      predictionRecordWindowLabel =
+        "Anonymized platform benchmark data (aggregate buckets only; no raw company records exposed).";
+    } else if (resolvedSource.source === "osha") {
+      const osha = getOshaBaselinePrediction({ monthLabel });
+      predictionRows = osha.rows;
+      predictionRecordWindowLabel = `OSHA public baseline (${osha.periodLabel}). ${osha.citation}`;
+    } else if (resolvedSource.source === "insufficient_data") {
+      predictionRows = [];
+      predictionRecordWindowLabel = `Insufficient Predictability Engine data. ${resolvedSource.reason}`;
+    }
+  }
+
   const historyTrend = buildDashboardFromLiveSignals(allRows, {
     month: monthLabel,
     recordWindowLabel: `All dates (history for month picker)${scopeNote}`,
     workSchedule: filters?.workSchedule,
     trendFallback: trendFromSeed,
   });
-  const live = buildDashboardFromLiveSignals(liveSourceRows, {
+  const live = buildDashboardFromLiveSignals(predictionRows, {
     month: monthLabel,
     trade: filters?.trade,
     trades: filters?.trades,
@@ -916,13 +971,14 @@ export async function getInjuryWeatherDashboardData(filters?: {
     stateCode: filters?.stateCode,
     behaviorSignals: filters?.behaviorSignals,
     workSchedule: filters?.workSchedule,
-    recordWindowLabel,
+    recordWindowLabel: predictionRecordWindowLabel,
     trendFallback: trendFromSeed,
     industryBenchmarkContext: benchmarkCtx,
+    predictabilityDataSource,
   });
   live.availableMonths = build90DayOutlookMonths(historyTrend.availableMonths);
   live.availableTrades = availableTradesFromData(historyTrend.availableTrades, workbookRows);
-  const likelyRowsForInsight = filterForecastEligibleRows(rowsMatchingTradeSelection(liveSourceRows, filters?.trade, filters?.trades));
+  const likelyRowsForInsight = filterForecastEligibleRows(rowsMatchingTradeSelection(predictionRows, filters?.trade, filters?.trades));
   live.summary = {
     ...live.summary,
     dataConfidence: dataConfidenceFromIntegrity(live.forecastIntegrity, computeDataConfidenceFromMetrics(
@@ -1125,6 +1181,7 @@ function buildDashboardFromLiveSignals(
     workSchedule?: Partial<WorkScheduleInputs>;
     trendFallback: { availableMonths: string[]; trend: TrendPoint[] };
     industryBenchmarkContext?: InjuryWeatherIndustryBenchmarkContext;
+    predictabilityDataSource?: PredictabilitySourceMetadata;
   }
 ): InjuryWeatherDashboardDataWithForecastIntegrity {
   const forecastMonthStart = parseMonthLabel(params.month.trim()) ?? new Date();
@@ -1259,6 +1316,22 @@ function buildDashboardFromLiveSignals(
     historyMonthly.size > 0
       ? [...historyMonthly.keys()].sort((a, b) => monthSortValue(a) - monthSortValue(b))
       : params.trendFallback.availableMonths;
+  const predictabilityDataSource = params.predictabilityDataSource ?? sourceMetadataForPrediction("company");
+  const dynamicInjuryForecast =
+    predictabilityDataSource.source === "insufficient_data"
+      ? null
+      : computeDynamicInjuryForecastSnapshot({
+          rows: forecastRows,
+          explainability,
+          location,
+          industryBenchmarkContext,
+          monthLabel: params.month,
+          workforceTotal: params.workforceTotal,
+          hoursWorked: params.hoursWorked,
+          behaviorSignals: params.behaviorSignals,
+          workSchedule: resolvedWorkSchedule,
+          predictabilityDataSource,
+        });
 
   return {
     summary: {
@@ -1314,6 +1387,8 @@ function buildDashboardFromLiveSignals(
     workSchedule: resolvedWorkSchedule,
     industryBenchmarkContext,
     forecastIntegrity: integritySummary,
+    dynamicInjuryForecast,
+    predictabilityDataSource,
     ...PLACEHOLDER_FOCUS_DIAG,
   };
 }

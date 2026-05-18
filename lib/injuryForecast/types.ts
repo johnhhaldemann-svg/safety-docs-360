@@ -3,6 +3,11 @@
  * Kept free of React/DB imports; map from `NormalizedLiveSignalRow` in `legacyMapper.ts`.
  */
 
+import type {
+  PredictabilityConfidenceLevel,
+  PredictabilityDataScope,
+  PredictabilityPredictionSource,
+} from "@/lib/predictability/settings";
 import type { ProjectPhaseKey } from "./benchmarkDefaults";
 
 export type TrendDirection = "rising" | "stable" | "falling";
@@ -227,6 +232,13 @@ export type DynamicForecastOutput = {
   assumptions: string[];
   /** Data sufficiency path for blending and UI. */
   forecastMode: ForecastDataMode;
+  /** Transparent source selected before model execution. */
+  source: PredictabilityPredictionSource;
+  predictionSource: PredictabilityPredictionSource;
+  fallbackUsed: boolean;
+  sourceFallbackReason: string | null;
+  confidenceLevel: PredictabilityConfidenceLevel;
+  dataScope: PredictabilityDataScope;
   usedFallbackDefaults: boolean;
   fallbackReason: string;
   benchmarkSourcesUsed: string[];

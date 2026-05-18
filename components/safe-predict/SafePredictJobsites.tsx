@@ -148,7 +148,7 @@ export function SafePredictJobsitesPortfolio() {
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
         title="Jobsites"
-        subtitle="Live-beta project command centers for risk, people, permits, inspections, and actions."
+        subtitle="Project command centers for risk, people, permits, inspections, and actions."
         actions={
           <>
             <button
@@ -157,7 +157,7 @@ export function SafePredictJobsitesPortfolio() {
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm"
             >
               <ShieldCheck className="h-4 w-4" />
-              {mode === "live" ? "Live beta data" : "Demo fallback"}
+              {mode === "live" ? "Live data" : "Sample data"}
             </button>
             <button type="button" onClick={() => setShowCreateJobsite((open) => !open)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]">
               <Plus className="h-4 w-4" />
@@ -169,7 +169,7 @@ export function SafePredictJobsitesPortfolio() {
 
       {showCreateJobsite ? (
         <Card className="mb-5 p-5">
-          <SectionTitle title="Create Jobsite" action={<span className="text-xs font-black uppercase tracking-wide text-blue-600">{mode === "live" ? "Posts to live API and keeps local draft" : "Local demo draft"}</span>} />
+          <SectionTitle title="Create Jobsite" action={<span className="text-xs font-black uppercase tracking-wide text-blue-600">{mode === "live" ? "Posts to live API and keeps local draft" : "Local draft"}</span>} />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               ["name", "Jobsite name"],
@@ -202,7 +202,7 @@ export function SafePredictJobsitesPortfolio() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Active Jobsites" value={dataset.jobsites.length} detail={loading ? "Checking live data" : mode === "live" ? "Live beta" : "Demo fallback"} tone="blue" icon={<Building2 className="h-7 w-7" />} href="#jobsite-list" />
+        <MetricCard title="Active Jobsites" value={dataset.jobsites.length} detail={loading ? "Checking live data" : mode === "live" ? "Live data" : "Sample data"} tone="blue" icon={<Building2 className="h-7 w-7" />} href="#jobsite-list" />
         <MetricCard title="Elevated Sites" value={dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length} detail="Needs safety review" tone="red" icon={<AlertTriangle className="h-7 w-7" />} href="#jobsite-list" />
         <MetricCard title="Open Actions" value={summary.openActions} detail={`${summary.overdueActions} overdue`} tone="orange" icon={<ClipboardCheck className="h-7 w-7" />} href="/safe-predict/corrective-actions" />
         <MetricCard title="Inspection Gaps" value={summary.inspectionGaps} detail="Across active sites" tone="amber" icon={<CalendarCheck className="h-7 w-7" />} href="/safe-predict/inspections" />
@@ -302,7 +302,7 @@ export function SafePredictJobsitesPortfolio() {
           {visibleJobsites.length === 0 ? (
             <div className="mt-5 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <p className="text-lg font-black text-slate-950">No jobsites match those filters.</p>
-              <p className="mt-2 text-sm font-semibold text-slate-500">Clear filters or switch back to demo fallback.</p>
+              <p className="mt-2 text-sm font-semibold text-slate-500">Clear filters or switch back to sample data.</p>
             </div>
           ) : null}
         </Card>

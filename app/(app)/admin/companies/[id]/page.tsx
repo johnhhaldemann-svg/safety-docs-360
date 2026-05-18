@@ -26,6 +26,14 @@ import {
   type PlatformAddonSelection,
   type PlatformFeatureKey,
 } from "@/lib/platformPricing";
+import {
+  type CompanyOnboardingImportType,
+  type ImportRowError,
+  normalizeRowsArray,
+  validateEmployeeImportRows,
+  validateJobsiteImportRows,
+  validateTrainingRecordImportRows,
+} from "@/lib/companyOnboardingImport";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -192,6 +200,31 @@ function statusTone(status: string): "success" | "warning" | "error" | "neutral"
   return "neutral";
 }
 
+const IMPORT_TABS: Array<{ id: CompanyOnboardingImportType; label: string }> = [
+  { id: "employees", label: "Non-users" },
+  { id: "jobsites", label: "Jobsites" },
+  { id: "training_records", label: "Training records" },
+];
+
+const emptyImportPreview: Record<CompanyOnboardingImportType, Array<Record<string, unknown>>> = {
+  employees: [],
+  jobsites: [],
+  training_records: [],
+};
+
+function validationForImportTab(
+  tab: CompanyOnboardingImportType,
+  rows: Array<Record<string, unknown>>
+) {
+  if (tab === "employees") return validateEmployeeImportRows(rows);
+  if (tab === "jobsites") return validateJobsiteImportRows(rows);
+  return validateTrainingRecordImportRows(rows);
+}
+
+function rowsPreview(rows: Array<Record<string, unknown>>) {
+  return rows.slice(0, 8);
+}
+
 export default function AdminCompanyDetailPage({
   params,
 }: {
@@ -242,6 +275,22 @@ export default function AdminCompanyDetailPage({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingCompany, setDeletingCompany] = useState(false);
+  const [importTab, setImportTab] = useState<CompanyOnboardingImportType>("employees");
+  const [importPreview, setImportPreview] =
+    useState<Record<CompanyOnboardingImportType, Array<Record<string, unknown>>>>(
+      emptyImportPreview
+    );
+  const [importMessage, setImportMessage] = useState("");
+  const [importMessageTone, setImportMessageTone] =
+    useState<"success" | "warning" | "error" | "neutral">("neutral");
+  const [importRowErrors, setImportRowErrors] = useState<ImportRowError[]>([]);
+  const [importSaving, setImportSaving] = useState(false);
+
+  const activeImportRows = importPreview[importTab];
+  const activeImportValidation = useMemo(
+    () => validationForImportTab(importTab, activeImportRows),
+    [activeImportRows, importTab]
+  );
 
   useEffect(() => {
     void params.then((resolved) => setCompanyId(resolved.id));
@@ -762,6 +811,136 @@ export default function AdminCompanyDetailPage({
     setDeletingCompany(false);
   }, [company, deleteConfirmName, router]);
 
+  const handleCompanyImportFile = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+
+      setImportRowErrors([]);
+      setImportMessage("");
+      setImportMessageTone("neutral");
+
+      try {
+        const XLSX = await import("xlsx");
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+        const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) {
+          throw new Error("The uploaded file does not contain a worksheet.");
+        }
+
+        const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+          workbook.Sheets[firstSheet],
+          {
+            defval: "",
+            raw: false,
+          }
+        );
+        const rows = normalizeRowsArray(raw);
+        setImportPreview((current) => ({ ...current, [importTab]: rows }));
+        setImportMessage(`${rows.length} row${rows.length === 1 ? "" : "s"} ready for preview.`);
+        setImportMessageTone(rows.length > 0 ? "success" : "warning");
+      } catch (error) {
+        setImportMessage(error instanceof Error ? error.message : "Failed to parse upload.");
+        setImportMessageTone("error");
+      }
+    },
+    [importTab]
+  );
+
+  const handleSubmitCompanyImport = useCallback(async () => {
+    if (!companyId) return;
+
+    if (activeImportRows.length === 0) {
+      setImportMessage("Upload a template file before importing.");
+      setImportMessageTone("warning");
+      return;
+    }
+
+    if (activeImportValidation.validRows.length === 0) {
+      setImportMessage("No valid rows are ready to import.");
+      setImportMessageTone("error");
+      setImportRowErrors(activeImportValidation.rowErrors);
+      return;
+    }
+
+    setImportSaving(true);
+    setImportRowErrors([]);
+    setImportMessage("");
+    setImportMessageTone("neutral");
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        setImportMessageTone("error");
+        setImportMessage("You must be logged in as a Super Admin.");
+        setImportSaving(false);
+        return;
+      }
+
+      const payload =
+        importTab === "employees"
+          ? { employees: activeImportRows }
+          : importTab === "jobsites"
+            ? { jobsites: activeImportRows }
+            : { trainingRecords: activeImportRows };
+
+      const response = await fetch(`/api/admin/companies/${companyId}/onboarding/import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          ...payload,
+          source: "superadmin_company_profile_upload",
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            acceptedCount?: number;
+            skippedCount?: number;
+            rowErrors?: ImportRowError[];
+          }
+        | null;
+
+      if (!response.ok) {
+        setImportMessageTone("error");
+        setImportMessage(data?.error || "Import failed.");
+        setImportRowErrors(data?.rowErrors ?? activeImportValidation.rowErrors);
+        setImportSaving(false);
+        return;
+      }
+
+      const acceptedCount = data?.acceptedCount ?? 0;
+      const skippedCount = data?.skippedCount ?? 0;
+      setImportPreview((current) => ({ ...current, [importTab]: [] }));
+      setImportRowErrors(data?.rowErrors ?? []);
+      setImportMessageTone(skippedCount > 0 || (data?.rowErrors?.length ?? 0) > 0 ? "warning" : "success");
+      setImportMessage(
+        `Saved ${acceptedCount} row${acceptedCount === 1 ? "" : "s"}${
+          skippedCount > 0 ? `; ${skippedCount} duplicate or invalid row${skippedCount === 1 ? "" : "s"} skipped` : ""
+        }.`
+      );
+      await loadCompany();
+    } catch (error) {
+      setImportMessageTone("error");
+      setImportMessage(error instanceof Error ? error.message : "Import failed.");
+    }
+
+    setImportSaving(false);
+  }, [
+    activeImportRows,
+    activeImportValidation,
+    companyId,
+    importTab,
+    loadCompany,
+  ]);
+
   useEffect(() => {
     if (!companyId) return;
     queueMicrotask(() => {
@@ -1163,6 +1342,118 @@ export default function AdminCompanyDetailPage({
           ))}
         </section>
       </section>
+
+      {canManageCompanyPermissions ? (
+        <SectionCard
+          title="Superadmin Template Import"
+          description="Download a starter file, upload completed rows, and save company jobsites or training-only people directly from this profile."
+          aside={<StatusBadge label="No duplicate inserts" tone="info" />}
+        >
+          <div className="space-y-5">
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-2">
+              {IMPORT_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setImportTab(tab.id);
+                    setImportMessage("");
+                    setImportRowErrors([]);
+                  }}
+                  className={
+                    importTab === tab.id
+                      ? "rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white"
+                      : "rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800/80"
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-3 rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href={`/api/company/onboarding/import/template?type=${importTab}`}
+                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
+                  >
+                    Download Template
+                  </a>
+                  <label className="cursor-pointer rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700">
+                    Upload Template
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      className="sr-only"
+                      onChange={(event) => {
+                        void handleCompanyImportFile(event.target.files?.[0] ?? null);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {importMessage ? (
+                  <InlineMessage tone={importMessageTone}>{importMessage}</InlineMessage>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Parsed
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-slate-100">
+                      {activeImportRows.length}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Valid
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-slate-100">
+                      {activeImportValidation.validRows.length}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/80 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Issues
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-slate-100">
+                      {activeImportValidation.rowErrors.length}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitCompanyImport()}
+                  disabled={importSaving || activeImportValidation.validRows.length === 0}
+                  className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {importSaving ? "Importing..." : "Import Valid Rows"}
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {activeImportRows.length > 0 ? (
+                  <CompanyImportPreviewTable rows={rowsPreview(activeImportRows)} />
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-950/40 p-6 text-sm text-slate-500">
+                    No upload preview yet.
+                  </div>
+                )}
+                {activeImportValidation.rowErrors.length > 0 ? (
+                  <CompanyImportRowErrors errors={activeImportValidation.rowErrors.slice(0, 8)} />
+                ) : null}
+                {importRowErrors.length > 0 ? (
+                  <CompanyImportRowErrors errors={importRowErrors.slice(0, 10)} />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title="Commercial Terms, Capacity & Invoice"
@@ -1713,6 +2004,53 @@ export default function AdminCompanyDetailPage({
           )}
         </SectionCard>
       </section>
+    </div>
+  );
+}
+
+function CompanyImportPreviewTable({ rows }: { rows: Array<Record<string, unknown>> }) {
+  const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].slice(0, 8);
+  if (rows.length === 0 || columns.length === 0) return null;
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-700/80 bg-slate-950/50">
+      <table className="min-w-full text-left text-xs">
+        <thead className="border-b border-slate-700/80 bg-slate-900/80 text-slate-400">
+          <tr>
+            {columns.map((column) => (
+              <th key={column} className="px-3 py-2 font-semibold">
+                {column.replaceAll("_", " ")}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800/80">
+          {rows.map((row, index) => (
+            <tr key={index}>
+              {columns.map((column) => (
+                <td key={column} className="max-w-[12rem] truncate px-3 py-2 text-slate-300">
+                  {String(row[column] ?? "")}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CompanyImportRowErrors({ errors }: { errors: ImportRowError[] }) {
+  return (
+    <div className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-4 text-sm text-amber-100">
+      <div className="font-semibold">Import notes</div>
+      <ul className="mt-2 space-y-1">
+        {errors.map((error, index) => (
+          <li key={`${error.entity}-${error.rowNumber}-${index}`}>
+            Row {error.rowNumber}: {error.message}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

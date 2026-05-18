@@ -119,7 +119,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState("");
-  const { dataset, mode, setMode } = useSafePredictData();
+  const { dataset } = useSafePredictData();
   const elevatedSiteCount = dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length;
 
   useEffect(() => {
@@ -217,9 +217,9 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               </span>
             </Link>
             <Link href="/safe-predict/reports" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 text-sm transition hover:bg-white/[0.075]">
-              <span className="block font-bold text-white">Demo account</span>
+              <span className="block font-bold text-white">Workspace account</span>
               <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} shell employees</span>
-              <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">{mode === "live" ? "Live beta data" : "Demo fallback"}</span>
+              <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">Workspace data</span>
             </Link>
             <Link href="/safe-predict/settings" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
               <HelpCircle className="h-6 w-6" aria-hidden />
@@ -311,14 +311,6 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               <Link href="/safe-predict/reports" className="hidden h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm md:inline-flex">
                 {dataset.company.name}
               </Link>
-              <button
-                type="button"
-                onClick={() => setMode(mode === "live" ? "demo" : "live")}
-                className="hidden h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black uppercase tracking-wide text-slate-600 shadow-sm md:inline-flex"
-                aria-label="Toggle SafetyDoc360 live beta mode"
-              >
-                {mode === "live" ? "Live beta" : "Demo mode"}
-              </button>
               <Link href="/safe-predict/risk-mitigation" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm" aria-label="Open SafetyDoc360 alerts">
                 <Bell className="h-5 w-5" />
                 <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-red-500 text-[10px] font-black text-white">

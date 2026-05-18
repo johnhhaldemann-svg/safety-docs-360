@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -51,6 +51,14 @@ import {
   type SafePredictWorkspaceSlug,
 } from "@/lib/safePredictWorkspaceConfig";
 import { mapSafePredictOperationHref, mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
+import {
+  DEFAULT_PREDICTABILITY_SETTINGS,
+  PREDICTABILITY_DATA_MODES,
+  PREDICTABILITY_MODE_DESCRIPTIONS,
+  PREDICTABILITY_MODE_LABELS,
+  type PredictabilityDataMode,
+  type PredictabilitySettings,
+} from "@/lib/predictability/settings";
 import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
 
 type RowAction = {
@@ -198,6 +206,67 @@ function inferLocalTrainingTitle(employee: SafePredictDemoEmployee) {
   return "Site Safety Orientation and Hazard Reporting";
 }
 
+function settingsForPredictabilityMode(mode: PredictabilityDataMode, current: PredictabilitySettings): PredictabilitySettings {
+  if (mode === "company_only") {
+    return {
+      ...current,
+      predictabilityDataMode: mode,
+      allowCompanyData: true,
+      allowPlatformAggregateFallback: false,
+      allowOshaFallback: false,
+      visibleBenchmarkSources: ["company"],
+    };
+  }
+  if (mode === "company_then_platform") {
+    return {
+      ...current,
+      predictabilityDataMode: mode,
+      allowCompanyData: true,
+      allowPlatformAggregateFallback: true,
+      allowOshaFallback: false,
+      visibleBenchmarkSources: ["company", "platform_aggregate"],
+    };
+  }
+  if (mode === "company_then_osha") {
+    return {
+      ...current,
+      predictabilityDataMode: mode,
+      allowCompanyData: true,
+      allowPlatformAggregateFallback: false,
+      allowOshaFallback: true,
+      visibleBenchmarkSources: ["company", "osha"],
+    };
+  }
+  if (mode === "platform_aggregate_only") {
+    return {
+      ...current,
+      predictabilityDataMode: mode,
+      allowCompanyData: false,
+      allowPlatformAggregateFallback: true,
+      allowOshaFallback: false,
+      visibleBenchmarkSources: ["platform_aggregate"],
+    };
+  }
+  if (mode === "osha_only") {
+    return {
+      ...current,
+      predictabilityDataMode: mode,
+      allowCompanyData: false,
+      allowPlatformAggregateFallback: false,
+      allowOshaFallback: true,
+      visibleBenchmarkSources: ["osha"],
+    };
+  }
+  return {
+    ...current,
+    predictabilityDataMode: mode,
+    allowCompanyData: true,
+    allowPlatformAggregateFallback: true,
+    allowOshaFallback: true,
+    visibleBenchmarkSources: ["company", "platform_aggregate", "osha"],
+  };
+}
+
 function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): TrainingAssignmentResult[] {
   return employees.map((employee) => {
     const requirementTitle = inferLocalTrainingTitle(employee);
@@ -265,8 +334,41 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [trainingAiLoading, setTrainingAiLoading] = useState(false);
   const [trainingAiMessage, setTrainingAiMessage] = useState("");
   const [trainingAiAssignments, setTrainingAiAssignments] = useState<TrainingAssignmentResult[]>([]);
+  const [predictabilitySettings, setPredictabilitySettings] = useState<PredictabilitySettings>(DEFAULT_PREDICTABILITY_SETTINGS);
+  const [predictabilitySettingsLoading, setPredictabilitySettingsLoading] = useState(false);
+  const [predictabilitySettingsSaving, setPredictabilitySettingsSaving] = useState(false);
+  const [predictabilitySettingsMessage, setPredictabilitySettingsMessage] = useState("");
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
+
+  useEffect(() => {
+    if (workspace !== "settings") return;
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      setPredictabilitySettingsLoading(true);
+      setPredictabilitySettingsMessage("");
+    });
+    fetch("/api/company/predictability/settings")
+      .then(async (res) => {
+        const body = await res.json().catch(() => null);
+        if (!active) return;
+        if (!res.ok) {
+          setPredictabilitySettingsMessage(body?.error ?? "Predictability Engine settings are unavailable.");
+          return;
+        }
+        if (body?.settings) setPredictabilitySettings(body.settings as PredictabilitySettings);
+      })
+      .catch(() => {
+        if (active) setPredictabilitySettingsMessage("Predictability Engine settings are unavailable.");
+      })
+      .finally(() => {
+        if (active) setPredictabilitySettingsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspace]);
 
   const scoped = useMemo(() => {
     return {
@@ -306,6 +408,34 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       sifPotential: false,
     });
     router.push(`/safe-predict/corrective-actions#${draft.id}`);
+  }
+
+  function selectPredictabilityMode(nextMode: PredictabilityDataMode) {
+    setPredictabilitySettings((current) => settingsForPredictabilityMode(nextMode, current));
+    setPredictabilitySettingsMessage("");
+  }
+
+  async function savePredictabilitySettings() {
+    setPredictabilitySettingsSaving(true);
+    setPredictabilitySettingsMessage("");
+    try {
+      const res = await fetch("/api/company/predictability/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(predictabilitySettings),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setPredictabilitySettingsMessage(body?.error ?? "Could not save Predictability Engine settings.");
+        return;
+      }
+      if (body?.settings) setPredictabilitySettings(body.settings as PredictabilitySettings);
+      setPredictabilitySettingsMessage("Predictability Engine settings saved.");
+    } catch {
+      setPredictabilitySettingsMessage("Could not save Predictability Engine settings.");
+    } finally {
+      setPredictabilitySettingsSaving(false);
+    }
   }
 
   function logHazard() {
@@ -425,7 +555,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       setQuery("");
       setCorrectiveDraft(buildEmptyCorrectiveActionDraft(siteId));
       setShowCorrectiveComposer(false);
-      setCorrectiveMessage(mode === "live" && token ? "Corrective action created and saved to the company tracker." : "Corrective action queued locally. Turn on live beta to save it to company records.");
+      setCorrectiveMessage(mode === "live" && token ? "Corrective action created and saved to the company tracker." : "Corrective action queued locally. Switch to live data to save it to company records.");
       window.setTimeout(() => {
         document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 50);
@@ -472,7 +602,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           return { ...assignment, createdActionId: draft.id };
         });
         setTrainingAiAssignments(localAssignments);
-        setTrainingAiMessage("AI training assignments were queued locally. Turn on live beta to write them to company records.");
+        setTrainingAiMessage("AI training assignments were queued locally. Switch to live data to write them to company records.");
         return;
       }
 
@@ -549,7 +679,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm"
           >
             <ShieldCheck className="h-4 w-4" />
-            {mode === "live" ? "Live beta" : "Demo fallback"}
+            {mode === "live" ? "Live data" : "Sample data"}
           </button>
           <ExportButton
             fileName={`safe-predict-${workspace}.json`}
@@ -945,12 +1075,53 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       {workspace === "settings" ? (
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           <Card className="p-5">
-            <SectionTitle title="Data Mode" />
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafetyDoc360 reads authenticated workspace APIs when live beta is enabled. If live data is empty or unavailable, the shell company data keeps the platform demo-ready.</p>
+            <SectionTitle title="Workspace Data Mode" />
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafetyDoc360 reads authenticated workspace APIs when live data is enabled. If live data is empty or unavailable, the shell company data keeps the platform ready for walkthroughs.</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button type="button" onClick={() => setMode("live")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "live" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Live beta</button>
-              <button type="button" onClick={() => setMode("demo")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "demo" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Demo fallback</button>
+              <button type="button" onClick={() => setMode("live")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "live" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Live data</button>
+              <button type="button" onClick={() => setMode("demo")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "demo" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Sample data</button>
             </div>
+          </Card>
+          <Card className="p-5">
+            <SectionTitle title="Predictability Engine" />
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Choose how predictions move from this company&apos;s own records to anonymized platform benchmark data and OSHA public baseline data.
+            </p>
+            <div className="mt-5 space-y-3">
+              {PREDICTABILITY_DATA_MODES.map((option) => {
+                const selected = predictabilitySettings.predictabilityDataMode === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => selectPredictabilityMode(option)}
+                    className={cx(
+                      "w-full rounded-lg border p-4 text-left transition-colors",
+                      selected ? "border-blue-500 bg-blue-50 text-blue-950" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
+                    )}
+                  >
+                    <span className="block text-sm font-black">{PREDICTABILITY_MODE_LABELS[option]}</span>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
+                      {PREDICTABILITY_MODE_DESCRIPTIONS[option]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+              Enabled sources: {predictabilitySettings.visibleBenchmarkSources.join(", ").replace("platform_aggregate", "anonymized platform benchmark").replace("osha", "OSHA baseline").replace("company", "company data")}.
+            </div>
+            {predictabilitySettingsMessage ? (
+              <p className="mt-3 text-sm font-bold text-slate-600">{predictabilitySettingsMessage}</p>
+            ) : null}
+            <button
+              type="button"
+              onClick={savePredictabilitySettings}
+              disabled={predictabilitySettingsLoading || predictabilitySettingsSaving}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {predictabilitySettingsSaving ? "Saving..." : predictabilitySettingsLoading ? "Loading..." : "Save Predictability Settings"}
+            </button>
           </Card>
           <Card className="p-5">
             <SectionTitle title="Risk Thresholds" />
@@ -1002,7 +1173,7 @@ function moduleMetrics(
   if (workspace === "permits") return [{ title: "Permit Records", value: scoped.permits.length, detail: `${summary.permits.expired} expired`, tone: "blue" as const, icon: <FileText className="h-7 w-7" /> }, ...shared, { title: "Expiring Soon", value: scoped.permits.filter((row) => row.status === "Expiring Soon").length, detail: "Renewal needed", tone: "amber" as const, icon: <CalendarCheck className="h-7 w-7" /> }];
   if (workspace === "analytics") return [{ title: "Risk Trend", value: "Elevated", detail: "Next 30 days", tone: "red" as const, icon: <BarChart3 className="h-7 w-7" /> }, ...shared, { title: "Risk Score", value: summary.riskScore, detail: "All jobsites", tone: "orange" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
   if (workspace === "reports") return [{ title: "Reports", value: scoped.reports.length, detail: "Ready or draft", tone: "blue" as const, icon: <Download className="h-7 w-7" /> }, ...shared, { title: "Documents", value: scoped.documents.length, detail: "In evidence pack", tone: "green" as const, icon: <FileText className="h-7 w-7" /> }];
-  return [{ title: "Mode", value: "Local", detail: "Live beta capable", tone: "blue" as const, icon: <Settings className="h-7 w-7" /> }, ...shared, { title: "Jobsites", value: summary.jobsites, detail: "Available", tone: "green" as const, icon: <MapPin className="h-7 w-7" /> }];
+  return [{ title: "Mode", value: "Local", detail: "Live data capable", tone: "blue" as const, icon: <Settings className="h-7 w-7" /> }, ...shared, { title: "Jobsites", value: summary.jobsites, detail: "Available", tone: "green" as const, icon: <MapPin className="h-7 w-7" /> }];
 }
 
 function buildRows({
@@ -1099,7 +1270,7 @@ function buildRows({
     return table("Report Library", ["Report", "Jobsite", "Audience", "Status", "Updated", "Open"], rows.map((row) => [row.title, siteName(row.siteId, jobsites), row.audience, row.status, row.updatedAt]), rows.map(() => ({ label: "Open", href: mapSafePredictOperationHref("/reports") })), rows);
   }
 
-  return table("Platform Settings", ["Setting", "Value", "Status"], [["Data mode", "Live beta or demo fallback", "Ready"], ["Risk bands", "Low / Medium / High / Critical", "Ready"], ["Visual system", "Concept-picture SafetyDoc360 theme", "Ready"]], [], []);
+  return table("Platform Settings", ["Setting", "Value", "Status"], [["Data mode", "Live data or sample fallback", "Ready"], ["Risk bands", "Low / Medium / High / Critical", "Ready"], ["Visual system", "Concept-picture SafetyDoc360 theme", "Ready"]], [], []);
 }
 
 function table(title: string, headers: string[], rows: string[][], actions: RowAction[], exportRows: unknown[], rowIds?: string[]) {

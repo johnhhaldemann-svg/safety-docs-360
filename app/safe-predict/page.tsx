@@ -99,13 +99,13 @@ export default function SafePredictDashboardPage() {
               <Building2 className="h-7 w-7" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Demo Company Account</p>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Company Account</p>
               <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{dataset.company.name}</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {dataset.company.industry} tenant based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{dataset.mode === "live" ? "Live beta data" : dataset.company.accountType}</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{dataset.mode === "live" ? "Live data" : "Workspace data"}</span>
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{totals.jobsites} active jobsites</span>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{totals.employees} workers</span>
               </div>
@@ -129,7 +129,7 @@ export default function SafePredictDashboardPage() {
             <SourceStatCard
               title="Avg. Site Risk"
               value={totals.riskScore}
-              detail={dataset.mode === "live" ? "Live beta score" : "Demo elevated"}
+              detail={dataset.mode === "live" ? "Live score" : "Elevated"}
               href="#jobsite-source-cards"
               accentClassName="text-orange-600"
             />
