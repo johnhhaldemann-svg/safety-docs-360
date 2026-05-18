@@ -1,8 +1,8 @@
 "use client";
 
-import * as Tabs from "@radix-ui/react-tabs";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppTabBar } from "@/components/AppTabBar";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
 import { AuditorDashboard, buildDefaultTrend } from "@/components/jobsite-audits/AuditorDashboard";
 import { ExcelTemplateByCategory } from "@/components/jobsite-audits/ExcelTemplateByCategory";
@@ -189,6 +189,7 @@ export default function AdminJobsiteAuditsPage() {
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
+  const [auditWorkspaceTab, setAuditWorkspaceTab] = useState("dashboard");
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -584,26 +585,15 @@ export default function AdminJobsiteAuditsPage() {
         </div>
       </SectionCard>
 
-      <Tabs.Root defaultValue="dashboard" className="w-full">
-        <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/60 p-2">
-          {[
-            { id: "dashboard", label: "Dashboard" },
-            { id: "field", label: "Field audit" },
-            { id: "audit-system", label: "Audit system" },
-            { id: "reference", label: "Excel templates" },
-          ].map((t) => (
-            <Tabs.Trigger
-              key={t.id}
-              value={t.id}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition-colors hover:text-white data-[state=active]:!bg-slate-950 data-[state=active]:!text-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-emerald-400/30 data-[state=inactive]:text-emerald-100/80"
-            >
-              {t.label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        <Tabs.Content value="dashboard" className="mt-6 outline-none">
-          <AuditorDashboard
+      <AppTabBar
+        value={auditWorkspaceTab}
+        onValueChange={setAuditWorkspaceTab}
+        items={[
+          {
+            value: "dashboard",
+            label: "Dashboard",
+            content: (
+              <AuditorDashboard
             jobsite={jobsite}
             auditors={auditors}
             auditDate={auditDate}
@@ -612,11 +602,14 @@ export default function AdminJobsiteAuditsPage() {
             trendPoints={trendPoints}
             trendLabels={trendLabels}
             demoTrend={demoTrend}
-          />
-        </Tabs.Content>
-
-        <Tabs.Content value="field" className="mt-6 outline-none">
-          <div className="w-full">
+              />
+            ),
+          },
+          {
+            value: "field",
+            label: "Field audit",
+            content: (
+              <div className="w-full">
             <FieldAuditChecklist
               jobsite={jobsite}
               auditors={auditors}
@@ -627,22 +620,28 @@ export default function AdminJobsiteAuditsPage() {
               onStatus={setRowStatus}
               onPhotoCapture={bumpPhoto}
             />
-          </div>
-        </Tabs.Content>
-
-        <Tabs.Content value="audit-system" className="mt-6 outline-none">
-          <SectionCard
+              </div>
+            ),
+          },
+          {
+            value: "audit-system",
+            label: "Audit system",
+            content: (
+              <SectionCard
             title="Audit system blueprint"
             description="Master hierarchy for the Audit tab, including header fields, universal sections, trade profiles, observation entries, report logic, and templates."
           >
             <pre className="max-h-[70vh] overflow-auto rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-xs leading-5 text-slate-300">
               {AUDIT_SYSTEM_BLUEPRINT_TEXT}
             </pre>
-          </SectionCard>
-        </Tabs.Content>
-
-        <Tabs.Content value="reference" className="mt-6 outline-none">
-          <SectionCard
+              </SectionCard>
+            ),
+          },
+          {
+            value: "reference",
+            label: "Excel templates",
+            content: (
+              <SectionCard
             title="Quick Audit Tool (Excel)"
             description="Original dual-column worksheets from your spreadsheets."
           >
@@ -714,9 +713,11 @@ export default function AdminJobsiteAuditsPage() {
                 </div>
               )}
             </div>
-          </SectionCard>
-        </Tabs.Content>
-      </Tabs.Root>
+              </SectionCard>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

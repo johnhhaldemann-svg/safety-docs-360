@@ -171,6 +171,16 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
 
 export type SafePredictLiveRecordRow = Record<string, unknown>;
 
+export type SafePredictLiveCompanyInput = Partial<SafePredictDemoCompany> & {
+  name?: string | null;
+  industry?: string | null;
+  headquarters?: string | null;
+  accountType?: string | null;
+  safetyLead?: string | null;
+  operationsLead?: string | null;
+  primaryContactEmail?: string | null;
+};
+
 const alertSiteIds: Record<string, string> = {
   "machine-guarding": "plant-1",
   "forklift-proximity": "warehouse-a",
@@ -214,6 +224,26 @@ function textValue(row: SafePredictLiveRecordRow, keys: string[], fallback = "")
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
   }
   return fallback;
+}
+
+function liveTextValue(value: string | null | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  return trimmed || fallback;
+}
+
+function normalizeLiveCompany(input?: SafePredictLiveCompanyInput | null): SafePredictDemoCompany {
+  if (!input?.name?.trim()) return safePredictDemoCompany;
+  return {
+    ...safePredictDemoCompany,
+    id: liveTextValue(input.id, "live-company"),
+    name: input.name.trim(),
+    industry: liveTextValue(input.industry, "Live company workspace"),
+    headquarters: liveTextValue(input.headquarters, "Company workspace"),
+    accountType: liveTextValue(input.accountType, "Live workspace"),
+    safetyLead: liveTextValue(input.safetyLead, "Company safety team"),
+    operationsLead: liveTextValue(input.operationsLead, "Operations team"),
+    primaryContactEmail: liveTextValue(input.primaryContactEmail, "Not set"),
+  };
 }
 
 function boolValue(row: SafePredictLiveRecordRow, keys: string[]) {
@@ -726,6 +756,7 @@ function buildReportRecords(): SafePredictReportRecord[] {
 
 export function buildSafePredictDataset({
   mode = "demo",
+  liveCompany,
   liveJobsites = [],
   liveActions = [],
   liveIncidents = [],
@@ -738,6 +769,7 @@ export function buildSafePredictDataset({
   liveUsers = [],
 }: {
   mode?: SafePredictDataMode;
+  liveCompany?: SafePredictLiveCompanyInput | null;
   liveJobsites?: SafePredictLiveJobsiteRow[];
   liveActions?: SafePredictLiveRecordRow[];
   liveIncidents?: SafePredictLiveRecordRow[];
@@ -791,7 +823,7 @@ export function buildSafePredictDataset({
     documents.length > 0;
   return {
     mode: isLiveDataset ? mode : "demo",
-    company: safePredictDemoCompany,
+    company: isLiveDataset ? normalizeLiveCompany(liveCompany) : safePredictDemoCompany,
     jobsites: jobsitesWithLiveMetrics,
     employees: employees.length > 0 ? employees : safePredictDemoEmployees,
     alerts: buildAlerts(),

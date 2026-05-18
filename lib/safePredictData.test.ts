@@ -54,6 +54,7 @@ describe("safePredictData", () => {
   it("normalizes live operational records into SafePredict pages", () => {
     const dataset = buildSafePredictDataset({
       mode: "live",
+      liveCompany: { name: "Test Constructors", accountType: "Live workspace" },
       liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
       liveActions: [{ id: "act-1", jobsite_id: "live-site-1", title: "Repair guardrail", status: "in_progress", severity: "high", category: "fall_hazard" }],
       liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Near miss at stair tower", status: "open", severity: "high", incident_type: "near_miss" }],
@@ -67,6 +68,8 @@ describe("safePredictData", () => {
     });
 
     expect(dataset.mode).toBe("live");
+    expect(dataset.company.name).toBe("Test Constructors");
+    expect(dataset.company.accountType).toBe("Live workspace");
     expect(dataset.jobsites[0]).toMatchObject({ id: "live-site-1", name: "North Pier Expansion" });
     expect(siteScoped(dataset.actions, "live-site-1")[0]).toMatchObject({ title: "Repair guardrail", status: "In Progress", priority: "high" });
     expect(siteScoped(dataset.incidents, "live-site-1")[0]?.type).toBe("Near Miss");

@@ -7,8 +7,9 @@ import { assertMaxPrimaryTabs } from "@/lib/tabUrlState";
 
 export type AppTabItem = {
   value: string;
-  label: string;
+  label: ReactNode;
   content: ReactNode;
+  contentClassName?: string;
 };
 
 const listClassName =
@@ -45,10 +46,14 @@ export function AppTabBar({
             </Tabs.Trigger>
           ))}
         </Tabs.List>
-        {chips ? <div className="flex flex-wrap items-center gap-2">{chips}</div> : null}
+        {chips ? <div className="w-full">{chips}</div> : null}
       </div>
       {items.map((item) => (
-        <Tabs.Content key={item.value} value={item.value} className="outline-none">
+        <Tabs.Content
+          key={item.value}
+          value={item.value}
+          className={["outline-none", item.contentClassName].filter(Boolean).join(" ")}
+        >
           {item.content}
         </Tabs.Content>
       ))}

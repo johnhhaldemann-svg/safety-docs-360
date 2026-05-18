@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import * as Tabs from "@radix-ui/react-tabs";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AppTabBar } from "@/components/AppTabBar";
 import { AdminReviewQueue } from "@/components/safety-intelligence/AdminReviewQueue";
 import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import { DocumentGenerationPanel } from "@/components/safety-intelligence/DocumentGenerationPanel";
@@ -363,40 +363,34 @@ export function SafetyIntelligenceWorkflow({
         loading={loading}
       />
 
-      <Tabs.Root value={mainTab} onValueChange={setMainTab} className="space-y-4">
-        <Tabs.List className="grid gap-2 rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-2 shadow-[var(--app-shadow-soft)] md:grid-cols-4">
-          {(
-            [
-              ["intake", "Intake", latestDraft ? "Captured" : "Start here"],
-              ["rules", "Rules & conflicts", latestIntake ? "Evaluated" : "After intake"],
-              ["generate", "Create", generated ? "Draft ready" : "Create draft"],
-              ["review", "Review", `${documents.length} queued`],
-            ] as const
-          ).map(([value, label, detail]) => (
-            <Tabs.Trigger
-              key={value}
-              value={value}
-              className="rounded-xl border border-transparent px-4 py-3 text-left transition data-[state=active]:border-[var(--app-accent-border-24)] data-[state=active]:!bg-[var(--app-accent-primary)] data-[state=active]:!text-white data-[state=active]:shadow-[var(--app-shadow-primary-button)]"
-            >
-              <span className="block text-xs font-bold uppercase tracking-wide">{label}</span>
-              <span className="mt-1 block text-[11px] font-semibold opacity-75">{detail}</span>
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        <WorkflowPath
-          title="Workflow progress"
-          description="Four stages - complete intake before creating the draft so outputs stay rule-grounded."
-          steps={stages.map((stage) => ({
-            label: stage.label,
-            detail: stage.detail,
-            active: stage.active,
-            complete: stage.complete,
-          }))}
-        />
-
-        <Tabs.Content value="intake" className="outline-none">
-          <WorkflowPanel
+      <AppTabBar
+        value={mainTab}
+        onValueChange={setMainTab}
+        chips={
+          <WorkflowPath
+            title="Workflow progress"
+            description="Four stages - complete intake before creating the draft so outputs stay rule-grounded."
+            steps={stages.map((stage) => ({
+              label: stage.label,
+              detail: stage.detail,
+              active: stage.active,
+              complete: stage.complete,
+            }))}
+          />
+        }
+        items={[
+          {
+            value: "intake",
+            label: (
+              <>
+                <span className="block">Intake</span>
+                <span className="mt-1 block text-[11px] normal-case opacity-75">
+                  {latestDraft ? "Captured" : "Start here"}
+                </span>
+              </>
+            ),
+            content: (
+              <WorkflowPanel
             eyebrow="Stage 1"
             title="Capture work package"
             description="Enter the task once. Safety Intelligence uses this as the source for rules, conflicts, and generation."
@@ -420,11 +414,21 @@ export function SafetyIntelligenceWorkflow({
               </label>
             ) : null}
             <TradeTaskIntakeForm trades={dashboard?.trades ?? []} onSubmit={handleIntake} initialJobsiteId={scopedJobsiteId} />
-          </WorkflowPanel>
-        </Tabs.Content>
-
-        <Tabs.Content value="rules" className="outline-none">
-          <WorkflowPanel
+              </WorkflowPanel>
+            ),
+          },
+          {
+            value: "rules",
+            label: (
+              <>
+                <span className="block">Rules & conflicts</span>
+                <span className="mt-1 block text-[11px] normal-case opacity-75">
+                  {latestIntake ? "Evaluated" : "After intake"}
+                </span>
+              </>
+            ),
+            content: (
+              <WorkflowPanel
             eyebrow="Stage 2"
             title="Rules & conflicts"
           description="Deterministic checks before any draft is created."
@@ -463,34 +467,58 @@ export function SafetyIntelligenceWorkflow({
                 provenance={latestIntake?.smartSafetyProvenance ?? null}
               />
             </div>
-          </WorkflowPanel>
-        </Tabs.Content>
-
-        <Tabs.Content value="generate" className="outline-none">
-          <WorkflowPanel
+              </WorkflowPanel>
+            ),
+          },
+          {
+            value: "generate",
+            label: (
+              <>
+                <span className="block">Create</span>
+                <span className="mt-1 block text-[11px] normal-case opacity-75">
+                  {generated ? "Draft ready" : "Create draft"}
+                </span>
+              </>
+            ),
+            content: (
+              <WorkflowPanel
             eyebrow="Stage 3"
               title="Create draft"
               description="Create after intake so the draft is tied to the rule context."
             aside={<StatusBadge label={generated ? "Ready" : "Draft"} tone={generated ? "success" : "info"} />}
           >
             <DocumentGenerationPanel onGenerate={handleGenerate} generated={generated} canGenerate={Boolean(latestDraft)} />
-          </WorkflowPanel>
-        </Tabs.Content>
-
-        <Tabs.Content value="review" className="outline-none space-y-4">
-          <WorkflowPanel
+              </WorkflowPanel>
+            ),
+          },
+          {
+            value: "review",
+            label: (
+              <>
+                <span className="block">Review</span>
+                <span className="mt-1 block text-[11px] normal-case opacity-75">
+                  {documents.length} queued
+                </span>
+              </>
+            ),
+            content: (
+              <div className="space-y-4">
+                <WorkflowPanel
             eyebrow="Stage 4"
             title="Review queue"
             description="Recent prepared drafts waiting for approval."
             aside={<StatusBadge label={`${documents.length}`} tone={documents.length ? "info" : "neutral"} />}
           >
             <AdminReviewQueue documents={documents} />
-          </WorkflowPanel>
-          <WorkflowPanel eyebrow="Coverage" title="Permit, training, and PPE review" description="Rule-based gap list for the current scope.">
-            <SafetyReviewPanel review={review} loading={loading} />
-          </WorkflowPanel>
-        </Tabs.Content>
-      </Tabs.Root>
+                </WorkflowPanel>
+                <WorkflowPanel eyebrow="Coverage" title="Permit, training, and PPE review" description="Rule-based gap list for the current scope.">
+                  <SafetyReviewPanel review={review} loading={loading} />
+                </WorkflowPanel>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

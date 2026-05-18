@@ -1,8 +1,8 @@
 "use client";
 
-import * as Tabs from "@radix-ui/react-tabs";
 import { ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Search, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppTabBar } from "@/components/AppTabBar";
 import { FieldAuditChecklist } from "@/components/jobsite-audits/FieldAuditChecklist";
 import { ExcelTemplateByCategory } from "@/components/jobsite-audits/ExcelTemplateByCategory";
 import {
@@ -167,6 +167,7 @@ export default function CompanyFieldAuditsPage() {
   const [photoCounts, setPhotoCounts] = useState<FieldAuditPhotoCounts>({});
   const [query, setQuery] = useState("");
   const [excelWorkbook, setExcelWorkbook] = useState<"hs" | "env">("hs");
+  const [auditWorkspaceTab, setAuditWorkspaceTab] = useState("field");
   const [auditCustomers, setAuditCustomers] = useState<AuditCustomer[]>([]);
   const [jobsites, setJobsites] = useState<Jobsite[]>([]);
   const [audits, setAudits] = useState<AuditListRow[]>([]);
@@ -535,127 +536,126 @@ export default function CompanyFieldAuditsPage() {
           title="Audit workspace"
           description="Score built-in field, health & safety, and environmental templates."
         >
-          <Tabs.Root defaultValue="field" className="w-full">
-            <Tabs.List className="flex flex-wrap gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/60 p-2">
-              {[
-                { id: "field", label: "Field checklist" },
-                { id: "excel", label: "H&S / Env." },
-                { id: "notes", label: "Notes" },
-              ].map((tab) => (
-                <Tabs.Trigger
-                  key={tab.id}
-                  value={tab.id}
-                  className="rounded-xl px-4 py-2.5 text-sm font-bold text-emerald-50/90 transition hover:text-white data-[state=active]:!bg-slate-950 data-[state=active]:!text-white data-[state=active]:shadow-md"
-                >
-                  {tab.label}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
-
-            <Tabs.Content value="field" className="mt-5 outline-none">
-              <FieldAuditChecklist
-                jobsite={selectedJobsite?.name ?? ""}
-                auditors={auditors}
-                auditDate={auditDate}
-                selectedTrade={selectedTrade}
-                statusMap={statusMap}
-                photoCounts={photoCounts}
-                onStatus={setRowStatus}
-                onPhotoCapture={bumpPhoto}
-              />
-            </Tabs.Content>
-
-            <Tabs.Content value="excel" className="mt-5 outline-none">
-              <div className="mb-4 flex flex-wrap items-end gap-3">
-                <label className="block min-w-[240px] flex-1 text-sm font-semibold text-slate-100">
-                  <span className="inline-flex items-center gap-1">
-                    <Search className="h-4 w-4" />
-                    Filter template lines
-                  </span>
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search categories, permits, controls..."
-                    className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 placeholder:text-slate-500"
+          <AppTabBar
+            value={auditWorkspaceTab}
+            onValueChange={setAuditWorkspaceTab}
+            items={[
+              {
+                value: "field",
+                label: "Field checklist",
+                content: (
+                  <FieldAuditChecklist
+                    jobsite={selectedJobsite?.name ?? ""}
+                    auditors={auditors}
+                    auditDate={auditDate}
+                    selectedTrade={selectedTrade}
+                    statusMap={statusMap}
+                    photoCounts={photoCounts}
+                    onStatus={setRowStatus}
+                    onPhotoCapture={bumpPhoto}
                   />
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExcelWorkbook("hs")}
-                    className={excelWorkbook === "hs" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
-                  >
-                    H&S
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExcelWorkbook("env")}
-                    className={excelWorkbook === "env" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
-                  >
-                    Env.
-                  </button>
-                </div>
-              </div>
-              {excelWorkbook === "hs" ? (
-                <ExcelTemplateByCategory
-                  sections={hsSections}
-                  sectionTitles={hsSectionTitles}
-                  tabPrefix="hs"
-                  query={query}
-                  statusMap={statusMap}
-                  onRowStatus={setRowStatus}
-                  categoryLabel="H&S categories"
-                />
-              ) : (
-                <ExcelTemplateByCategory
-                  sections={envSections}
-                  sectionTitles={envSectionTitles}
-                  tabPrefix="env"
-                  query={query}
-                  statusMap={statusMap}
-                  onRowStatus={setRowStatus}
-                  categoryLabel="Environmental categories"
-                />
-              )}
-            </Tabs.Content>
-
-            <Tabs.Content value="notes" className="mt-5 outline-none">
-              {scoredObservations.length === 0 ? (
-                <InlineMessage>Score at least one item to add notes.</InlineMessage>
-              ) : (
-                <div className="space-y-3">
-                  {scoredObservations.map((observation) => (
-                    <label
-                      key={observation.sourceKey}
-                      className="block rounded-xl border border-slate-700/80 bg-slate-950/50 p-3 text-sm"
-                    >
-                      <span className="flex flex-wrap items-center justify-between gap-2 font-semibold text-slate-100">
-                        <span>{observation.itemLabel}</span>
-                        <span className={`text-xs uppercase tracking-wide ${statusTone(observation.status)}`}>
-                          {observation.status} | {observation.severity}
+                ),
+              },
+              {
+                value: "excel",
+                label: "H&S / Env.",
+                content: (
+                  <>
+                    <div className="mb-4 flex flex-wrap items-end gap-3">
+                      <label className="block min-w-[240px] flex-1 text-sm font-semibold text-slate-100">
+                        <span className="inline-flex items-center gap-1">
+                          <Search className="h-4 w-4" />
+                          Filter template lines
                         </span>
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-400">
-                        {observation.categoryLabel} | {tradeLabel(observation.tradeCode ?? selectedTrade)}
-                      </span>
-                      <textarea
-                        value={notesMap[observation.sourceKey] ?? ""}
-                        onChange={(event) =>
-                          setNotesMap((prev) => ({
-                            ...prev,
-                            [observation.sourceKey]: event.target.value,
-                          }))
-                        }
-                        rows={3}
-                        placeholder="Observation detail, immediate action, who/where, or evidence reference..."
-                        className="mt-2 w-full rounded-xl border border-slate-600/80 bg-slate-950 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                        <input
+                          value={query}
+                          onChange={(event) => setQuery(event.target.value)}
+                          placeholder="Search categories, permits, controls..."
+                          className="mt-1.5 w-full rounded-xl border border-slate-600/80 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-50 placeholder:text-slate-500"
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setExcelWorkbook("hs")}
+                          className={excelWorkbook === "hs" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                        >
+                          H&S
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcelWorkbook("env")}
+                          className={excelWorkbook === "env" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                        >
+                          Env.
+                        </button>
+                      </div>
+                    </div>
+                    {excelWorkbook === "hs" ? (
+                      <ExcelTemplateByCategory
+                        sections={hsSections}
+                        sectionTitles={hsSectionTitles}
+                        tabPrefix="hs"
+                        query={query}
+                        statusMap={statusMap}
+                        onRowStatus={setRowStatus}
+                        categoryLabel="H&S categories"
                       />
-                    </label>
-                  ))}
-                </div>
-              )}
-            </Tabs.Content>
-          </Tabs.Root>
+                    ) : (
+                      <ExcelTemplateByCategory
+                        sections={envSections}
+                        sectionTitles={envSectionTitles}
+                        tabPrefix="env"
+                        query={query}
+                        statusMap={statusMap}
+                        onRowStatus={setRowStatus}
+                        categoryLabel="Environmental categories"
+                      />
+                    )}
+                  </>
+                ),
+              },
+              {
+                value: "notes",
+                label: "Notes",
+                content:
+                  scoredObservations.length === 0 ? (
+                    <InlineMessage>Score at least one item to add notes.</InlineMessage>
+                  ) : (
+                    <div className="space-y-3">
+                      {scoredObservations.map((observation) => (
+                        <label
+                          key={observation.sourceKey}
+                          className="block rounded-xl border border-slate-700/80 bg-slate-950/50 p-3 text-sm"
+                        >
+                          <span className="flex flex-wrap items-center justify-between gap-2 font-semibold text-slate-100">
+                            <span>{observation.itemLabel}</span>
+                            <span className={`text-xs uppercase tracking-wide ${statusTone(observation.status)}`}>
+                              {observation.status} | {observation.severity}
+                            </span>
+                          </span>
+                          <span className="mt-1 block text-xs text-slate-400">
+                            {observation.categoryLabel} | {tradeLabel(observation.tradeCode ?? selectedTrade)}
+                          </span>
+                          <textarea
+                            value={notesMap[observation.sourceKey] ?? ""}
+                            onChange={(event) =>
+                              setNotesMap((prev) => ({
+                                ...prev,
+                                [observation.sourceKey]: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            placeholder="Observation detail, immediate action, who/where, or evidence reference..."
+                            className="mt-2 w-full rounded-xl border border-slate-600/80 bg-slate-950 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ),
+              },
+            ]}
+          />
         </SectionCard>
 
         <div className="space-y-4">

@@ -131,6 +131,15 @@ function extractRows(payload: Record<string, unknown> | null, keys: string[]) {
   return [];
 }
 
+function textPayloadValue(payload: Record<string, unknown> | null, keys: string[]) {
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
 function loadInitialMode(): SafePredictDataMode {
   return window.localStorage.getItem(modeStorageKey) === "live" ? "live" : "demo";
 }
@@ -244,9 +253,25 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         const liveReports = extractRows(reportsPayload, ["reports"]) as SafePredictLiveRecordRow[];
         const liveDocuments = extractRows(documentsPayload, ["documents"]) as SafePredictLiveRecordRow[];
         const liveUsers = extractRows(usersPayload, ["users"]) as SafePredictLiveRecordRow[];
+        const liveCompanyName =
+          textPayloadValue(usersPayload, ["scopeCompanyName", "scopeTeam"]) ||
+          textPayloadValue(jobsitesPayload, ["scopeCompanyName", "scopeTeam"]);
         if (!cancelled) {
           setLiveToken(token);
-          setBaseDataset(buildSafePredictDataset({ mode: "live", liveJobsites, liveIncidents, liveObservations, liveActions, livePermits, liveEmployees, liveInspections, liveReports, liveDocuments, liveUsers }));
+          setBaseDataset(buildSafePredictDataset({
+            mode: "live",
+            liveCompany: liveCompanyName ? { name: liveCompanyName, accountType: "Live workspace" } : null,
+            liveJobsites,
+            liveIncidents,
+            liveObservations,
+            liveActions,
+            livePermits,
+            liveEmployees,
+            liveInspections,
+            liveReports,
+            liveDocuments,
+            liveUsers,
+          }));
         }
       } catch {
         if (!cancelled) {

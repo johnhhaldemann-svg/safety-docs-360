@@ -75,10 +75,11 @@ describe("Reorganized tab strips (release contracts)", () => {
 
   it("Safety Intelligence workflow lists four main stages", () => {
     const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyIntelligenceWorkflow.tsx"), "utf8");
-    expect(src).toContain('["intake", "Intake",');
-    expect(src).toContain('["rules", "Rules & conflicts",');
-    expect(src).toContain('["generate", "Create",');
-    expect(src).toContain('["review", "Review",');
+    expect(src).toContain("<AppTabBar");
+    expect(src).toContain('value: "intake"');
+    expect(src).toContain('value: "rules"');
+    expect(src).toContain('value: "generate"');
+    expect(src).toContain('value: "review"');
   });
 
   it("JSA workspace lists four top-level tabs", () => {
@@ -99,7 +100,20 @@ describe("Reorganized tab strips (release contracts)", () => {
 
   it("admin jobsite audits Excel section uses segmented buttons not nested Radix tabs", () => {
     const src = readFileSync(join(REPO_ROOT, "app/(app)/admin/jobsite-audits/page.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
     expect(src).toContain("excelWorkbook");
     expect(src).not.toMatch(/<Tabs\.Root[^>]*defaultValue="hs"/);
+  });
+
+  it("field audit workspace uses the shared app tab bar", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/field-audits/page.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).not.toContain("@radix-ui/react-tabs");
+  });
+
+  it("Safety review panel uses the shared app tab bar", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyReviewPanel.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).not.toContain("@radix-ui/react-tabs");
   });
 });

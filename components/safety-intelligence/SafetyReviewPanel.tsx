@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import * as Tabs from "@radix-ui/react-tabs";
+import { useState } from "react";
+import { AppTabBar } from "@/components/AppTabBar";
 import { EmptyState, InlineMessage, ProvenanceBadge, StatusBadge } from "@/components/WorkspacePrimitives";
 import type { SafetyReviewGap, SafetyReviewPayload, SafetyReviewRow } from "@/types/safety-intelligence";
 
@@ -192,6 +193,7 @@ export function SafetyReviewPanel({
   review: SafetyReviewPayload | null;
   loading: boolean;
 }) {
+  const [reviewTab, setReviewTab] = useState<ReviewTab>("gaps");
   const tabs: Array<{ value: ReviewTab; label: string; count: number }> = [
     { value: "gaps", label: "Gaps", count: review?.summary.totalGaps ?? 0 },
     { value: "permits", label: "Permits", count: review?.summary.permitGaps ?? 0 },
@@ -249,26 +251,17 @@ export function SafetyReviewPanel({
         ))}
       </div>
 
-      <Tabs.Root defaultValue="gaps" className="space-y-3">
-        <Tabs.List className="flex flex-wrap gap-1.5 rounded-xl border border-[var(--app-border-strong)] bg-[rgba(255,255,255,0.8)] p-1.5">
-          {tabs.map((tab) => (
-            <Tabs.Trigger
-              key={tab.value}
-              value={tab.value}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] transition data-[state=active]:!bg-[var(--app-accent-primary)] data-[state=active]:!text-white"
-            >
-              {tab.label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        {tabs.map((tab) => {
+      <AppTabBar
+        value={reviewTab}
+        onValueChange={(value) => setReviewTab(value as ReviewTab)}
+        items={tabs.map((tab) => {
           const rows = review.rows.filter((row) => rowMatchesTab(row, tab.value));
           const visibleRows = rows.slice(0, 4);
           const hiddenCount = Math.max(0, rows.length - visibleRows.length);
-          return (
-            <Tabs.Content key={tab.value} value={tab.value} className="outline-none">
-              {rows.length ? (
+          return {
+            value: tab.value,
+            label: tab.label,
+            content: rows.length ? (
                 <div className="space-y-2">
                   {visibleRows.map((row) => (
                     <ReviewRowCard key={row.id} row={row} />
@@ -284,11 +277,10 @@ export function SafetyReviewPanel({
                   title={`No ${tab.label.toLowerCase()} rows`}
                   description="This scope does not currently produce any rows for the selected review view."
                 />
-              )}
-            </Tabs.Content>
-          );
+              ),
+          };
         })}
-      </Tabs.Root>
+      />
     </div>
   );
 }
