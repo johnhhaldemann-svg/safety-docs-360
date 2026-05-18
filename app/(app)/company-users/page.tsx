@@ -1,11 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clipboard,
+  FileDown,
+  ListChecks,
+  MailPlus,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserCheck,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
-import { useTableDensity } from "@/hooks/useTableDensity";
-import { simpleDataTableLayout } from "@/lib/tableDensityLayout";
 import {
   normalizeRowsArray,
   type ImportRowError,
@@ -35,6 +47,13 @@ import type {
   CompanyDataRequestType,
   CompanySecurityEvent,
 } from "@/types/enterprise-readiness";
+import {
+  buildWorkforceCommandCenter,
+  roleNeedsAssignments,
+  type WorkforceActionItem,
+  type WorkforceReadiness,
+  type WorkspaceLoadState,
+} from "./workforce-logic";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -60,10 +79,6 @@ type LeadershipSafetyScoreSummary = {
   negativeSignals?: Array<{ label?: string; detail?: string }>;
   evidenceRefs?: Array<{ label?: string; href?: string }>;
   coachingPrompt?: string;
-};
-
-type LeadershipSafetyScoresResponse = {
-  scores?: LeadershipSafetyScoreSummary[];
 };
 
 type CompanyInvite = {
@@ -98,8 +113,6 @@ type TrackedEmployeeForm = {
   certifications: string;
 };
 
-type SecurityAuditView = "events" | "data_requests";
-
 type Jobsite = {
   id: string;
   name: string;
@@ -108,13 +121,59 @@ type Jobsite = {
 
 type EnvDetails = {
   url?: boolean;
-  anonKey?: boolean;
   serviceRoleKey?: boolean;
   sources?: {
     url?: string | null;
-    anonKey?: string | null;
     serviceRoleKey?: string | null;
   };
+};
+
+type WorkspaceData = {
+  users: CompanyUser[];
+  invites: CompanyInvite[];
+  leadershipScores: LeadershipSafetyScoreSummary[];
+  jobsites: Jobsite[];
+  assignmentMap: Record<string, string[]>;
+  trackedEmployees: TrackedEmployee[];
+  securityEvents: CompanySecurityEvent[];
+  dataRequests: CompanyDataRequest[];
+  scopeTeam: string;
+  scopeCompanyName: string;
+  demoMode: boolean;
+};
+
+type TabId = "overview" | "access" | "users" | "training" | "audit";
+type SecurityAuditView = "events" | "data_requests";
+
+const emptyWorkspace: WorkspaceData = {
+  users: [],
+  invites: [],
+  leadershipScores: [],
+  jobsites: [],
+  assignmentMap: {},
+  trackedEmployees: [],
+  securityEvents: [],
+  dataRequests: [],
+  scopeTeam: "General",
+  scopeCompanyName: "General",
+  demoMode: false,
+};
+
+const emptyLoadState: WorkspaceLoadState = {
+  loading: true,
+  criticalErrors: [],
+  warnings: [],
+};
+
+const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
+  employee_id: "",
+  full_name: "",
+  email: "",
+  job_title: "",
+  trade_specialty: "",
+  readiness_status: "ready",
+  status: "active",
+  certifications: "",
 };
 
 const roleOptions = [
@@ -129,46 +188,25 @@ const roleOptions = [
   "Company User",
 ];
 
-const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
-  employee_id: "",
-  full_name: "",
-  email: "",
-  job_title: "",
-  trade_specialty: "",
-  readiness_status: "ready",
-  status: "active",
-  certifications: "",
-};
+const fieldClassName =
+  "w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--app-text-strong)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
 
-function roleNeedsAssignments(role: string) {
-  return (
-    role === "Project Manager" ||
-    role === "Field Supervisor" ||
-    role === "Foreman" ||
-    role === "Field User" ||
-    role === "Read Only" ||
-    role === "Company User"
-  );
+const compactCardClassName =
+  "rounded-lg border border-[var(--app-border)] bg-white/92 p-4 shadow-[var(--app-shadow-soft)]";
+
+function formatEnvDetails(details?: EnvDetails | null) {
+  if (!details) return "";
+  const urlText = details.url
+    ? `URL from ${details.sources?.url ?? "unknown source"}`
+    : "URL missing";
+  const serviceRoleText = details.serviceRoleKey
+    ? `service role from ${details.sources?.serviceRoleKey ?? "unknown source"}`
+    : "service role missing";
+  return ` Server check: ${urlText}; ${serviceRoleText}.`;
 }
 
-function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
-  if (status === "Active") return "success";
-  if (status === "Pending") return "warning";
-  if (status === "Suspended") return "error";
-  return "neutral";
-}
-
-function roleClasses(role: string) {
-  if (role === "Safety Manager") return "app-badge-success";
-  if (role === "Project Manager") return "app-badge-indigo";
-  if (role === "Field Supervisor") return "app-badge-cyan";
-  if (role === "Foreman") return "app-badge-cyan";
-  if (role === "Field User") return "app-badge-lime";
-  if (role === "Read Only") return "app-badge-neutral";
-  if (role === "Company Admin") return "app-badge-accent";
-  if (role === "Operations Manager") return "app-badge-info";
-  if (role === "Company User") return "app-badge-warning";
-  return "app-badge-neutral";
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function formatRelative(timestamp?: string | null) {
@@ -182,21 +220,22 @@ function formatRelative(timestamp?: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function formatEnvDetails(details?: EnvDetails | null) {
-  if (!details) return "";
+function formatSecurityEventLabel(value: string) {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
-  const urlText = details.url
-    ? `URL from ${details.sources?.url ?? "unknown source"}`
-    : "URL missing";
-  const serviceRoleText = details.serviceRoleKey
-    ? `service role from ${details.sources?.serviceRoleKey ?? "unknown source"}`
-    : "service role missing";
-
-  return ` Server check: ${urlText}; ${serviceRoleText}.`;
+function readinessLabel(value?: string | null) {
+  return formatSecurityEventLabel(String(value || "ready"));
 }
 
 function getProfileHref(userId: string) {
-  return `/profile?userId=${encodeURIComponent(userId)}&returnTo=${encodeURIComponent("/company-users")}`;
+  return `/profile?userId=${encodeURIComponent(userId)}&returnTo=${encodeURIComponent(
+    "/company-users"
+  )}`;
 }
 
 function getInviteSignupUrl(invite: CompanyInvite) {
@@ -209,35 +248,36 @@ function getInviteSignupUrl(invite: CompanyInvite) {
   return url.toString();
 }
 
-function clampNumber(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+function roleClasses(role: string) {
+  if (role === "Safety Manager") return "app-badge-success";
+  if (role === "Project Manager") return "app-badge-indigo";
+  if (role === "Field Supervisor" || role === "Foreman") return "app-badge-cyan";
+  if (role === "Field User") return "app-badge-lime";
+  if (role === "Company Admin") return "app-badge-accent";
+  if (role === "Operations Manager") return "app-badge-info";
+  if (role === "Company User") return "app-badge-warning";
+  return "app-badge-neutral";
 }
 
-function getPulseTone(score: number): "neutral" | "success" | "warning" | "info" | "error" {
-  if (score >= 85) return "success";
-  if (score >= 65) return "info";
-  if (score >= 45) return "warning";
-  return "error";
-}
-
-function getPulseLabel(score: number) {
-  if (score >= 85) return "Thriving";
-  if (score >= 65) return "Strong";
-  if (score >= 45) return "Needs attention";
-  return "Building";
-}
-
-function getCommitmentTone(grade?: string): "neutral" | "success" | "warning" | "info" | "error" {
-  if (grade === "A" || grade === "B") return "success";
-  if (grade === "C") return "info";
-  if (grade === "D") return "warning";
-  if (grade === "F") return "error";
+function statusTone(status: string): "success" | "warning" | "error" | "neutral" {
+  if (status === "Active") return "success";
+  if (status === "Pending") return "warning";
+  if (status === "Suspended") return "error";
   return "neutral";
 }
 
-function formatTrend(trend?: number) {
-  if (!trend) return "Steady";
-  return `${trend > 0 ? "+" : ""}${trend} pts`;
+function readinessTone(readiness: WorkforceReadiness): "success" | "warning" | "error" {
+  if (readiness === "healthy") return "success";
+  if (readiness === "blocked") return "error";
+  return "warning";
+}
+
+function dataRequestStatusTone(status: string): "success" | "warning" | "error" | "neutral" | "info" {
+  if (status === "completed") return "success";
+  if (status === "denied" || status === "canceled") return "error";
+  if (status === "waiting_on_customer") return "warning";
+  if (status === "reviewing") return "info";
+  return "neutral";
 }
 
 function formatDemoRole(role: string) {
@@ -252,30 +292,33 @@ function formatDemoRole(role: string) {
   return role;
 }
 
-function formatSecurityEventLabel(value: string) {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+async function fetchJson<T>(url: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = (await response.json().catch(() => null)) as (T & {
+    error?: string;
+    details?: EnvDetails;
+  }) | null;
+  if (!response.ok) {
+    throw new Error(`${data?.error || `Request failed: ${url}`}${formatEnvDetails(data?.details)}`);
+  }
+  return (data ?? {}) as T;
 }
 
-function dataRequestStatusTone(status: string): "success" | "warning" | "error" | "neutral" | "info" {
-  if (status === "completed") return "success";
-  if (status === "denied" || status === "canceled") return "error";
-  if (status === "waiting_on_customer") return "warning";
-  if (status === "reviewing") return "info";
-  return "neutral";
-}
-
-function readinessLabel(value?: string | null) {
-  const normalized = String(value ?? "").trim();
-  if (!normalized) return "Ready";
-  return normalized
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+async function getAccessToken() {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+  if (error || !session?.access_token) {
+    throw new Error("You must be logged in.");
+  }
+  return session.access_token;
 }
 
 async function isSalesDemoToken(token: string) {
@@ -288,42 +331,268 @@ async function isSalesDemoToken(token: string) {
   return response.ok && data?.user?.role === "sales_demo";
 }
 
+function demoWorkspace(): WorkspaceData {
+  const now = Date.now();
+  const users = demoCompanyUsers.map((user, index) => ({
+    ...user,
+    role: formatDemoRole(user.role),
+    status: index === 3 ? "Pending" : user.status,
+    last_sign_in_at: new Date(now - index * 17 * 60000).toISOString(),
+    created_at: new Date(now - (index + 1) * 24 * 60 * 60000).toISOString(),
+  }));
+  const assignmentMap: Record<string, string[]> = {};
+  for (const row of demoJobsiteAssignments) {
+    assignmentMap[row.user_id] = assignmentMap[row.user_id]
+      ? [...assignmentMap[row.user_id], row.jobsite_id]
+      : [row.jobsite_id];
+  }
+  const staleInviteDate = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
+  const invites = [
+    ...demoCompanyInvites.map((invite, index) => ({
+      ...invite,
+      created_at: index === 0 ? staleInviteDate : invite.created_at,
+    })),
+    {
+      id: "demo-invite-estimator",
+      email: "estimator.demo@summitridge.example",
+      role: "Read Only",
+      status: "Pending",
+      created_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+  const trackedEmployees: TrackedEmployee[] = [
+    {
+      id: "demo-tracked-1",
+      external_employee_id: "SR-044",
+      full_name: "Maya Rodriguez",
+      email: "maya.rodriguez@example.com",
+      job_title: "Crane Signal Person",
+      trade_specialty: "Hoisting",
+      readiness_status: "needs_training",
+      status: "active",
+      trainingRecords: [{ id: "demo-training-1" }],
+    },
+    {
+      id: "demo-tracked-2",
+      external_employee_id: "SR-052",
+      full_name: "Andre Bell",
+      email: "andre.bell@example.com",
+      job_title: "Concrete Finisher",
+      trade_specialty: "Concrete",
+      readiness_status: "ready",
+      status: "active",
+      trainingRecords: [{ id: "demo-training-2" }, { id: "demo-training-3" }],
+    },
+  ];
+  const leadershipScores = users.slice(0, 3).map((user, index) => ({
+    userId: user.id,
+    userName: user.name,
+    roleLabel: user.role,
+    score: [91, 84, 73][index] ?? 82,
+    grade: ["A", "B", "C"][index] ?? "B",
+    trend: [4, 1, -3][index] ?? 0,
+    positiveSignals: [
+      {
+        label: "Risk actions reviewed",
+        detail: "Recent risk follow-through is visible for assigned work.",
+      },
+    ],
+    negativeSignals:
+      index === 2
+        ? [
+            {
+              label: "Closeout discipline",
+              detail: "Assigned work includes open permit and JSA closeout items.",
+            },
+          ]
+        : [],
+    coachingPrompt:
+      index === 2
+        ? "Coach toward faster end-of-shift closeout and supervisor verification."
+        : "Keep reinforcing prompt risk-response and documented follow-through.",
+  }));
+  const securityEvents: CompanySecurityEvent[] = [
+    {
+      id: "demo-event-invite",
+      company_id: "demo-company",
+      jobsite_id: null,
+      actor_user_id: "demo-admin",
+      actor_role: "company_admin",
+      event_type: "user_invited",
+      resource_type: "company_invite",
+      resource_id: invites[0]?.id ?? null,
+      title: "Company invite created",
+      detail: "Invite evidence for IT review.",
+      ip_address: null,
+      user_agent: null,
+      metadata: {},
+      occurred_at: new Date(now - 12 * 60000).toISOString(),
+    },
+    {
+      id: "demo-event-role",
+      company_id: "demo-company",
+      jobsite_id: null,
+      actor_user_id: "demo-admin",
+      actor_role: "company_admin",
+      event_type: "user_access_updated",
+      resource_type: "company_user",
+      resource_id: users[0]?.id ?? null,
+      title: "Company access updated",
+      detail: "Role and assignment changes appear in this ledger.",
+      ip_address: null,
+      user_agent: null,
+      metadata: {},
+      occurred_at: new Date(now - 38 * 60000).toISOString(),
+    },
+  ];
+  const dataRequests: CompanyDataRequest[] = [
+    {
+      id: "demo-data-request-1",
+      company_id: "demo-company",
+      request_type: "export",
+      request_scope: "company",
+      subject_user_id: null,
+      subject_email: null,
+      jobsite_id: null,
+      document_id: null,
+      status: "submitted",
+      requested_by: "demo-admin",
+      reviewed_by: null,
+      completed_by: null,
+      title: "Quarterly access export",
+      description: "Export current access, role, invite, and suspension evidence.",
+      reviewer_notes: null,
+      completion_evidence: null,
+      evidence_storage_path: null,
+      metadata: {},
+      due_at: null,
+      reviewed_at: null,
+      completed_at: null,
+      created_at: new Date(now - 2 * 60 * 60000).toISOString(),
+      updated_at: new Date(now - 2 * 60 * 60000).toISOString(),
+    },
+  ];
+
+  return {
+    users,
+    invites,
+    leadershipScores,
+    jobsites: demoCompanyJobsiteRows.map((jobsite) => ({
+      id: jobsite.id,
+      name: jobsite.name,
+      status: jobsite.status,
+    })),
+    assignmentMap,
+    trackedEmployees,
+    securityEvents,
+    dataRequests,
+    scopeTeam: "Demo Workspace",
+    scopeCompanyName: demoCompanyProfile.name ?? "Summit Ridge Constructors",
+    demoMode: true,
+  };
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: typeof Users;
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+}) {
+  return (
+    <div className={compactCardClassName}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">{label}</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+        </div>
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]">
+          <Icon aria-hidden className="h-5 w-5" />
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-sm leading-5 text-[var(--app-text)]">{detail}</p>
+        <StatusBadge label={value} tone={tone} />
+      </div>
+    </div>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${roleClasses(role)}`}>
+      {role}
+    </span>
+  );
+}
+
+function TabButton({
+  tab,
+  label,
+  activeTab,
+  count,
+  onClick,
+}: {
+  tab: TabId;
+  label: string;
+  activeTab: TabId;
+  count?: number;
+  onClick: (tab: TabId) => void;
+}) {
+  const isActive = activeTab === tab;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={isActive}
+      onClick={() => onClick(tab)}
+      className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+        isActive
+          ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
+          : "text-[var(--app-text)] hover:bg-[var(--app-accent-primary-soft)] hover:text-[var(--app-text-strong)]"
+      }`}
+    >
+      {label}
+      {typeof count === "number" ? (
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs ${
+            isActive ? "bg-white/18 text-white" : "bg-[var(--semantic-neutral-bg)] text-[var(--app-muted)]"
+          }`}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export default function CompanyUsersPage() {
-  const [users, setUsers] = useState<CompanyUser[]>([]);
-  const [invites, setInvites] = useState<CompanyInvite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [workspace, setWorkspace] = useState<WorkspaceData>(emptyWorkspace);
+  const [loadState, setLoadState] = useState<WorkspaceLoadState>(emptyLoadState);
   const [message, setMessage] = useState("");
-  const [messageTone, setMessageTone] = useState<
-    "neutral" | "success" | "warning" | "error"
-  >("neutral");
-  const [scopeTeam, setScopeTeam] = useState("General");
-  const [scopeCompanyName, setScopeCompanyName] = useState("General");
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
+    "neutral"
+  );
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Company User");
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<CompanyUser | null>(null);
   const [editRole, setEditRole] = useState("Company User");
   const [editStatus, setEditStatus] = useState("Active");
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [removeLoading, setRemoveLoading] = useState(false);
-  const [jobsites, setJobsites] = useState<Jobsite[]>([]);
-  const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
   const [editAssignments, setEditAssignments] = useState<string[]>([]);
-  const [referenceTime] = useState(() => Date.now());
-  const [demoMode, setDemoMode] = useState(false);
-  const [leadershipScores, setLeadershipScores] = useState<LeadershipSafetyScoreSummary[]>([]);
-  const [securityEvents, setSecurityEvents] = useState<CompanySecurityEvent[]>([]);
-  const [dataRequests, setDataRequests] = useState<CompanyDataRequest[]>([]);
-  const [securityLoading, setSecurityLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [securityAuditView, setSecurityAuditView] = useState<SecurityAuditView>("events");
-  const [dataRequestSubmitting, setDataRequestSubmitting] = useState(false);
   const [dataRequestType, setDataRequestType] = useState<CompanyDataRequestType>("export");
   const [dataRequestScope, setDataRequestScope] = useState<CompanyDataRequestScope>("company");
   const [dataRequestTitle, setDataRequestTitle] = useState("");
   const [dataRequestDescription, setDataRequestDescription] = useState("");
-  const [trackedEmployees, setTrackedEmployees] = useState<TrackedEmployee[]>([]);
-  const [trackedEmployeesLoading, setTrackedEmployeesLoading] = useState(true);
   const [trackedRosterMessage, setTrackedRosterMessage] = useState("");
   const [trackedRosterMessageTone, setTrackedRosterMessageTone] = useState<
     "neutral" | "success" | "warning" | "error"
@@ -332,597 +601,242 @@ export default function CompanyUsersPage() {
     emptyTrackedEmployeeForm
   );
   const [editingTrackedEmployee, setEditingTrackedEmployee] = useState<TrackedEmployee | null>(null);
-  const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
-  const [trackedRosterImporting, setTrackedRosterImporting] = useState(false);
   const [trackedRosterRowErrors, setTrackedRosterRowErrors] = useState<ImportRowError[]>([]);
 
-  async function getAccessToken() {
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession();
-    if (error || !session?.access_token) {
-      throw new Error("You must be logged in.");
-    }
-    return session.access_token;
-  }
-
-  const loadUsers = useCallback(async (options?: { preserveMessage?: boolean }) => {
-    setLoading(true);
+  const loadWorkspace = useCallback(async (options?: { preserveMessage?: boolean }) => {
+    setLoadState((current) => ({ ...current, loading: true }));
     if (!options?.preserveMessage) {
       setMessage("");
+      setMessageTone("neutral");
     }
 
     try {
       const token = await getAccessToken();
-      const isDemo = await isSalesDemoToken(token);
-      setDemoMode(isDemo);
-      if (isDemo) {
-        const demoUsers = demoCompanyUsers.map((user, index) => ({
-            ...user,
-            role: formatDemoRole(user.role),
-            last_sign_in_at: new Date(Date.now() - index * 9 * 60000).toISOString(),
-          }));
-        setUsers(demoUsers);
-        setLeadershipScores(
-          demoUsers.map((user, index) => ({
-            userId: user.id,
-            userName: user.name,
-            roleLabel: user.role,
-            score: [92, 87, 74][index] ?? 81,
-            grade: ["A", "B", "C"][index] ?? "B",
-            trend: [4, 2, -3][index] ?? 0,
-            positiveSignals: [
-              {
-                label: "Risk actions moving",
-                detail: "AI recommendations are being converted into jobsite follow-up.",
-              },
-            ],
-            negativeSignals:
-              index === 2
-                ? [
-                    {
-                      label: "Closeout discipline",
-                      detail: "A few assigned permits and JSAs need tighter end-of-shift closeout.",
-                    },
-                  ]
-                : [],
-            coachingPrompt:
-              index === 2
-                ? "Coach toward faster permit/JSA closeout and supervisor verification on assigned work."
-                : "Keep reinforcing prompt risk-response and documented follow-through.",
-          }))
-        );
-        setInvites(demoCompanyInvites);
-        setScopeTeam("Demo Workspace");
-        setScopeCompanyName(demoCompanyProfile.name ?? "Summit Ridge Constructors");
-        setLoading(false);
+      if (await isSalesDemoToken(token)) {
+        setWorkspace(demoWorkspace());
+        setLoadState({ loading: false, criticalErrors: [], warnings: [] });
         return;
       }
-      const response = await fetch("/api/company/users", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = (await response.json().catch(() => null)) as
-        | {
-            error?: string;
+
+      const results = await Promise.allSettled([
+        fetchJson<{
           users?: CompanyUser[];
           invites?: CompanyInvite[];
           scopeTeam?: string;
           scopeCompanyName?: string;
-          details?: EnvDetails;
-          }
-        | null;
+        }>("/api/company/users", token),
+        fetchJson<{
+          jobsites?: Jobsite[];
+          assignments?: Array<{ user_id?: string; jobsite_id?: string }>;
+        }>("/api/company/jobsite-assignments", token),
+        fetchJson<{ scores?: LeadershipSafetyScoreSummary[] }>(
+          "/api/company/leadership-safety-scores",
+          token
+        ),
+        fetchJson<{ employees?: TrackedEmployee[]; warning?: string | null }>(
+          "/api/company/tracked-employees",
+          token
+        ),
+        fetchJson<{ events?: CompanySecurityEvent[] }>("/api/company/security/events?limit=25", token),
+        fetchJson<{ requests?: CompanyDataRequest[] }>("/api/company/data-requests?limit=25", token),
+      ]);
 
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(
-          `${data?.error || "Failed to load company users."}${formatEnvDetails(data?.details)}`
-        );
-        setUsers([]);
-        setLoading(false);
-        return;
+      const warnings: string[] = [];
+      const criticalErrors: string[] = [];
+      const usersResult = results[0];
+      if (usersResult.status === "rejected") {
+        criticalErrors.push(usersResult.reason instanceof Error ? usersResult.reason.message : "Failed to load company users.");
       }
 
-      setUsers(data?.users ?? []);
-      setInvites(data?.invites ?? []);
-      setScopeTeam(data?.scopeTeam ?? "General");
-      setScopeCompanyName(data?.scopeCompanyName ?? data?.scopeTeam ?? "General");
+      const userData = usersResult.status === "fulfilled" ? usersResult.value : {};
+      const assignmentData = results[1].status === "fulfilled" ? results[1].value : {};
+      const scoreData = results[2].status === "fulfilled" ? results[2].value : {};
+      const trackedData = results[3].status === "fulfilled" ? results[3].value : {};
+      const eventData = results[4].status === "fulfilled" ? results[4].value : {};
+      const requestData = results[5].status === "fulfilled" ? results[5].value : {};
 
-      const scoreResponse = await fetch("/api/company/leadership-safety-scores", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      results.forEach((result, index) => {
+        if (index === 0 || result.status === "fulfilled") return;
+        warnings.push(result.reason instanceof Error ? result.reason.message : "A supporting workforce panel could not load.");
       });
-      const scoreData = (await scoreResponse.json().catch(() => null)) as
-        | LeadershipSafetyScoresResponse
-        | null;
-      setLeadershipScores(scoreResponse.ok ? scoreData?.scores ?? [] : []);
-    } catch (error) {
-      setMessageTone("error");
-        setMessage(error instanceof Error ? error.message : "Failed to load company users.");
-        setUsers([]);
-        setInvites([]);
-        setLeadershipScores([]);
-    }
+      if (trackedData.warning) warnings.push(trackedData.warning);
 
-    setLoading(false);
-  }, []);
-
-  const loadAssignmentData = useCallback(async () => {
-    try {
-      const token = await getAccessToken();
-      if (await isSalesDemoToken(token)) {
-        const nextMap: Record<string, string[]> = {};
-        for (const row of demoJobsiteAssignments) {
-          nextMap[row.user_id] = nextMap[row.user_id]
-            ? [...nextMap[row.user_id], row.jobsite_id]
-            : [row.jobsite_id];
-        }
-        setJobsites(
-          demoCompanyJobsiteRows.map((jobsite) => ({
-            id: jobsite.id,
-            name: jobsite.name,
-            status: jobsite.status,
-          }))
-        );
-        setAssignmentMap(nextMap);
-        return;
-      }
-      const response = await fetch("/api/company/jobsite-assignments", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = (await response.json().catch(() => null)) as
-        | {
-            jobsites?: Jobsite[];
-            assignments?: Array<{ user_id?: string; jobsite_id?: string }>;
-          }
-        | null;
-      if (!response.ok) return;
-      const nextMap: Record<string, string[]> = {};
-      for (const row of data?.assignments ?? []) {
+      const assignmentMap: Record<string, string[]> = {};
+      for (const row of assignmentData.assignments ?? []) {
         const userId = row.user_id?.trim() ?? "";
         const jobsiteId = row.jobsite_id?.trim() ?? "";
         if (!userId || !jobsiteId) continue;
-        nextMap[userId] = nextMap[userId] ? [...nextMap[userId], jobsiteId] : [jobsiteId];
-      }
-      setJobsites(data?.jobsites ?? []);
-      setAssignmentMap(nextMap);
-    } catch {
-      // Keep existing company user flow even if assignment API is unavailable.
-    }
-  }, []);
-
-  const loadSecurityReadiness = useCallback(async () => {
-    setSecurityLoading(true);
-    try {
-      const token = await getAccessToken();
-      if (await isSalesDemoToken(token)) {
-        const now = Date.now();
-        setSecurityEvents([
-          {
-            id: "demo-event-invite",
-            company_id: "demo-company",
-            jobsite_id: null,
-            actor_user_id: "demo-admin",
-            actor_role: "company_admin",
-            event_type: "user_invited",
-            resource_type: "company_invite",
-            resource_id: demoCompanyInvites[0]?.id ?? null,
-            title: "Company invite created",
-            detail: "Demo invite evidence for IT review.",
-            ip_address: null,
-            user_agent: null,
-            metadata: {},
-            occurred_at: new Date(now - 12 * 60000).toISOString(),
-          },
-          {
-            id: "demo-event-role",
-            company_id: "demo-company",
-            jobsite_id: null,
-            actor_user_id: "demo-admin",
-            actor_role: "company_admin",
-            event_type: "user_access_updated",
-            resource_type: "company_user",
-            resource_id: demoCompanyUsers[0]?.id ?? null,
-            title: "Company access updated",
-            detail: "Role/status change evidence appears here after the migration is applied.",
-            ip_address: null,
-            user_agent: null,
-            metadata: {},
-            occurred_at: new Date(now - 28 * 60000).toISOString(),
-          },
-        ]);
-        setDataRequests([]);
-        setSecurityLoading(false);
-        return;
+        assignmentMap[userId] = assignmentMap[userId] ? [...assignmentMap[userId], jobsiteId] : [jobsiteId];
       }
 
-      const [eventsResponse, requestsResponse] = await Promise.all([
-        fetch("/api/company/security/events?limit=12", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/company/data-requests?limit=10", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-      const eventData = (await eventsResponse.json().catch(() => null)) as
-        | { events?: CompanySecurityEvent[] }
-        | null;
-      const requestData = (await requestsResponse.json().catch(() => null)) as
-        | { requests?: CompanyDataRequest[] }
-        | null;
-      setSecurityEvents(eventsResponse.ok ? eventData?.events ?? [] : []);
-      setDataRequests(requestsResponse.ok ? requestData?.requests ?? [] : []);
-    } catch {
-      setSecurityEvents([]);
-      setDataRequests([]);
-    }
-    setSecurityLoading(false);
-  }, []);
-
-  const loadTrackedEmployees = useCallback(async () => {
-    setTrackedEmployeesLoading(true);
-    setTrackedRosterMessage("");
-    setTrackedRosterMessageTone("neutral");
-    try {
-      const token = await getAccessToken();
-      if (await isSalesDemoToken(token)) {
-        setTrackedEmployees([]);
-        return;
-      }
-
-      const response = await fetch("/api/company/tracked-employees", {
-        headers: { Authorization: `Bearer ${token}` },
+      setWorkspace({
+        users: userData.users ?? [],
+        invites: userData.invites ?? [],
+        leadershipScores: scoreData.scores ?? [],
+        jobsites: assignmentData.jobsites ?? [],
+        assignmentMap,
+        trackedEmployees: trackedData.employees ?? [],
+        securityEvents: eventData.events ?? [],
+        dataRequests: requestData.requests ?? [],
+        scopeTeam: userData.scopeTeam ?? "General",
+        scopeCompanyName: userData.scopeCompanyName ?? userData.scopeTeam ?? "General",
+        demoMode: false,
       });
-      const data = (await response.json().catch(() => null)) as
-        | {
-            employees?: TrackedEmployee[];
-            error?: string;
-            warning?: string | null;
-          }
-        | null;
-
-      if (!response.ok) {
-        setTrackedEmployees([]);
-        setTrackedRosterMessage(data?.error || "Failed to load training-only people.");
-        setTrackedRosterMessageTone("error");
-        return;
-      }
-
-      setTrackedEmployees(data?.employees ?? []);
-      setTrackedRosterMessage(data?.warning ?? "");
-      setTrackedRosterMessageTone(data?.warning ? "warning" : "neutral");
+      setLoadState({ loading: false, criticalErrors, warnings });
     } catch (error) {
-      setTrackedEmployees([]);
-      setTrackedRosterMessage(
-        error instanceof Error ? error.message : "Failed to load training-only people."
-      );
-      setTrackedRosterMessageTone("error");
-    } finally {
-      setTrackedEmployeesLoading(false);
+      setWorkspace((current) => ({ ...current, users: [], invites: [] }));
+      setLoadState({
+        loading: false,
+        criticalErrors: [error instanceof Error ? error.message : "Failed to load workforce operations."],
+        warnings: [],
+      });
     }
   }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
-      void loadUsers();
-      void loadAssignmentData();
-      void loadSecurityReadiness();
-      void loadTrackedEmployees();
+      void loadWorkspace();
     });
-  }, [loadAssignmentData, loadSecurityReadiness, loadTrackedEmployees, loadUsers]);
+  }, [loadWorkspace]);
 
-  const pendingUsers = useMemo(
-    () => users.filter((user) => user.status === "Pending"),
-    [users]
+  const activeJobsiteCount = useMemo(
+    () => workspace.jobsites.filter((jobsite) => jobsite.status !== "archived").length,
+    [workspace.jobsites]
   );
-
-  const activeUsers = useMemo(
-    () => users.filter((user) => user.status === "Active"),
-    [users]
-  );
-
-  const filteredTeamMembers = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    const visibleUsers = users.filter(
-      (user) => user.status === "Active" || user.status === "Suspended"
-    );
-
-    return visibleUsers.filter((user) => {
-      if (!query) return true;
-      return (
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
-        user.role.toLowerCase().includes(query)
-      );
-    });
-  }, [searchTerm, users]);
-
-  const filteredActiveUsers = useMemo(
-    () => filteredTeamMembers.filter((user) => user.status === "Active"),
-    [filteredTeamMembers]
-  );
-
-  const filteredSuspendedUsers = useMemo(
-    () => filteredTeamMembers.filter((user) => user.status === "Suspended"),
-    [filteredTeamMembers]
-  );
-  const activeTrackedEmployees = useMemo(
-    () => trackedEmployees.filter((employee) => employee.status !== "archived"),
-    [trackedEmployees]
-  );
-  const onlineUsers = useMemo(
+  const dataRequestReviewCount = useMemo(
     () =>
-      activeUsers.filter((user) => {
-        if (!user.last_sign_in_at) return false;
-        return referenceTime - new Date(user.last_sign_in_at).getTime() <= 1000 * 60 * 20;
+      workspace.dataRequests.filter(
+        (request) =>
+          request.status !== "completed" &&
+          request.status !== "denied" &&
+          request.status !== "canceled"
+      ).length,
+    [workspace.dataRequests]
+  );
+  const commandCenter = useMemo(
+    () =>
+      buildWorkforceCommandCenter({
+        users: workspace.users,
+        invites: workspace.invites,
+        trackedEmployees: workspace.trackedEmployees,
+        assignmentMap: workspace.assignmentMap,
+        activeJobsiteCount,
+        dataRequestReviewCount,
+        loadState,
       }),
-    [activeUsers, referenceTime]
+    [
+      activeJobsiteCount,
+      dataRequestReviewCount,
+      loadState,
+      workspace.assignmentMap,
+      workspace.invites,
+      workspace.trackedEmployees,
+      workspace.users,
+    ]
   );
   const jobsiteNameById = useMemo(
     () =>
-      jobsites.reduce<Record<string, string>>((acc, jobsite) => {
+      workspace.jobsites.reduce<Record<string, string>>((acc, jobsite) => {
         acc[jobsite.id] = jobsite.name;
         return acc;
       }, {}),
-    [jobsites]
+    [workspace.jobsites]
   );
-  const openUserManager = useCallback(
-    (user: CompanyUser) => {
-      setEditingUser(user);
-      setEditRole(user.role);
-      setEditAssignments(assignmentMap[user.id] ?? []);
-      setEditStatus(
-        user.status === "Pending" ? "Pending" : user.status === "Suspended" ? "Suspended" : "Active"
-      );
-    },
-    [assignmentMap]
+  const activeTrackedEmployees = useMemo(
+    () => workspace.trackedEmployees.filter((employee) => employee.status !== "archived"),
+    [workspace.trackedEmployees]
   );
-  const getAssignmentSummary = useCallback(
-    (user: CompanyUser) => {
-      if (!roleNeedsAssignments(user.role)) {
-        return {
-          label: "Company-wide access",
-          detail: "Can access all jobsites through their role.",
-          tone: "success" as const,
-        };
-      }
-
-      const assignedIds = assignmentMap[user.id] ?? [];
-      if (assignedIds.length === 0) {
-        return {
-          label: "No jobsites assigned",
-          detail: "Assign at least one jobsite so this field-scoped user can work in the right place.",
-          tone: "warning" as const,
-        };
-      }
-
-      const visibleNames = assignedIds
-        .map((id) => jobsiteNameById[id] ?? "Unknown jobsite")
-        .slice(0, 2);
-      const overflowCount = Math.max(0, assignedIds.length - visibleNames.length);
-
-      return {
-        label: `${assignedIds.length} jobsite${assignedIds.length === 1 ? "" : "s"} assigned`,
-        detail: `${visibleNames.join(", ")}${overflowCount > 0 ? ` +${overflowCount} more` : ""}`,
-        tone: "info" as const,
-      };
-    },
-    [assignmentMap, jobsiteNameById]
-  );
-
-  const stats = useMemo(
-    () => [
-      {
-        title: "Active App Users",
-        value: String(activeUsers.length),
-        note: "Licensed login users with live workspace access",
-      },
-      {
-        title: "Training-Only People",
-        value: String(activeTrackedEmployees.length),
-        note: "Non-users tracked in the Training Matrix with no login seat",
-      },
-      {
-        title: "Invited App Users",
-        value: String(invites.length),
-        note: "Invites waiting for employees to finish account setup",
-      },
-      {
-        title: "Awaiting Approval",
-        value: String(pendingUsers.length),
-        note: "Employees who set up an account and need your approval",
-      },
-    ],
-    [activeTrackedEmployees.length, activeUsers.length, invites.length, pendingUsers.length]
-  );
-  const teamPulseScore = clampNumber(
-    68 +
-      Math.min(10, activeUsers.length * 3) +
-      Math.min(8, onlineUsers.length * 4) +
-      Math.min(8, jobsites.length * 2) -
-      pendingUsers.length * 5 -
-      invites.length * 2,
-    0,
-    100
-  );
-  const teamPulseLabel = getPulseLabel(teamPulseScore);
-  const teamPulseTone = getPulseTone(teamPulseScore);
-  const leadershipScoresByUserId = useMemo(() => {
-    return new Map(leadershipScores.map((score) => [score.userId, score]));
-  }, [leadershipScores]);
-  const leadershipScoreRows = useMemo(
-    () =>
-      users
-        .map((user) => ({
-          user,
-          score: leadershipScoresByUserId.get(user.id),
-        }))
-        .filter((row): row is { user: CompanyUser; score: LeadershipSafetyScoreSummary } =>
-          Boolean(row.score)
-        )
-        .sort((a, b) => a.score.score - b.score.score),
-    [leadershipScoresByUserId, users]
-  );
+  const filteredUsers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const users = workspace.users.filter((user) => user.status === "Active" || user.status === "Suspended");
+    if (!query) return users;
+    return users.filter((user) =>
+      [user.name, user.email, user.role, user.status].some((value) =>
+        value.toLowerCase().includes(query)
+      )
+    );
+  }, [searchTerm, workspace.users]);
+  const leadershipRows = useMemo(() => {
+    const byId = new Map(workspace.leadershipScores.map((score) => [score.userId, score]));
+    return workspace.users
+      .map((user) => ({ user, score: byId.get(user.id) }))
+      .filter((row): row is { user: CompanyUser; score: LeadershipSafetyScoreSummary } => Boolean(row.score))
+      .sort((a, b) => a.score.score - b.score.score)
+      .slice(0, 3);
+  }, [workspace.leadershipScores, workspace.users]);
   const activityItems = useMemo(() => {
-    const userItems = users.map((user) => ({
-        id: user.id,
-        sortAt: new Date(user.last_sign_in_at ?? user.created_at ?? 0).getTime(),
-        title:
-          user.status === "Pending"
-            ? `${user.name} is waiting for access`
-            : `${user.name} belongs to ${scopeTeam}`,
-        detail:
-          user.status === "Pending"
-            ? "This user still needs approval before they can enter the company workspace."
-            : `${user.role} · ${scopeTeam}`,
-        meta: formatRelative(user.last_sign_in_at ?? user.created_at),
-        tone: user.status === "Pending" ? ("warning" as const) : ("info" as const),
-      }));
-
-    const inviteItems = invites.map((invite) => ({
+    const userItems = workspace.users.map((user) => ({
+      id: user.id,
+      sortAt: new Date(user.last_sign_in_at ?? user.created_at ?? 0).getTime(),
+      title: user.status === "Pending" ? `${user.name} is waiting for access` : `${user.name} is ${user.status.toLowerCase()}`,
+      detail:
+        user.status === "Pending"
+          ? "This employee needs approval before entering the company workspace."
+          : `${user.role} / ${workspace.scopeCompanyName}`,
+      meta: formatRelative(user.last_sign_in_at ?? user.created_at),
+      tone: user.status === "Pending" ? ("warning" as const) : ("info" as const),
+    }));
+    const inviteItems = workspace.invites.map((invite) => ({
       id: `invite-${invite.id}`,
       sortAt: new Date(invite.created_at ?? 0).getTime(),
-      title: `${invite.email} has been invited`,
-      detail: `Waiting for the employee to create an account for ${scopeCompanyName}.`,
+      title: `${invite.email} was invited`,
+      detail: `Waiting for account setup as ${invite.role}.`,
       meta: formatRelative(invite.created_at),
       tone: "warning" as const,
     }));
-
-    const items = [...userItems, ...inviteItems]
-      .sort((a, b) => b.sortAt - a.sortAt)
-      .slice(0, 5);
-
-    return items.length > 0
+    const items = [...userItems, ...inviteItems].sort((a, b) => b.sortAt - a.sortAt).slice(0, 6);
+    return items.length
       ? items
       : [
           {
-            id: "empty-company",
+            id: "empty-company-activity",
             title: "No company activity yet",
-            detail: "Invites and access changes will show up here.",
+            detail: "Invites, approvals, and access changes will appear here.",
             meta: "Waiting",
             tone: "neutral" as const,
           },
         ];
-  }, [invites, scopeCompanyName, scopeTeam, users]);
-
-  const securityEventItems = useMemo(() => {
-    const items = securityEvents.map((event) => ({
-      id: event.id,
-      title: event.title || formatSecurityEventLabel(event.event_type),
-      detail:
-        event.detail ||
-        `${formatSecurityEventLabel(event.event_type)} against ${formatSecurityEventLabel(
-          event.resource_type
-        )}.`,
-      meta: formatRelative(event.occurred_at),
-      tone:
-        event.event_type.includes("removed") || event.event_type.includes("suspended")
-          ? ("warning" as const)
-          : event.event_type.includes("download") || event.event_type.includes("export")
-            ? ("info" as const)
-            : ("neutral" as const),
-    }));
-
-    return items.length > 0
-      ? items
-      : [
-          {
-            id: "empty-security-events",
-            title: "No security ledger events yet",
-            detail: "Invite, access, upload, export, download, AI, and data request evidence will appear after events are recorded.",
-            meta: "Waiting",
-            tone: "neutral" as const,
-          },
-        ];
-  }, [securityEvents]);
-
-  const securityEvidenceStats = useMemo(
-    () => [
-      { label: "Ledger events", value: securityEvents.length, tone: "info" as const },
-      { label: "Suspended users", value: filteredSuspendedUsers.length, tone: filteredSuspendedUsers.length ? ("warning" as const) : ("success" as const) },
-      { label: "Pending invites", value: invites.length, tone: invites.length ? ("warning" as const) : ("success" as const) },
-      { label: "Data requests", value: dataRequests.length, tone: dataRequests.length ? ("info" as const) : ("neutral" as const) },
-    ],
-    [dataRequests.length, filteredSuspendedUsers.length, invites.length, securityEvents.length]
+  }, [workspace.invites, workspace.scopeCompanyName, workspace.users]);
+  const securityEventItems = useMemo(
+    () =>
+      workspace.securityEvents.length
+        ? workspace.securityEvents.map((event) => ({
+            id: event.id,
+            title: event.title || formatSecurityEventLabel(event.event_type),
+            detail:
+              event.detail ||
+              `${formatSecurityEventLabel(event.event_type)} against ${formatSecurityEventLabel(
+                event.resource_type
+              )}.`,
+            meta: formatRelative(event.occurred_at),
+            tone: event.event_type.includes("removed") || event.event_type.includes("suspended")
+              ? ("warning" as const)
+              : ("info" as const),
+          }))
+        : [
+            {
+              id: "empty-security-events",
+              title: "No security ledger events yet",
+              detail: "Invite, access, export, download, and data request evidence will appear here.",
+              meta: "Waiting",
+              tone: "neutral" as const,
+            },
+          ],
+    [workspace.securityEvents]
   );
 
-  async function handleInvite() {
-    setInviteLoading(true);
-    setMessage("");
-    setMessageTone("neutral");
-
-    try {
-      if (demoMode) {
-        const nowIso = new Date().toISOString();
-        setInvites((current) => [
-          {
-            id: `demo-invite-${Date.now()}`,
-            email: inviteEmail,
-            role: inviteRole,
-            status: "pending",
-            created_at: nowIso,
-          },
-          ...current,
-        ]);
-        setInviteEmail("");
-        setInviteRole("Company User");
-        setMessageTone("success");
-        setMessage("Demo invite added locally for this session.");
-        setInviteLoading(false);
-        return;
-      }
-      const token = await getAccessToken();
-      const response = await fetch("/api/company/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: inviteEmail,
-          role: inviteRole,
-        }),
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; details?: EnvDetails; message?: string; warning?: string; inviteUrl?: string | null }
-        | null;
-      const details = data?.details;
-
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(
-          `${data?.error || "Failed to invite company user."}${formatEnvDetails(details)}`
-        );
-        setInviteLoading(false);
-        return;
-      }
-
-      setInviteEmail("");
-      setInviteRole("Company User");
-      setMessageTone(data?.warning ? "warning" : "success");
-      setMessage(
-        data?.warning ||
-          (data?.inviteUrl ? `${data?.message || "Company user invited successfully."} Invite link: ${data.inviteUrl}` : data?.message) ||
-          "Company user invited successfully."
-      );
-      await loadUsers({ preserveMessage: true });
-      await loadSecurityReadiness();
-    } catch (error) {
-      setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to invite company user.");
-    }
-
-    setInviteLoading(false);
+  function openUserManager(user: CompanyUser, nextStatus?: "Active" | "Suspended" | "Pending") {
+    setEditingUser(user);
+    setEditRole(user.role);
+    setEditStatus(nextStatus ?? (user.status === "Suspended" ? "Suspended" : user.status === "Pending" ? "Pending" : "Active"));
+    setEditAssignments(workspace.assignmentMap[user.id] ?? []);
   }
 
   function openTrackedEmployeeEditor(employee: TrackedEmployee) {
     setEditingTrackedEmployee(employee);
     setTrackedEmployeeForm({
       employee_id: employee.external_employee_id ?? "",
-      full_name: employee.full_name ?? "",
+      full_name: employee.full_name,
       email: employee.email ?? "",
       job_title: employee.job_title ?? "",
       trade_specialty: employee.trade_specialty ?? "",
@@ -931,7 +845,6 @@ export default function CompanyUsersPage() {
       certifications: "",
     });
     setTrackedRosterMessage("");
-    setTrackedRosterMessageTone("neutral");
   }
 
   function resetTrackedEmployeeEditor() {
@@ -939,15 +852,227 @@ export default function CompanyUsersPage() {
     setTrackedEmployeeForm(emptyTrackedEmployeeForm);
   }
 
-  function scrollToTrackedRoster() {
-    document
-      .getElementById("training-only-roster")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function getAssignmentSummary(user: CompanyUser) {
+    if (!roleNeedsAssignments(user.role)) {
+      return { label: "Company-wide", detail: "All jobsites through role", tone: "success" as const };
+    }
+    const assignedIds = workspace.assignmentMap[user.id] ?? [];
+    if (!assignedIds.length) {
+      return { label: "No jobsites", detail: "Needs assignment", tone: "warning" as const };
+    }
+    const names = assignedIds.map((id) => jobsiteNameById[id] ?? "Unknown jobsite").slice(0, 2);
+    const extra = assignedIds.length - names.length;
+    return {
+      label: `${assignedIds.length} assigned`,
+      detail: `${names.join(", ")}${extra > 0 ? ` +${extra} more` : ""}`,
+      tone: "info" as const,
+    };
+  }
+
+  async function handleInvite() {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!isValidEmail(email)) {
+      setMessageTone("warning");
+      setMessage("Enter a valid employee email before sending an invite.");
+      return;
+    }
+
+    setBusyAction("invite");
+    setMessage("");
+    try {
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          invites: [
+            {
+              id: `demo-invite-${Date.now()}`,
+              email,
+              role: inviteRole,
+              status: "Pending",
+              created_at: new Date().toISOString(),
+            },
+            ...current.invites,
+          ],
+        }));
+        setInviteEmail("");
+        setInviteRole("Company User");
+        setMessageTone("success");
+        setMessage("Demo invite added locally for this session.");
+        return;
+      }
+
+      const token = await getAccessToken();
+      const data = await fetchJson<{ message?: string; warning?: string; inviteUrl?: string | null }>(
+        "/api/company/users",
+        token,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, role: inviteRole }),
+        }
+      );
+      setInviteEmail("");
+      setInviteRole("Company User");
+      setMessageTone(data.warning ? "warning" : "success");
+      setMessage(
+        data.warning ||
+          (data.inviteUrl
+            ? `${data.message || "Company user invited successfully."} Invite link: ${data.inviteUrl}`
+            : data.message || "Company user invited successfully.")
+      );
+      await loadWorkspace({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to invite company user.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleQuickStatus(user: CompanyUser, nextStatus: "Active" | "Suspended") {
+    if (
+      nextStatus === "Active" &&
+      roleNeedsAssignments(user.role) &&
+      activeJobsiteCount > 0 &&
+      (workspace.assignmentMap[user.id] ?? []).length === 0
+    ) {
+      setMessageTone("warning");
+      setMessage("Assign at least one jobsite before approving this field-scoped app user.");
+      openUserManager(user, "Active");
+      return;
+    }
+
+    const actionKey = `status-${user.id}-${nextStatus}`;
+    setBusyAction(actionKey);
+    setMessage("");
+    try {
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          users: current.users.map((item) => (item.id === user.id ? { ...item, status: nextStatus } : item)),
+        }));
+        setMessageTone(nextStatus === "Active" ? "success" : "warning");
+        setMessage(nextStatus === "Active" ? `${user.name} approved.` : `${user.name} suspended.`);
+        return;
+      }
+
+      const token = await getAccessToken();
+      await fetchJson(`/api/company/users/${user.id}`, token, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: user.role, accountStatus: nextStatus }),
+      });
+      setMessageTone(nextStatus === "Active" ? "success" : "warning");
+      setMessage(
+        nextStatus === "Active"
+          ? `${user.name} has been approved for the company workspace.`
+          : `${user.name} has been suspended from the company workspace.`
+      );
+      await loadWorkspace({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update company user.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSaveUser() {
+    if (!editingUser) return;
+    if (
+      editStatus === "Active" &&
+      roleNeedsAssignments(editRole) &&
+      activeJobsiteCount > 0 &&
+      editAssignments.length === 0
+    ) {
+      setMessageTone("warning");
+      setMessage("Assign at least one jobsite before saving this active field-scoped user.");
+      return;
+    }
+
+    setBusyAction(`save-${editingUser.id}`);
+    setMessage("");
+    try {
+      const nextAssignments = roleNeedsAssignments(editRole) ? editAssignments : [];
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          users: current.users.map((user) =>
+            user.id === editingUser.id ? { ...user, role: editRole, status: editStatus } : user
+          ),
+          assignmentMap: {
+            ...current.assignmentMap,
+            [editingUser.id]: nextAssignments,
+          },
+        }));
+        setEditingUser(null);
+        setMessageTone("success");
+        setMessage("Demo user updated locally for this session.");
+        return;
+      }
+
+      const token = await getAccessToken();
+      await fetchJson(`/api/company/users/${editingUser.id}`, token, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: editRole, accountStatus: editStatus }),
+      });
+      await fetchJson("/api/company/jobsite-assignments", token, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: editingUser.id, jobsiteIds: nextAssignments }),
+      });
+      setEditingUser(null);
+      setMessageTone("success");
+      setMessage("Company user updated.");
+      await loadWorkspace({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update company user.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleRemoveUser() {
+    if (!editingUser) return;
+    const confirmed = window.confirm(
+      `Remove ${editingUser.name} from ${workspace.scopeCompanyName}? This revokes company access and suspends the account until reassigned.`
+    );
+    if (!confirmed) return;
+
+    setBusyAction(`remove-${editingUser.id}`);
+    setMessage("");
+    try {
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          users: current.users.filter((user) => user.id !== editingUser.id),
+        }));
+        setEditingUser(null);
+        setMessageTone("success");
+        setMessage("Demo user removed locally for this session.");
+        return;
+      }
+      const token = await getAccessToken();
+      const data = await fetchJson<{ message?: string }>(`/api/company/users/${editingUser.id}`, token, {
+        method: "DELETE",
+      });
+      setEditingUser(null);
+      setMessageTone("success");
+      setMessage(data.message || "User removed from the company workspace successfully.");
+      await loadWorkspace({ preserveMessage: true });
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to remove company user.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function handleTrackedRosterUpload(file: File | null) {
     if (!file) return;
-    setTrackedRosterImporting(true);
+    setBusyAction("roster-upload");
     setTrackedRosterMessage("");
     setTrackedRosterMessageTone("neutral");
     setTrackedRosterRowErrors([]);
@@ -958,94 +1083,64 @@ export default function CompanyUsersPage() {
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
       const firstSheet = workbook.SheetNames[0];
       if (!firstSheet) throw new Error("The uploaded file does not contain a worksheet.");
-
       const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet], {
         defval: "",
         raw: false,
       });
       const rows = normalizeRowsArray(rawRows);
       const validation = validateEmployeeImportRows(rows);
-
       if (rows.length === 0) {
         setTrackedRosterMessageTone("warning");
         setTrackedRosterMessage("The roster file did not contain any rows to import.");
         return;
       }
-
       if (validation.validRows.length === 0) {
         setTrackedRosterRowErrors(validation.rowErrors);
         setTrackedRosterMessageTone("error");
         setTrackedRosterMessage(validation.rowErrors[0]?.message ?? "No valid roster rows were found.");
         return;
       }
-
-      if (demoMode) {
-        setTrackedEmployees((current) => [
-          ...validation.validRows.map((row) => ({
-            id: `demo-imported-${row.rowNumber}-${Date.now()}`,
-            external_employee_id: row.externalEmployeeId,
-            full_name: row.fullName,
-            email: row.email,
-            job_title: row.jobTitle,
-            trade_specialty: row.tradeSpecialty,
-            readiness_status: row.readinessStatus,
-            status: row.status,
-            trainingRecords: [],
-          })),
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
           ...current,
-        ]);
+          trackedEmployees: [
+            ...validation.validRows.map((row) => ({
+              id: `demo-imported-${row.rowNumber}-${Date.now()}`,
+              external_employee_id: row.externalEmployeeId,
+              full_name: row.fullName,
+              email: row.email,
+              job_title: row.jobTitle,
+              trade_specialty: row.tradeSpecialty,
+              readiness_status: row.readinessStatus,
+              status: row.status,
+              trainingRecords: [],
+            })),
+            ...current.trackedEmployees,
+          ],
+        }));
         setTrackedRosterRowErrors(validation.rowErrors);
         setTrackedRosterMessageTone(validation.rowErrors.length ? "warning" : "success");
-        setTrackedRosterMessage(
-          `Imported ${validation.validRows.length} demo roster row${validation.validRows.length === 1 ? "" : "s"}.`
-        );
+        setTrackedRosterMessage(`Imported ${validation.validRows.length} demo roster row(s).`);
         return;
       }
-
       const token = await getAccessToken();
-      const response = await fetch("/api/company/onboarding/import", {
+      const data = await fetchJson<{
+        acceptedCount?: number;
+        rowErrors?: ImportRowError[];
+      }>("/api/company/onboarding/import", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          employees: rows,
-          source: "company_users_roster_upload",
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employees: rows, source: "company_users_roster_upload" }),
       });
-      const data = (await response.json().catch(() => null)) as
-        | {
-            acceptedCount?: number;
-            error?: string;
-            rowErrors?: ImportRowError[];
-          }
-        | null;
-
-      setTrackedRosterRowErrors(data?.rowErrors ?? validation.rowErrors);
-
-      if (!response.ok) {
-        setTrackedRosterMessageTone("error");
-        setTrackedRosterMessage(
-          data?.error || data?.rowErrors?.[0]?.message || "Roster import failed."
-        );
-        return;
-      }
-
-      await loadTrackedEmployees();
-      const acceptedCount = data?.acceptedCount ?? validation.validRows.length;
-      const skippedCount = data?.rowErrors?.length ?? 0;
-      setTrackedRosterMessageTone(skippedCount ? "warning" : "success");
-      setTrackedRosterMessage(
-        `Imported ${acceptedCount} roster row${acceptedCount === 1 ? "" : "s"} into Training-only people${
-          skippedCount ? `; ${skippedCount} row${skippedCount === 1 ? "" : "s"} need review.` : "."
-        }`
-      );
+      setTrackedRosterRowErrors(data.rowErrors ?? validation.rowErrors);
+      await loadWorkspace({ preserveMessage: true });
+      setTrackedRosterMessageTone(data.rowErrors?.length ? "warning" : "success");
+      setTrackedRosterMessage(`Imported ${data.acceptedCount ?? validation.validRows.length} roster row(s).`);
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(error instanceof Error ? error.message : "Roster import failed.");
     } finally {
-      setTrackedRosterImporting(false);
+      setBusyAction(null);
     }
   }
 
@@ -1056,13 +1151,11 @@ export default function CompanyUsersPage() {
       return;
     }
 
-    setTrackedEmployeeSaving(true);
+    setBusyAction("tracked-save");
     setTrackedRosterMessage("");
-    setTrackedRosterMessageTone("neutral");
-
     try {
-      if (demoMode) {
-        const nextEmployee = {
+      if (workspace.demoMode) {
+        const nextEmployee: TrackedEmployee = {
           id: editingTrackedEmployee?.id ?? `demo-tracked-${Date.now()}`,
           external_employee_id: trackedEmployeeForm.employee_id || null,
           full_name: trackedEmployeeForm.full_name,
@@ -1073,327 +1166,95 @@ export default function CompanyUsersPage() {
           status: trackedEmployeeForm.status,
           trainingRecords: editingTrackedEmployee?.trainingRecords ?? [],
         };
-        setTrackedEmployees((current) =>
-          editingTrackedEmployee
-            ? current.map((employee) =>
+        setWorkspace((current) => ({
+          ...current,
+          trackedEmployees: editingTrackedEmployee
+            ? current.trackedEmployees.map((employee) =>
                 employee.id === editingTrackedEmployee.id ? nextEmployee : employee
               )
-            : [nextEmployee, ...current]
-        );
+            : [nextEmployee, ...current.trackedEmployees],
+        }));
         resetTrackedEmployeeEditor();
         setTrackedRosterMessageTone("success");
-        setTrackedRosterMessage(
-          editingTrackedEmployee
-            ? "Demo training-only person updated locally for this session."
-            : "Demo training-only person added locally for this session."
-        );
-        setTrackedEmployeeSaving(false);
+        setTrackedRosterMessage("Training-only person saved in demo mode.");
         return;
       }
-
       const token = await getAccessToken();
-      const response = await fetch(
+      await fetchJson(
         editingTrackedEmployee
           ? `/api/company/tracked-employees/${editingTrackedEmployee.id}`
           : "/api/company/tracked-employees",
+        token,
         {
-        method: editingTrackedEmployee ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(trackedEmployeeForm),
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; rowErrors?: Array<{ message?: string }> }
-        | null;
-
-      if (!response.ok) {
-        setTrackedRosterMessageTone("error");
-        setTrackedRosterMessage(
-          data?.error ||
-            data?.rowErrors?.[0]?.message ||
-            (editingTrackedEmployee
-              ? "Failed to update training-only person."
-              : "Failed to add training-only person.")
-        );
-        setTrackedEmployeeSaving(false);
-        return;
-      }
-
-      const wasEditing = Boolean(editingTrackedEmployee);
+          method: editingTrackedEmployee ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(trackedEmployeeForm),
+        }
+      );
       resetTrackedEmployeeEditor();
-      await loadTrackedEmployees();
+      await loadWorkspace({ preserveMessage: true });
       setTrackedRosterMessageTone("success");
       setTrackedRosterMessage(
-        wasEditing
-          ? "Training-only person updated."
-          : "Training-only person added to the Training Matrix roster without creating app access."
+        editingTrackedEmployee ? "Training-only person updated." : "Training-only person added without app access."
       );
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
-        error instanceof Error
-          ? error.message
-          : editingTrackedEmployee
-            ? "Failed to update training-only person."
-            : "Failed to add training-only person."
+        error instanceof Error ? error.message : "Failed to save training-only person."
       );
+    } finally {
+      setBusyAction(null);
     }
-
-    setTrackedEmployeeSaving(false);
-  }
-
-  async function handleSaveUser() {
-    if (!editingUser) return;
-    setSaveLoading(true);
-    setMessage("");
-    setMessageTone("neutral");
-
-    try {
-      if (demoMode) {
-        setUsers((current) =>
-          current.map((user) =>
-            user.id === editingUser.id
-              ? { ...user, role: editRole, status: editStatus }
-              : user
-          )
-        );
-        setAssignmentMap((current) => ({
-          ...current,
-          [editingUser.id]: roleNeedsAssignments(editRole) ? editAssignments : [],
-        }));
-        setEditingUser(null);
-        setMessageTone("success");
-        setMessage("Demo user updated locally for this session.");
-        setSaveLoading(false);
-        return;
-      }
-      const token = await getAccessToken();
-      const response = await fetch(`/api/company/users/${editingUser.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          role: editRole,
-          accountStatus: editStatus,
-        }),
-      });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(data?.error || "Failed to update company user.");
-        setSaveLoading(false);
-        return;
-      }
-
-      const assignmentResponse = await fetch("/api/company/jobsite-assignments", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: editingUser.id,
-          jobsiteIds: roleNeedsAssignments(editRole) ? editAssignments : [],
-        }),
-      });
-      const assignmentData = (await assignmentResponse.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      if (!assignmentResponse.ok) {
-        setMessageTone("error");
-        setMessage(assignmentData?.error || "User updated, but jobsite assignment update failed.");
-        setSaveLoading(false);
-        return;
-      }
-
-      setEditingUser(null);
-      setMessageTone("success");
-      setMessage("Company user updated.");
-      await loadUsers({ preserveMessage: true });
-      await loadAssignmentData();
-      await loadSecurityReadiness();
-    } catch (error) {
-      setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to update company user.");
-    }
-
-    setSaveLoading(false);
-  }
-
-  async function handleQuickStatus(user: CompanyUser, nextStatus: "Active" | "Suspended") {
-    setSaveLoading(true);
-    setMessage("");
-    setMessageTone("neutral");
-
-    try {
-      if (demoMode) {
-        setUsers((current) =>
-          current.map((item) =>
-            item.id === user.id ? { ...item, status: nextStatus } : item
-          )
-        );
-        setMessageTone(nextStatus === "Active" ? "success" : "warning");
-        setMessage(
-          nextStatus === "Active"
-            ? `${user.name} has been approved in demo mode.`
-            : `${user.name} has been suspended in demo mode.`
-        );
-        setSaveLoading(false);
-        return;
-      }
-      const token = await getAccessToken();
-      const response = await fetch(`/api/company/users/${user.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          role: user.role,
-          accountStatus: nextStatus,
-        }),
-      });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(data?.error || "Failed to update company user.");
-        setSaveLoading(false);
-        return;
-      }
-
-      setMessageTone(nextStatus === "Active" ? "success" : "warning");
-      setMessage(
-        nextStatus === "Active"
-          ? `${user.name} has been approved for the company workspace.`
-          : `${user.name} has been suspended from the company workspace.`
-      );
-      await loadUsers({ preserveMessage: true });
-      await loadSecurityReadiness();
-    } catch (error) {
-      setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to update company user.");
-    }
-
-    setSaveLoading(false);
-  }
-
-  async function handleRemoveUser() {
-    if (!editingUser) return;
-
-    const confirmed = window.confirm(
-      `Remove ${editingUser.name} from ${scopeCompanyName}? This will revoke company access and suspend the account until an internal admin reassigns it.`
-    );
-
-    if (!confirmed) return;
-
-    setRemoveLoading(true);
-    setMessage("");
-    setMessageTone("neutral");
-
-    try {
-      if (demoMode) {
-        setUsers((current) => current.filter((user) => user.id !== editingUser.id));
-        setAssignmentMap((current) => {
-          const next = { ...current };
-          delete next[editingUser.id];
-          return next;
-        });
-        setEditingUser(null);
-        setMessageTone("success");
-        setMessage("Demo user removed locally for this session.");
-        setRemoveLoading(false);
-        return;
-      }
-      const token = await getAccessToken();
-      const response = await fetch(`/api/company/users/${editingUser.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; message?: string }
-        | null;
-
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(data?.error || "Failed to remove company user.");
-        setRemoveLoading(false);
-        return;
-      }
-
-      setEditingUser(null);
-      setMessageTone("success");
-      setMessage(
-        data?.message || "User removed from the company workspace successfully."
-      );
-      await loadUsers({ preserveMessage: true });
-      await loadSecurityReadiness();
-    } catch (error) {
-      setMessageTone("error");
-      setMessage(error instanceof Error ? error.message : "Failed to remove company user.");
-    }
-
-    setRemoveLoading(false);
   }
 
   async function handleCreateDataRequest() {
-    setDataRequestSubmitting(true);
+    if (!dataRequestTitle.trim()) return;
+    setBusyAction("data-request-create");
     setMessage("");
-    setMessageTone("neutral");
-
     try {
-      if (demoMode) {
+      if (workspace.demoMode) {
         const nowIso = new Date().toISOString();
-        setDataRequests((current) => [
-          {
-            id: `demo-data-request-${Date.now()}`,
-            company_id: "demo-company",
-            request_type: dataRequestType,
-            request_scope: dataRequestScope,
-            subject_user_id: null,
-            subject_email: null,
-            jobsite_id: null,
-            document_id: null,
-            status: "submitted",
-            requested_by: "demo-admin",
-            reviewed_by: null,
-            completed_by: null,
-            title: dataRequestTitle,
-            description: dataRequestDescription || null,
-            reviewer_notes: null,
-            completion_evidence: null,
-            evidence_storage_path: null,
-            metadata: {},
-            due_at: null,
-            reviewed_at: null,
-            completed_at: null,
-            created_at: nowIso,
-            updated_at: nowIso,
-          },
+        setWorkspace((current) => ({
           ...current,
-        ]);
+          dataRequests: [
+            {
+              id: `demo-data-request-${Date.now()}`,
+              company_id: "demo-company",
+              request_type: dataRequestType,
+              request_scope: dataRequestScope,
+              subject_user_id: null,
+              subject_email: null,
+              jobsite_id: null,
+              document_id: null,
+              status: "submitted",
+              requested_by: "demo-admin",
+              reviewed_by: null,
+              completed_by: null,
+              title: dataRequestTitle,
+              description: dataRequestDescription || null,
+              reviewer_notes: null,
+              completion_evidence: null,
+              evidence_storage_path: null,
+              metadata: {},
+              due_at: null,
+              reviewed_at: null,
+              completed_at: null,
+              created_at: nowIso,
+              updated_at: nowIso,
+            },
+            ...current.dataRequests,
+          ],
+        }));
         setDataRequestTitle("");
         setDataRequestDescription("");
         setMessageTone("success");
         setMessage("Demo data request added locally for this session.");
-        setDataRequestSubmitting(false);
         return;
       }
-
       const token = await getAccessToken();
-      const response = await fetch("/api/company/data-requests", {
+      await fetchJson("/api/company/data-requests", token, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requestType: dataRequestType,
           requestScope: dataRequestScope,
@@ -1401,80 +1262,59 @@ export default function CompanyUsersPage() {
           description: dataRequestDescription,
         }),
       });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string; request?: CompanyDataRequest }
-        | null;
-
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(data?.error || "Failed to create data request.");
-        setDataRequestSubmitting(false);
-        return;
-      }
-
       setDataRequestTitle("");
       setDataRequestDescription("");
       setMessageTone("success");
       setMessage("Company data request created.");
-      await loadSecurityReadiness();
+      await loadWorkspace({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to create data request.");
+    } finally {
+      setBusyAction(null);
     }
-
-    setDataRequestSubmitting(false);
   }
 
   async function handleUpdateDataRequestStatus(
     requestId: string,
     status: CompanyDataRequest["status"]
   ) {
+    setBusyAction(`data-${requestId}`);
     try {
-      if (demoMode) {
-        setDataRequests((current) =>
-          current.map((item) =>
-            item.id === requestId
-              ? { ...item, status, updated_at: new Date().toISOString() }
-              : item
-          )
-        );
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          dataRequests: current.dataRequests.map((item) =>
+            item.id === requestId ? { ...item, status, updated_at: new Date().toISOString() } : item
+          ),
+        }));
         return;
       }
-
       const token = await getAccessToken();
-      const response = await fetch(`/api/company/data-requests/${requestId}`, {
+      await fetchJson(`/api/company/data-requests/${requestId}`, token, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) {
-        setMessageTone("error");
-        setMessage(data?.error || "Failed to update data request.");
-        return;
-      }
-      await loadSecurityReadiness();
+      await loadWorkspace({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Failed to update data request.");
+    } finally {
+      setBusyAction(null);
     }
   }
 
   function handleExportAuditEvidence() {
     const evidence = {
       exportedAt: new Date().toISOString(),
-      company: scopeCompanyName,
-      securityEvents,
-      pendingInvites: invites,
-      suspendedUsers: filteredSuspendedUsers,
-      dataRequests,
+      company: workspace.scopeCompanyName,
+      securityEvents: workspace.securityEvents,
+      pendingInvites: workspace.invites,
+      suspendedUsers: commandCenter.suspendedUsers,
+      dataRequests: workspace.dataRequests,
     };
-    const blob = new Blob([JSON.stringify(evidence, null, 2)], {
-      type: "application/json",
-    });
+    const blob = new Blob([JSON.stringify(evidence, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1483,1308 +1323,1043 @@ export default function CompanyUsersPage() {
     URL.revokeObjectURL(url);
   }
 
-  const { density, setDensity, isCompact } = useTableDensity();
-  const jobsiteTableLayout = useMemo(() => simpleDataTableLayout(isCompact), [isCompact]);
+  async function copyInviteLink(invite: CompanyInvite) {
+    await navigator.clipboard?.writeText(getInviteSignupUrl(invite));
+    setMessageTone("success");
+    setMessage(`Invite link copied for ${invite.email}.`);
+  }
+
+  function handleActionItem(item: WorkforceActionItem) {
+    if (item.kind === "review_audit") {
+      setActiveTab("audit");
+      return;
+    }
+    if (item.userId) {
+      const user = workspace.users.find((entry) => entry.id === item.userId);
+      if (user) {
+        if (item.kind === "approve") void handleQuickStatus(user, "Active");
+        else openUserManager(user);
+      }
+      return;
+    }
+    if (item.inviteId) {
+      const invite = workspace.invites.find((entry) => entry.id === item.inviteId);
+      if (invite) void copyInviteLink(invite);
+      return;
+    }
+    if (item.employeeId) {
+      const employee = workspace.trackedEmployees.find((entry) => entry.id === item.employeeId);
+      if (employee) {
+        setActiveTab("training");
+        openTrackedEmployeeEditor(employee);
+      }
+    }
+  }
+
+  const stats = [
+    {
+      label: "Active app users",
+      value: loadState.loading ? "-" : String(commandCenter.activeUsers.length),
+      detail: "Licensed users with live workspace access.",
+      icon: Users,
+      tone: commandCenter.activeUsers.length ? ("success" as const) : ("neutral" as const),
+    },
+    {
+      label: "Pending approvals",
+      value: loadState.loading ? "-" : String(commandCenter.pendingUsers.length),
+      detail: "Employees who created accounts and need approval.",
+      icon: UserCheck,
+      tone: commandCenter.pendingUsers.length ? ("warning" as const) : ("success" as const),
+    },
+    {
+      label: "Assignment gaps",
+      value: loadState.loading ? "-" : String(commandCenter.assignmentGaps.length),
+      detail: "Active field-scoped users without jobsites.",
+      icon: ListChecks,
+      tone: commandCenter.assignmentGaps.length ? ("warning" as const) : ("success" as const),
+    },
+    {
+      label: "Training-only",
+      value: loadState.loading ? "-" : String(activeTrackedEmployees.length),
+      detail: "People tracked without app login seats.",
+      icon: ShieldCheck,
+      tone: commandCenter.trainingGaps.length ? ("warning" as const) : ("info" as const),
+    },
+  ];
 
   return (
-    <div className="company-access-workspace space-y-8">
+    <div className="company-access-workspace space-y-6">
       <PageHero
         eyebrow="Company Workspace"
         title="Workforce Operations"
-        description={`Each person’s role (user type) determines what they can do in the app. Your company’s subscription sets which products and tiers the workspace uses overall. Jobsite titles on each person’s Construction profile are separate.`}
+        description="Manage app access, jobsite scope, training-only roster records, and audit evidence from one action-focused workspace."
         actions={
-          <div className="flex w-full flex-col gap-3 lg:items-end">
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <TableDensityToggle
-              value={density}
-              onChange={setDensity}
-              disabled={loading}
-            />
-            <Link
-              href="/training-matrix"
-              className={`${appButtonSecondaryClassName} min-w-[9.5rem]`}
-            >
-              Training matrix
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link href="/training-matrix" className={appButtonSecondaryClassName}>
+              <ListChecks aria-hidden className="h-4 w-4" />
+              Training Matrix
+            </Link>
+            <Link href="/billing" className={appButtonSecondaryClassName}>
+              <ShieldCheck aria-hidden className="h-4 w-4" />
+              Billing Hub
             </Link>
             <button
               type="button"
-              onClick={scrollToTrackedRoster}
-              className={`${appButtonSecondaryClassName} min-w-[10.5rem]`}
-            >
-              Import roster
-            </button>
-            <Link
-              href="/billing"
-              className={`${appButtonSecondaryClassName} min-w-[8.5rem]`}
-            >
-              Billing hub
-            </Link>
-            </div>
-            <button
               onClick={handleInvite}
-              disabled={inviteLoading || !inviteEmail.trim()}
-              className={`${appButtonPrimaryClassName} w-full sm:w-auto disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:bg-slate-200`}
+              disabled={busyAction === "invite" || !inviteEmail.trim()}
+              className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
             >
-              {inviteLoading ? "Sending Invite..." : "Invite Employee"}
+              <MailPlus aria-hidden className="h-4 w-4" />
+              {busyAction === "invite" ? "Sending..." : "Invite Employee"}
             </button>
           </div>
         }
       />
 
-      <SectionCard
-        title="How company access works"
-        description="Assign each person a role (user type). That role’s standard capabilities apply to them—there are no separate manual feature assignments per user."
-      >
-        <ul className="list-inside list-disc space-y-2 text-sm leading-6 text-slate-400">
-          <li>
-            <span className="font-semibold text-slate-200">Role</span> (Company Admin, Field User, Read Only, etc.)
-            defines in-app permissions for documents, safety modules, and billing visibility. Pick the role that matches
-            how this person should work.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-200">Company subscription</span> (active license, CSEP vs full
-            workspace) applies to the whole organization and sets which products are available.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-200">Company Admins</span> manage roles and membership here.
-            Super admins do not need to hand-pick individual features per employee.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-200">Training-only people</span> are not app users. They do not
-            receive login access or use a licensed seat, but they can be tracked on the Training Matrix.
-          </li>
-        </ul>
-      </SectionCard>
+      {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+      {loadState.warnings.length > 0 ? (
+        <InlineMessage tone="warning">{loadState.warnings[0]}</InlineMessage>
+      ) : null}
 
-      <SectionCard
-        title="Team Pulse"
-        description="A quick read on how the company access lane is moving today."
-        aside={<StatusBadge label={teamPulseLabel} tone={teamPulseTone} />}
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              Pulse score
-            </div>
-            <div className="mt-3 flex items-end gap-2">
-              <span className="text-4xl font-black tracking-tight text-white">{teamPulseScore}</span>
-              <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
-                /100
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              {teamPulseLabel} based on active users, online teammates, invites, and site readiness.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              Team badges
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {[
-                invites.length > 0 ? "Invites in motion" : "Invite lane quiet",
-                pendingUsers.length > 0 ? "Approvals waiting" : "Approvals clear",
-                onlineUsers.length > 0 ? "Team online" : "Team offline",
-                activeTrackedEmployees.length > 0 ? "Training roster active" : "Training roster empty",
-              ].map((label) => (
-                <StatusBadge
-                  key={label}
-                  label={label}
-                  tone={
-                    label.includes("clear") || label.includes("online")
-                      ? "success"
-                      : label.includes("waiting") || label.includes("motion")
-                        ? "warning"
-                        : "info"
-                  }
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              A lightweight view of who is active, who is waiting, and where the flow is strongest.
-            </p>
-          </div>
-
-        </div>
-      </SectionCard>
-
-      <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">{item.title}</p>
-            <p className="mt-3 text-4xl font-bold tracking-tight text-slate-100">
-              {loading || (item.title === "Training-Only People" && trackedEmployeesLoading) ? "-" : item.value}
-            </p>
-            <p className="mt-2 text-sm text-slate-500">{item.note}</p>
-          </div>
+          <MetricCard key={item.label} {...item} />
         ))}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <section className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
         <SectionCard
-          title="Active app users"
-          description="These people can sign in, consume company workspace access, and appear in app-user permissions."
-          aside={<StatusBadge label={`${activeUsers.length} active`} tone={activeUsers.length ? "success" : "neutral"} />}
+          title="Command Readiness"
+          description={commandCenter.readinessDetail}
+          aside={<StatusBadge label={commandCenter.readinessLabel} tone={readinessTone(commandCenter.readiness)} />}
+          tone={commandCenter.readiness === "blocked" ? "attention" : "panel"}
         >
-          {loading ? (
-            <InlineMessage>Loading active app users...</InlineMessage>
-          ) : activeUsers.length === 0 ? (
-            <EmptyState
-              title="No active app users yet"
-              description="Invite an employee, wait for account setup, then approve them for workspace access."
-            />
-          ) : (
-            <div className="grid gap-3">
-              {activeUsers.slice(0, 5).map((user) => (
-                <div key={`active-user-${user.id}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-slate-100">{user.name}</p>
-                        <StatusBadge label="App user" tone="success" />
-                      </div>
-                      <p className="mt-1 truncate text-sm text-slate-500">{user.email}</p>
-                      <p className="mt-1 text-xs text-slate-500">{user.role} / Last seen {formatRelative(user.last_sign_in_at)}</p>
+          <div className="grid gap-3">
+            <div className={compactCardClassName}>
+              <div className="flex items-start gap-3">
+                {commandCenter.readiness === "healthy" ? (
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-[var(--semantic-success)]" aria-hidden />
+                ) : (
+                  <AlertTriangle className="mt-0.5 h-5 w-5 text-[var(--semantic-warning)]" aria-hidden />
+                )}
+                <div>
+                  <p className="font-semibold text-[var(--app-text-strong)]">
+                    {commandCenter.actionItems.length
+                      ? `${commandCenter.actionItems.length} action item${
+                          commandCenter.actionItems.length === 1 ? "" : "s"
+                        }`
+                      : "No workforce actions waiting"}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
+                    Readiness is based on approvals, stale invites, field-scoped jobsite access, suspended users,
+                    training readiness, and data request review.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {commandCenter.actionItems.slice(0, 5).map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        label={item.severity}
+                        tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
+                      />
+                      <p className="font-semibold text-[var(--app-text-strong)]">{item.title}</p>
                     </div>
-                    <Link
-                      href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      View Profile
-                    </Link>
+                    <p className="mt-1 text-sm text-[var(--app-text)]">{item.detail}</p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleActionItem(item)}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
+                  >
+                    <SlidersHorizontal aria-hidden className="h-4 w-4" />
+                    Handle
+                  </button>
                 </div>
               ))}
-              {activeUsers.length > 5 ? (
-                <p className="text-sm text-slate-500">{activeUsers.length - 5} more active app user{activeUsers.length - 5 === 1 ? "" : "s"} shown below.</p>
+              {!commandCenter.actionItems.length ? (
+                <EmptyState
+                  title="Workforce queue is clear"
+                  description="Approvals, stale invites, assignment gaps, training gaps, and audit requests will appear here."
+                />
               ) : null}
             </div>
-          )}
+          </div>
         </SectionCard>
 
-        <div id="training-only-roster" className="scroll-mt-24">
-          <SectionCard
-            title="Training-only roster"
-            description="Add or import non-users here when they need Training Matrix tracking but should not receive app login access or a licensed seat."
-            aside={<StatusBadge label={`${activeTrackedEmployees.length} no-login`} tone={activeTrackedEmployees.length ? "info" : "neutral"} />}
-            actions={
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href="/api/company/onboarding/import/template?type=employees"
-                  className={appButtonSecondaryClassName}
-                >
-                  Download roster template
-                </a>
-                <Link href="/training-matrix" className={appButtonSecondaryClassName}>
-                  Open Training Matrix
-                </Link>
-              </div>
-            }
-          >
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-600 bg-slate-950/50 px-4 py-5 text-center transition hover:border-sky-400 hover:bg-slate-900/80">
-              <span className="text-sm font-semibold text-slate-100">
-                {trackedRosterImporting ? "Importing roster..." : "Upload roster CSV or XLSX"}
-              </span>
-              <span className="text-xs leading-5 text-slate-500">
-                Valid rows are added as training-only people and appear here immediately.
-              </span>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                disabled={trackedRosterImporting}
-                className="sr-only"
-                onChange={(event) => {
-                  void handleTrackedRosterUpload(event.target.files?.[0] ?? null);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
-
-            {trackedRosterMessage ? (
-              <InlineMessage tone={trackedRosterMessageTone}>{trackedRosterMessage}</InlineMessage>
-            ) : null}
-
-            {trackedRosterRowErrors.length > 0 ? (
-              <div className="rounded-2xl border border-amber-400/30 bg-amber-950/30 p-4 text-sm text-amber-100">
-                <div className="font-semibold">Rows to review</div>
-                <ul className="mt-2 space-y-1">
-                  {trackedRosterRowErrors.slice(0, 8).map((error, index) => (
-                    <li key={`${error.rowNumber}-${error.field ?? "row"}-${index}`}>
-                      Row {error.rowNumber}: {error.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-          <div className="grid gap-5 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div className="grid content-start gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  type="text"
-                  placeholder="Full name"
-                  value={trackedEmployeeForm.full_name}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      full_name: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                />
-                <input
-                  type="email"
-                  placeholder="Email (optional)"
-                  value={trackedEmployeeForm.email}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  type="text"
-                  placeholder="Employee ID (optional)"
-                  value={trackedEmployeeForm.employee_id}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      employee_id: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                />
-                <select
-                  value={trackedEmployeeForm.readiness_status}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      readiness_status: event.target.value,
-                    }))
-                  }
-                  className={appNativeSelectClassName}
-                  aria-label="Training readiness status"
-                >
-                  <option value="ready">Ready</option>
-                  <option value="travel_ready">Travel ready</option>
-                  <option value="limited">Limited</option>
-                  <option value="needs_training">Needs training</option>
-                  <option value="onboarding">Onboarding</option>
-                </select>
-              </div>
-              <select
-                value={trackedEmployeeForm.status}
-                onChange={(event) =>
-                  setTrackedEmployeeForm((current) => ({
-                    ...current,
-                    status: event.target.value,
-                  }))
-                }
-                className={appNativeSelectClassName}
-                aria-label="Training-only employee status"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="archived">Archived</option>
-              </select>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  type="text"
-                  placeholder="Job title"
-                  value={trackedEmployeeForm.job_title}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      job_title: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Trade specialty"
-                  value={trackedEmployeeForm.trade_specialty}
-                  onChange={(event) =>
-                    setTrackedEmployeeForm((current) => ({
-                      ...current,
-                      trade_specialty: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-                />
-              </div>
-              <input
-                type="text"
-                placeholder="Certifications, separated by semicolons"
-                value={trackedEmployeeForm.certifications}
-                onChange={(event) =>
-                  setTrackedEmployeeForm((current) => ({
-                    ...current,
-                    certifications: event.target.value,
-                  }))
-                }
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
-              <button
-                type="button"
-                onClick={() => void handleSaveTrackedEmployee()}
-                disabled={trackedEmployeeSaving || trackedRosterImporting || !trackedEmployeeForm.full_name.trim()}
-                className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
-              >
-                {trackedEmployeeSaving
-                  ? editingTrackedEmployee
-                    ? "Saving..."
-                    : "Adding..."
-                  : editingTrackedEmployee
-                    ? "Save Training-Only Person"
-                    : "Add to Training Matrix"}
-              </button>
-              {editingTrackedEmployee ? (
-                <button
-                  type="button"
-                  onClick={resetTrackedEmployeeEditor}
-                  className={appButtonSecondaryClassName}
-                >
-                  Cancel Edit
-                </button>
-              ) : null}
+        <SectionCard
+          title="Invite And Scope"
+          description={`Workspace: ${workspace.scopeCompanyName}. Invite app users here; add non-login people from the Training-Only tab.`}
+        >
+          <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
+              className={fieldClassName}
+              placeholder="employee@example.com"
+              aria-label="Employee email"
+            />
+            <select
+              value={inviteRole}
+              onChange={(event) => setInviteRole(event.target.value)}
+              className={appNativeSelectClassName}
+              aria-label="Invite role"
+            >
+              {roleOptions.map((role) => (
+                <option key={role}>{role}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleInvite}
+              disabled={busyAction === "invite" || !inviteEmail.trim()}
+              className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
+            >
+              <UserPlus aria-hidden className="h-4 w-4" />
+              Invite
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Company-wide roles</p>
+              <p className="mt-1 text-sm text-[var(--app-text)]">Admins, operations, and safety managers see all jobsites.</p>
             </div>
-
-            <div className="grid content-start gap-3">
-              {trackedEmployeesLoading ? (
-                <InlineMessage>Loading training-only roster...</InlineMessage>
-              ) : activeTrackedEmployees.length === 0 ? (
-                <EmptyState
-                  title="No training-only people yet"
-                  description="Add a non-user here when they need training compliance tracking without app access."
-                />
-              ) : (
-                activeTrackedEmployees.map((employee) => (
-                  <div key={`tracked-employee-${employee.id}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-slate-100">{employee.full_name}</p>
-                          <StatusBadge label="No app login" tone="info" />
-                        </div>
-                        <p className="mt-1 truncate text-sm text-slate-500">
-                          {employee.email || employee.external_employee_id || "No email on file"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <StatusBadge label={employee.status === "inactive" ? "Inactive" : "Active"} tone={employee.status === "inactive" ? "neutral" : "success"} />
-                        <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
-                        <StatusBadge label={`${employee.trainingRecords?.length ?? 0} records`} tone="neutral" />
-                        <button
-                          type="button"
-                          onClick={() => openTrackedEmployeeEditor(employee)}
-                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Field-scoped roles</p>
+              <p className="mt-1 text-sm text-[var(--app-text)]">Project, supervisor, foreman, field, read-only, and company users need jobsite picks.</p>
+            </div>
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Training-only</p>
+              <p className="mt-1 text-sm text-[var(--app-text)]">Roster records do not create login access or use a licensed seat.</p>
             </div>
           </div>
-          </SectionCard>
-        </div>
+        </SectionCard>
       </section>
 
       <SectionCard
-        title="Leadership safety commitment"
-        description="Evidence-backed commitment indicators for leaders you are allowed to coach or review."
-        aside={
-          leadershipScoreRows.length > 0 ? (
-            <StatusBadge label={`${leadershipScoreRows.length} visible`} tone="info" />
-          ) : undefined
+        title="Workforce Command Center"
+        description="Switch between action queues, app users, training-only records, and audit evidence."
+        actions={
+          <div role="tablist" aria-label="Workforce views" className="flex flex-wrap gap-1 rounded-lg border border-[var(--app-border)] bg-white p-1">
+            <TabButton tab="overview" label="Overview" activeTab={activeTab} onClick={setActiveTab} />
+            <TabButton tab="access" label="Access Queue" activeTab={activeTab} count={commandCenter.pendingUsers.length + workspace.invites.length + commandCenter.suspendedUsers.length} onClick={setActiveTab} />
+            <TabButton tab="users" label="App Users" activeTab={activeTab} count={filteredUsers.length} onClick={setActiveTab} />
+            <TabButton tab="training" label="Training-Only" activeTab={activeTab} count={activeTrackedEmployees.length} onClick={setActiveTab} />
+            <TabButton tab="audit" label="Audit" activeTab={activeTab} count={workspace.securityEvents.length + workspace.dataRequests.length} onClick={setActiveTab} />
+          </div>
         }
       >
-        {loading ? (
-          <InlineMessage>Loading leadership indicators...</InlineMessage>
-        ) : leadershipScoreRows.length === 0 ? (
-          <EmptyState
-            title="No leadership indicators visible yet"
-            description="Scores appear after assigned leaders have enough jobsite, permit, JSA, injury-response, corrective-action, or AI risk-action evidence."
-          />
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-3">
-            {leadershipScoreRows.slice(0, 6).map(({ user, score }) => {
-              const topOpportunity = score.negativeSignals?.[0];
-              const topPositive = score.positiveSignals?.[0];
-              return (
-                <div
-                  key={score.userId}
-                  className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{score.roleLabel || user.role}</p>
-                    </div>
-                    <StatusBadge label={`Grade ${score.grade}`} tone={getCommitmentTone(score.grade)} />
-                  </div>
-                  <div className="mt-4 flex items-end gap-2">
-                    <span className="text-4xl font-black tracking-tight text-white">{score.score}</span>
-                    <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
-                      /100
-                    </span>
-                    <span className="pb-1 text-xs font-semibold text-slate-500">
-                      {formatTrend(score.trend)}
-                    </span>
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-400">
-                    {score.coachingPrompt ||
-                      "Use the evidence below to coach risk reduction on assigned work."}
-                  </p>
-                  <div className="mt-4 grid gap-3">
-                    {topPositive ? (
-                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
-                        <p className="text-xs font-semibold text-emerald-200">{topPositive.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">{topPositive.detail}</p>
-                      </div>
-                    ) : null}
-                    {topOpportunity ? (
-                      <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 px-3 py-2">
-                        <p className="text-xs font-semibold text-amber-200">{topOpportunity.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">{topOpportunity.detail}</p>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Link
-                      href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      View profile
-                    </Link>
-                    {(score.evidenceRefs ?? []).slice(0, 1).map((ref, index) => (
-                      <Link
-                        key={`${score.userId}-evidence-${index}`}
-                        href={ref.href || "#"}
-                        className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                      >
-                        {ref.label || "Evidence"}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+        {activeTab === "overview" ? (
+          <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid gap-5">
+              <ActionQueueSection
+                actionItems={commandCenter.actionItems}
+                onHandle={handleActionItem}
+              />
+              <LeadershipSection rows={leadershipRows} />
+            </div>
+            <ActivityFeed
+              title="Company Access Activity"
+              description="Recent membership, invite, and approval activity for this workspace."
+              items={activityItems}
+            />
           </div>
-        )}
+        ) : null}
+
+        {activeTab === "access" ? (
+          <AccessQueueView
+            loading={loadState.loading}
+            pendingUsers={commandCenter.pendingUsers}
+            suspendedUsers={commandCenter.suspendedUsers}
+            invites={workspace.invites}
+            busyAction={busyAction}
+            onApprove={(user) => void handleQuickStatus(user, "Active")}
+            onSuspend={(user) => void handleQuickStatus(user, "Suspended")}
+            onReactivate={(user) => void handleQuickStatus(user, "Active")}
+            onManage={openUserManager}
+            onCopyInvite={(invite) => void copyInviteLink(invite)}
+          />
+        ) : null}
+
+        {activeTab === "users" ? (
+          <AppUsersView
+            loading={loadState.loading}
+            users={filteredUsers}
+            searchTerm={searchTerm}
+            onSearch={setSearchTerm}
+            getAssignmentSummary={getAssignmentSummary}
+            onManage={openUserManager}
+          />
+        ) : null}
+
+        {activeTab === "training" ? (
+          <TrainingOnlyView
+            employees={activeTrackedEmployees}
+            form={trackedEmployeeForm}
+            setForm={setTrackedEmployeeForm}
+            editing={editingTrackedEmployee}
+            busyAction={busyAction}
+            message={trackedRosterMessage}
+            messageTone={trackedRosterMessageTone}
+            rowErrors={trackedRosterRowErrors}
+            onUpload={(file) => void handleTrackedRosterUpload(file)}
+            onSave={() => void handleSaveTrackedEmployee()}
+            onCancel={resetTrackedEmployeeEditor}
+            onEdit={openTrackedEmployeeEditor}
+          />
+        ) : null}
+
+        {activeTab === "audit" ? (
+          <AuditView
+            events={workspace.securityEvents}
+            eventItems={securityEventItems}
+            dataRequests={workspace.dataRequests}
+            securityAuditView={securityAuditView}
+            setSecurityAuditView={setSecurityAuditView}
+            dataRequestType={dataRequestType}
+            setDataRequestType={setDataRequestType}
+            dataRequestScope={dataRequestScope}
+            setDataRequestScope={setDataRequestScope}
+            dataRequestTitle={dataRequestTitle}
+            setDataRequestTitle={setDataRequestTitle}
+            dataRequestDescription={dataRequestDescription}
+            setDataRequestDescription={setDataRequestDescription}
+            busyAction={busyAction}
+            onCreateDataRequest={() => void handleCreateDataRequest()}
+            onUpdateDataRequestStatus={(requestId, status) =>
+              void handleUpdateDataRequestStatus(requestId, status)
+            }
+            onExport={handleExportAuditEvidence}
+          />
+        ) : null}
       </SectionCard>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Link href="/jobsites" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
-          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Jobsites</div>
-          <div className="mt-2 text-lg font-bold text-slate-100">Assignment Readiness</div>
-          <div className="mt-2 text-sm text-slate-500">Coordinate workforce coverage and field ownership by active jobsite.</div>
-        </Link>
-        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
-          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Corrective Actions</div>
-          <div className="mt-2 text-lg font-bold text-slate-100">Ownership Queue</div>
-          <div className="mt-2 text-sm text-slate-500">Track who is accountable for open and overdue corrective actions.</div>
-        </Link>
-        <Link href="/field-id-exchange" className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm transition hover:border-sky-500/35">
-          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Safety Review</div>
-          <div className="mt-2 text-lg font-bold text-slate-100">Submission Review Queue</div>
-          <div className="mt-2 text-sm text-slate-500">Review pending individual safety submissions and keep actions moving.</div>
-        </Link>
-      </section>
+      {editingUser ? (
+        <AccessManagerModal
+          user={editingUser}
+          scopeCompanyName={workspace.scopeCompanyName}
+          jobsites={workspace.jobsites}
+          editRole={editRole}
+          setEditRole={setEditRole}
+          editStatus={editStatus}
+          setEditStatus={setEditStatus}
+          editAssignments={editAssignments}
+          setEditAssignments={setEditAssignments}
+          busyAction={busyAction}
+          onClose={() => setEditingUser(null)}
+          onSave={() => void handleSaveUser()}
+          onRemove={() => void handleRemoveUser()}
+        />
+      ) : null}
+    </div>
+  );
+}
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        {[
-          {
-            step: "01",
-            title: "Invite employee",
-            body: "Send access under your company workspace using the employee email they will use to sign in.",
-          },
-          {
-            step: "02",
-            title: "Employee creates account",
-            body: "They use Create Account on the login page with the invited email to finish account setup.",
-          },
-          {
-            step: "03",
-            title: "Approve access",
-            body: "Review the pending employee here, approve them, and assign the correct role for their job.",
-          },
-        ].map((item) => (
-          <div
-            key={item.step}
-            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
+function ActionQueueSection({
+  actionItems,
+  onHandle,
+}: {
+  actionItems: WorkforceActionItem[];
+  onHandle: (item: WorkforceActionItem) => void;
+}) {
+  return (
+    <div className={compactCardClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-base font-semibold text-[var(--app-text-strong)]">Action Queue</p>
+          <p className="mt-1 text-sm text-[var(--app-text)]">Prioritized workforce actions from all tabs.</p>
+        </div>
+        <StatusBadge label={String(actionItems.length)} tone={actionItems.length ? "warning" : "success"} />
+      </div>
+      <div className="mt-4 grid gap-2">
+        {actionItems.slice(0, 8).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onHandle(item)}
+            className="flex w-full flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 text-left transition hover:border-[var(--app-accent-border-24)] hover:bg-white sm:flex-row sm:items-center sm:justify-between"
           >
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
-                {item.step}
-              </div>
+            <span>
+              <span className="block text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</span>
+              <span className="mt-1 block text-sm text-[var(--app-text)]">{item.detail}</span>
+            </span>
+            <StatusBadge
+              label={item.severity}
+              tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
+            />
+          </button>
+        ))}
+        {!actionItems.length ? (
+          <EmptyState
+            title="No actions waiting"
+            description="The command queue is clear across approvals, assignments, training, and audit review."
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LeadershipSection({
+  rows,
+}: {
+  rows: Array<{ user: CompanyUser; score: LeadershipSafetyScoreSummary }>;
+}) {
+  return (
+    <div className={compactCardClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-base font-semibold text-[var(--app-text-strong)]">Leadership Safety Commitment</p>
+          <p className="mt-1 text-sm text-[var(--app-text)]">Lowest scores appear first for coaching focus.</p>
+        </div>
+        <StatusBadge label={`${rows.length} visible`} tone={rows.length ? "info" : "neutral"} />
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {rows.map(({ user, score }) => (
+          <div key={user.id} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+            <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-base font-bold text-white">{item.title}</div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
+                <p className="font-semibold text-[var(--app-text-strong)]">{user.name}</p>
+                <p className="mt-0.5 text-xs text-[var(--app-muted)]">{score.roleLabel || user.role}</p>
               </div>
+              <StatusBadge label={`Grade ${score.grade}`} tone={score.score >= 80 ? "success" : score.score >= 65 ? "info" : "warning"} />
+            </div>
+            <p className="mt-3 text-3xl font-bold text-[var(--app-text-strong)]">{score.score}<span className="text-sm text-[var(--app-muted)]">/100</span></p>
+            <p className="mt-2 text-sm leading-5 text-[var(--app-text)]">{score.coachingPrompt || "Review evidence for coaching focus."}</p>
+          </div>
+        ))}
+        {!rows.length ? (
+          <EmptyState
+            title="No leadership scores yet"
+            description="Scores appear after assigned leaders have enough jobsite, permit, JSA, corrective-action, or AI risk-action evidence."
+            className="lg:col-span-3"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AccessQueueView({
+  loading,
+  pendingUsers,
+  suspendedUsers,
+  invites,
+  busyAction,
+  onApprove,
+  onSuspend,
+  onReactivate,
+  onManage,
+  onCopyInvite,
+}: {
+  loading: boolean;
+  pendingUsers: CompanyUser[];
+  suspendedUsers: CompanyUser[];
+  invites: CompanyInvite[];
+  busyAction: string | null;
+  onApprove: (user: CompanyUser) => void;
+  onSuspend: (user: CompanyUser) => void;
+  onReactivate: (user: CompanyUser) => void;
+  onManage: (user: CompanyUser) => void;
+  onCopyInvite: (invite: CompanyInvite) => void;
+}) {
+  if (loading) return <InlineMessage>Loading access queue...</InlineMessage>;
+  const isEmpty = pendingUsers.length === 0 && suspendedUsers.length === 0 && invites.length === 0;
+  return (
+    <div className="grid gap-4">
+      {pendingUsers.map((user) => (
+        <UserQueueRow
+          key={`pending-${user.id}`}
+          user={user}
+          title="Awaiting approval"
+          detail="This employee finished account setup and needs workspace approval."
+          actions={
+            <>
+              <button type="button" onClick={() => onApprove(user)} disabled={busyAction?.startsWith(`status-${user.id}`)} className={appButtonPrimaryClassName}>
+                <UserCheck aria-hidden className="h-4 w-4" />
+                Approve
+              </button>
+              <button type="button" onClick={() => onManage(user)} className={appButtonSecondaryClassName}>
+                Manage
+              </button>
+              <button type="button" onClick={() => onSuspend(user)} disabled={busyAction?.startsWith(`status-${user.id}`)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60">
+                Suspend
+              </button>
+            </>
+          }
+        />
+      ))}
+
+      {invites.map((invite) => (
+        <div key={`invite-${invite.id}`} className={compactCardClassName}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-[var(--app-text-strong)]">{invite.email}</p>
+                <StatusBadge label="Invite sent" tone="warning" />
+                <RoleBadge role={invite.role} />
+              </div>
+              <p className="mt-1 text-sm text-[var(--app-text)]">Sent {formatRelative(invite.created_at)}. Waiting for account setup.</p>
+            </div>
+            <button type="button" onClick={() => onCopyInvite(invite)} className={appButtonSecondaryClassName}>
+              <Clipboard aria-hidden className="h-4 w-4" />
+              Copy Invite
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {suspendedUsers.map((user) => (
+        <UserQueueRow
+          key={`suspended-${user.id}`}
+          user={user}
+          title="Suspended access"
+          detail="This employee is blocked from the workspace until reactivated or removed."
+          actions={
+            <>
+              <button type="button" onClick={() => onReactivate(user)} disabled={busyAction?.startsWith(`status-${user.id}`)} className={appButtonPrimaryClassName}>
+                Reactivate
+              </button>
+              <button type="button" onClick={() => onManage(user)} className={appButtonSecondaryClassName}>
+                Manage
+              </button>
+            </>
+          }
+        />
+      ))}
+
+      {isEmpty ? (
+        <EmptyState
+          title="Access queue is clear"
+          description="Pending approvals, invites, and suspended users will appear here when they need review."
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function UserQueueRow({
+  user,
+  title,
+  detail,
+  actions,
+}: {
+  user: CompanyUser;
+  title: string;
+  detail: string;
+  actions: React.ReactNode;
+}) {
+  return (
+    <div className={compactCardClassName}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-[var(--app-text-strong)]">{user.name}</p>
+            <StatusBadge label={title} tone={user.status === "Suspended" ? "error" : "warning"} />
+            <RoleBadge role={user.role} />
+          </div>
+          <p className="mt-1 text-sm text-[var(--app-text)]">{detail}</p>
+          <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{user.email}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:justify-end">{actions}</div>
+      </div>
+    </div>
+  );
+}
+
+function AppUsersView({
+  loading,
+  users,
+  searchTerm,
+  onSearch,
+  getAssignmentSummary,
+  onManage,
+}: {
+  loading: boolean;
+  users: CompanyUser[];
+  searchTerm: string;
+  onSearch: (value: string) => void;
+  getAssignmentSummary: (user: CompanyUser) => { label: string; detail: string; tone: "success" | "warning" | "info" };
+  onManage: (user: CompanyUser) => void;
+}) {
+  if (loading) return <InlineMessage>Loading app users...</InlineMessage>;
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-center gap-3 rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+        <Search aria-hidden className="h-4 w-4 text-[var(--app-muted)]" />
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Search users by name, email, role, or status"
+          className="min-h-9 flex-1 border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
+        />
+      </div>
+      {users.map((user) => {
+        const assignment = getAssignmentSummary(user);
+        return (
+          <div key={user.id} className={compactCardClassName}>
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto] lg:items-center">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-[var(--app-text-strong)]">{user.name}</p>
+                  <RoleBadge role={user.role} />
+                  <StatusBadge label={user.status} tone={statusTone(user.status)} />
+                </div>
+                <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{user.email}</p>
+                <p className="mt-1 text-xs text-[var(--app-muted)]">Last seen {formatRelative(user.last_sign_in_at)}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={assignment.label} tone={assignment.tone} />
+                </div>
+                <p className="mt-1 text-sm text-[var(--app-text)]">{assignment.detail}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <button type="button" onClick={() => onManage(user)} className={appButtonPrimaryClassName}>
+                  {roleNeedsAssignments(user.role) ? "Assign Jobsites" : "Manage Access"}
+                </button>
+                <Link href={getProfileHref(user.id)} className={appButtonSecondaryClassName}>
+                  View Profile
+                </Link>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {!users.length ? (
+        <EmptyState
+          title="No app users found"
+          description="Invite an employee, approve a pending joiner, or clear the current search."
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function TrainingOnlyView({
+  employees,
+  form,
+  setForm,
+  editing,
+  busyAction,
+  message,
+  messageTone,
+  rowErrors,
+  onUpload,
+  onSave,
+  onCancel,
+  onEdit,
+}: {
+  employees: TrackedEmployee[];
+  form: TrackedEmployeeForm;
+  setForm: React.Dispatch<React.SetStateAction<TrackedEmployeeForm>>;
+  editing: TrackedEmployee | null;
+  busyAction: string | null;
+  message: string;
+  messageTone: "neutral" | "success" | "warning" | "error";
+  rowErrors: ImportRowError[];
+  onUpload: (file: File | null) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onEdit: (employee: TrackedEmployee) => void;
+}) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+      <div className={compactCardClassName}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-base font-semibold text-[var(--app-text-strong)]">{editing ? "Edit Training-Only Person" : "Add Training-Only Person"}</p>
+            <p className="mt-1 text-sm text-[var(--app-text)]">No app login access is created from this roster.</p>
+          </div>
+          <a href="/api/company/onboarding/import/template?type=employees" className={appButtonSecondaryClassName}>
+            <FileDown aria-hidden className="h-4 w-4" />
+            Template
+          </a>
+        </div>
+        <div className="mt-4 grid gap-3">
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] px-4 py-5 text-center transition hover:border-[var(--app-accent-border-24)] hover:bg-white">
+            <span className="text-sm font-semibold text-[var(--app-text-strong)]">
+              {busyAction === "roster-upload" ? "Importing roster..." : "Upload roster CSV or XLSX"}
+            </span>
+            <span className="text-xs leading-5 text-[var(--app-muted)]">Valid rows appear immediately in Training Matrix tracking.</span>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              disabled={busyAction === "roster-upload"}
+              className="sr-only"
+              onChange={(event) => {
+                onUpload(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+
+          {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+          {rowErrors.length > 0 ? (
+            <div className="rounded-lg border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-3 text-sm text-[var(--app-text-strong)]">
+              <p className="font-semibold">Rows to review</p>
+              <ul className="mt-2 space-y-1">
+                {rowErrors.slice(0, 6).map((error, index) => (
+                  <li key={`${error.rowNumber}-${error.field ?? "row"}-${index}`}>
+                    Row {error.rowNumber}: {error.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} className={fieldClassName} placeholder="Full name" />
+            <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={fieldClassName} placeholder="Email (optional)" />
+            <input value={form.employee_id} onChange={(event) => setForm((current) => ({ ...current, employee_id: event.target.value }))} className={fieldClassName} placeholder="Employee ID" />
+            <select value={form.readiness_status} onChange={(event) => setForm((current) => ({ ...current, readiness_status: event.target.value }))} className={appNativeSelectClassName}>
+              <option value="ready">Ready</option>
+              <option value="travel_ready">Travel ready</option>
+              <option value="limited">Limited</option>
+              <option value="needs_training">Needs training</option>
+              <option value="onboarding">Onboarding</option>
+            </select>
+            <input value={form.job_title} onChange={(event) => setForm((current) => ({ ...current, job_title: event.target.value }))} className={fieldClassName} placeholder="Job title" />
+            <input value={form.trade_specialty} onChange={(event) => setForm((current) => ({ ...current, trade_specialty: event.target.value }))} className={fieldClassName} placeholder="Trade specialty" />
+            <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={appNativeSelectClassName}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
+            <input value={form.certifications} onChange={(event) => setForm((current) => ({ ...current, certifications: event.target.value }))} className={fieldClassName} placeholder="Certifications; separated by semicolons" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={onSave} disabled={busyAction === "tracked-save" || !form.full_name.trim()} className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}>
+              {busyAction === "tracked-save" ? "Saving..." : editing ? "Save Person" : "Add To Training Matrix"}
+            </button>
+            {editing ? (
+              <button type="button" onClick={onCancel} className={appButtonSecondaryClassName}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid content-start gap-3">
+        {employees.map((employee) => (
+          <div key={employee.id} className={compactCardClassName}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</p>
+                  <StatusBadge label="No app login" tone="info" />
+                  <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
+                </div>
+                <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "No email on file"}</p>
+                <p className="mt-1 text-sm text-[var(--app-text)]">{employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}</p>
+              </div>
+              <button type="button" onClick={() => onEdit(employee)} className={appButtonSecondaryClassName}>
+                Edit
+              </button>
             </div>
           </div>
         ))}
-      </section>
+        {!employees.length ? (
+          <EmptyState
+            title="No training-only people yet"
+            description="Add non-login workers here when they need training compliance tracking without app access."
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <SectionCard
-          title="Invite Employee"
-          description="Start the process here. Employees use this invite to create their account before you approve access."
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <label htmlFor="invite-email" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Email
-              </label>
-              <input
-                id="invite-email"
-                type="email"
-                placeholder="Employee email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-              />
+function AuditView({
+  events,
+  eventItems,
+  dataRequests,
+  securityAuditView,
+  setSecurityAuditView,
+  dataRequestType,
+  setDataRequestType,
+  dataRequestScope,
+  setDataRequestScope,
+  dataRequestTitle,
+  setDataRequestTitle,
+  dataRequestDescription,
+  setDataRequestDescription,
+  busyAction,
+  onCreateDataRequest,
+  onUpdateDataRequestStatus,
+  onExport,
+}: {
+  events: CompanySecurityEvent[];
+  eventItems: Parameters<typeof ActivityFeed>[0]["items"];
+  dataRequests: CompanyDataRequest[];
+  securityAuditView: SecurityAuditView;
+  setSecurityAuditView: (view: SecurityAuditView) => void;
+  dataRequestType: CompanyDataRequestType;
+  setDataRequestType: (type: CompanyDataRequestType) => void;
+  dataRequestScope: CompanyDataRequestScope;
+  setDataRequestScope: (scope: CompanyDataRequestScope) => void;
+  dataRequestTitle: string;
+  setDataRequestTitle: (value: string) => void;
+  dataRequestDescription: string;
+  setDataRequestDescription: (value: string) => void;
+  busyAction: string | null;
+  onCreateDataRequest: () => void;
+  onUpdateDataRequestStatus: (requestId: string, status: CompanyDataRequest["status"]) => void;
+  onExport: () => void;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setSecurityAuditView("events")} className={`${securityAuditView === "events" ? appButtonPrimaryClassName : appButtonSecondaryClassName}`}>
+            Events
+          </button>
+          <button type="button" onClick={() => setSecurityAuditView("data_requests")} className={`${securityAuditView === "data_requests" ? appButtonPrimaryClassName : appButtonSecondaryClassName}`}>
+            Data Requests
+          </button>
+        </div>
+        <button type="button" onClick={onExport} className={appButtonSecondaryClassName}>
+          <FileDown aria-hidden className="h-4 w-4" />
+          Export Evidence
+        </button>
+      </div>
+
+      {securityAuditView === "events" ? (
+        <div className="grid gap-4 xl:grid-cols-[1fr_0.72fr]">
+          <ActivityFeed
+            title="Recent Security Events"
+            description="Company-scoped access and evidence ledger."
+            items={eventItems}
+          />
+          <div className={compactCardClassName}>
+            <p className="text-base font-semibold text-[var(--app-text-strong)]">Audit Snapshot</p>
+            <div className="mt-4 grid gap-3">
+              <MetricLine label="Ledger events" value={events.length} />
+              <MetricLine label="Data requests" value={dataRequests.length} />
+              <MetricLine label="Open requests" value={dataRequests.filter((request) => request.status !== "completed").length} />
             </div>
-            <div className="grid gap-2">
-              <label htmlFor="invite-role" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Role (user type)
-              </label>
-              <select
-                id="invite-role"
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className={appNativeSelectClassName}
-              >
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-5 xl:grid-cols-[0.88fr_1.12fr]">
+          <div className={compactCardClassName}>
+            <p className="text-base font-semibold text-[var(--app-text-strong)]">New Data Request</p>
+            <div className="mt-4 grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select value={dataRequestType} onChange={(event) => setDataRequestType(event.target.value as CompanyDataRequestType)} className={appNativeSelectClassName}>
+                  <option value="export">Export</option>
+                  <option value="deletion">Deletion</option>
+                  <option value="correction">Correction</option>
+                  <option value="privacy_review">Privacy Review</option>
+                </select>
+                <select value={dataRequestScope} onChange={(event) => setDataRequestScope(event.target.value as CompanyDataRequestScope)} className={appNativeSelectClassName}>
+                  <option value="company">Company</option>
+                  <option value="jobsite">Jobsite</option>
+                  <option value="user">User</option>
+                  <option value="document">Document</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <input value={dataRequestTitle} onChange={(event) => setDataRequestTitle(event.target.value)} placeholder="Request title" className={fieldClassName} />
+              <textarea value={dataRequestDescription} onChange={(event) => setDataRequestDescription(event.target.value)} placeholder="Scope, requester, reviewer notes, or completion evidence" rows={4} className={fieldClassName} />
+              <button type="button" onClick={onCreateDataRequest} disabled={busyAction === "data-request-create" || !dataRequestTitle.trim()} className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}>
+                {busyAction === "data-request-create" ? "Creating..." : "Create Request"}
+              </button>
+            </div>
+          </div>
+          <div className="grid content-start gap-3">
+            {dataRequests.map((requestItem) => (
+              <div key={requestItem.id} className={compactCardClassName}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-[var(--app-text-strong)]">{requestItem.title}</p>
+                      <StatusBadge label={formatSecurityEventLabel(requestItem.status)} tone={dataRequestStatusTone(requestItem.status)} />
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--app-muted)]">
+                      {formatSecurityEventLabel(requestItem.request_type)} / {formatSecurityEventLabel(requestItem.request_scope)} / {formatRelative(requestItem.created_at)}
+                    </p>
+                    {requestItem.description ? <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{requestItem.description}</p> : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    {requestItem.status === "submitted" ? (
+                      <button type="button" onClick={() => onUpdateDataRequestStatus(requestItem.id, "reviewing")} className={appButtonSecondaryClassName}>
+                        Review
+                      </button>
+                    ) : null}
+                    {requestItem.status !== "completed" ? (
+                      <button type="button" onClick={() => onUpdateDataRequestStatus(requestItem.id, "completed")} className={appButtonPrimaryClassName}>
+                        Complete
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!dataRequests.length ? (
+              <EmptyState
+                title="No data requests yet"
+                description="Export, deletion, correction, and privacy review requests will appear here."
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricLine({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+      <span className="text-sm text-[var(--app-text)]">{label}</span>
+      <span className="font-semibold text-[var(--app-text-strong)]">{value}</span>
+    </div>
+  );
+}
+
+function AccessManagerModal({
+  user,
+  scopeCompanyName,
+  jobsites,
+  editRole,
+  setEditRole,
+  editStatus,
+  setEditStatus,
+  editAssignments,
+  setEditAssignments,
+  busyAction,
+  onClose,
+  onSave,
+  onRemove,
+}: {
+  user: CompanyUser;
+  scopeCompanyName: string;
+  jobsites: Jobsite[];
+  editRole: string;
+  setEditRole: (role: string) => void;
+  editStatus: string;
+  setEditStatus: (status: string) => void;
+  editAssignments: string[];
+  setEditAssignments: React.Dispatch<React.SetStateAction<string[]>>;
+  busyAction: string | null;
+  onClose: () => void;
+  onSave: () => void;
+  onRemove: () => void;
+}) {
+  const fieldScoped = roleNeedsAssignments(editRole);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4">
+      <div className="w-full max-w-4xl rounded-xl border border-[var(--app-border-strong)] bg-white p-5 shadow-[0_28px_70px_rgba(38,64,106,0.22)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Manage Access</p>
+            <h3 className="mt-1 text-2xl font-bold text-[var(--app-text-strong)]">{user.name}</h3>
+            <p className="mt-1 text-sm text-[var(--app-muted)]">{user.email}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--app-border)] text-[var(--app-text)] transition hover:bg-[var(--app-panel-soft)]" aria-label="Close access manager">
+            <X aria-hidden className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="grid content-start gap-4">
+            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3 text-sm text-[var(--app-text)]">
+              Company scope: <span className="font-semibold text-[var(--app-text-strong)]">{scopeCompanyName}</span>
+            </div>
+            <label className="grid gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Role</span>
+              <select value={editRole} onChange={(event) => setEditRole(event.target.value)} className={appNativeSelectClassName}>
                 {roleOptions.map((role) => (
                   <option key={role}>{role}</option>
                 ))}
               </select>
-            </div>
+            </label>
+            <label className="grid gap-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Account status</span>
+              <select value={editStatus} onChange={(event) => setEditStatus(event.target.value)} className={appNativeSelectClassName}>
+                <option>Pending</option>
+                <option>Active</option>
+                <option>Suspended</option>
+              </select>
+            </label>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
-            Company workspace: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
-          </div>
-
-          {message ? (
-            <div className="mt-4">
-              <InlineMessage tone={messageTone}>{message}</InlineMessage>
-            </div>
-          ) : null}
-        </SectionCard>
-
-        <ActivityFeed
-          title="Company Access Activity"
-          description="Recent membership and approval changes for your company."
-          items={activityItems}
-        />
-      </section>
-
-      <SectionCard
-        title="Security / Audit"
-        description="Company-scoped evidence for IT review, privacy requests, access changes, and exportable audit support."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {(["events", "data_requests"] as SecurityAuditView[]).map((view) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => setSecurityAuditView(view)}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                  securityAuditView === view
-                    ? "border-sky-400 bg-sky-950/40 text-sky-100"
-                    : "border-slate-700 bg-slate-950/40 text-slate-400 hover:border-slate-500"
-                }`}
-              >
-                {view === "events" ? "Events" : "Data Requests"}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={handleExportAuditEvidence}
-              className="rounded-xl border border-emerald-400/50 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-950/30"
-            >
-              Export Evidence
-            </button>
-          </div>
-        }
-      >
-        <div className="grid gap-3 sm:grid-cols-4">
-          {securityEvidenceStats.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <span className="text-3xl font-black tracking-tight text-white">{item.value}</span>
-                <StatusBadge label={String(item.value)} tone={item.tone} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {securityAuditView === "events" ? (
-          <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-            {securityLoading ? (
-              <InlineMessage>Loading company security events...</InlineMessage>
-            ) : (
-              <ActivityFeed
-                title="Recent Security Events"
-                description="Centralized ledger events scoped to this company workspace."
-                items={securityEventItems}
-              />
-            )}
-            <div className="grid content-start gap-4">
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-100">Pending invites</p>
-                  <StatusBadge label={String(invites.length)} tone={invites.length ? "warning" : "success"} />
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {invites.slice(0, 4).map((invite) => (
-                    <div key={`security-invite-${invite.id}`} className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-                      <p className="truncate text-xs font-semibold text-slate-200">{invite.email}</p>
-                      <p className="mt-1 text-xs text-slate-500">{invite.role} / {formatRelative(invite.created_at)}</p>
-                    </div>
-                  ))}
-                  {invites.length === 0 ? <p className="text-sm text-slate-500">No pending invites.</p> : null}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-100">Suspended users</p>
-                  <StatusBadge
-                    label={String(filteredSuspendedUsers.length)}
-                    tone={filteredSuspendedUsers.length ? "warning" : "success"}
-                  />
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {filteredSuspendedUsers.slice(0, 4).map((user) => (
-                    <div key={`security-suspended-${user.id}`} className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-                      <p className="truncate text-xs font-semibold text-slate-200">{user.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">{user.email}</p>
-                    </div>
-                  ))}
-                  {filteredSuspendedUsers.length === 0 ? <p className="text-sm text-slate-500">No suspended users.</p> : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <p className="text-sm font-semibold text-slate-100">New data request</p>
-              <div className="mt-4 grid gap-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <select
-                    value={dataRequestType}
-                    onChange={(event) => setDataRequestType(event.target.value as CompanyDataRequestType)}
-                    className={appNativeSelectClassName}
-                    aria-label="Data request type"
-                  >
-                    <option value="export">Export</option>
-                    <option value="deletion">Deletion</option>
-                    <option value="correction">Correction</option>
-                    <option value="privacy_review">Privacy Review</option>
-                  </select>
-                  <select
-                    value={dataRequestScope}
-                    onChange={(event) => setDataRequestScope(event.target.value as CompanyDataRequestScope)}
-                    className={appNativeSelectClassName}
-                    aria-label="Data request scope"
-                  >
-                    <option value="company">Company</option>
-                    <option value="jobsite">Jobsite</option>
-                    <option value="user">User</option>
-                    <option value="document">Document</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <input
-                  value={dataRequestTitle}
-                  onChange={(event) => setDataRequestTitle(event.target.value)}
-                  placeholder="Request title"
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-500 focus:border-sky-500"
-                />
-                <textarea
-                  value={dataRequestDescription}
-                  onChange={(event) => setDataRequestDescription(event.target.value)}
-                  placeholder="Scope, requester, reviewer notes, or completion evidence"
-                  rows={4}
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-500 focus:border-sky-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleCreateDataRequest()}
-                  disabled={dataRequestSubmitting || !dataRequestTitle.trim()}
-                  className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
-                >
-                  {dataRequestSubmitting ? "Creating..." : "Create Request"}
-                </button>
-              </div>
-            </div>
-
-            <div className="grid content-start gap-3">
-              {securityLoading ? (
-                <InlineMessage>Loading data requests...</InlineMessage>
-              ) : dataRequests.length === 0 ? (
-                <EmptyState
-                  title="No data requests yet"
-                  description="Export, deletion, correction, and privacy review requests will appear here."
-                />
-              ) : (
-                dataRequests.map((requestItem) => (
-                  <div key={requestItem.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-100">{requestItem.title}</p>
-                          <StatusBadge label={formatSecurityEventLabel(requestItem.status)} tone={dataRequestStatusTone(requestItem.status)} />
-                        </div>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {formatSecurityEventLabel(requestItem.request_type)} / {formatSecurityEventLabel(requestItem.request_scope)} / {formatRelative(requestItem.created_at)}
-                        </p>
-                        {requestItem.description ? (
-                          <p className="mt-2 text-sm leading-6 text-slate-400">{requestItem.description}</p>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2 sm:justify-end">
-                        {requestItem.status === "submitted" ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleUpdateDataRequestStatus(requestItem.id, "reviewing")}
-                            className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
-                          >
-                            Review
-                          </button>
-                        ) : null}
-                        {requestItem.status !== "completed" ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleUpdateDataRequestStatus(requestItem.id, "completed")}
-                            className="rounded-xl border border-emerald-400/60 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-950/30"
-                          >
-                            Complete
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="Invited employees"
-        description="These employees have been invited but have not finished creating their account yet."
-      >
-        {loading ? (
-          <InlineMessage>Loading invited employees...</InlineMessage>
-        ) : invites.length === 0 ? (
-          <EmptyState
-            title="No invites are waiting"
-            description="After you invite someone, they stay here until they use that email to create their company account."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {invites.map((invite) => (
-              <div key={invite.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-100">{invite.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                      <span>Role: {invite.role}</span>
-                      <span>Status: {invite.status}</span>
-                      <span>Sent {formatRelative(invite.created_at)}</span>
-                    </div>
-                    <div className="mt-3 flex max-w-full flex-wrap gap-2">
-                      <input
-                        readOnly
-                        value={getInviteSignupUrl(invite)}
-                        aria-label={`Invite link for ${invite.email}`}
-                        className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void navigator.clipboard?.writeText(getInviteSignupUrl(invite));
-                          setMessageTone("success");
-                          setMessage(`Invite link copied for ${invite.email}.`);
-                        }}
-                        className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
-                      >
-                        Copy Link
-                      </button>
-                    </div>
-                  </div>
-                  <StatusBadge label="Waiting for account setup" tone="warning" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="Awaiting approval"
-        description="Employees who finished account setup stay here until you approve access to the company workspace."
-      >
-        {loading ? (
-          <InlineMessage>Loading approval queue...</InlineMessage>
-        ) : pendingUsers.length === 0 ? (
-          <EmptyState
-            title="No employees are waiting for approval"
-            description="Employees move here after they create their account with the invited email."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {pendingUsers.map((user) => (
-              <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                      <StatusBadge label={user.status} tone="warning" />
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                    <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                      <span>Role: {user.role}</span>
-                      <span>Company: {scopeCompanyName}</span>
-                      <span>Created {formatRelative(user.created_at)}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      View Profile
-                    </Link>
-                    <button
-                      onClick={() => void handleQuickStatus(user, "Active")}
-                      disabled={saveLoading}
-                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => openUserManager(user)}
-                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      Review
-                    </button>
-                    <button
-                      onClick={() => void handleQuickStatus(user, "Suspended")}
-                      disabled={saveLoading}
-                      className="rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
-                    >
-                      Suspend
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="3. Active App Users"
-        description="Approved employees with active login access to your workspace appear here. Training-only people are shown in the roster section above and in the Training Matrix."
-      >
-        <div className="mb-4">
-          <input
-            type="search"
-            aria-label="Search active employees"
-            placeholder="Search active employees..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
-          />
-        </div>
-
-        {loading ? (
-          <InlineMessage>Loading active team members...</InlineMessage>
-        ) : filteredActiveUsers.length === 0 ? (
-          <EmptyState
-            title="No active employees found"
-            description="Invite your first employee, approve a pending joiner, or clear the current search."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {filteredActiveUsers.map((user) => {
-              const assignmentSummary = getAssignmentSummary(user);
-              return (
-                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
-                            user.role
-                          )}`}
-                        >
-                          {user.role}
-                        </span>
-                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
-                      </div>
-                      <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                        <span>Company: {user.team}</span>
-                        <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/80 px-4 py-3 xl:w-80">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Jobsite access
-                        </span>
-                        <StatusBadge label={assignmentSummary.label} tone={assignmentSummary.tone} />
-                      </div>
-                      <p className="mt-2 text-sm leading-5 text-slate-400">{assignmentSummary.detail}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 xl:justify-end">
-                      <button
-                        onClick={() => openUserManager(user)}
-                        className="rounded-xl border border-sky-400/70 px-4 py-2.5 text-sm font-semibold text-sky-100 transition hover:bg-sky-950/50"
-                      >
-                        {roleNeedsAssignments(user.role) ? "Assign jobsites" : "Manage access"}
-                      </button>
-                      <Link
-                        href={getProfileHref(user.id)}
-                        className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                      >
-                        View Profile
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="4. Assign App Users To Jobsites"
-        description="Field-scoped app users only see the jobsites selected here. Training-only people do not receive app jobsite access."
-      >
-        {loading ? (
-          <InlineMessage>Loading assignment matrix...</InlineMessage>
-        ) : filteredTeamMembers.length === 0 ? (
-          <EmptyState
-            title="No team members available"
-            description="Invite and activate users to start assigning jobsites."
-          />
-        ) : (
-          <div className="grid gap-4">
-            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
-              Use <span className="font-semibold">Assign jobsites</span> to pick the exact sites for Project Managers,
-              Field Supervisors, Foremen, Field Users, Read Only users, and Company Users. Company Admins,
-              Operations Managers, and Safety Managers do not need individual site picks.
-            </div>
-            <div className="overflow-x-auto">
-              <table className={jobsiteTableLayout.table}>
-              <thead className="bg-slate-950/50">
-                <tr>
-                  <th className={jobsiteTableLayout.th}>User</th>
-                  <th className={jobsiteTableLayout.th}>Role</th>
-                  <th className={jobsiteTableLayout.th}>Status</th>
-                  <th className={jobsiteTableLayout.th}>Assigned Jobsites</th>
-                  <th className={`${jobsiteTableLayout.th} text-right`}>Manage</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredTeamMembers.map((user) => {
-                  const assignedIds = assignmentMap[user.id] ?? [];
-                  const assignedNames = assignedIds
-                    .map((id) => jobsiteNameById[id] ?? "Unknown jobsite")
-                    .slice(0, 3);
-                  const overflowCount = Math.max(0, assignedIds.length - assignedNames.length);
-                  return (
-                    <tr key={`assignment-${user.id}`} className="bg-slate-900/90">
-                      <td className={jobsiteTableLayout.td}>
-                        <div className="font-semibold text-slate-100">{user.name}</div>
-                        <div className="text-xs text-slate-500">{user.email}</div>
-                      </td>
-                      <td className={jobsiteTableLayout.td}>
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${roleClasses(
-                            user.role
-                          )}`}
-                        >
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className={jobsiteTableLayout.td}>
-                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
-                      </td>
-                      <td className={jobsiteTableLayout.td}>
-                        {roleNeedsAssignments(user.role) ? (
-                          assignedIds.length > 0 ? (
-                            <div className="text-xs text-slate-300">
-                              {assignedNames.join(", ")}
-                              {overflowCount > 0 ? ` +${overflowCount} more` : ""}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-amber-700">No jobsites assigned</span>
-                          )
-                        ) : (
-                          <span className="text-xs text-slate-500">Company-wide (all jobsites)</span>
-                        )}
-                      </td>
-                      <td className={`${jobsiteTableLayout.td} text-right`}>
-                        <button
-                          onClick={() => openUserManager(user)}
-                          className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
-                        >
-                          {roleNeedsAssignments(user.role) ? "Assign" : "Manage"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </SectionCard>
-
-      {loading || filteredSuspendedUsers.length > 0 ? (
-        <SectionCard
-          title="Suspended Access"
-          description="Employees who are currently blocked from the workspace stay here until you reactivate or remove them."
-        >
-          {loading ? (
-            <InlineMessage>Loading suspended employees...</InlineMessage>
-          ) : (
-            <div className="grid gap-4">
-              {filteredSuspendedUsers.map((user) => (
-                <div key={user.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-100">{user.name}</p>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${roleClasses(
-                            user.role
-                          )}`}
-                        >
-                          {user.role}
-                        </span>
-                        <StatusBadge label={user.status} tone={statusTone(user.status)} />
-                      </div>
-                      <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-                      <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
-                        <span>Company: {scopeCompanyName}</span>
-                        <span>Last seen {formatRelative(user.last_sign_in_at)}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => openUserManager(user)}
-                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      Manage
-                    </button>
-                    <Link
-                      href={getProfileHref(user.id)}
-                      className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                    >
-                      View Profile
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      ) : null}
-
-      {editingUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4 [color-scheme:dark]">
-          <div className="w-full max-w-4xl rounded-3xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl [color-scheme:dark]">
-            <div className="flex items-start justify-between gap-4">
+          <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
-                  Manage Access And Jobsites
-                </p>
-                <h3 className="mt-2 text-2xl font-bold text-slate-100">{editingUser.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">{editingUser.email}</p>
+                <p className="font-semibold text-[var(--app-text-strong)]">Jobsite Access</p>
+                <p className="mt-1 text-sm text-[var(--app-text)]">Field-scoped users must have at least one active jobsite before approval.</p>
               </div>
-              <button
-                onClick={() => setEditingUser(null)}
-                className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-              >
-                Close
-              </button>
+              <StatusBadge label={fieldScoped ? `${editAssignments.length} selected` : "All jobsites"} tone={fieldScoped && editAssignments.length === 0 ? "warning" : "success"} />
             </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="grid content-start gap-4">
-                <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
-                  Company scope: <span className="font-semibold text-slate-100">{scopeCompanyName}</span>
+            {fieldScoped ? (
+              <>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setEditAssignments(jobsites.map((jobsite) => jobsite.id))} className={appButtonSecondaryClassName}>
+                    Select All
+                  </button>
+                  <button type="button" onClick={() => setEditAssignments([])} className={appButtonSecondaryClassName}>
+                    Clear
+                  </button>
                 </div>
-                <div className="grid gap-2">
-                  <label htmlFor="edit-member-role" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Role controls app permissions
-                  </label>
-                  <select
-                    id="edit-member-role"
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className={`w-full ${appNativeSelectClassName} py-3`}
-                  >
-                    {roleOptions.map((role) => (
-                      <option key={role}>{role}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs leading-5 text-slate-500">
-                    Field-scoped roles need jobsite picks. Company-wide roles automatically get every jobsite.
-                  </p>
+                <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1">
+                  {jobsites.map((jobsite) => {
+                    const checked = editAssignments.includes(jobsite.id);
+                    return (
+                      <label key={jobsite.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-3 text-sm transition ${checked ? "border-[var(--app-accent-border-24)] bg-white" : "border-[var(--app-border)] bg-white/60 hover:bg-white"}`}>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[var(--app-text-strong)]">{jobsite.name}</span>
+                          <span className="mt-1 block text-xs text-[var(--app-muted)]">{jobsite.status}</span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            setEditAssignments((current) =>
+                              event.target.checked
+                                ? Array.from(new Set([...current, jobsite.id]))
+                                : current.filter((value) => value !== jobsite.id)
+                            );
+                          }}
+                        />
+                      </label>
+                    );
+                  })}
+                  {!jobsites.length ? <p className="text-sm text-[var(--app-muted)]">No jobsites available yet.</p> : null}
                 </div>
-                <div className="grid gap-2">
-                  <label htmlFor="edit-member-status" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Account status
-                  </label>
-                  <select
-                    id="edit-member-status"
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className={`w-full ${appNativeSelectClassName} py-3`}
-                  >
-                    <option>Pending</option>
-                    <option>Active</option>
-                    <option>Suspended</option>
-                  </select>
-                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-lg border border-[rgba(46,158,91,0.22)] bg-[var(--semantic-success-bg)] px-4 py-3 text-sm leading-6 text-[var(--app-text-strong)]">
+                {editRole} is company-wide and will have access to every jobsite in {scopeCompanyName}.
               </div>
-
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-100">Jobsite access</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Select the jobsites this person should see when their role is field-scoped.
-                    </p>
-                  </div>
-                  {roleNeedsAssignments(editRole) ? (
-                    <StatusBadge
-                      label={`${editAssignments.length} selected`}
-                      tone={editAssignments.length > 0 ? "info" : "warning"}
-                    />
-                  ) : (
-                    <StatusBadge label="All jobsites" tone="success" />
-                  )}
-                </div>
-
-                {roleNeedsAssignments(editRole) ? (
-                  <>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditAssignments(jobsites.map((jobsite) => jobsite.id))}
-                        className="rounded-xl border border-sky-400/70 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-950/50"
-                      >
-                        Select all jobsites
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditAssignments([])}
-                        className="rounded-xl border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-900/90"
-                      >
-                        Clear selected
-                      </button>
-                    </div>
-                    <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1">
-                      {jobsites.length < 1 ? (
-                        <p className="text-xs text-slate-500">No jobsites available yet.</p>
-                      ) : (
-                        jobsites.map((jobsite) => {
-                          const checked = editAssignments.includes(jobsite.id);
-                          return (
-                            <label
-                              key={jobsite.id}
-                              className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-sm transition ${
-                                checked
-                                  ? "border-sky-400/70 bg-sky-950/40 text-slate-100"
-                                  : "border-slate-700/80 bg-slate-900/80 text-slate-300 hover:border-slate-500"
-                              }`}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate font-semibold">{jobsite.name}</span>
-                                <span className="mt-1 block text-xs text-slate-500">{jobsite.status}</span>
-                              </span>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(event) => {
-                                  setEditAssignments((current) =>
-                                    event.target.checked
-                                      ? Array.from(new Set([...current, jobsite.id]))
-                                      : current.filter((value) => value !== jobsite.id)
-                                  );
-                                }}
-                              />
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-sm leading-6 text-emerald-100">
-                    {editRole} is a company-wide role, so this person will have access to every jobsite in{" "}
-                    <span className="font-semibold">{scopeCompanyName}</span>. To limit them to specific jobsites,
-                    change their role to Project Manager, Field Supervisor, Foreman, Field User, Read Only, or Company User.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Link
-                href={getProfileHref(editingUser.id)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
-              >
-                Edit Profile
-              </Link>
-              <button
-                onClick={() => void handleRemoveUser()}
-                disabled={removeLoading}
-                className="rounded-xl border border-red-300 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-950/40 disabled:opacity-60"
-              >
-                {removeLoading ? "Removing..." : "Remove User"}
-              </button>
-              <button
-                onClick={() => void handleSaveUser()}
-                disabled={saveLoading}
-                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
-              >
-                {saveLoading ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
+            )}
           </div>
         </div>
-      ) : null}
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Link href={getProfileHref(user.id)} className={appButtonSecondaryClassName}>
+            View Profile
+          </Link>
+          <button type="button" onClick={onRemove} disabled={busyAction === `remove-${user.id}`} className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60">
+            {busyAction === `remove-${user.id}` ? "Removing..." : "Remove User"}
+          </button>
+          <button type="button" onClick={onSave} disabled={busyAction === `save-${user.id}`} className={appButtonPrimaryClassName}>
+            {busyAction === `save-${user.id}` ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
