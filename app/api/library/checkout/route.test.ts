@@ -164,6 +164,10 @@ describe("library checkout route", () => {
       })
     );
 
+    if (!response) {
+      throw new Error("Expected a response.");
+    }
+
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       checkoutUrl: "https://checkout.stripe.test/session",
