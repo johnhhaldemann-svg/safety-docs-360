@@ -623,7 +623,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         title: input.title,
         linkedRiskId: input.linkedRiskId,
         linkedRisk: input.linkedRisk,
-        assignee: input.assignedUserId || "Alex Morgan",
+        assignee: input.assignedUserId || "Unassigned",
         dueDate: input.dueAt ? new Date(input.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "May 30",
         status: "New",
         priority: input.priority,

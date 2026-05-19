@@ -131,7 +131,14 @@ const navGroups: NavGroup[] = [
 
 type AuthMeResponse = {
   user?: {
+    email?: string | null;
     role?: string | null;
+    roleLabel?: string | null;
+    profile?: {
+      fullName?: string | null;
+      preferredName?: string | null;
+      jobTitle?: string | null;
+    } | null;
     permissionMap?: {
       can_access_internal_admin?: boolean | null;
     } | null;
@@ -145,6 +152,17 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function isActive(pathname: string, href: string) {
   if (href === "/safe-predict") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function initialsForName(value: string) {
+  const parts = value
+    .replace(/@.*/, "")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "WU";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function getActiveNavGroupId(pathname: string, groups: NavGroup[]) {
@@ -211,6 +229,11 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState("");
+  const [viewerProfile, setViewerProfile] = useState({
+    name: "Workspace User",
+    title: "Workspace member",
+    initials: "WU",
+  });
   const [expandedNavState, setExpandedNavState] = useState(() => ({
     pathname,
     groupId: getActiveNavGroupId(pathname, navGroups) ?? navGroups[0]?.id ?? "",
@@ -264,6 +287,14 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
       const data = (await response.json().catch(() => null)) as AuthMeResponse | null;
       if (cancelled || !response.ok) return;
 
+      const user = data?.user;
+      const displayName = user?.profile?.preferredName || user?.profile?.fullName || user?.email || "Workspace User";
+      const displayTitle = user?.profile?.jobTitle || user?.roleLabel || "Workspace member";
+      setViewerProfile({
+        name: displayName,
+        title: displayTitle,
+        initials: initialsForName(displayName),
+      });
       setViewerRole(data?.user?.role ?? "");
       setCanAccessInternalAdmin(Boolean(data?.user?.permissionMap?.can_access_internal_admin));
     }
@@ -514,11 +545,11 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               </Link>
               <div className="hidden items-center gap-3 border-l border-slate-200 pl-3 sm:flex">
                 <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-slate-200 to-slate-100 text-sm font-black text-slate-700">
-                  AM
+                  {viewerProfile.initials}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-900">Alex Morgan</p>
-                  <p className="text-xs text-slate-500">Safety Manager</p>
+                  <p className="truncate text-sm font-black text-slate-900">{viewerProfile.name}</p>
+                  <p className="truncate text-xs text-slate-500">{viewerProfile.title}</p>
                 </div>
               </div>
               <button

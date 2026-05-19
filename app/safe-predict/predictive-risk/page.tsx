@@ -16,16 +16,25 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
-  safePredictMitigations,
-} from "@/lib/safePredictMockData";
-import { riskForecastForSite } from "@/lib/safePredictData";
+  riskForecastForSite,
+} from "@/lib/safePredictData";
 
 export default function SafePredictPredictiveRiskPage() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
-  const activeSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "riverside" : selectedJobsiteId;
+  const activeSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "all" : selectedJobsiteId;
   const activeForecast = riskForecastForSite(dataset, activeSiteId);
   const activeSite = dataset.jobsites.find((site) => site.id === activeSiteId) ?? dataset.jobsites[0];
+  const hasForecast = activeForecast.length > 0;
+  const hasDrivers = dataset.riskDrivers.length > 0;
+  const recommendedActions = dataset.mode === "live" && !hasDrivers
+    ? []
+    : [
+        ["Reinforce Fall Protection", "Conduct toolbox talks and verify fall protection usage this week.", "HIGH PRIORITY", "red"],
+        ["Improve Housekeeping", "Assign daily housekeeping ownership and increase site walkthroughs.", "HIGH PRIORITY", "orange"],
+        ["Control Electrical Exposure", "Review JSA's and ensure proper barricades and LOTO where needed.", "MEDIUM PRIORITY", "amber"],
+        ["Close Training Gaps", "Schedule and complete overdue training for at-risk workers.", "MEDIUM PRIORITY", "amber"],
+      ];
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -45,7 +54,7 @@ export default function SafePredictPredictiveRiskPage() {
             <ExportButton
               fileName="safe-predict-risk-forecast.json"
               label="Export risk forecast"
-              payload={{ company: dataset.company, activeSite, jobsites: dataset.jobsites, forecast: activeForecast, drivers: dataset.riskDrivers, mitigations: safePredictMitigations }}
+              payload={{ company: dataset.company, activeSite, jobsites: dataset.jobsites, forecast: activeForecast, drivers: dataset.riskDrivers, recommendedActions }}
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm"
             >
               <Download className="h-5 w-5" />
@@ -72,7 +81,9 @@ export default function SafePredictPredictiveRiskPage() {
             value={activeSiteId}
             onChange={setSelectedJobsiteId}
             options={[
-              ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
+              ...(dataset.jobsites.length > 0
+                ? dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))
+                : [{ label: "No projects yet", value: "all" }]),
             ]}
           />
           <SelectShell
@@ -105,56 +116,65 @@ export default function SafePredictPredictiveRiskPage() {
       <div className="grid gap-5 2xl:grid-cols-[1.25fr_0.75fr]">
         <Card id="forecast-drivers" className="scroll-mt-24 p-5">
           <SectionTitle title="Next 30 Days Risk Forecast" />
-          <div className="relative mt-4">
-            <div className="absolute left-[47%] top-4 z-10 hidden rounded-lg border border-red-400 bg-white text-center text-xs font-bold shadow-md md:block">
-              <p className="rounded-t-md bg-red-500 px-4 py-1 text-white">HIGHEST RISK EXPECTED</p>
-              <p className="px-4 py-2 text-slate-700">May 20 - May 23</p>
-            </div>
-            <div className="absolute left-0 top-7 z-10 hidden space-y-[31px] md:block">
-              {["VERY HIGH", "HIGH", "MODERATE", "LOW"].map((label, index) => (
-                <span
-                  key={label}
-                  className={cx(
-                    "block rounded-full border px-3 py-1 text-[10px] font-black",
-                    index === 0
-                      ? "border-red-200 bg-red-50 text-red-600"
-                      : index === 1
-                        ? "border-orange-200 bg-orange-50 text-orange-600"
-                        : index === 2
-                          ? "border-amber-200 bg-amber-50 text-amber-600"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-600"
-                  )}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-            <div className="md:pl-20">
-              <ForecastTrendChart data={activeForecast} compact />
-            </div>
-          </div>
-          <div className="mt-4 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_220px]">
-            <div className="flex items-start gap-4">
-              <CalendarDays className="mt-1 h-9 w-9 text-slate-500" />
-              <div>
-                <p className="text-xs font-black uppercase tracking-wide text-slate-500">Forecast Summary</p>
-                <p className="mt-1 text-sm leading-6 text-slate-700">
-                  Risk is expected to peak between May 20 - May 23 due to increased work at height activities and higher site activity.
-                  Proactive actions now can help prevent incidents.
-                </p>
+          {hasForecast ? (
+            <>
+              <div className="relative mt-4">
+                <div className="absolute left-[47%] top-4 z-10 hidden rounded-lg border border-red-400 bg-white text-center text-xs font-bold shadow-md md:block">
+                  <p className="rounded-t-md bg-red-500 px-4 py-1 text-white">HIGHEST RISK EXPECTED</p>
+                  <p className="px-4 py-2 text-slate-700">Forecast peak</p>
+                </div>
+                <div className="absolute left-0 top-7 z-10 hidden space-y-[31px] md:block">
+                  {["VERY HIGH", "HIGH", "MODERATE", "LOW"].map((label, index) => (
+                    <span
+                      key={label}
+                      className={cx(
+                        "block rounded-full border px-3 py-1 text-[10px] font-black",
+                        index === 0
+                          ? "border-red-200 bg-red-50 text-red-600"
+                          : index === 1
+                            ? "border-orange-200 bg-orange-50 text-orange-600"
+                            : index === 2
+                              ? "border-amber-200 bg-amber-50 text-amber-600"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-600"
+                      )}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                <div className="md:pl-20">
+                  <ForecastTrendChart data={activeForecast} compact />
+                </div>
               </div>
-            </div>
-            <div className="border-t border-slate-200 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Model Confidence</p>
-              <ConfidenceGauge value={87} />
-            </div>
-          </div>
+              <div className="mt-4 grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_220px]">
+                <div className="flex items-start gap-4">
+                  <CalendarDays className="mt-1 h-9 w-9 text-slate-500" />
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Forecast Summary</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">
+                      Risk forecast is based on connected jobsites, inspections, observations, corrective actions, permits, and workforce readiness.
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-slate-200 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                  <p className="text-xs font-black uppercase tracking-wide text-slate-500">Model Confidence</p>
+                  <ConfidenceGauge value={87} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <EmptyLivePanel
+              title="No live forecast yet"
+              detail="Connect jobsites and field records before SafetyDoc360 shows a predictive risk forecast."
+            />
+          )}
         </Card>
 
         <Card className="p-5">
           <SectionTitle title="Top Drivers of Risk" />
-          <div className="mt-4 divide-y divide-slate-100">
-            {dataset.riskDrivers.map((driver, index) => (
+          {hasDrivers ? (
+            <div className="mt-4 divide-y divide-slate-100">
+              {dataset.riskDrivers.map((driver, index) => (
               <div key={driver.id} className="grid grid-cols-[72px_1fr] gap-4 py-4 first:pt-0">
                 <div
                   className={cx(
@@ -185,24 +205,28 @@ export default function SafePredictPredictiveRiskPage() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-          <Link href="/safe-predict/risk-mitigation" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">
-            View all risk drivers <ArrowRight className="h-4 w-4" />
-          </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyLivePanel
+              title="No risk drivers yet"
+              detail="Drivers will appear after live inspections, observations, incidents, and training records are available."
+            />
+          )}
+          {hasDrivers ? (
+            <Link href="/safe-predict/risk-mitigation" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">
+              View all risk drivers <ArrowRight className="h-4 w-4" />
+            </Link>
+          ) : null}
         </Card>
       </div>
 
       <Card className="mt-5 p-5">
         <SectionTitle title="Recommended Actions" />
         <p className="mt-1 text-sm text-slate-600">Actions you can take now to reduce risk and prevent incidents.</p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-          {[
-            ["Reinforce Fall Protection", "Conduct toolbox talks and verify fall protection usage this week.", "HIGH PRIORITY", "red"],
-            ["Improve Housekeeping", "Assign daily housekeeping ownership and increase site walkthroughs.", "HIGH PRIORITY", "orange"],
-            ["Control Electrical Exposure", "Review JSA's and ensure proper barricades and LOTO where needed.", "MEDIUM PRIORITY", "amber"],
-            ["Close Training Gaps", "Schedule and complete overdue training for at-risk workers.", "MEDIUM PRIORITY", "amber"],
-          ].map(([title, detail, priority, tone]) => (
+        {recommendedActions.length > 0 ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+            {recommendedActions.map(([title, detail, priority, tone]) => (
             <Link key={title} href="/safe-predict/risk-mitigation" className="flex items-start gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 hover:bg-white 2xl:border-r 2xl:border-slate-200 2xl:bg-white 2xl:pr-4 2xl:last:border-r-0">
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
                 <ShieldCheck className="h-7 w-7" />
@@ -216,8 +240,14 @@ export default function SafePredictPredictiveRiskPage() {
               </span>
               <ArrowRight className="h-5 w-5 text-slate-400" />
             </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyLivePanel
+            title="No recommended actions yet"
+            detail="Recommendations will appear once live risk drivers are available."
+          />
+        )}
       </Card>
 
       <div className="mt-5 flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 px-5 py-4 md:flex-row md:items-center md:justify-between">
@@ -238,4 +268,13 @@ export default function SafePredictPredictiveRiskPage() {
 
 function AlertIcon() {
   return <AlertTriangle className="h-8 w-8" />;
+}
+
+function EmptyLivePanel({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-sm font-black text-slate-950">{title}</p>
+      <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">{detail}</p>
+    </div>
+  );
 }

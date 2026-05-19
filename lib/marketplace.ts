@@ -8,11 +8,15 @@ type MarketplaceNotes = {
   marketplace?: {
     enabled?: boolean;
     creditCost?: number;
+    priceCents?: number;
+    currency?: string;
     previewFilePath?: string;
     /** Owner of the document must approve auto-generated preview before buyers see it. */
     submitterPreviewStatus?: SubmitterPreviewStatus;
   };
   creditCost?: number;
+  priceCents?: number;
+  currency?: string;
   legacyText?: string;
 };
 
@@ -38,6 +42,42 @@ export function getDocumentCreditCost(notes?: string | null) {
   return typeof cost === "number" && cost > 0
     ? Math.round(cost)
     : DEFAULT_DOCUMENT_CREDIT_COST;
+}
+
+export function getDocumentPriceCents(notes?: string | null) {
+  const parsed = parseMarketplaceNotes(notes);
+  const nested = parsed.marketplace?.priceCents;
+  const topLevel = parsed.priceCents;
+  const price = typeof nested === "number" ? nested : topLevel;
+
+  return typeof price === "number" && Number.isFinite(price) && price > 0
+    ? Math.round(price)
+    : null;
+}
+
+export function getDocumentCurrency(notes?: string | null) {
+  const parsed = parseMarketplaceNotes(notes);
+  const currency =
+    typeof parsed.marketplace?.currency === "string"
+      ? parsed.marketplace.currency
+      : typeof parsed.currency === "string"
+        ? parsed.currency
+        : "usd";
+
+  return currency.trim().toLowerCase() || "usd";
+}
+
+export function formatDocumentPrice(notes?: string | null) {
+  const priceCents = getDocumentPriceCents(notes);
+  if (priceCents == null) {
+    return null;
+  }
+
+  const currency = getDocumentCurrency(notes);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(priceCents / 100);
 }
 
 export function isMarketplaceEnabled(notes?: string | null) {
@@ -106,6 +146,8 @@ export function buildMarketplaceNotes(
   settings: {
     enabled: boolean;
     creditCost: number;
+    priceCents?: number | null;
+    currency?: string | null;
     previewFilePath?: string | null;
     submitterPreviewStatus?: SubmitterPreviewStatus | null;
   }
@@ -116,6 +158,14 @@ export function buildMarketplaceNotes(
     enabled: settings.enabled,
     creditCost: Math.max(1, Math.round(settings.creditCost)),
   };
+
+  if (typeof settings.priceCents === "number" && Number.isFinite(settings.priceCents)) {
+    marketplace.priceCents = Math.max(1, Math.round(settings.priceCents));
+    marketplace.currency = (settings.currency?.trim().toLowerCase() || "usd");
+  } else if (settings.priceCents === null) {
+    delete marketplace.priceCents;
+    delete marketplace.currency;
+  }
 
   if (settings.previewFilePath === null) {
     delete marketplace.previewFilePath;

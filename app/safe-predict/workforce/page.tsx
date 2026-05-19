@@ -14,17 +14,13 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
-  jobsiteForId,
-  permitTotals,
-  safePredictDemoCompany,
-  safePredictDemoEmployees,
-  safePredictDemoJobsites,
-  safePredictPermits,
-  safePredictTradeReadiness,
-  workforceTotals,
   type SafePredictDemoEmployee,
   type SafePredictDemoEmployeeStatus,
+  type SafePredictPermitSummary,
+  type SafePredictTradeReadiness,
 } from "@/lib/safePredictMockData";
+import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import type { SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
 
 const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
   compliant: "Compliant",
@@ -32,23 +28,143 @@ const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
   overdue: "Overdue",
 };
 
+function workforceTotalsFromEmployees(employees: SafePredictDemoEmployee[]) {
+  const workers = employees.length;
+  const compliant = employees.filter((employee) => employee.status === "compliant").length;
+  const expiringSoon = employees.filter((employee) => employee.status === "expiring").length;
+  const overdue = employees.filter((employee) => employee.status === "overdue").length;
+  const percent = (count: number) => (workers > 0 ? Math.round((count / workers) * 100) : 0);
+  return {
+    workers,
+    compliant,
+    expiringSoon,
+    overdue,
+    compliantPercent: percent(compliant),
+    expiringSoonPercent: percent(expiringSoon),
+    overduePercent: percent(overdue),
+  };
+}
+
+function readinessScoreForEmployees(employees: SafePredictDemoEmployee[]) {
+  if (employees.length === 0) return 0;
+  return Math.round(employees.reduce((sum, employee) => sum + employee.readinessScore, 0) / employees.length);
+}
+
+function readinessLabel(score: number, hasEmployees: boolean) {
+  if (!hasEmployees) return "No roster data";
+  if (score >= 80) return "Good";
+  if (score >= 65) return "Needs Review";
+  return "At Risk";
+}
+
+function employeeStatusClass(status: SafePredictDemoEmployeeStatus) {
+  if (status === "overdue") return "bg-red-50 text-red-600";
+  if (status === "expiring") return "bg-amber-50 text-amber-600";
+  return "bg-emerald-50 text-emerald-600";
+}
+
+function jobsiteForId(jobsites: SafePredictJobsiteRecord[], siteId: string) {
+  return jobsites.find((jobsite) => jobsite.id === siteId);
+}
+
+function tradeReadinessFromEmployees(employees: SafePredictDemoEmployee[]): SafePredictTradeReadiness[] {
+  const byTrade = new Map<string, SafePredictDemoEmployee[]>();
+  for (const employee of employees) {
+    const trade = employee.trade || "Unassigned";
+    byTrade.set(trade, [...(byTrade.get(trade) ?? []), employee]);
+  }
+
+  return Array.from(byTrade.entries()).map(([trade, rows]) => {
+    const hasOverdue = rows.some((employee) => employee.status === "overdue");
+    const hasExpiring = rows.some((employee) => employee.status === "expiring");
+    const status: SafePredictDemoEmployeeStatus = hasOverdue ? "overdue" : hasExpiring ? "expiring" : "compliant";
+    return {
+      trade,
+      workers: rows.length,
+      fallProtection: status,
+      confinedSpace: status,
+      loto: status,
+      hazcom: status,
+      firstAid: status,
+      overallStatus: status === "overdue" ? "Overdue" : status === "expiring" ? "Expiring" : "Compliant",
+    };
+  });
+}
+
+function permitSummariesFromPermits(permits: SafePredictPermitRecord[]): SafePredictPermitSummary[] {
+  const byType = new Map<string, SafePredictPermitSummary>();
+  for (const permit of permits) {
+    const type = permit.type || "Permit";
+    const current = byType.get(type) ?? { type, active: 0, expiringSoon: 0, expired: 0 };
+    if (permit.status === "Expired") current.expired += 1;
+    else if (permit.status === "Expiring Soon") current.expiringSoon += 1;
+    else current.active += 1;
+    byType.set(type, current);
+  }
+  return Array.from(byType.values());
+}
+
+function permitTotals(rows: SafePredictPermitSummary[]) {
+  return rows.reduce(
+    (total, row) => ({
+      active: total.active + row.active,
+      expiringSoon: total.expiringSoon + row.expiringSoon,
+      expired: total.expired + row.expired,
+    }),
+    { active: 0, expiringSoon: 0, expired: 0 }
+  );
+}
+
 export default function SafePredictWorkforcePage() {
+  const { dataset, loading, mode } = useSafePredictData();
   const [statusFilter, setStatusFilter] = useState<"all" | SafePredictDemoEmployeeStatus>("all");
   const [siteFilter, setSiteFilter] = useState("all");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
-  const workforce = workforceTotals(safePredictTradeReadiness);
-  const permits = permitTotals(safePredictPermits);
+  const employees = dataset.employees;
+  const jobsites = dataset.jobsites;
+  const trades = dataset.tradeReadiness.length > 0 ? dataset.tradeReadiness : tradeReadinessFromEmployees(employees);
+  const permitRows = dataset.permitSummaries.length > 0 ? dataset.permitSummaries : permitSummariesFromPermits(dataset.permits);
+  const workforce = workforceTotalsFromEmployees(employees);
+  const permits = permitTotals(permitRows);
+  const readinessScore = readinessScoreForEmployees(employees);
+  const hasEmployees = employees.length > 0;
+  const isLiveEmpty = mode === "live" && !loading && !hasEmployees;
+  const highRiskActivityCount = jobsites.filter((jobsite) => jobsite.riskLevel === "critical" || jobsite.riskLevel === "high").length;
+  const forecastLabel = !hasEmployees
+    ? "No Data"
+    : workforce.overdue > 0 || highRiskActivityCount > 0
+      ? "Elevated"
+      : workforce.expiringSoon > 0 || permits.expiringSoon > 0
+        ? "Watch"
+        : "Stable";
+  const forecastDetail = !hasEmployees
+    ? "Upload workforce records to calculate."
+    : forecastLabel === "Elevated"
+      ? `${workforce.overdue} overdue worker${workforce.overdue === 1 ? "" : "s"} in scope.`
+      : forecastLabel === "Watch"
+        ? `${workforce.expiringSoon} expiring worker record${workforce.expiringSoon === 1 ? "" : "s"}.`
+        : "No elevated workforce signals.";
+  const forecastClassName =
+    forecastLabel === "Elevated"
+      ? "text-purple-700"
+      : forecastLabel === "Watch"
+        ? "text-amber-600"
+        : forecastLabel === "Stable"
+          ? "text-emerald-700"
+          : "text-slate-500";
+  const predictedRiskImpact = !hasEmployees ? "No Data" : forecastLabel === "Elevated" ? "High" : forecastLabel === "Watch" ? "Watch" : "Stable";
+  const incidentLikelihood = !hasEmployees ? "No Data" : forecastLabel === "Elevated" ? "Elevated" : forecastLabel === "Watch" ? "Moderate" : "Low";
   const visibleEmployees = useMemo(
     () =>
-      safePredictDemoEmployees.filter(
+      employees.filter(
         (employee) =>
           (statusFilter === "all" || employee.status === statusFilter) &&
           (siteFilter === "all" || employee.assignedSiteId === siteFilter)
     ),
-    [siteFilter, statusFilter]
+    [employees, siteFilter, statusFilter]
   );
   const selectedEmployee = selectedEmployeeId
-    ? safePredictDemoEmployees.find((employee) => employee.id === selectedEmployeeId) ?? null
+    ? employees.find((employee) => employee.id === selectedEmployeeId) ?? null
     : null;
 
   useEffect(() => {
@@ -106,7 +222,7 @@ export default function SafePredictWorkforcePage() {
             <ExportButton
               fileName="safe-predict-workforce-readiness.json"
               label="Export workforce readiness report"
-              payload={{ company: safePredictDemoCompany, workforce, permits, employees: safePredictDemoEmployees, jobsites: safePredictDemoJobsites, trades: safePredictTradeReadiness, permitRows: safePredictPermits }}
+              payload={{ company: dataset.company, workforce, permits, employees, jobsites, trades, permitRows }}
               className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
             >
               <Download className="h-4 w-4" />
@@ -120,16 +236,19 @@ export default function SafePredictWorkforcePage() {
         <Card className="p-5 text-center">
           <button type="button" onClick={() => filterByStatus("all")} className="block w-full rounded-lg text-center focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
             <SectionTitle title="Overall Readiness Score" hint={false} />
-            <div className="mx-auto mt-4 grid h-28 w-28 place-items-center rounded-full bg-[conic-gradient(#16a34a_0_84%,#dcfce7_84%_100%)] p-2">
+            <div
+              className="mx-auto mt-4 grid h-28 w-28 place-items-center rounded-full p-2"
+              style={{ background: `conic-gradient(#16a34a 0 ${readinessScore}%, #dcfce7 ${readinessScore}% 100%)` }}
+            >
               <div className="grid h-full w-full place-items-center rounded-full bg-white">
                 <span>
-                  <span className="block text-4xl font-black text-slate-950">84</span>
-                  <span className="text-xs font-bold text-slate-500">/100</span>
+                  <span className="block text-4xl font-black text-slate-950">{hasEmployees ? readinessScore : "--"}</span>
+                  <span className="text-xs font-bold text-slate-500">{hasEmployees ? "/100" : "No data"}</span>
                 </span>
               </div>
             </div>
-            <p className="mt-3 text-lg font-black text-emerald-700">Good</p>
-            <p className="mt-3 text-sm font-semibold text-slate-600">View all roster sources</p>
+            <p className="mt-3 text-lg font-black text-emerald-700">{readinessLabel(readinessScore, hasEmployees)}</p>
+            <p className="mt-3 text-sm font-semibold text-slate-600">{isLiveEmpty ? "Add users or upload non-user employees to start tracking readiness." : "View all roster sources"}</p>
           </button>
         </Card>
 
@@ -173,7 +292,7 @@ export default function SafePredictWorkforcePage() {
             <div>
               <p className="text-sm font-black text-slate-900">Active Permits</p>
               <p className="mt-1 font-app-display text-4xl font-black text-slate-950">{permits.active}</p>
-              <p className="mt-1 text-sm text-slate-600">Across 12 sites.</p>
+              <p className="mt-1 text-sm text-slate-600">Across {jobsites.length} site{jobsites.length === 1 ? "" : "s"}.</p>
             </div>
           </Link>
           <Link href="/safe-predict/predictive-risk#forecast-drivers" className="flex items-center gap-4 pt-5 transition hover:bg-slate-50 md:pl-5 md:pt-0">
@@ -182,8 +301,8 @@ export default function SafePredictWorkforcePage() {
             </span>
             <div>
               <p className="text-sm font-black text-slate-900">High Risk Forecast</p>
-              <p className="mt-1 font-app-display text-3xl font-black text-purple-700">Elevated</p>
-              <p className="mt-2 text-sm font-black text-red-600">Up 12% vs last week</p>
+              <p className={cx("mt-1 font-app-display text-3xl font-black", forecastClassName)}>{forecastLabel}</p>
+              <p className="mt-2 text-sm font-black text-slate-600">{forecastDetail}</p>
             </div>
           </Link>
         </Card>
@@ -202,16 +321,20 @@ export default function SafePredictWorkforcePage() {
                 ) : null
               }
             />
-            <p className="mt-1 text-sm text-slate-600">{safePredictDemoCompany.name} demo people data for workforce, training, assignment, and risk conversations.</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {mode === "live"
+                ? `${dataset.company.name} roster-only employees and invited users for workforce, training, assignment, and risk conversations.`
+                : `${dataset.company.name} demo people data for workforce, training, assignment, and risk conversations.`}
+            </p>
             <p className="mt-2 text-xs font-black uppercase tracking-wide text-slate-500">
-              Showing {visibleEmployees.length} of {safePredictDemoEmployees.length} shell employees
+              Showing {visibleEmployees.length} of {employees.length} {mode === "live" ? "workforce records" : "shell employees"}
               {statusFilter !== "all" ? ` - ${statusLabels[statusFilter]}` : ""}
-              {siteFilter !== "all" ? ` - ${jobsiteForId(safePredictDemoJobsites, siteFilter)?.name ?? "Selected site"}` : ""}
+              {siteFilter !== "all" ? ` - ${jobsiteForId(jobsites, siteFilter)?.name ?? "Selected site"}` : ""}
             </p>
           </div>
           <div className="space-y-3 p-4 pt-1 md:hidden">
             {visibleEmployees.map((employee) => {
-              const jobsite = jobsiteForId(safePredictDemoJobsites, employee.assignedSiteId);
+              const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
               return (
                 <MobileRecordCard
                   key={`${employee.id}-mobile`}
@@ -231,7 +354,7 @@ export default function SafePredictWorkforcePage() {
             })}
             {visibleEmployees.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500">
-                No employees match those roster filters.
+                {isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those roster filters."}
               </div>
             ) : null}
           </div>
@@ -248,7 +371,7 @@ export default function SafePredictWorkforcePage() {
               </thead>
               <tbody>
                 {visibleEmployees.map((employee) => {
-                  const jobsite = jobsiteForId(safePredictDemoJobsites, employee.assignedSiteId);
+                  const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
                   return (
                     <tr
                       key={employee.id}
@@ -291,7 +414,7 @@ export default function SafePredictWorkforcePage() {
                 {visibleEmployees.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-5 py-8 text-center text-sm font-semibold text-slate-500">
-                      No employees match those roster filters.
+                      {isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those roster filters."}
                     </td>
                   </tr>
                 ) : null}
@@ -308,7 +431,7 @@ export default function SafePredictWorkforcePage() {
         <Card className="p-5">
           <SectionTitle title="Jobsite Assignment Snapshot" />
           <div className="mt-4 space-y-3">
-            {safePredictDemoJobsites.map((jobsite) => (
+            {jobsites.map((jobsite) => (
               <button
                 key={jobsite.id}
                 type="button"
@@ -328,6 +451,11 @@ export default function SafePredictWorkforcePage() {
                 <span className="text-sm font-black text-slate-900">{jobsite.riskScore}</span>
               </button>
             ))}
+            {jobsites.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500">
+                No jobsites yet. Add or import jobsites before assigning workforce records.
+              </div>
+            ) : null}
           </div>
         </Card>
       </div>
@@ -336,7 +464,7 @@ export default function SafePredictWorkforcePage() {
         <Card id="training-matrix" className="scroll-mt-24 overflow-hidden">
           <div className="p-5 pb-3"><SectionTitle title="Training & Compliance Matrix" /></div>
           <div className="space-y-3 p-4 pt-1 md:hidden">
-            {safePredictTradeReadiness.map((row) => (
+            {trades.map((row) => (
               <MobileRecordCard
                 key={`${row.trade}-mobile`}
                 title={row.trade}
@@ -367,7 +495,7 @@ export default function SafePredictWorkforcePage() {
                 </tr>
               </thead>
               <tbody>
-                {safePredictTradeReadiness.map((row) => (
+                {trades.map((row) => (
                   <tr key={row.trade} className="border-b border-slate-100">
                     <td className="px-5 py-3 font-black text-slate-900"><Users className="mr-2 inline h-4 w-4 text-blue-600" />{row.trade}</td>
                     <td className="px-5 py-3 text-center font-semibold text-slate-700">{row.workers}</td>
@@ -385,6 +513,11 @@ export default function SafePredictWorkforcePage() {
                 ))}
               </tbody>
             </table>
+            {trades.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm font-semibold text-slate-500">
+                No training matrix rows yet. Upload non-user employees or invite users to build readiness by trade.
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm">
             <div className="flex flex-wrap gap-5 text-slate-600">
@@ -403,7 +536,7 @@ export default function SafePredictWorkforcePage() {
             <SectionTitle title="Required Permits" action={<Link href="/safe-predict/permits" className="inline-flex items-center gap-2 text-sm font-black text-blue-600">View all permits <ArrowRight className="h-4 w-4" /></Link>} />
           </div>
           <div className="space-y-3 p-4 pt-1 md:hidden">
-            {safePredictPermits.map((permit) => (
+            {permitRows.map((permit) => (
               <MobileRecordCard
                 key={`${permit.type}-mobile`}
                 title={permit.type}
@@ -434,7 +567,7 @@ export default function SafePredictWorkforcePage() {
               </tr>
             </thead>
             <tbody>
-              {safePredictPermits.map((permit) => (
+              {permitRows.map((permit) => (
                 <tr key={permit.type} className="border-b border-slate-100">
                   <td className="px-5 py-3 font-black text-slate-900"><Flame className="mr-2 inline h-4 w-4 text-orange-500" />{permit.type}</td>
                   <td className="px-5 py-3 text-center font-black text-emerald-700">{permit.active}</td>
@@ -450,6 +583,11 @@ export default function SafePredictWorkforcePage() {
               </tr>
             </tbody>
           </table>
+          {permitRows.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm font-semibold text-slate-500">
+              No permit records yet.
+            </div>
+          ) : null}
           </div>
         </Card>
       </div>
@@ -459,7 +597,7 @@ export default function SafePredictWorkforcePage() {
           <SectionTitle title="Worker Readiness by Status" />
           <div className="mt-3 grid gap-4 md:grid-cols-[210px_1fr] xl:grid-cols-[210px_1fr] 2xl:grid-cols-[210px_1fr]">
             <div className="relative">
-              <ReadinessDonut />
+              {hasEmployees ? <ReadinessDonut /> : <div className="grid h-[210px] place-items-center rounded-full border border-dashed border-slate-200 bg-slate-50 text-sm font-black text-slate-500">No roster</div>}
               <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
                 <span>
                   <Users className="mx-auto h-7 w-7 text-slate-700" />
@@ -469,9 +607,9 @@ export default function SafePredictWorkforcePage() {
               </div>
             </div>
             <div className="space-y-4 self-center text-sm">
-              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" />Compliant</span><strong>{workforce.compliant} (78%)</strong></p>
-              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-500" />Expiring Soon</span><strong>{workforce.expiringSoon} (15%)</strong></p>
-              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" />Overdue</span><strong>{workforce.overdue} (7%)</strong></p>
+              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" />Compliant</span><strong>{workforce.compliant} ({workforce.compliantPercent}%)</strong></p>
+              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-500" />Expiring Soon</span><strong>{workforce.expiringSoon} ({workforce.expiringSoonPercent}%)</strong></p>
+              <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" />Overdue</span><strong>{workforce.overdue} ({workforce.overduePercent}%)</strong></p>
             </div>
           </div>
           <Link href="/safe-predict/team-access" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">Manage live roster <ArrowRight className="h-4 w-4" /></Link>
@@ -483,16 +621,22 @@ export default function SafePredictWorkforcePage() {
             Our AI model analyzes training, permit, and workforce data to predict risk and prevent incidents.
           </p>
           <div className="mt-4 rounded-lg bg-violet-50 p-4 text-sm font-black leading-6 text-violet-900">
-            28 workers have overdue training and/or permit gaps across 3 high-risk activities.
+            {hasEmployees
+              ? `${workforce.overdue} workers have overdue training and/or permit gaps across ${highRiskActivityCount} high-risk activities.`
+              : "No workforce records are available yet, so predictive workforce risk is not calculated."}
           </div>
           <div className="mt-4 space-y-3">
             <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
               <span className="font-black text-slate-900">Predicted Risk Impact</span>
-              <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">High Up 22%</span>
+              <span className={cx("rounded-full px-3 py-1 text-xs font-black", predictedRiskImpact === "High" ? "bg-red-50 text-red-600" : predictedRiskImpact === "Watch" ? "bg-amber-50 text-amber-600" : predictedRiskImpact === "Stable" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
+                {predictedRiskImpact}
+              </span>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3">
               <span className="font-black text-slate-900">Potential Incident Likelihood</span>
-              <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">Elevated Up 18%</span>
+              <span className={cx("rounded-full px-3 py-1 text-xs font-black", incidentLikelihood === "Elevated" ? "bg-violet-50 text-violet-700" : incidentLikelihood === "Moderate" ? "bg-amber-50 text-amber-600" : incidentLikelihood === "Low" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
+                {incidentLikelihood}
+              </span>
             </div>
           </div>
           <Link href="/safe-predict/predictive-risk" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">
@@ -503,9 +647,9 @@ export default function SafePredictWorkforcePage() {
         <Card className="p-5">
           <SectionTitle title="Recommended Next Steps" />
           <div className="mt-4 space-y-2">
-            <NextStepRow href="/safe-predict/training" title="Address 28 overdue training items" detail="Focus on LOTO and Fall Protection." tone="critical" icon={<AlertCircle className="h-5 w-5" />} />
-            <NextStepRow href="/safe-predict/permit-center" title="Renew 11 expiring permits" detail="Confined Space and Hot Work expiring soon." tone="medium" icon={<Clock className="h-5 w-5" />} />
-            <NextStepRow href="/safe-predict/training" title="Schedule refresher training" detail="First Aid and HazCom for 63 workers." tone="blue" icon={<Users className="h-5 w-5" />} />
+            <NextStepRow href="/safe-predict/training" title={`Address ${workforce.overdue} overdue training items`} detail={hasEmployees ? "Focus on overdue workforce records." : "No workforce records have been uploaded yet."} tone="critical" icon={<AlertCircle className="h-5 w-5" />} />
+            <NextStepRow href="/safe-predict/permit-center" title={`Renew ${permits.expiringSoon} expiring permits`} detail={permits.expiringSoon > 0 ? "Review permits expiring soon." : "No expiring permits are currently in this workspace."} tone="medium" icon={<Clock className="h-5 w-5" />} />
+            <NextStepRow href="/safe-predict/training" title="Schedule refresher training" detail={hasEmployees ? "Use roster status to target refresher training." : "Add users or upload non-user employees first."} tone="blue" icon={<Users className="h-5 w-5" />} />
             <NextStepRow href="/safe-predict/risk-mitigation" title="Reinforce pre-task planning" detail="Include permit and training verification." tone="low" icon={<ShieldCheck className="h-5 w-5" />} />
           </div>
           <Link href="/safe-predict/risk-mitigation" className="mt-4 inline-flex items-center gap-2 font-black text-blue-600">
@@ -514,7 +658,7 @@ export default function SafePredictWorkforcePage() {
         </Card>
       </div>
 
-      <EmployeeProfileDrawer employee={selectedEmployee} onClose={() => setSelectedEmployeeId(null)} />
+      <EmployeeProfileDrawer employee={selectedEmployee} jobsites={jobsites} onClose={() => setSelectedEmployeeId(null)} />
 
       <p className="mt-5 text-center text-xs font-semibold text-slate-500">Data is refreshed every 15 minutes</p>
     </div>
@@ -523,14 +667,16 @@ export default function SafePredictWorkforcePage() {
 
 function EmployeeProfileDrawer({
   employee,
+  jobsites,
   onClose,
 }: {
   employee: SafePredictDemoEmployee | null;
+  jobsites: SafePredictJobsiteRecord[];
   onClose: () => void;
 }) {
   if (!employee) return null;
 
-  const jobsite = jobsiteForId(safePredictDemoJobsites, employee.assignedSiteId);
+  const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
   const profileRows: Array<[string, string]> = [
     ["Employee ID", employee.id],
     ["Supervisor", employee.supervisor],
@@ -646,12 +792,6 @@ function EmployeeProfileDrawer({
       </aside>
     </div>
   );
-}
-
-function employeeStatusClass(status: SafePredictDemoEmployeeStatus) {
-  if (status === "overdue") return "bg-red-50 text-red-600";
-  if (status === "expiring") return "bg-amber-50 text-amber-600";
-  return "bg-emerald-50 text-emerald-600";
 }
 
 function MobileRecordCard({

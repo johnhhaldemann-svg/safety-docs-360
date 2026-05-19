@@ -11,15 +11,18 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Download,
   FilterX,
   MapPin,
   Plus,
   Search,
   ShieldCheck,
   Sparkles,
+  Upload,
   Users,
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { triggerBrowserDownload } from "@/lib/browserDownload";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import {
   Card,
@@ -139,6 +142,25 @@ type ScheduledRiskEvent = {
   isManual?: boolean;
 };
 
+const scheduleTemplateColumns = [
+  { key: "title", label: "Task title", aliases: ["task", "task title", "title", "activity"] },
+  { key: "dueDate", label: "Date", aliases: ["date", "due date", "work start date", "start date"] },
+  { key: "trade", label: "Trade", aliases: ["trade", "crew trade"] },
+  { key: "taskType", label: "Task type", aliases: ["task type", "type", "work type"] },
+  { key: "workArea", label: "Work area", aliases: ["work area", "area", "location"] },
+  { key: "shiftStartTime", label: "Shift start", aliases: ["shift start", "start time", "shift start time"] },
+  { key: "shiftEndTime", label: "Shift end", aliases: ["shift end", "end time", "shift end time"] },
+  { key: "crewSize", label: "Crew size", aliases: ["crew size", "crew", "headcount"] },
+  { key: "riskLevel", label: "Risk level", aliases: ["risk", "risk level", "priority"] },
+  { key: "owner", label: "Owner / supervisor", aliases: ["owner", "supervisor", "owner / supervisor"] },
+  { key: "hazards", label: "Hazards", aliases: ["hazards", "hazard categories"] },
+  { key: "permits", label: "Permit triggers", aliases: ["permit triggers", "permits", "permit"] },
+  { key: "controls", label: "Required controls", aliases: ["required controls", "controls"] },
+  { key: "notes", label: "Notes", aliases: ["notes", "context"] },
+] as const;
+
+const scheduleTemplateHeader = scheduleTemplateColumns.map((column) => column.label).join(",");
+
 function statusLabel(status: SafePredictJobsiteStatus) {
   if (status === "action-needed") return "Action Needed";
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -186,6 +208,171 @@ function controlList(value: string) {
 
 function listText(value: string[]) {
   return value.join(", ");
+}
+
+function normalizeCsvHeader(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseCsvRows(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+  return rows;
+}
+
+function normalizeScheduleDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return trimmed;
+  const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!usMatch) return null;
+  const month = Number(usMatch[1]);
+  const day = Number(usMatch[2]);
+  const year = Number(usMatch[3]);
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeScheduleTime(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const twentyFourHour = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFourHour) {
+    const hour = Number(twentyFourHour[1]);
+    const minute = Number(twentyFourHour[2]);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    return null;
+  }
+
+  const amPm = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  if (!amPm) return null;
+  let hour = Number(amPm[1]);
+  const minute = Number(amPm[2] ?? "0");
+  const period = amPm[3].toLowerCase();
+  if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+  if (period === "pm" && hour !== 12) hour += 12;
+  if (period === "am" && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function normalizeScheduleRisk(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "high";
+  if (["critical", "high", "medium", "low"].includes(normalized)) return normalized as SafePredictRiskLevel;
+  return null;
+}
+
+function parseScheduleTemplateCsv(text: string) {
+  const [headerRow, ...dataRows] = parseCsvRows(text.replace(/^\uFEFF/, ""));
+  const tasks: ScheduleTaskForm[] = [];
+  const errors: string[] = [];
+  if (!headerRow) return { tasks, errors: ["No CSV header row found."] };
+
+  const headerMap = new Map<string, number>();
+  headerRow.forEach((header, index) => headerMap.set(normalizeCsvHeader(header), index));
+
+  function cellFor(column: (typeof scheduleTemplateColumns)[number]) {
+    const match = column.aliases.find((alias) => headerMap.has(normalizeCsvHeader(alias)));
+    return typeof match === "string" ? headerMap.get(normalizeCsvHeader(match)) : undefined;
+  }
+
+  for (const [rowOffset, row] of dataRows.entries()) {
+    const rowNumber = rowOffset + 2;
+    const valueFor = (column: (typeof scheduleTemplateColumns)[number]) => {
+      const index = cellFor(column);
+      return typeof index === "number" ? (row[index] ?? "").trim() : "";
+    };
+
+    const title = valueFor(scheduleTemplateColumns[0]);
+    if (!title && row.every((value) => !value.trim())) continue;
+    if (!title) {
+      errors.push(`Row ${rowNumber}: task title is required.`);
+      continue;
+    }
+
+    const dueDate = normalizeScheduleDate(valueFor(scheduleTemplateColumns[1]));
+    const shiftStartTime = normalizeScheduleTime(valueFor(scheduleTemplateColumns[5]));
+    const shiftEndTime = normalizeScheduleTime(valueFor(scheduleTemplateColumns[6]));
+    const riskLevel = normalizeScheduleRisk(valueFor(scheduleTemplateColumns[8]));
+    const crewSize = valueFor(scheduleTemplateColumns[7]);
+    const crewSizeNumber = crewSize ? Number(crewSize) : null;
+    const invalidCrewSize = crewSizeNumber !== null && (!Number.isFinite(crewSizeNumber) || crewSizeNumber < 0);
+
+    if (dueDate === null) errors.push(`Row ${rowNumber}: date must be YYYY-MM-DD or MM/DD/YYYY.`);
+    if (shiftStartTime === null) errors.push(`Row ${rowNumber}: shift start must be HH:MM or h:mm AM/PM.`);
+    if (shiftEndTime === null) errors.push(`Row ${rowNumber}: shift end must be HH:MM or h:mm AM/PM.`);
+    if (riskLevel === null) errors.push(`Row ${rowNumber}: risk level must be critical, high, medium, or low.`);
+    if (invalidCrewSize) errors.push(`Row ${rowNumber}: crew size must be a positive number.`);
+    if (dueDate === null || shiftStartTime === null || shiftEndTime === null || riskLevel === null || invalidCrewSize) continue;
+
+    tasks.push({
+      title,
+      dueDate,
+      shiftStartTime,
+      shiftEndTime,
+      trade: valueFor(scheduleTemplateColumns[2]),
+      taskType: valueFor(scheduleTemplateColumns[3]),
+      workArea: valueFor(scheduleTemplateColumns[4]),
+      crewSize,
+      riskLevel,
+      owner: valueFor(scheduleTemplateColumns[9]),
+      hazards: valueFor(scheduleTemplateColumns[10]),
+      permits: valueFor(scheduleTemplateColumns[11]),
+      controls: valueFor(scheduleTemplateColumns[12]),
+      notes: valueFor(scheduleTemplateColumns[13]),
+    });
+  }
+
+  return { tasks, errors };
+}
+
+function scheduleTemplateFileName(site: SafePredictJobsiteRecord) {
+  const slug = [site.code, site.name]
+    .filter(Boolean)
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  return `${slug || "jobsite"}-schedule-template.csv`;
 }
 
 function jobsiteSearchText(site: SafePredictJobsiteRecord) {
@@ -420,7 +607,13 @@ export function SafePredictJobsitesPortfolio() {
           <Card className="p-5">
             <SectionTitle title="Site Risk Map" />
             <div className="mt-4">
-              {isLiveEmpty ? (
+              {isLiveMode ? (
+                <LiveJobsiteRiskList
+                  jobsites={dataset.jobsites}
+                  emptyTitle="No live risk zones"
+                  emptyDetail="Site risk zones will appear after this company has jobsites and field activity."
+                />
+              ) : isLiveEmpty ? (
                 <EmptyLivePanel
                   title="No live risk zones"
                   detail="Site risk zones will appear after this company has jobsites and field activity."
@@ -458,15 +651,59 @@ function EmptyLivePanel({ title, detail }: { title: string; detail: string }) {
   );
 }
 
+function riskDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "bg-red-500";
+  if (level === "high") return "bg-orange-500";
+  if (level === "medium") return "bg-amber-400";
+  return "bg-emerald-500";
+}
+
+function LiveJobsiteRiskList({
+  jobsites,
+  emptyTitle,
+  emptyDetail,
+}: {
+  jobsites: SafePredictJobsiteRecord[];
+  emptyTitle: string;
+  emptyDetail: string;
+}) {
+  if (jobsites.length === 0) {
+    return <EmptyLivePanel title={emptyTitle} detail={emptyDetail} />;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {jobsites.slice(0, 6).map((jobsite) => (
+        <Link
+          key={jobsite.id}
+          href={`/safe-predict/jobsites/${encodeURIComponent(jobsite.id)}`}
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:bg-white"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-black text-slate-900">{jobsite.name}</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{jobsite.openActions} open actions</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-slate-800">
+            <span className={cx("h-2.5 w-2.5 rounded-full", riskDotClass(jobsite.riskLevel))} />
+            {jobsite.riskScore}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const { dataset, updateActionStatus, addDraftAction, setSelectedJobsiteId, mode } = useSafePredictData();
   const [activeTab, setActiveTab] = useState<(typeof detailTabs)[number]>("Overview");
   const manualScheduleTaskIdRef = useRef(0);
+  const scheduleTemplateInputRef = useRef<HTMLInputElement | null>(null);
   const [manualScheduleTasks, setManualScheduleTasks] = useState<ScheduledRiskEvent[]>([]);
   const [schedulePrediction, setSchedulePrediction] = useState<ScheduleHazardPredictionResponse | null>(null);
   const [schedulePredictionLoading, setSchedulePredictionLoading] = useState(false);
   const [schedulePredictionError, setSchedulePredictionError] = useState<string | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleImporting, setScheduleImporting] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
@@ -484,7 +721,30 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     controls: "",
     notes: "",
   });
-  const site = jobsiteById(dataset, jobsiteId);
+  const site = jobsiteById(dataset, jobsiteId) ?? {
+    id: jobsiteId,
+    code: "JOB",
+    name: "Selected jobsite",
+    address: "",
+    cityState: "",
+    projectType: "",
+    phase: "Planning",
+    siteLead: "Unassigned",
+    workforceCount: 0,
+    activePermits: 0,
+    openActions: 0,
+    riskScore: 0,
+    riskLevel: "low",
+    status: "planned",
+    projectManager: "Unassigned",
+    customerName: "",
+    customerReportEmail: "",
+    startDate: "",
+    endDate: "",
+    inspectionGaps: 0,
+    incidentCount: 0,
+    observationCount: 0,
+  } satisfies SafePredictJobsiteRecord;
   const siteEmployees = dataset.employees.filter((employee) => employee.assignedSiteId === site.id);
   const siteActions = siteScoped(dataset.actions, site.id);
   const siteAlerts = siteScoped(dataset.alerts, site.id);
@@ -664,6 +924,111 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     }));
   }
 
+  function schedulePredictionForForm(form: ScheduleTaskForm): ScheduleHazardPredictionResponse | null {
+    if (!form.trade || !form.taskType || !form.workArea) return null;
+    const rules = buildRuleBasedScheduleHazardPrediction({
+      title: form.title,
+      trade: form.trade,
+      taskType: form.taskType,
+      workArea: form.workArea,
+      crewSize: form.crewSize,
+      shiftStartTime: form.shiftStartTime,
+      shiftEndTime: form.shiftEndTime,
+      notes: form.notes,
+    });
+    return { ...rules, source: "rules", aiMeta: null };
+  }
+
+  function enrichScheduleFormWithPrediction(form: ScheduleTaskForm, prediction: ScheduleHazardPredictionResponse | null) {
+    if (!prediction) return form;
+    return {
+      ...form,
+      hazards: form.hazards || listText(prediction.hazardCategories),
+      permits: form.permits || listText(prediction.permitTriggers),
+      controls: form.controls || listText(prediction.requiredControls),
+    };
+  }
+
+  function schedulePayloadForForm(form: ScheduleTaskForm, prediction: ScheduleHazardPredictionResponse | null) {
+    const hazards = controlList(form.hazards);
+    const permits = controlList(form.permits);
+    const controls = controlList(form.controls);
+    return {
+      title: form.title.trim(),
+      workStartDate: form.dueDate || new Date().toISOString().slice(0, 10),
+      shiftStartTime: form.shiftStartTime || null,
+      shiftEndTime: form.shiftEndTime || null,
+      trade: form.trade,
+      workArea: form.workArea,
+      crewSize: form.crewSize ? Number(form.crewSize) : null,
+      supervisorName: form.owner,
+      riskLevel: form.riskLevel,
+      isHighRisk: form.riskLevel === "critical" || form.riskLevel === "high",
+      hazardCategories: hazards,
+      permitTriggers: permits,
+      requiredControls: controls,
+      status: "planned",
+      notes: form.notes,
+      sourceMetadata: prediction
+        ? {
+            schedulePrediction: {
+              source: prediction.source,
+              inputFingerprint: prediction.inputFingerprint ?? null,
+              confidence: prediction.confidence,
+              rationale: prediction.rationale,
+              matchedSignals: prediction.matchedSignals,
+            },
+          }
+        : null,
+    };
+  }
+
+  async function scheduleAccessToken() {
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  }
+
+  async function saveScheduleFormToApi(form: ScheduleTaskForm, prediction: ScheduleHazardPredictionResponse | null, accessToken?: string | null) {
+    const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/schedule`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify(schedulePayloadForForm(form, prediction)),
+    });
+    const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+    return {
+      ok: response.ok,
+      message: data?.message,
+      error: data?.error || (response.ok ? null : "Schedule task could not be saved."),
+    };
+  }
+
+  function scheduleEventForForm(form: ScheduleTaskForm, prediction: ScheduleHazardPredictionResponse | null, source: string) {
+    const controls = controlList(form.controls);
+    manualScheduleTaskIdRef.current += 1;
+    return {
+      id: `manual-schedule-${manualScheduleTaskIdRef.current}`,
+      title: form.title.trim(),
+      type: form.taskType || "Task",
+      date: compactDateLabel(form.dueDate),
+      owner: form.owner.trim() || site.siteLead,
+      location: form.workArea.trim() || site.phase,
+      riskLevel: form.riskLevel,
+      detail: prediction?.rationale || `${riskText(form.riskLevel)} risk scheduled task added for upcoming work planning.`,
+      controls: controls.length > 0 ? controls : ["Pre-task plan", "Supervisor verification"],
+      hazards: controlList(form.hazards),
+      permits: controlList(form.permits),
+      source,
+      predictionSource: prediction?.source,
+      isManual: true,
+    } satisfies ScheduledRiskEvent;
+  }
+
   function resetScheduleTaskForm() {
     setScheduleTaskForm({
       title: "",
@@ -688,85 +1053,76 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   async function addScheduleTask() {
     const title = scheduleTaskForm.title.trim();
     if (!title) return;
-    const controls = controlList(scheduleTaskForm.controls);
-    const hazards = controlList(scheduleTaskForm.hazards);
-    const permits = controlList(scheduleTaskForm.permits);
     setScheduleSaving(true);
     setScheduleMessage(null);
+    const prediction = schedulePrediction;
+    const formToSave = enrichScheduleFormWithPrediction({ ...scheduleTaskForm, title }, prediction);
     if (mode === "live") {
       try {
-        const supabase = getSupabaseBrowserClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/schedule`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-          },
-          body: JSON.stringify({
-            title,
-            workStartDate: scheduleTaskForm.dueDate || new Date().toISOString().slice(0, 10),
-            shiftStartTime: scheduleTaskForm.shiftStartTime || null,
-            shiftEndTime: scheduleTaskForm.shiftEndTime || null,
-            trade: scheduleTaskForm.trade,
-            workArea: scheduleTaskForm.workArea,
-            crewSize: scheduleTaskForm.crewSize ? Number(scheduleTaskForm.crewSize) : null,
-            supervisorName: scheduleTaskForm.owner,
-            riskLevel: scheduleTaskForm.riskLevel,
-            isHighRisk: scheduleTaskForm.riskLevel === "critical" || scheduleTaskForm.riskLevel === "high",
-            hazardCategories: hazards,
-            permitTriggers: permits,
-            requiredControls: controls,
-            status: "planned",
-            notes: scheduleTaskForm.notes,
-            sourceMetadata: schedulePrediction
-              ? {
-                  schedulePrediction: {
-                    source: schedulePrediction.source,
-                    inputFingerprint: schedulePrediction.inputFingerprint ?? null,
-                    confidence: schedulePrediction.confidence,
-                    rationale: schedulePrediction.rationale,
-                    matchedSignals: schedulePrediction.matchedSignals,
-                  },
-                }
-              : null,
-          }),
-        });
-        const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
-        if (!response.ok) {
-          setScheduleMessage(data?.error || "Schedule task could not be saved.");
+        const result = await saveScheduleFormToApi(formToSave, prediction, await scheduleAccessToken());
+        if (!result.ok) {
+          setScheduleMessage(result.error || "Schedule task could not be saved.");
           setScheduleSaving(false);
           return;
         }
-        setScheduleMessage(data?.message || "Schedule task saved.");
+        setScheduleMessage(result.message || "Schedule task saved.");
       } catch (error) {
         setScheduleMessage(error instanceof Error ? error.message : "Schedule task could not be saved.");
         setScheduleSaving(false);
         return;
       }
     }
-    manualScheduleTaskIdRef.current += 1;
-    const task: ScheduledRiskEvent = {
-      id: `manual-schedule-${manualScheduleTaskIdRef.current}`,
-      title,
-      type: scheduleTaskForm.taskType || "Task",
-      date: compactDateLabel(scheduleTaskForm.dueDate),
-      owner: scheduleTaskForm.owner.trim() || site.siteLead,
-      location: scheduleTaskForm.workArea.trim() || site.phase,
-      riskLevel: scheduleTaskForm.riskLevel,
-      detail: schedulePrediction?.rationale || `${riskText(scheduleTaskForm.riskLevel)} risk scheduled task added for upcoming work planning.`,
-      controls: controls.length > 0 ? controls : ["Pre-task plan", "Supervisor verification"],
-      hazards,
-      permits,
-      source: mode === "live" ? "Saved schedule task" : "Added task",
-      predictionSource: schedulePrediction?.source,
-      isManual: true,
-    };
+    const task = scheduleEventForForm(formToSave, prediction, mode === "live" ? "Saved schedule task" : "Added task");
     setManualScheduleTasks((current) => [task, ...current]);
     resetScheduleTaskForm();
     setScheduleSaving(false);
+  }
+
+  function downloadScheduleTemplate() {
+    const blob = new Blob([`${scheduleTemplateHeader}\r\n`], { type: "text/csv;charset=utf-8" });
+    triggerBrowserDownload(blob, scheduleTemplateFileName(site));
+    setScheduleMessage("Schedule template downloaded. Fill one task per row, then upload the CSV.");
+  }
+
+  async function uploadScheduleTemplate(file: File | null) {
+    if (!file) return;
+    setScheduleImporting(true);
+    setScheduleMessage(null);
+    try {
+      const text = await file.text();
+      const parsed = parseScheduleTemplateCsv(text);
+      if (parsed.tasks.length === 0) {
+        setScheduleMessage(parsed.errors.length > 0 ? parsed.errors.slice(0, 3).join(" ") : "No schedule rows were found in that template.");
+        return;
+      }
+
+      const events: ScheduledRiskEvent[] = [];
+      const saveErrors: string[] = [];
+      const accessToken = mode === "live" ? await scheduleAccessToken() : null;
+
+      for (const [index, task] of parsed.tasks.entries()) {
+        const prediction = schedulePredictionForForm(task);
+        const taskWithPrediction = enrichScheduleFormWithPrediction(task, prediction);
+        if (mode === "live") {
+          const result = await saveScheduleFormToApi(taskWithPrediction, prediction, accessToken);
+          if (!result.ok) {
+            saveErrors.push(`Row ${index + 2}: ${result.error || "save failed"}`);
+            continue;
+          }
+        }
+        events.push(scheduleEventForForm(taskWithPrediction, prediction, mode === "live" ? "Imported schedule task" : "Imported task"));
+      }
+
+      if (events.length > 0) setManualScheduleTasks((current) => [...events, ...current]);
+      const skipped = parsed.errors.length + saveErrors.length;
+      const detail = [...parsed.errors, ...saveErrors].slice(0, 3).join(" ");
+      setScheduleMessage(`Imported ${events.length} schedule task${events.length === 1 ? "" : "s"}${skipped ? `; skipped ${skipped}. ${detail}` : "."}`);
+    } catch (error) {
+      setScheduleMessage(error instanceof Error ? error.message : "Schedule template could not be uploaded.");
+    } finally {
+      setScheduleImporting(false);
+      if (scheduleTemplateInputRef.current) scheduleTemplateInputRef.current.value = "";
+    }
   }
 
   function createSiteAction() {
@@ -871,7 +1227,17 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         <div className="grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="p-5">
             <SectionTitle title="Jobsite Risk Heat Map" />
-            <div className="mt-4"><RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} /></div>
+            <div className="mt-4">
+              {mode === "live" ? (
+                <LiveJobsiteRiskList
+                  jobsites={[site]}
+                  emptyTitle="No live risk zones"
+                  emptyDetail="This jobsite will show risk zones after field activity is recorded."
+                />
+              ) : (
+                <RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} />
+              )}
+            </div>
           </Card>
           <Card className="p-5">
             <SectionTitle title="Top Site Signals" />
@@ -984,7 +1350,28 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 <Plus className="h-4 w-4 text-blue-600" />
                 Add Schedule Task
               </div>
-              <span className="text-xs font-black uppercase tracking-wide text-slate-500">Plans into high-to-low risk order</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={downloadScheduleTemplate}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Template
+                </button>
+                <label className={cx("inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50", scheduleImporting ? "pointer-events-none opacity-60" : "")}>
+                  <Upload className="h-4 w-4" />
+                  {scheduleImporting ? "Uploading" : "Upload Template"}
+                  <input
+                    ref={scheduleTemplateInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="sr-only"
+                    onChange={(event) => void uploadScheduleTemplate(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Plans into high-to-low risk order</span>
+              </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <input

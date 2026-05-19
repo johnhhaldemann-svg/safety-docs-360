@@ -20,9 +20,8 @@ import {
   safePredictMitigations,
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
-import { SafePredictLaunchReadiness } from "@/components/safe-predict/SafePredictLaunchReadiness";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
-import { riskForecastForSite, summarizeSafePredictDataset } from "@/lib/safePredictData";
+import { riskForecastForSite, summarizeSafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
 
 function SourceStatCard({
   title,
@@ -50,6 +49,51 @@ function SourceStatCard({
         View source
       </p>
     </Link>
+  );
+}
+
+function CompanyLogoPanel({
+  companyName,
+  logoDataUrl,
+}: {
+  companyName: string;
+  logoDataUrl?: string | null;
+}) {
+  return (
+    <Card className="mb-5 p-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Company logo</p>
+          <h2 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950">{companyName}</h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            This dashboard uses the logo saved on the company profile.
+          </p>
+        </div>
+        <div className="flex min-h-[150px] items-center justify-center rounded-lg border border-slate-200 bg-white p-6">
+          {logoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Company profile logos are stored as data URLs.
+            <img
+              src={logoDataUrl}
+              alt={`${companyName} logo`}
+              className="max-h-28 w-full max-w-[360px] object-contain"
+            />
+          ) : (
+            <div className="max-w-md text-center">
+              <p className="text-sm font-black text-slate-900">No company logo saved yet</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                Add a logo to the company profile so it appears here.
+              </p>
+              <Link
+                href="/company-setup"
+                className="mt-4 inline-flex min-h-10 items-center rounded-lg border border-blue-100 bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:border-blue-200 hover:bg-white"
+              >
+                Open company setup
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -85,6 +129,47 @@ function extendForecastWindow(points: SafePredictForecastPoint[], windowDays: Fo
       };
     }),
   ];
+}
+
+function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "bg-red-500";
+  if (level === "high") return "bg-orange-500";
+  if (level === "medium") return "bg-amber-400";
+  return "bg-emerald-500";
+}
+
+function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
+  if (jobsites.length === 0) {
+    return (
+      <div className="grid min-h-[220px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+        <div>
+          <p className="text-sm font-black text-slate-800">No live risk map data yet</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add jobsites, inspections, observations, or incidents to populate this map.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {jobsites.slice(0, 6).map((jobsite) => (
+        <Link
+          key={jobsite.id}
+          href={`/safe-predict/jobsites/${encodeURIComponent(jobsite.id)}`}
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:bg-white"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-black text-slate-900">{jobsite.name}</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{jobsite.workforceCount} workers</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-slate-800">
+            <span className={cx("h-2.5 w-2.5 rounded-full", riskMapDotClass(jobsite.riskLevel))} />
+            {jobsite.riskScore}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 export default function SafePredictDashboardPage() {
@@ -133,7 +218,7 @@ export default function SafePredictDashboardPage() {
       />
 
       <div className="mb-5">
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Welcome back, John.</h2>
+        <h2 className="text-2xl font-black tracking-tight text-slate-950">Welcome back.</h2>
         <p className="mt-1 text-slate-600">Here&apos;s what&apos;s happening across your projects today.</p>
       </div>
 
@@ -182,7 +267,7 @@ export default function SafePredictDashboardPage() {
         </div>
       </Card>
 
-      <SafePredictLaunchReadiness />
+      <CompanyLogoPanel companyName={dataset.company.name} logoDataUrl={dataset.company.logoDataUrl} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <MetricCard
@@ -304,7 +389,7 @@ export default function SafePredictDashboardPage() {
             action={<Link href="/safe-predict/risk-mitigation" className="text-sm font-bold text-blue-600">View Full Map</Link>}
           />
           <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_168px]">
-            <RiskHeatMap />
+            {dataset.mode === "live" ? <LiveDashboardRiskMap jobsites={dataset.jobsites} /> : <RiskHeatMap />}
             <div className="rounded-lg border border-slate-200 p-4">
               <p className="text-sm font-black text-slate-900">Risk Level</p>
               <div className="mt-4 space-y-4 text-sm font-semibold text-slate-600">

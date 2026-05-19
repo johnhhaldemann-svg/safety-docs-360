@@ -45,6 +45,7 @@ import {
   siteScoped,
   summarizeSafePredictDataset,
   type SafePredictDataset,
+  type SafePredictJobsiteRecord,
 } from "@/lib/safePredictData";
 import {
   safePredictWorkspaceConfigs,
@@ -235,6 +236,47 @@ function WorkspaceIcon({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
 
 function siteName(siteId: string, jobsites: Array<{ id: string; name: string }>) {
   return jobsites.find((site) => site.id === siteId)?.name ?? "All Sites";
+}
+
+function riskDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "bg-red-500";
+  if (level === "high") return "bg-orange-500";
+  if (level === "medium") return "bg-amber-400";
+  return "bg-emerald-500";
+}
+
+function LiveRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
+  if (jobsites.length === 0) {
+    return (
+      <div className="grid min-h-[220px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+        <div>
+          <p className="text-sm font-black text-slate-800">No live risk map data yet</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add jobsites and field activity to populate this map.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {jobsites.slice(0, 6).map((jobsite) => (
+        <Link
+          key={jobsite.id}
+          href={`/safe-predict/jobsites/${encodeURIComponent(jobsite.id)}`}
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:bg-white"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-black text-slate-900">{jobsite.name}</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{jobsite.openActions} open actions</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-slate-800">
+            <span className={cx("h-2.5 w-2.5 rounded-full", riskDotClass(jobsite.riskLevel))} />
+            {jobsite.riskScore}
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
 }
 
 function inferLocalTrainingTitle(employee: SafePredictDemoEmployee) {
@@ -1306,7 +1348,9 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           </Card>
           <Card className="p-5">
             <SectionTitle title="Risk Heat Map" />
-            <div className="mt-4"><RiskHeatMap variant="dashboard" /></div>
+            <div className="mt-4">
+              {dataset.mode === "live" ? <LiveRiskMap jobsites={dataset.jobsites} /> : <RiskHeatMap variant="dashboard" />}
+            </div>
           </Card>
         </div>
       ) : null}

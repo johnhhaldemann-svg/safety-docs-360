@@ -1906,7 +1906,7 @@ export default function PESHEPUniversalPage() {
             </fieldset>
           </CompactPanel>
 
-          <div className="sticky bottom-4 z-10">
+          <div className="relative z-10">
             <div className="app-sticky-dark-bar p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2121,7 +2121,7 @@ function DocumentSectionPreview({
         <div className="grid gap-1.5 sm:grid-cols-2">
           {step.documentSections.map((section, index) => (
             <div
-              key={section}
+              key={`${section}-${index}`}
               className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5"
             >
               <span className="shrink-0 text-[10px] font-black text-sky-300">
@@ -2140,9 +2140,9 @@ function DocumentSectionPreview({
           Applicable References
         </div>
         <div className="flex flex-wrap gap-1">
-          {step.referenceIds.map((referenceId) => (
+          {step.referenceIds.map((referenceId, index) => (
             <span
-              key={referenceId}
+              key={`${referenceId}-${index}`}
               className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-200"
             >
               {referenceId}
@@ -2161,9 +2161,9 @@ function CompactMapGroup({ title, items }: { title: string; items: string[] }) {
         {title}
       </div>
       <div className="flex flex-wrap gap-1">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <span
-            key={item}
+            key={`${item}-${index}`}
             className="rounded-full border border-slate-800 bg-slate-900/70 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-300"
           >
             {item}
@@ -2294,8 +2294,8 @@ function CompactSelect({
     <label className="block">
       <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
       <select value={value} onChange={(e) => onChange(e.target.value)} className="app-dark-input h-10 text-sm font-medium">
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
+        {options.map((option, index) => (
+          <option key={`${option.value}-${index}`} value={option.value}>
             {option.label}
           </option>
         ))}
@@ -2315,11 +2315,11 @@ function CompactSelectionList({
 }) {
   return (
     <div className="grid gap-1.5 md:grid-cols-2">
-      {options.map((option) => {
+      {options.map((option, index) => {
         const checked = values.includes(option);
         return (
           <button
-            key={option}
+            key={`${option}-${index}`}
             type="button"
             onClick={() => onToggle(option)}
             className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${checked ? "border-sky-500/35 bg-sky-950/35 text-white" : "border-slate-700/70 bg-slate-900/80 text-slate-300 hover:bg-slate-950/50"}`}

@@ -499,7 +499,7 @@ export function SafePredictJobsiteAudits() {
                 <input
                   value={auditors}
                   onChange={(event) => setAuditors(event.target.value)}
-                  placeholder="Alex Morgan, John Doe"
+                  placeholder="Safety lead, foreman"
                   className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
                 />
               </label>

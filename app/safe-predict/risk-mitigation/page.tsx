@@ -113,6 +113,47 @@ function persistCorrectiveActions(actions: SafePredictCorrectiveAction[]) {
   window.localStorage.setItem(localActionsStorageKey, JSON.stringify(actions));
 }
 
+function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "bg-red-500";
+  if (level === "high") return "bg-orange-500";
+  if (level === "medium") return "bg-amber-400";
+  return "bg-emerald-500";
+}
+
+function LiveRiskMapPanel({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
+  if (jobsites.length === 0) {
+    return (
+      <div className="grid min-h-[220px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+        <div>
+          <p className="text-sm font-black text-slate-800">No live risk map data yet</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add jobsites, inspections, observations, or incidents to populate this map.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {jobsites.slice(0, 6).map((jobsite) => (
+        <button
+          key={jobsite.id}
+          type="button"
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:bg-white"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-black text-slate-900">{jobsite.name}</span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500">{jobsite.openActions} open actions</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-slate-800">
+            <span className={cx("h-2.5 w-2.5 rounded-full", riskMapDotClass(jobsite.riskLevel))} />
+            {jobsite.riskScore}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SafePredictRiskMitigationPage() {
   const { dataset, updateActionStatus, addDraftAction } = useSafePredictData();
   const providerActions = dataset.actions;
@@ -226,12 +267,14 @@ export default function SafePredictRiskMitigationPage() {
   function addCorrectiveAction(status: SafePredictActionStatus = "New") {
     const riskForAction = selectedRisk ?? visibleAlerts[0] ?? providerAlerts[0];
     if (!riskForAction) return;
+    const defaultAssignee = dataset.company.safetyLead && dataset.company.safetyLead !== "Not set" ? dataset.company.safetyLead : "Unassigned";
+    const fallbackSiteId = dataset.jobsites[0]?.id ?? "workspace";
     const nextAction: SafePredictCorrectiveAction = {
       id: `local-${Date.now()}`,
       title: `Review ${riskForAction.title.toLowerCase()} controls`,
       linkedRiskId: riskForAction.id,
       linkedRisk: riskForAction.title,
-      assignee: "Alex Morgan",
+      assignee: defaultAssignee,
       dueDate: "May 30",
       status,
       priority: riskForAction.riskLevel === "critical" || riskForAction.riskLevel === "high" ? "high" : "medium",
@@ -242,7 +285,7 @@ export default function SafePredictRiskMitigationPage() {
       title: nextAction.title,
       linkedRiskId: nextAction.linkedRiskId,
       linkedRisk: nextAction.linkedRisk,
-      siteId: "siteId" in riskForAction && typeof riskForAction.siteId === "string" ? riskForAction.siteId : "riverside",
+      siteId: "siteId" in riskForAction && typeof riskForAction.siteId === "string" ? riskForAction.siteId : fallbackSiteId,
       priority: nextAction.priority,
       createdFrom: riskForAction.source === "Observation" ? "Observation" : riskForAction.source === "Inspection" ? "Inspection" : "Predictive Alert",
     });
@@ -440,7 +483,7 @@ export default function SafePredictRiskMitigationPage() {
       <Card className="mb-5 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Demo company in this workspace</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Company in this workspace</p>
             <p className="mt-1 text-lg font-black text-slate-950">{dataset.company.name}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -588,7 +631,9 @@ export default function SafePredictRiskMitigationPage() {
                 />
               }
             />
-            <div className="mt-4"><RiskHeatMap variant="mitigation" /></div>
+            <div className="mt-4">
+              {dataset.mode === "live" ? <LiveRiskMapPanel jobsites={dataset.jobsites} /> : <RiskHeatMap variant="mitigation" />}
+            </div>
             <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Critical</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> High</span>

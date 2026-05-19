@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getCompanySeatCounts } from "@/lib/companySeats";
+import { isMissingTrackedEmployeesSchemaError } from "@/lib/companyTrackedEmployees";
 import { authorizeRequest } from "@/lib/rbac";
 import { buildRevenueReadinessSummary } from "@/lib/revenueReadiness";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
@@ -36,6 +37,7 @@ export async function GET(request: Request, context: RouteContext) {
     membershipsResult,
     invitesResult,
     documentsResult,
+    trackedEmployeesResult,
     subscriptionResult,
     jobsitesResult,
     actionsResult,
@@ -65,6 +67,10 @@ export async function GET(request: Request, context: RouteContext) {
     supabase
       .from("documents")
       .select("status, final_file_path, draft_file_path")
+      .eq("company_id", companyId),
+    supabase
+      .from("company_employee_profiles")
+      .select("status")
       .eq("company_id", companyId),
     supabase
       .from("company_subscriptions")
@@ -97,11 +103,17 @@ export async function GET(request: Request, context: RouteContext) {
       .eq("status", "overdue"),
   ]);
 
+  const trackedEmployeesHardError =
+    trackedEmployeesResult.error &&
+    !isMissingTrackedEmployeesSchemaError(trackedEmployeesResult.error.message)
+      ? trackedEmployeesResult.error
+      : null;
   const hardError =
     companyResult.error ||
     membershipsResult.error ||
     invitesResult.error ||
     documentsResult.error ||
+    trackedEmployeesHardError ||
     subscriptionResult.error ||
     jobsitesResult.error ||
     actionsResult.error ||
@@ -185,6 +197,9 @@ export async function GET(request: Request, context: RouteContext) {
         final_file_path?: string | null;
         draft_file_path?: string | null;
       }> | null) ?? [],
+    trackedEmployees: trackedEmployeesResult.error
+      ? []
+      : ((trackedEmployeesResult.data as Array<{ status?: string | null }> | null) ?? []),
     onboarding: {
       commandCenterViewed,
       completedSteps,

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -180,6 +181,24 @@ type CompanySubscriptionSummary = {
 type CompanyHealthSummary = {
   score: number;
   band: string;
+  adoption: {
+    items: Array<{
+      id: "company_profile" | "team_invites" | "first_jobsite" | "first_document" | "command_center";
+      label: string;
+      note: string;
+      href: string;
+      complete: boolean;
+    }>;
+    completedCount: number;
+    totalCount: number;
+    nextItem: {
+      id: "company_profile" | "team_invites" | "first_jobsite" | "first_document" | "command_center";
+      label: string;
+      note: string;
+      href: string;
+      complete: boolean;
+    } | null;
+  };
   activationPercent: number;
   operationsPercent: number;
   billingPercent: number;
@@ -1365,6 +1384,67 @@ export default function AdminCompanyDetailPage({
                   </div>
                   <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{signal.detail}</p>
                 </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[var(--app-border-strong)] bg-white/90 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  Onboarding Checklist
+                </div>
+                <p className="mt-1 text-sm text-[var(--app-text)]">
+                  {companyHealth.adoption.completedCount}/{companyHealth.adoption.totalCount} launch steps complete.
+                </p>
+              </div>
+              <StatusBadge
+                label={
+                  companyHealth.adoption.completedCount === companyHealth.adoption.totalCount
+                    ? "complete"
+                    : "needs setup"
+                }
+                tone={
+                  companyHealth.adoption.completedCount === companyHealth.adoption.totalCount
+                    ? "success"
+                    : "error"
+                }
+              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {companyHealth.adoption.items.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`rounded-xl border px-4 py-3 transition hover:bg-white ${
+                    item.complete
+                      ? "border-emerald-200 bg-emerald-50/75 hover:border-emerald-300"
+                      : "border-red-200 bg-red-50/75 hover:border-red-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 inline-flex h-8 w-8 flex-none items-center justify-center rounded-full ${
+                        item.complete
+                          ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200"
+                          : "bg-red-100 text-red-700 ring-1 ring-red-200"
+                      }`}
+                    >
+                      {item.complete ? (
+                        <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                      ) : (
+                        <XCircle aria-hidden="true" className="h-5 w-5" />
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-[var(--app-text-strong)]">
+                        {item.label}
+                      </span>
+                      <span className="mt-1 block text-sm leading-6 text-[var(--app-text)]">
+                        {item.note}
+                      </span>
+                    </span>
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
