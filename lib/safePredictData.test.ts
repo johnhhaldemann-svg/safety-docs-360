@@ -35,7 +35,7 @@ describe("safePredictData", () => {
       status: "active",
       siteLead: "Sam Rivera",
     });
-    expect(jobsites[0].riskScore).toBeGreaterThan(0);
+    expect(jobsites[0].riskScore).toBe(0);
   });
 
   it("builds a connected demo fallback dataset", () => {
@@ -49,6 +49,63 @@ describe("safePredictData", () => {
     expect(siteScoped(dataset.inspections, "warehouse-a").length).toBeGreaterThan(0);
     expect(summary.openActions).toBeGreaterThan(0);
     expect(summary.inspectionGaps).toBeGreaterThan(0);
+  });
+
+  it("keeps empty live workspaces live and tenant-clean", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { id: "co-live-1", name: "TJ Contracting", accountType: "Live workspace" },
+      liveJobsites: [],
+    });
+    const summary = summarizeSafePredictDataset(dataset);
+
+    expect(dataset.mode).toBe("live");
+    expect(dataset.company).toMatchObject({ id: "co-live-1", name: "TJ Contracting" });
+    expect(dataset.jobsites).toEqual([]);
+    expect(dataset.actions).toEqual([]);
+    expect(dataset.permits).toEqual([]);
+    expect(dataset.events).toEqual([]);
+    expect(dataset.hazards).toEqual([]);
+    expect(summary).toMatchObject({
+      jobsites: 0,
+      employees: 0,
+      openActions: 0,
+      activePermits: 0,
+      riskScore: 0,
+      inspectionGaps: 0,
+      incidents: 0,
+      observations: 0,
+      hazards: 0,
+    });
+  });
+
+  it("normalizes live jobsites without inheriting demo portfolio metadata", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "TJ Contracting" },
+      liveJobsites: [{ id: "live-site-1", name: "Main Office Build", status: "active" }],
+    });
+
+    expect(dataset.mode).toBe("live");
+    expect(dataset.jobsites).toHaveLength(1);
+    expect(dataset.jobsites[0]).toMatchObject({
+      id: "live-site-1",
+      name: "Main Office Build",
+      code: "Not set",
+      address: "Not set",
+      cityState: "Not set",
+      phase: "Not set",
+      siteLead: "Not set",
+      customerName: "Not set",
+      workforceCount: 0,
+      openActions: 0,
+      activePermits: 0,
+      inspectionGaps: 0,
+      incidentCount: 0,
+      observationCount: 0,
+    });
+    expect(dataset.jobsites[0].name).not.toMatch(/Riverside|Plant|Warehouse/i);
+    expect(dataset.jobsites[0].customerReportEmail).not.toContain("apex-demo");
   });
 
   it("normalizes live operational records into SafePredict pages", () => {

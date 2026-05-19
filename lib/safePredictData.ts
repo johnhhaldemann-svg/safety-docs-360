@@ -183,6 +183,22 @@ export type SafePredictLiveCompanyInput = Partial<SafePredictDemoCompany> & {
   logoFileName?: string | null;
 };
 
+const UNASSIGNED_LIVE_SITE_ID = "unassigned-live-site";
+
+const emptyLiveCompany: SafePredictDemoCompany = {
+  ...safePredictDemoCompany,
+  id: "live-company",
+  name: "Company Workspace",
+  industry: "Live company workspace",
+  headquarters: "Company workspace",
+  accountType: "Live workspace",
+  safetyLead: "Not set",
+  operationsLead: "Not set",
+  primaryContactEmail: "Not set",
+  logoDataUrl: null,
+  logoFileName: null,
+};
+
 const alertSiteIds: Record<string, string> = {
   "machine-guarding": "plant-1",
   "forklift-proximity": "warehouse-a",
@@ -208,10 +224,6 @@ export function siteIdFromLabel(value: string) {
   return siteAliases[normalized] ?? safePredictDemoJobsites.find((site) => normalizeKey(site.name) === normalized)?.id ?? "riverside";
 }
 
-function fallbackSite(index: number) {
-  return safePredictDemoJobsites[index % safePredictDemoJobsites.length];
-}
-
 function normalizeStatus(value?: string | null): SafePredictJobsiteStatus {
   const normalized = (value ?? "").trim().toLowerCase().replace(/\s+/g, "-");
   if (normalized === "planned" || normalized === "active" || normalized === "completed" || normalized === "archived") return normalized;
@@ -234,9 +246,9 @@ function liveTextValue(value: string | null | undefined, fallback: string) {
 }
 
 function normalizeLiveCompany(input?: SafePredictLiveCompanyInput | null): SafePredictDemoCompany {
-  if (!input?.name?.trim()) return safePredictDemoCompany;
+  if (!input?.name?.trim()) return emptyLiveCompany;
   return {
-    ...safePredictDemoCompany,
+    ...emptyLiveCompany,
     id: liveTextValue(input.id, "live-company"),
     name: input.name.trim(),
     industry: liveTextValue(input.industry, "Live company workspace"),
@@ -274,17 +286,6 @@ function normalizeRiskLevel(value?: string | null, fallback: SafePredictRiskLeve
   return fallback;
 }
 
-function riskScoreFromRows(site: SafePredictDemoJobsite, related: SafePredictLiveRecordRow[]) {
-  const score = site.riskScore + related.reduce((total, row) => {
-    const severity = normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), "medium");
-    const status = textValue(row, ["status"]).toLowerCase();
-    const severityPoints = severity === "critical" ? 8 : severity === "high" ? 5 : severity === "medium" ? 2 : 0;
-    const statusPoints = status.includes("closed") || status.includes("verified") ? -2 : 1;
-    return total + severityPoints + statusPoints;
-  }, 0);
-  return Math.max(18, Math.min(96, score));
-}
-
 function liveSiteId(row: SafePredictLiveRecordRow, jobsites: SafePredictJobsiteRecord[], index: number) {
   const jobsiteId = textValue(row, ["jobsite_id", "jobsiteId", "site_id", "siteId"]);
   if (jobsiteId && jobsites.some((site) => site.id === jobsiteId)) return jobsiteId;
@@ -293,7 +294,7 @@ function liveSiteId(row: SafePredictLiveRecordRow, jobsites: SafePredictJobsiteR
     const byName = jobsites.find((site) => site.name.toLowerCase() === jobsiteName.toLowerCase() || jobsiteName.toLowerCase().includes(site.name.toLowerCase()));
     if (byName) return byName.id;
   }
-  return jobsites[index % Math.max(jobsites.length, 1)]?.id ?? "riverside";
+  return jobsites[index % Math.max(jobsites.length, 1)]?.id ?? UNASSIGNED_LIVE_SITE_ID;
 }
 
 function normalizeActionStatus(value?: string | null): SafePredictActionStatus {
@@ -326,34 +327,48 @@ function withSiteMetrics(site: SafePredictDemoJobsite, index: number): SafePredi
   };
 }
 
+function riskScoreFromLiveRows(related: SafePredictLiveRecordRow[]) {
+  const score = related.reduce((total, row) => {
+    const severity = normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), "medium");
+    const status = textValue(row, ["status"]).toLowerCase();
+    const severityPoints = severity === "critical" ? 18 : severity === "high" ? 12 : severity === "medium" ? 6 : 2;
+    const statusPoints = status.includes("closed") || status.includes("verified") ? -4 : 0;
+    return total + severityPoints + statusPoints;
+  }, 0);
+  return Math.max(0, Math.min(100, score));
+}
+
 export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
   return rows
     .filter((row) => typeof row.id === "string" && typeof row.name === "string" && row.name.trim())
-    .map((row, index): SafePredictJobsiteRecord => {
-      const fallback = fallbackSite(index);
+    .map((row): SafePredictJobsiteRecord => {
       const rawStatus = String(row.status ?? "active");
       const status = normalizeStatus(rawStatus);
-      const riskScore = status === "action-needed" ? 76 : status === "completed" ? 32 : fallback.riskScore;
+      const location = String(row.location ?? "").trim();
+      const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
       return {
-        ...fallback,
         id: String(row.id),
-        code: String(row.project_number ?? row.projectNumber ?? fallback.code),
+        code: projectNumber || "Not set",
         name: String(row.name),
-        address: String(row.location ?? fallback.address),
-        cityState: fallback.cityState,
-        phase: status === "planned" ? "Planning" : status === "completed" ? "Closeout" : fallback.phase,
-        siteLead: String(row.safety_lead ?? row.safetyLead ?? fallback.siteLead),
+        address: location || "Not set",
+        cityState: location || "Not set",
+        projectType: "Construction",
+        phase: status === "planned" ? "Planning" : status === "completed" ? "Closeout" : "Not set",
+        riskScore: 0,
+        riskLevel: "low",
+        workforceCount: 0,
+        openActions: 0,
+        activePermits: 0,
+        siteLead: String(row.safety_lead ?? row.safetyLead ?? "Not set"),
         projectManager: String(row.project_manager ?? row.projectManager ?? "Not assigned"),
-        customerName: String(row.customer_company_name ?? row.customerCompanyName ?? fallback.name),
+        customerName: String(row.customer_company_name ?? row.customerCompanyName ?? "Not set"),
         customerReportEmail: String(row.customer_report_email ?? row.customerReportEmail ?? "Not set"),
         startDate: String(row.start_date ?? row.startDate ?? ""),
         endDate: String(row.end_date ?? row.endDate ?? ""),
-        riskScore,
-        riskLevel: riskLevelForScore(riskScore),
         status,
-        inspectionGaps: Math.max(1, Math.round(fallback.openActions / 4)),
-        incidentCount: Math.max(1, index + 2),
-        observationCount: Math.max(2, fallback.openActions + index),
+        inspectionGaps: 0,
+        incidentCount: 0,
+        observationCount: 0,
       };
     });
 }
@@ -476,7 +491,7 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
           return String(record.expiryStatus ?? "").toLowerCase() === "soon";
         }).length;
       const status: SafePredictDemoEmployee["status"] = overdue > 0 ? "overdue" : expiring > 0 ? "expiring" : "compliant";
-      const assignedSite = jobsites[index % Math.max(jobsites.length, 1)]?.id ?? "riverside";
+      const assignedSite = liveSiteId(row, jobsites, index);
       return {
         id: textValue(row, ["userId", "user_id", "id"], `live-employee-${index}`),
         name: textValue(row, ["name", "email"], "Unnamed worker"),
@@ -787,26 +802,53 @@ export function buildSafePredictDataset({
   liveDocuments?: SafePredictLiveRecordRow[];
   liveUsers?: SafePredictLiveRecordRow[];
 } = {}): SafePredictDataset {
+  if (mode !== "live") {
+    const demoJobsites = safePredictDemoJobsites.map(withSiteMetrics);
+    return {
+      mode: "demo",
+      company: safePredictDemoCompany,
+      jobsites: demoJobsites,
+      employees: safePredictDemoEmployees,
+      alerts: buildAlerts(),
+      actions: buildActions(),
+      inspections: buildInspectionRecords(),
+      incidents: buildIncidentRecords(),
+      observations: buildObservationRecords(),
+      hazards: buildHazardRecords(),
+      permitSummaries: safePredictPermits,
+      permits: buildPermitRecords(),
+      tradeReadiness: safePredictTradeReadiness,
+      riskDrivers: safePredictRiskDrivers,
+      forecasts: safePredictForecast,
+      events: safePredictEvents,
+      documents: buildDocumentRecords(),
+      reports: buildReportRecords(),
+    };
+  }
+
   const normalizedLiveJobsites = normalizeLiveJobsites(liveJobsites);
-  const demoJobsites = safePredictDemoJobsites.map(withSiteMetrics);
-  const jobsites = normalizedLiveJobsites.length > 0 ? normalizedLiveJobsites : demoJobsites;
+  const jobsites = normalizedLiveJobsites;
   const liveRecordRows = [...liveActions, ...liveIncidents, ...liveObservations, ...livePermits, ...liveInspections];
-  const jobsitesWithLiveMetrics = normalizedLiveJobsites.length > 0
-    ? jobsites.map((site) => {
+  const jobsitesWithLiveMetrics =
+    jobsites.map((site) => {
         const relatedRows = liveRecordRows.filter((row) => liveSiteId(row, jobsites, 0) === site.id);
-        const riskScore = riskScoreFromRows(site, relatedRows);
+        const openActions = liveActions.filter((row) => liveSiteId(row, jobsites, 0) === site.id && normalizeActionStatus(textValue(row, ["status"])) !== "Closed").length;
+        const activePermits = livePermits.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
+        const incidentCount = liveIncidents.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
+        const observationCount = liveObservations.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
+        const inspectionGaps = liveInspections.filter((row) => liveSiteId(row, jobsites, 0) === site.id && textValue(row, ["status"]).toLowerCase().includes("fail")).length;
+        const riskScore = Math.max(riskScoreFromLiveRows(relatedRows), openActions * 4 + activePermits * 2 + incidentCount * 8 + observationCount * 3 + inspectionGaps * 5);
         return {
           ...site,
           riskScore,
           riskLevel: riskLevelForScore(riskScore),
-          openActions: Math.max(site.openActions, liveActions.filter((row) => liveSiteId(row, jobsites, 0) === site.id && normalizeActionStatus(textValue(row, ["status"])) !== "Closed").length),
-          activePermits: Math.max(site.activePermits, livePermits.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length),
-          incidentCount: Math.max(site.incidentCount, liveIncidents.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length),
-          observationCount: Math.max(site.observationCount, liveObservations.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length),
-          inspectionGaps: Math.max(site.inspectionGaps, liveInspections.filter((row) => liveSiteId(row, jobsites, 0) === site.id && textValue(row, ["status"]).toLowerCase().includes("fail")).length),
+          openActions,
+          activePermits,
+          incidentCount,
+          observationCount,
+          inspectionGaps,
         };
-      })
-    : jobsites;
+      });
   const actions = normalizeLiveActions(liveActions, jobsitesWithLiveMetrics);
   const incidents = normalizeLiveIncidents(liveIncidents, jobsitesWithLiveMetrics);
   const observations = normalizeLiveObservations(liveObservations, jobsitesWithLiveMetrics);
@@ -817,35 +859,25 @@ export function buildSafePredictDataset({
   const inspections = normalizeLiveInspections(liveInspections, jobsitesWithLiveMetrics);
   const reports = normalizeLiveReports(liveReports, jobsitesWithLiveMetrics);
   const documents = normalizeLiveDocuments(liveDocuments, jobsitesWithLiveMetrics);
-  const isLiveDataset =
-    normalizedLiveJobsites.length > 0 ||
-    actions.length > 0 ||
-    incidents.length > 0 ||
-    observations.length > 0 ||
-    permits.length > 0 ||
-    employees.length > 0 ||
-    inspections.length > 0 ||
-    reports.length > 0 ||
-    documents.length > 0;
   return {
-    mode: isLiveDataset ? mode : "demo",
-    company: isLiveDataset ? normalizeLiveCompany(liveCompany) : safePredictDemoCompany,
+    mode: "live",
+    company: normalizeLiveCompany(liveCompany),
     jobsites: jobsitesWithLiveMetrics,
-    employees: employees.length > 0 ? employees : safePredictDemoEmployees,
-    alerts: buildAlerts(),
-    actions: actions.length > 0 ? actions : buildActions(),
-    inspections: inspections.length > 0 ? inspections : buildInspectionRecords(),
-    incidents: incidents.length > 0 ? incidents : buildIncidentRecords(),
-    observations: observations.length > 0 ? observations : buildObservationRecords(),
-    hazards: buildHazardRecords(),
-    permitSummaries: safePredictPermits,
-    permits: permits.length > 0 ? permits : buildPermitRecords(),
-    tradeReadiness: safePredictTradeReadiness,
-    riskDrivers: safePredictRiskDrivers,
-    forecasts: safePredictForecast,
-    events: safePredictEvents,
-    documents: documents.length > 0 ? documents : buildDocumentRecords(),
-    reports: reports.length > 0 ? reports : buildReportRecords(),
+    employees,
+    alerts: [],
+    actions,
+    inspections,
+    incidents,
+    observations,
+    hazards: [],
+    permitSummaries: [],
+    permits,
+    tradeReadiness: [],
+    riskDrivers: [],
+    forecasts: [],
+    events: [],
+    documents,
+    reports,
   };
 }
 
@@ -871,6 +903,57 @@ export function riskForecastForSite(dataset: SafePredictDataset, siteId: string)
 }
 
 export function summarizeSafePredictDataset(dataset: SafePredictDataset) {
+  if (dataset.mode === "live") {
+    const activePermits = dataset.permits.filter((permit) => permit.status === "Active").length;
+    const expiringSoonPermits = dataset.permits.filter((permit) => permit.status === "Expiring Soon").length;
+    const expiredPermits = dataset.permits.filter((permit) => permit.status === "Expired").length;
+    const overdueEmployees = dataset.employees.filter((employee) => employee.status === "overdue").length;
+    const expiringEmployees = dataset.employees.filter((employee) => employee.status === "expiring").length;
+    const compliantEmployees = dataset.employees.length - overdueEmployees - expiringEmployees;
+    const riskScore =
+      dataset.jobsites.length > 0
+        ? Math.round(dataset.jobsites.reduce((sum, jobsite) => sum + jobsite.riskScore, 0) / dataset.jobsites.length)
+        : 0;
+    const openActions = dataset.actions.filter((action) => action.status !== "Closed").length;
+    const closedActions = dataset.actions.filter((action) => action.status === "Closed").length;
+    const jobsiteOpenActions = dataset.jobsites.reduce((sum, jobsite) => sum + jobsite.openActions, 0);
+    const overdueActions = dataset.actions.filter((action) => {
+      if (action.status === "Closed") return false;
+      const parsed = Date.parse(action.dueDate);
+      return Number.isFinite(parsed) && parsed < Date.now();
+    }).length;
+
+    return {
+      jobsites: dataset.jobsites.length,
+      employees: dataset.employees.length,
+      openActions: jobsiteOpenActions || openActions,
+      activePermits,
+      riskScore,
+      overdueEmployees,
+      expiringEmployees,
+      overdueActions,
+      closedActions,
+      workforce: {
+        workers: dataset.employees.length,
+        compliant: compliantEmployees,
+        expiringSoon: expiringEmployees,
+        overdue: overdueEmployees,
+        compliantPercent: dataset.employees.length ? Math.round((compliantEmployees / dataset.employees.length) * 100) : 0,
+        expiringSoonPercent: dataset.employees.length ? Math.round((expiringEmployees / dataset.employees.length) * 100) : 0,
+        overduePercent: dataset.employees.length ? Math.round((overdueEmployees / dataset.employees.length) * 100) : 0,
+      },
+      permits: {
+        active: activePermits,
+        expiringSoon: expiringSoonPermits,
+        expired: expiredPermits,
+      },
+      inspectionGaps: dataset.jobsites.reduce((sum, site) => sum + site.inspectionGaps, 0),
+      incidents: dataset.incidents.length,
+      observations: dataset.observations.length,
+      hazards: dataset.hazards.length,
+    };
+  }
+
   const totals = demoCompanyTotals(dataset.jobsites, dataset.employees);
   const actions = summarizeActions(dataset.actions);
   const workforce = workforceTotals(dataset.tradeReadiness);

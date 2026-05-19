@@ -210,6 +210,8 @@ export function SafePredictJobsitesPortfolio() {
   });
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
+  const isLiveMode = mode === "live";
+  const isLiveEmpty = isLiveMode && dataset.jobsites.length === 0;
 
   const visibleJobsites = useMemo(() => {
     return dataset.jobsites
@@ -307,7 +309,7 @@ export function SafePredictJobsitesPortfolio() {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Active Jobsites" value={dataset.jobsites.length} detail={loading ? "Checking live data" : mode === "live" ? "Live data" : "Sample data"} tone="blue" icon={<Building2 className="h-7 w-7" />} href="#jobsite-list" />
+        <MetricCard title="Active Jobsites" value={dataset.jobsites.length} detail={loading ? "Checking live data" : isLiveMode ? "Live data" : "Sample data"} tone="blue" icon={<Building2 className="h-7 w-7" />} href="#jobsite-list" />
         <MetricCard title="Elevated Sites" value={dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length} detail="Needs safety review" tone="red" icon={<AlertTriangle className="h-7 w-7" />} href="#jobsite-list" />
         <MetricCard title="Open Actions" value={summary.openActions} detail={`${summary.overdueActions} overdue`} tone="orange" icon={<ClipboardCheck className="h-7 w-7" />} href="/safe-predict/corrective-actions" />
         <MetricCard title="Inspection Gaps" value={summary.inspectionGaps} detail="Across active sites" tone="amber" icon={<CalendarCheck className="h-7 w-7" />} href="/safe-predict/inspections" />
@@ -406,8 +408,10 @@ export function SafePredictJobsitesPortfolio() {
           </div>
           {visibleJobsites.length === 0 ? (
             <div className="mt-5 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <p className="text-lg font-black text-slate-950">No jobsites match those filters.</p>
-              <p className="mt-2 text-sm font-semibold text-slate-500">Clear filters or switch back to sample data.</p>
+              <p className="text-lg font-black text-slate-950">{isLiveEmpty ? "No live jobsites yet." : "No jobsites match those filters."}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                {isLiveEmpty ? "Add or import the first jobsite for this company to populate this workspace." : "Clear filters or switch back to sample data."}
+              </p>
             </div>
           ) : null}
         </Card>
@@ -416,17 +420,40 @@ export function SafePredictJobsitesPortfolio() {
           <Card className="p-5">
             <SectionTitle title="Site Risk Map" />
             <div className="mt-4">
-              <RiskHeatMap variant="dashboard" />
+              {isLiveEmpty ? (
+                <EmptyLivePanel
+                  title="No live risk zones"
+                  detail="Site risk zones will appear after this company has jobsites and field activity."
+                />
+              ) : (
+                <RiskHeatMap variant="dashboard" />
+              )}
             </div>
           </Card>
           <Card className="p-5">
             <SectionTitle title="Recent Jobsite Activity" />
             <div className="mt-5">
-              <EventTimeline events={dataset.events} />
+              {dataset.events.length > 0 ? (
+                <EventTimeline events={dataset.events} />
+              ) : (
+                <EmptyLivePanel
+                  title="No recent activity"
+                  detail="Jobsite events, observations, corrective actions, and reports will appear here as live records are created."
+                />
+              )}
             </div>
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EmptyLivePanel({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-sm font-black text-slate-950">{title}</p>
+      <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">{detail}</p>
     </div>
   );
 }

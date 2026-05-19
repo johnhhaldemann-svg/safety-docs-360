@@ -83,6 +83,11 @@ const jobsiteStorageKey = "safe-predict-live-beta-jobsites-v1";
 const actionStatusStorageKey = "safe-predict-action-status-overrides-v1";
 const selectedJobsiteStorageKey = "safe-predict-selected-jobsite-v1";
 const modeStorageKey = "safe-predict-data-mode-v1";
+const anonymousStorageScope = "anonymous";
+
+function scopedStorageKey(key: string, scope: string) {
+  return `${key}:${scope || anonymousStorageScope}`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
@@ -169,58 +174,66 @@ function objectPayloadValue(payload: Record<string, unknown> | null, keys: strin
   return null;
 }
 
-function loadInitialMode(): SafePredictDataMode {
-  return window.localStorage.getItem(modeStorageKey) === "live" ? "live" : "demo";
+function loadInitialMode(scope: string): SafePredictDataMode {
+  return window.localStorage.getItem(scopedStorageKey(modeStorageKey, scope)) === "demo" ? "demo" : "live";
 }
 
-function loadInitialSelectedJobsite() {
-  return window.localStorage.getItem(selectedJobsiteStorageKey) || "all";
+function loadInitialSelectedJobsite(scope: string) {
+  return window.localStorage.getItem(scopedStorageKey(selectedJobsiteStorageKey, scope)) || "all";
 }
 
-function loadInitialActions() {
+function loadInitialActions(scope: string) {
   try {
-    return normalizeActionRows(JSON.parse(window.localStorage.getItem(actionStorageKey) || "null"))?.filter((action) => action.id.startsWith("draft-")) ?? [];
+    return normalizeActionRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(actionStorageKey, scope)) || "null"))?.filter((action) => action.id.startsWith("draft-")) ?? [];
   } catch {
     return [];
   }
 }
 
-function loadInitialHazards() {
+function loadInitialHazards(scope: string) {
   try {
-    return normalizeHazardRows(JSON.parse(window.localStorage.getItem(hazardStorageKey) || "null"))?.filter((hazard) => hazard.id.startsWith("draft-hazard-")) ?? [];
+    return normalizeHazardRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(hazardStorageKey, scope)) || "null"))?.filter((hazard) => hazard.id.startsWith("draft-hazard-")) ?? [];
   } catch {
     return [];
   }
 }
 
-function loadInitialPermits() {
+function loadInitialPermits(scope: string) {
   try {
-    return normalizePermitRows(JSON.parse(window.localStorage.getItem(permitStorageKey) || "null"))?.filter((permit) => permit.id.startsWith("draft-permit-")) ?? [];
+    return normalizePermitRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(permitStorageKey, scope)) || "null"))?.filter((permit) => permit.id.startsWith("draft-permit-")) ?? [];
   } catch {
     return [];
   }
 }
 
-function loadInitialJobsites() {
+function loadInitialJobsites(scope: string) {
   try {
-    return normalizeJobsiteRows(JSON.parse(window.localStorage.getItem(jobsiteStorageKey) || "null"))?.filter((jobsite) => jobsite.id.startsWith("draft-site-")) ?? [];
+    return normalizeJobsiteRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(jobsiteStorageKey, scope)) || "null"))?.filter((jobsite) => jobsite.id.startsWith("draft-site-")) ?? [];
   } catch {
     return [];
   }
 }
 
-function loadInitialActionStatuses() {
+function loadInitialActionStatuses(scope: string) {
   try {
-    return normalizeStatusOverrides(JSON.parse(window.localStorage.getItem(actionStatusStorageKey) || "null"));
+    return normalizeStatusOverrides(JSON.parse(window.localStorage.getItem(scopedStorageKey(actionStatusStorageKey, scope)) || "null"));
   } catch {
     return {};
   }
 }
 
+function storageScopeFromAuthUser(authUser: Record<string, unknown> | null) {
+  const companyId = textPayloadValue(authUser, ["companyId"]);
+  const userId = textPayloadValue(authUser, ["id"]);
+  if (companyId) return `company:${companyId}`;
+  if (userId) return `user:${userId}`;
+  return anonymousStorageScope;
+}
+
 export function SafePredictDataProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<SafePredictDataMode>("demo");
-  const [loading, setLoading] = useState(false);
-  const [baseDataset, setBaseDataset] = useState<SafePredictDataset>(demoSafePredictDataset);
+  const [mode, setModeState] = useState<SafePredictDataMode>("live");
+  const [loading, setLoading] = useState(true);
+  const [baseDataset, setBaseDataset] = useState<SafePredictDataset>(() => buildSafePredictDataset({ mode: "live" }));
   const [draftActions, setDraftActions] = useState<SafePredictActionRecord[]>([]);
   const [draftHazards, setDraftHazards] = useState<SafePredictHazardRecord[]>([]);
   const [draftPermits, setDraftPermits] = useState<SafePredictPermitRecord[]>([]);
@@ -228,27 +241,54 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [actionStatuses, setActionStatuses] = useState<Record<string, SafePredictActionStatus>>({});
   const [selectedJobsiteId, setSelectedJobsiteIdState] = useState("all");
   const [liveToken, setLiveToken] = useState<string | null>(null);
+  const [storageScope, setStorageScope] = useState(anonymousStorageScope);
+  const [storageReady, setStorageReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const handle = window.setTimeout(() => {
-      setModeState(loadInitialMode());
-      setDraftActions(loadInitialActions());
-      setDraftHazards(loadInitialHazards());
-      setDraftPermits(loadInitialPermits());
-      setDraftJobsites(loadInitialJobsites());
-      setActionStatuses(loadInitialActionStatuses());
-      setSelectedJobsiteIdState(loadInitialSelectedJobsite());
+      void (async () => {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const mePayload = await fetchJsonWithToken("/api/auth/me", session?.access_token ?? null);
+        const authUser = objectPayloadValue(mePayload, ["user"]);
+        const scope = storageScopeFromAuthUser(authUser);
+        if (cancelled) return;
+
+        setStorageScope(scope);
+        setDraftActions(loadInitialActions(scope));
+        setDraftHazards(loadInitialHazards(scope));
+        setDraftPermits(loadInitialPermits(scope));
+        setDraftJobsites(loadInitialJobsites(scope));
+        setActionStatuses(loadInitialActionStatuses(scope));
+        setSelectedJobsiteIdState(loadInitialSelectedJobsite(scope));
+        setModeState(textPayloadValue(authUser, ["role"]) === "sales_demo" ? "demo" : loadInitialMode(scope));
+        setStorageReady(true);
+      })().catch(() => {
+        if (cancelled) return;
+        setStorageScope(anonymousStorageScope);
+        setModeState("live");
+        setStorageReady(true);
+      });
     }, 0);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadLiveData() {
+      if (!storageReady) return;
+
       if (mode !== "live") {
         setLiveToken(null);
         setBaseDataset(demoSafePredictDataset);
+        setLoading(false);
         return;
       }
 
@@ -295,6 +335,15 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         const liveDocuments = extractRows(documentsPayload, ["documents"]) as SafePredictLiveRecordRow[];
         const liveUsers = extractRows(usersPayload, ["users"]) as SafePredictLiveRecordRow[];
         const authUser = objectPayloadValue(mePayload, ["user"]);
+        if (textPayloadValue(authUser, ["role"]) === "sales_demo") {
+          if (!cancelled) {
+            setLiveToken(null);
+            setModeState("demo");
+            setBaseDataset(demoSafePredictDataset);
+          }
+          return;
+        }
+
         const liveCompanyProfile = objectPayloadValue(authUser, ["companyProfile"]);
         const liveCompanyName =
           textPayloadValue(liveCompanyProfile, ["name"]) ||
@@ -329,7 +378,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       } catch {
         if (!cancelled) {
           setLiveToken(null);
-          setBaseDataset(demoSafePredictDataset);
+          setBaseDataset(buildSafePredictDataset({ mode: "live" }));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -340,7 +389,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [mode, storageReady]);
 
   const dataset = useMemo<SafePredictDataset>(
     () => ({
@@ -365,38 +414,38 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
 
   const setMode = useCallback((nextMode: SafePredictDataMode) => {
     setModeState(nextMode);
-    window.localStorage.setItem(modeStorageKey, nextMode);
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(modeStorageKey, storageScope), nextMode);
+  }, [storageScope]);
 
   const setSelectedJobsiteId = useCallback((siteId: string) => {
     setSelectedJobsiteIdState(siteId);
-    window.localStorage.setItem(selectedJobsiteStorageKey, siteId);
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(selectedJobsiteStorageKey, storageScope), siteId);
+  }, [storageScope]);
 
   const persistDraftActions = useCallback((nextActions: SafePredictActionRecord[]) => {
     setDraftActions(nextActions);
-    window.localStorage.setItem(actionStorageKey, JSON.stringify(nextActions));
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(actionStorageKey, storageScope), JSON.stringify(nextActions));
+  }, [storageScope]);
 
   const persistDraftJobsites = useCallback((nextJobsites: SafePredictJobsiteRecord[]) => {
     setDraftJobsites(nextJobsites);
-    window.localStorage.setItem(jobsiteStorageKey, JSON.stringify(nextJobsites));
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(jobsiteStorageKey, storageScope), JSON.stringify(nextJobsites));
+  }, [storageScope]);
 
   const persistActionStatuses = useCallback((nextStatuses: Record<string, SafePredictActionStatus>) => {
     setActionStatuses(nextStatuses);
-    window.localStorage.setItem(actionStatusStorageKey, JSON.stringify(nextStatuses));
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(actionStatusStorageKey, storageScope), JSON.stringify(nextStatuses));
+  }, [storageScope]);
 
   const persistDraftHazards = useCallback((nextHazards: SafePredictHazardRecord[]) => {
     setDraftHazards(nextHazards);
-    window.localStorage.setItem(hazardStorageKey, JSON.stringify(nextHazards));
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(hazardStorageKey, storageScope), JSON.stringify(nextHazards));
+  }, [storageScope]);
 
   const persistDraftPermits = useCallback((nextPermits: SafePredictPermitRecord[]) => {
     setDraftPermits(nextPermits);
-    window.localStorage.setItem(permitStorageKey, JSON.stringify(nextPermits));
-  }, []);
+    window.localStorage.setItem(scopedStorageKey(permitStorageKey, storageScope), JSON.stringify(nextPermits));
+  }, [storageScope]);
 
   const setActionStatusLocal = useCallback(
     (id: string, status: SafePredictActionStatus) => {

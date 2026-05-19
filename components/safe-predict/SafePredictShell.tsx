@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { summarizeSafePredictDataset } from "@/lib/safePredictData";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
 type NavChild = {
@@ -150,6 +151,14 @@ function getActiveNavGroupId(pathname: string, groups: NavGroup[]) {
   return groups.find((group) => group.items.some((item) => isActive(pathname, item.href)))?.id ?? null;
 }
 
+function riskBand(score: number, hasSignals: boolean) {
+  if (!hasSignals) return "No Data";
+  if (score >= 85) return "Critical";
+  if (score >= 70) return "High";
+  if (score >= 45) return "Moderate";
+  return "Low";
+}
+
 function Safety360DocsLockup({
   className,
   compact = false,
@@ -207,7 +216,14 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
     groupId: getActiveNavGroupId(pathname, navGroups) ?? navGroups[0]?.id ?? "",
   }));
   const { dataset } = useSafePredictData();
+  const summary = summarizeSafePredictDataset(dataset);
   const elevatedSiteCount = dataset.jobsites.filter((site) => site.riskLevel === "critical" || site.riskLevel === "high").length;
+  const hasRiskSignals =
+    dataset.jobsites.length > 0 ||
+    dataset.actions.length > 0 ||
+    dataset.incidents.length > 0 ||
+    dataset.observations.length > 0;
+  const currentRiskBand = riskBand(summary.riskScore, hasRiskSignals);
 
   const visibleNavGroups = useMemo(() => {
     const platformItems: NavChild[] = [
@@ -375,11 +391,18 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
             <Link href="/safe-predict/risk-mitigation" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 transition hover:bg-white/[0.075]">
               <p className="mb-3 text-xs font-black uppercase tracking-wide text-blue-100/60">{dataset.company.name}</p>
               <p className="text-sm font-bold">Predictive Risk Today</p>
-              <div className="mt-4 h-20 rounded-t-full bg-[conic-gradient(from_240deg,#22c55e_0_28%,#facc15_28%_58%,#f97316_58%_78%,#ef4444_78%_100%)] p-2">
+              <div
+                className={cx(
+                  "mt-4 h-20 rounded-t-full p-2",
+                  hasRiskSignals
+                    ? "bg-[conic-gradient(from_240deg,#22c55e_0_28%,#facc15_28%_58%,#f97316_58%_78%,#ef4444_78%_100%)]"
+                    : "bg-slate-700"
+                )}
+              >
                 <div className="flex h-full items-end justify-center rounded-t-full bg-[#061d35] pb-1 text-center">
                   <span>
-                    <span className="block text-lg font-black text-amber-300">Moderate</span>
-                    <span className="text-xs text-slate-200">Score: 56 / 100</span>
+                    <span className="block text-lg font-black text-amber-300">{currentRiskBand}</span>
+                    <span className="text-xs text-slate-200">Score: {summary.riskScore} / 100</span>
                   </span>
                 </div>
               </div>
@@ -390,7 +413,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/safe-predict/reports" className="block rounded-xl border border-white/10 bg-white/[0.045] p-4 text-sm transition hover:bg-white/[0.075]">
               <span className="block font-bold text-white">Workspace account</span>
-              <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} shell employees</span>
+              <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} employees</span>
               <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">Workspace data</span>
             </Link>
             <Link href="/safe-predict/settings" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
