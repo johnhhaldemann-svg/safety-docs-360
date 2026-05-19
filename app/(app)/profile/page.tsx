@@ -6,6 +6,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
   InlineMessage,
   PageHero,
   SectionCard,
@@ -180,6 +182,12 @@ function getInitials(name: string) {
 }
 
 const OTHER_SELECT = "__other__";
+const profileInputClassName =
+  "w-full rounded-xl border border-[var(--app-border)] bg-white/94 px-4 py-3 text-sm text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
+const profileTextareaClassName =
+  "w-full rounded-xl border border-[var(--app-border)] bg-white/94 px-4 py-3 text-sm leading-6 text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
+const profileFieldLabelClassName =
+  "block text-xs font-semibold text-[var(--app-text-strong)]";
 
 function initProfileSelect(
   saved: string | undefined,
@@ -603,7 +611,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
+      <div className="rounded-3xl border border-[var(--app-border)] bg-white/96 p-8 text-center text-sm font-semibold text-[var(--app-muted)] shadow-[var(--app-shadow-soft)]">
         Loading construction profile...
       </div>
     );
@@ -631,14 +639,14 @@ export default function ProfilePage() {
           managedProfile ? (
             <Link
               href={returnTo}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              className={appButtonSecondaryClassName}
             >
               Back to Team Access
             </Link>
           ) : (
             <a
               href="#profile-editor"
-              className="inline-flex items-center justify-center rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-950/50"
+              className={appButtonPrimaryClassName}
             >
               Edit profile
             </a>
@@ -649,7 +657,7 @@ export default function ProfilePage() {
       {managedProfile ? (
         <InlineMessage tone="neutral">
           You are editing the construction profile for <strong>{managedProfileLabel}</strong> (jobsite title, trade, photo—what others see in the field). Workspace permissions are managed under{" "}
-          <Link href="/company-users" className="font-semibold text-sky-300 underline-offset-2 hover:underline">
+          <Link href="/company-users" className="font-semibold text-[var(--app-accent-primary)] underline-offset-2 hover:underline">
             Team access
           </Link>
           .
@@ -697,7 +705,7 @@ export default function ProfilePage() {
             </div>
             <a
               href="#profile-editor"
-              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+              className={appButtonPrimaryClassName}
             >
               Edit details
             </a>
@@ -739,30 +747,30 @@ export default function ProfilePage() {
         >
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 App role
               </p>
-              <p className="mt-2 text-xl font-bold tracking-tight text-slate-100">{workspaceRoleLabel}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-2 text-xl font-bold tracking-tight text-[var(--app-text-strong)]">{workspaceRoleLabel}</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
                 Controls what you can do (documents, CSEP, billing, team management). Only a company admin can change this under Team access.
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 Company team
               </p>
-              <p className="mt-2 text-xl font-bold tracking-tight text-slate-100">
+              <p className="mt-2 text-xl font-bold tracking-tight text-[var(--app-text-strong)]">
                 {workspaceTeam || "—"}
               </p>
               {canManageTeamUsers ? (
                 <Link
                   href="/company-users"
-                  className="mt-4 inline-flex items-center rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-950/50"
+                  className={`mt-4 ${appButtonSecondaryClassName}`}
                 >
                   Open team &amp; roles
                 </Link>
               ) : (
-                <p className="mt-2 text-sm leading-6 text-slate-500">
+                <p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">
                   Ask your company admin if this role should be updated.
                 </p>
               )}
@@ -783,15 +791,15 @@ export default function ProfilePage() {
           }
         >
           <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr]">
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-5">
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-5">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                 Commitment score
               </div>
               <div className="mt-3 flex items-end gap-2">
-                <span className="text-5xl font-black tracking-tight text-white">
+                <span className="text-5xl font-black tracking-tight text-[var(--app-text-strong)]">
                   {leadershipScore.score}
                 </span>
-                <span className="pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+                <span className="pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">
                   /100
                 </span>
               </div>
@@ -799,47 +807,47 @@ export default function ProfilePage() {
                 <StatusBadge label={formatTrend(leadershipScore.trend)} tone="info" />
                 <StatusBadge label={leadershipScore.roleLabel} tone="neutral" />
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-500">
+              <p className="mt-4 text-sm leading-6 text-[var(--app-text)]">
                 {leadershipScore.coachingPrompt ||
                   "Use the strongest signals and improvement opportunities below to reduce risk on assigned work."}
               </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300">
+              <div className="rounded-2xl border border-[rgba(46,158,91,0.24)] bg-[var(--semantic-success-bg)] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--semantic-success)]">
                   Strongest signals
                 </div>
                 <div className="mt-3 space-y-3">
                   {(leadershipScore.positiveSignals ?? []).slice(0, 3).length > 0 ? (
                     (leadershipScore.positiveSignals ?? []).slice(0, 3).map((signal, index) => (
                       <div key={`${signal.label}-${index}`}>
-                        <p className="text-sm font-semibold text-slate-100">{signal.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">{signal.detail}</p>
+                        <p className="text-sm font-semibold text-[var(--app-text-strong)]">{signal.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{signal.detail}</p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm leading-6 text-slate-500">
+                    <p className="text-sm leading-6 text-[var(--app-text)]">
                       No positive leadership signals have been captured in this scoring window yet.
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/20 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-300">
+              <div className="rounded-2xl border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--semantic-warning)]">
                   Improvement opportunities
                 </div>
                 <div className="mt-3 space-y-3">
                   {(leadershipScore.negativeSignals ?? []).slice(0, 3).length > 0 ? (
                     (leadershipScore.negativeSignals ?? []).slice(0, 3).map((signal, index) => (
                       <div key={`${signal.label}-${index}`}>
-                        <p className="text-sm font-semibold text-slate-100">{signal.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">{signal.detail}</p>
+                        <p className="text-sm font-semibold text-[var(--app-text-strong)]">{signal.label}</p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{signal.detail}</p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm leading-6 text-slate-500">
+                    <p className="text-sm leading-6 text-[var(--app-text)]">
                       No priority coaching opportunities are open in this scoring window.
                     </p>
                   )}
@@ -854,7 +862,7 @@ export default function ProfilePage() {
                 <Link
                   key={`${ref.label}-${index}`}
                   href={ref.href || "#"}
-                  className="rounded-full border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-950/50"
+                  className="rounded-full border border-[var(--app-border-strong)] bg-white/85 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
                 >
                   {ref.label || "Evidence"}
                 </Link>
@@ -885,15 +893,15 @@ export default function ProfilePage() {
         ].map((item, index) => (
           <div
             key={item.label}
-            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
+            className="rounded-2xl border border-[var(--app-border)] bg-white/94 p-5 shadow-[var(--app-shadow-soft)]"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-accent-border-20)] bg-[var(--app-accent-primary-soft)] text-sm font-black text-[var(--app-accent-primary)]">
                 0{index + 1}
               </div>
               <div>
-                <div className="text-base font-bold text-white">{item.label}</div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{item.detail}</p>
+                <div className="text-base font-bold text-[var(--app-text-strong)]">{item.label}</div>
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.detail}</p>
               </div>
             </div>
           </div>
@@ -910,7 +918,7 @@ export default function ProfilePage() {
                 : "Public jobsite identity: name, photo, and jobsite title/trade on your construction profile. This does not change your app role in Workspace access above."
             }
           >
-            <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
+            <div className="grid gap-5 2xl:grid-cols-[0.58fr_1.42fr]">
               <div className="app-soft-field rounded-3xl p-5">
                 <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                   Profile Picture
@@ -952,16 +960,16 @@ export default function ProfilePage() {
                     placeholder="Full name"
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
-                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className={profileInputClassName}
                   />
                   <div className="space-y-1.5">
                     <label
                       htmlFor="profile-jobsite-title"
-                      className="block text-xs font-semibold text-slate-400"
+                      className={profileFieldLabelClassName}
                     >
                       Jobsite title <span className="text-red-600">*</span>
                     </label>
-                    <p className="text-xs leading-5 text-slate-500">
+                    <p className="text-xs leading-5 text-[var(--app-muted)]">
                       Shown on your construction card (e.g. Site Safety Manager). Not the same as your app role.
                     </p>
                     <select
@@ -972,7 +980,7 @@ export default function ProfilePage() {
                         setPositionSelect(v);
                         if (v !== OTHER_SELECT) setPositionOther("");
                       }}
-                      className="app-dark-input mt-1.5"
+                      className={`${profileInputClassName} mt-1.5`}
                     >
                       <option value="">Select jobsite title…</option>
                       {CONSTRUCTION_POSITIONS.map((p) => (
@@ -989,7 +997,7 @@ export default function ProfilePage() {
                         placeholder="Describe your jobsite title"
                         value={positionOther}
                         onChange={(e) => setPositionOther(e.target.value)}
-                        className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                        className={profileInputClassName}
                       />
                     ) : null}
                   </div>
@@ -999,7 +1007,7 @@ export default function ProfilePage() {
                   <div className="space-y-1.5">
                     <label
                       htmlFor="profile-primary-trade"
-                      className="block text-xs font-semibold text-slate-400"
+                      className={profileFieldLabelClassName}
                     >
                       Primary trade <span className="text-red-600">*</span>
                     </label>
@@ -1011,7 +1019,7 @@ export default function ProfilePage() {
                         setTradeSelect(v);
                         if (v !== OTHER_SELECT) setTradeOther("");
                       }}
-                      className="app-dark-input"
+                      className={profileInputClassName}
                     >
                       <option value="">Select trade…</option>
                       {CONSTRUCTION_TRADES.map((t) => (
@@ -1028,7 +1036,7 @@ export default function ProfilePage() {
                         placeholder="Describe your trade"
                         value={tradeOther}
                         onChange={(e) => setTradeOther(e.target.value)}
-                        className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                        className={profileInputClassName}
                       />
                     ) : null}
                   </div>
@@ -1039,7 +1047,7 @@ export default function ProfilePage() {
                     placeholder="Years in the field"
                     value={yearsExperience}
                     onChange={(event) => setYearsExperience(event.target.value)}
-                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className={profileInputClassName}
                   />
                 </div>
 
@@ -1050,7 +1058,7 @@ export default function ProfilePage() {
                     placeholder="Work mobile"
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
-                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className={profileInputClassName}
                   />
                   <input
                     type="text"
@@ -1058,7 +1066,7 @@ export default function ProfilePage() {
                     placeholder="Primary work city"
                     value={city}
                     onChange={(event) => setCity(event.target.value)}
-                    className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                    className={profileInputClassName}
                   />
                 </div>
 
@@ -1068,7 +1076,7 @@ export default function ProfilePage() {
                   placeholder="State / region"
                   value={stateRegion}
                   onChange={(event) => setStateRegion(event.target.value)}
-                  className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                  className={profileInputClassName}
                 />
               </div>
             </div>
@@ -1089,12 +1097,12 @@ export default function ProfilePage() {
                     className={[
                       "rounded-2xl border px-4 py-4 text-left transition",
                       active
-                        ? "border-sky-300 bg-sky-950/35 shadow-sm"
-                        : "border-slate-700/80 bg-slate-900/90 hover:border-sky-500/35 hover:bg-sky-800/50",
+                        ? "border-[var(--app-accent-primary)] bg-[var(--app-accent-primary-soft)] shadow-[var(--app-shadow-primary-panel)]"
+                        : "border-[var(--app-border)] bg-white/92 hover:border-[var(--app-accent-border-28)] hover:bg-[var(--app-panel-soft)]",
                     ].join(" ")}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-slate-100">{option.label}</div>
+                      <div className="text-sm font-semibold text-[var(--app-text-strong)]">{option.label}</div>
                       <StatusBadge
                         label={option.label}
                         tone={
@@ -1106,7 +1114,7 @@ export default function ProfilePage() {
                         }
                       />
                     </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-500">{option.detail}</div>
+                    <div className="mt-2 text-sm leading-6 text-[var(--app-text)]">{option.detail}</div>
                   </button>
                 );
               })}
@@ -1118,13 +1126,13 @@ export default function ProfilePage() {
             description="Select the certifications that apply, then add jobsite strengths and equipment experience that define this person's construction capability."
           >
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-100">
+                    <div className="text-sm font-semibold text-[var(--app-text-strong)]">
                       Certification library
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
                       Choose every certification, license, and safety training item that applies to this construction
                       profile. Optional expiration dates keep the training matrix accurate when credentials lapse.
                     </p>
@@ -1140,13 +1148,13 @@ export default function ProfilePage() {
                     {allCertifications.slice(0, 12).map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-slate-700/80 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-slate-300"
+                        className="rounded-full border border-[var(--app-border)] bg-white/90 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)]"
                       >
                         {item}
                       </span>
                     ))}
                     {allCertifications.length > 12 ? (
-                      <span className="rounded-full border border-sky-500/35 bg-sky-950/35 px-3 py-1.5 text-xs font-semibold text-sky-300">
+                      <span className="rounded-full border border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--app-accent-primary)]">
                         +{allCertifications.length - 12} more
                       </span>
                     ) : null}
@@ -1163,12 +1171,12 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={group.title}
-                      className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"
+                      className="rounded-2xl border border-[var(--app-border)] bg-white/94 p-4 shadow-[0_8px_18px_rgba(76,108,161,0.045)]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold text-slate-100">{group.title}</div>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">{group.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">
                             Select all that apply. When checked, you can record an expiration date (YYYY-MM-DD).
                           </p>
                         </div>
@@ -1190,9 +1198,9 @@ export default function ProfilePage() {
                                 "rounded-xl border px-3 py-3 text-sm transition",
                                 checked
                                   ? expired
-                                    ? "border-amber-300 bg-amber-950/40"
-                                    : "border-sky-500/35 bg-sky-950/35"
-                                  : "border-slate-700/80 bg-slate-950/50",
+                                    ? "border-amber-300 bg-[var(--semantic-warning-bg)]"
+                                    : "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)]"
+                                  : "border-[var(--app-border)] bg-[var(--app-panel-soft)]",
                               ].join(" ")}
                             >
                               <label className="flex cursor-pointer items-start gap-3">
@@ -1200,29 +1208,29 @@ export default function ProfilePage() {
                                   type="checkbox"
                                   checked={checked}
                                   onChange={() => toggleCertification(item)}
-                                  className="mt-0.5 h-4 w-4 rounded border-slate-600 text-sky-600 focus:ring-sky-500"
+                                  className="mt-0.5 h-4 w-4 rounded border-[var(--app-border-strong)] text-[var(--app-accent-primary)] focus:ring-[var(--app-accent-primary)]"
                                 />
-                                <span className="flex-1 leading-6 text-slate-300">{item}</span>
+                                <span className="flex-1 leading-6 text-[var(--app-text-strong)]">{item}</span>
                               </label>
                               {checked ? (
                                 <div className="mt-2 flex flex-col gap-1 pl-7 sm:flex-row sm:items-center sm:gap-3">
-                                  <label className="text-xs font-medium text-slate-400">
+                                  <label className="text-xs font-medium text-[var(--app-text)]">
                                     Expires
                                     <input
                                       type="date"
                                       value={exp}
                                       onChange={(e) => setExpirationForCert(item, e.target.value)}
-                                      className="ml-2 mt-1 block w-full rounded-lg border border-slate-600 bg-slate-900/90 px-2 py-1.5 text-xs text-slate-200 sm:mt-0 sm:inline-block sm:w-auto"
+                                      className="ml-2 mt-1 block w-full rounded-lg border border-[var(--app-border)] bg-white px-2 py-1.5 text-xs text-[var(--app-text-strong)] sm:mt-0 sm:inline-block sm:w-auto"
                                     />
                                   </label>
                                   {expired ? (
-                                    <span className="text-xs font-semibold text-amber-100">
+                                    <span className="text-xs font-semibold text-[var(--semantic-warning)]">
                                       Expired — renew to count toward training requirements
                                     </span>
                                   ) : exp ? (
-                                    <span className="text-xs text-slate-500">Counts until this date (UTC)</span>
+                                    <span className="text-xs text-[var(--app-muted)]">Counts until this date (UTC)</span>
                                   ) : (
-                                    <span className="text-xs text-slate-500">
+                                    <span className="text-xs text-[var(--app-muted)]">
                                       Leave blank if no expiry (counts as current)
                                     </span>
                                   )}
@@ -1242,9 +1250,9 @@ export default function ProfilePage() {
                 placeholder="Other certifications not listed above (comma separated)"
                 value={customCertificationsText}
                 onChange={(event) => setCustomCertificationsText(event.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className={profileTextareaClassName}
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[var(--app-muted)]">
                 Expiration dates apply to items selected from the certification library above. Custom entries here are
                 treated as current until you move them into the library list with a date.
               </p>
@@ -1253,14 +1261,14 @@ export default function ProfilePage() {
                 placeholder="Site specialties (comma separated) - excavation, confined space, crane planning, scaffold oversight..."
                 value={specialtiesText}
                 onChange={(event) => setSpecialtiesText(event.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className={profileTextareaClassName}
               />
               <textarea
                 rows={3}
                 placeholder="Equipment and systems (comma separated) - skid steer, telehandler, trench box systems, aerial lift..."
                 value={equipmentText}
                 onChange={(event) => setEquipmentText(event.target.value)}
-                className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className={profileTextareaClassName}
               />
             </div>
           </SectionCard>
@@ -1274,7 +1282,7 @@ export default function ProfilePage() {
               placeholder="Summarize project types, safety leadership, crew responsibility, and the site work this person is trusted to handle."
               value={bio}
               onChange={(event) => setBio(event.target.value)}
-              className="w-full rounded-xl border border-slate-600 px-4 py-3 text-sm leading-6 text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className={profileTextareaClassName}
             />
           </SectionCard>
 
@@ -1285,7 +1293,7 @@ export default function ProfilePage() {
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={saving}
-              className="rounded-2xl bg-sky-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
+              className={`${appButtonPrimaryClassName} px-5 py-3.5 disabled:opacity-60`}
             >
               {saving
                 ? "Saving profile..."
@@ -1377,9 +1385,9 @@ export default function ProfilePage() {
               {profileChecklist.map((item) => (
                 <div
                   key={item.label}
-                  className="flex items-center justify-between rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3"
+                  className="flex items-center justify-between rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3"
                 >
-                  <span className="text-sm font-medium text-slate-300">{item.label}</span>
+                  <span className="text-sm font-medium text-[var(--app-text-strong)]">{item.label}</span>
                   <StatusBadge label={item.done ? "Ready" : "Missing"} tone={item.done ? "success" : "warning"} />
                 </div>
               ))}
@@ -1392,7 +1400,7 @@ export default function ProfilePage() {
           >
             <div className="space-y-4">
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                   Certifications
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1406,10 +1414,10 @@ export default function ProfilePage() {
                           className={[
                             "inline-flex max-w-full flex-col rounded-full border px-3 py-1.5 text-xs font-semibold sm:max-w-none sm:inline-flex sm:flex-row sm:items-center sm:gap-2",
                             expired
-                              ? "border-amber-300 bg-amber-950/40 text-amber-900"
+                              ? "border-amber-300 bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)]"
                               : exp
-                                ? "border-sky-500/35 bg-sky-950/35 text-sky-900"
-                                : "border-slate-700/80 bg-slate-950/50 text-slate-300",
+                                ? "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+                                : "border-[var(--app-border)] bg-white/90 text-[var(--app-text-strong)]",
                           ].join(" ")}
                         >
                           <span className="truncate">{item}</span>
@@ -1423,13 +1431,13 @@ export default function ProfilePage() {
                       );
                     })
                   ) : (
-                    <span className="text-sm text-slate-500">Add certifications to complete this section.</span>
+                    <span className="text-sm text-[var(--app-muted)]">Add certifications to complete this section.</span>
                   )}
                 </div>
               </div>
 
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                   Site strengths
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1437,19 +1445,19 @@ export default function ProfilePage() {
                     previewTags.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-sky-500/35 bg-sky-950/35 px-3 py-1.5 text-xs font-semibold text-sky-300"
+                        className="rounded-full border border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--app-accent-primary)]"
                       >
                         {item}
                       </span>
                     ))
                   ) : (
-                    <span className="text-sm text-slate-500">Add site strengths to define the profile.</span>
+                    <span className="text-sm text-[var(--app-muted)]">Add site strengths to define the profile.</span>
                   )}
                 </div>
               </div>
 
               <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
                   Equipment and systems
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1457,13 +1465,13 @@ export default function ProfilePage() {
                     previewEquipment.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-amber-500/35 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-700"
+                        className="rounded-full border border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--semantic-warning)]"
                       >
                         {item}
                       </span>
                     ))
                   ) : (
-                    <span className="text-sm text-slate-500">Add equipment experience to round out the profile.</span>
+                    <span className="text-sm text-[var(--app-muted)]">Add equipment experience to round out the profile.</span>
                   )}
                 </div>
               </div>
