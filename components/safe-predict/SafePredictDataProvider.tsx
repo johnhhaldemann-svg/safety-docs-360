@@ -44,6 +44,7 @@ type SafePredictDataContextValue = {
     sifCategory?: string;
     persistLive?: boolean;
     persistLocal?: boolean;
+    status?: SafePredictActionStatus;
   }) => SafePredictActionRecord;
   addDraftHazard: (input: {
     title: string;
@@ -174,10 +175,6 @@ function objectPayloadValue(payload: Record<string, unknown> | null, keys: strin
   return null;
 }
 
-function loadInitialMode(scope: string): SafePredictDataMode {
-  return window.localStorage.getItem(scopedStorageKey(modeStorageKey, scope)) === "demo" ? "demo" : "live";
-}
-
 function loadInitialSelectedJobsite(scope: string) {
   return window.localStorage.getItem(scopedStorageKey(selectedJobsiteStorageKey, scope)) || "all";
 }
@@ -243,6 +240,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [liveToken, setLiveToken] = useState<string | null>(null);
   const [storageScope, setStorageScope] = useState(anonymousStorageScope);
   const [storageReady, setStorageReady] = useState(false);
+  const [demoModeAllowed, setDemoModeAllowed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,11 +262,17 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         setDraftJobsites(loadInitialJobsites(scope));
         setActionStatuses(loadInitialActionStatuses(scope));
         setSelectedJobsiteIdState(loadInitialSelectedJobsite(scope));
-        setModeState(textPayloadValue(authUser, ["role"]) === "sales_demo" ? "demo" : loadInitialMode(scope));
+        const isSalesDemo = textPayloadValue(authUser, ["role"]) === "sales_demo";
+        setDemoModeAllowed(isSalesDemo);
+        setModeState(isSalesDemo ? "demo" : "live");
+        if (!isSalesDemo) {
+          window.localStorage.setItem(scopedStorageKey(modeStorageKey, scope), "live");
+        }
         setStorageReady(true);
       })().catch(() => {
         if (cancelled) return;
         setStorageScope(anonymousStorageScope);
+        setDemoModeAllowed(false);
         setModeState("live");
         setStorageReady(true);
       });
@@ -337,6 +341,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         const authUser = objectPayloadValue(mePayload, ["user"]);
         if (textPayloadValue(authUser, ["role"]) === "sales_demo") {
           if (!cancelled) {
+            setDemoModeAllowed(true);
             setLiveToken(null);
             setModeState("demo");
             setBaseDataset(demoSafePredictDataset);
@@ -413,9 +418,14 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   );
 
   const setMode = useCallback((nextMode: SafePredictDataMode) => {
+    if (nextMode === "demo" && !demoModeAllowed) {
+      setModeState("live");
+      window.localStorage.setItem(scopedStorageKey(modeStorageKey, storageScope), "live");
+      return;
+    }
     setModeState(nextMode);
     window.localStorage.setItem(scopedStorageKey(modeStorageKey, storageScope), nextMode);
-  }, [storageScope]);
+  }, [demoModeAllowed, storageScope]);
 
   const setSelectedJobsiteId = useCallback((siteId: string) => {
     setSelectedJobsiteIdState(siteId);
@@ -617,7 +627,9 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       sifCategory?: string;
       persistLive?: boolean;
       persistLocal?: boolean;
+      status?: SafePredictActionStatus;
     }) => {
+      const status = input.status ?? "New";
       const draft: SafePredictActionRecord = {
         id: `draft-${Date.now()}`,
         title: input.title,
@@ -625,9 +637,9 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         linkedRisk: input.linkedRisk,
         assignee: input.assignedUserId || "Unassigned",
         dueDate: input.dueAt ? new Date(input.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "May 30",
-        status: "New",
+        status,
         priority: input.priority,
-        progress: 0,
+        progress: status === "Closed" ? 100 : status === "Awaiting Verification" ? 85 : status === "In Progress" ? 45 : 0,
         aiRecommended: true,
         siteId: input.siteId,
         createdFrom: input.createdFrom,
@@ -650,7 +662,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
             description: input.description || `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
             severity: input.priority,
             category: input.category || "corrective_action",
-            status: "open",
+            status: safePredictStatusToApi(status),
             jobsiteId: input.siteId,
             assignedUserId: input.assignedUserId || null,
             dueAt: input.dueAt || null,

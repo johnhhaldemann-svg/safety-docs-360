@@ -28,7 +28,6 @@ import { useSafePredictData } from "@/components/safe-predict/SafePredictDataPro
 import type { SafePredictJobsiteRecord } from "@/lib/safePredictData";
 
 const statuses: SafePredictActionStatus[] = ["New", "In Progress", "Awaiting Verification", "Closed"];
-const localActionsStorageKey = "safe-predict-local-actions-v1";
 const hashAliases: Record<string, string> = {
   "fall-compliance": "machine-guarding",
   "housekeeping-control": "housekeeping",
@@ -73,46 +72,6 @@ function alertWithinTime(alertTimeAgo: string, timeFilter: string) {
   return true;
 }
 
-function isActionStatus(status: string): status is SafePredictActionStatus {
-  return statuses.includes(status as SafePredictActionStatus);
-}
-
-function normalizeStoredActions(value: unknown): SafePredictCorrectiveAction[] | null {
-  if (!Array.isArray(value)) return null;
-  const normalized = value.filter((action): action is SafePredictCorrectiveAction => {
-    if (!action || typeof action !== "object") return false;
-    const candidate = action as Partial<SafePredictCorrectiveAction>;
-    return (
-      typeof candidate.id === "string" &&
-      typeof candidate.title === "string" &&
-      typeof candidate.linkedRiskId === "string" &&
-      typeof candidate.linkedRisk === "string" &&
-      typeof candidate.assignee === "string" &&
-      typeof candidate.dueDate === "string" &&
-      typeof candidate.priority === "string" &&
-      typeof candidate.progress === "number" &&
-      typeof candidate.status === "string" &&
-      isActionStatus(candidate.status)
-    );
-  });
-  return normalized.length > 0 ? normalized : null;
-}
-
-function loadStoredCorrectiveActions() {
-  try {
-    const storedActions = window.localStorage.getItem(localActionsStorageKey);
-    if (!storedActions) return null;
-    return normalizeStoredActions(JSON.parse(storedActions));
-  } catch (error) {
-    console.error("Failed to restore SafePredict local actions:", error);
-    return null;
-  }
-}
-
-function persistCorrectiveActions(actions: SafePredictCorrectiveAction[]) {
-  window.localStorage.setItem(localActionsStorageKey, JSON.stringify(actions));
-}
-
 function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
   if (level === "critical") return "bg-red-500";
   if (level === "high") return "bg-orange-500";
@@ -155,7 +114,7 @@ function LiveRiskMapPanel({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }
 }
 
 export default function SafePredictRiskMitigationPage() {
-  const { dataset, updateActionStatus, addDraftAction } = useSafePredictData();
+  const { dataset, loading, updateActionStatus, addDraftAction } = useSafePredictData();
   const providerActions = dataset.actions;
   const providerAlerts = dataset.alerts;
   const [timeFilter, setTimeFilter] = useState("all-time");
@@ -169,7 +128,6 @@ export default function SafePredictRiskMitigationPage() {
   const [selectedRiskId, setSelectedRiskId] = useState(providerAlerts[0]?.id ?? "");
   const [newActionId, setNewActionId] = useState("");
   const [actions, setActions] = useState<SafePredictCorrectiveAction[]>(providerActions);
-  const [actionsReady, setActionsReady] = useState(false);
 
   useEffect(() => {
     function syncSelectedRiskFromHash() {
@@ -193,23 +151,6 @@ export default function SafePredictRiskMitigationPage() {
     setActions(providerActions);
   }, [providerActions]);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const storedActions = loadStoredCorrectiveActions();
-      if (storedActions) {
-        setActions(storedActions);
-      }
-      setActionsReady(true);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
-
-  useEffect(() => {
-    if (!actionsReady) return;
-    persistCorrectiveActions(actions);
-  }, [actions, actionsReady]);
-
   const visibleAlerts = useMemo(() => {
     const byRisk = filterAlertsByRisk(providerAlerts, riskLevel)
       .filter((alert) => alertSiteMatches(alert.site, siteFilter, dataset.jobsites) || alert.id === jobsiteAlertAliases[siteFilter])
@@ -232,6 +173,11 @@ export default function SafePredictRiskMitigationPage() {
   const selectedRisk = visibleAlerts.find((alert) => alert.id === selectedRiskId) ?? visibleAlerts[0] ?? providerAlerts.find((alert) => alert.id === selectedRiskId);
   const relatedActions = selectedRisk ? actions.filter((action) => action.linkedRiskId === selectedRisk.id) : [];
   const summary = summarizeActions(visibleActions);
+  const riskScore =
+    dataset.jobsites.length > 0
+      ? Math.round(dataset.jobsites.reduce((sum, jobsite) => sum + jobsite.riskScore, 0) / dataset.jobsites.length)
+      : 0;
+  const hasClosedActions = summary.closed > 0;
   const activeAlertCount = visibleAlerts.length + summary.overdue;
 
   function changeStatus(id: string, status: SafePredictActionStatus) {
@@ -240,7 +186,7 @@ export default function SafePredictRiskMitigationPage() {
     }
     updateActionStatus(id, status);
     setActions((current) => {
-      const nextActions = current.map((action) =>
+      return current.map((action) =>
         action.id === id
           ? {
               ...action,
@@ -249,8 +195,6 @@ export default function SafePredictRiskMitigationPage() {
             }
           : action
       );
-      persistCorrectiveActions(nextActions);
-      return nextActions;
     });
   }
 
@@ -288,9 +232,9 @@ export default function SafePredictRiskMitigationPage() {
       siteId: "siteId" in riskForAction && typeof riskForAction.siteId === "string" ? riskForAction.siteId : fallbackSiteId,
       priority: nextAction.priority,
       createdFrom: riskForAction.source === "Observation" ? "Observation" : riskForAction.source === "Inspection" ? "Inspection" : "Predictive Alert",
+      status,
     });
-    if (status !== "New") updateActionStatus(sharedAction.id, status);
-    setNewActionId(nextAction.id);
+    setNewActionId(sharedAction.id);
     setSelectedRiskId(riskForAction.id);
     setSearchTerm("");
     setStatusFilter(status);
@@ -299,11 +243,7 @@ export default function SafePredictRiskMitigationPage() {
     setTypeFilter("all");
     setTimeFilter("all-time");
     setAlertsOpen(false);
-    setActions((current) => {
-      const nextActions = [nextAction, ...current];
-      persistCorrectiveActions(nextActions);
-      return nextActions;
-    });
+    setActions((current) => [{ ...sharedAction, status: sharedAction.status }, ...current.filter((action) => action.id !== sharedAction.id)]);
     window.setTimeout(() => {
       document.getElementById("corrective-action-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
@@ -473,11 +413,11 @@ export default function SafePredictRiskMitigationPage() {
       </div>
 
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <MetricCard title="Total Open Actions" value={summary.open} detail="Filtered action board" tone="blue" icon={<ShieldCheck className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View board" />
-        <MetricCard title="Overdue Actions" value={summary.overdue} detail="Filtered overdue actions" tone="red" icon={<CalendarDays className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View overdue" />
-        <MetricCard title="Avg. Time to Close" value={summary.averageDaysToClose} suffix="days" detail="Down 18% vs last 7 days" tone="purple" icon={<CalendarDays className="h-7 w-7" />} />
-        <MetricCard title="Actions Closed (30 Days)" value={summary.closed * 14} detail="Up 24% vs last 30 days" tone="green" icon={<ShieldCheck className="h-7 w-7" />} />
-        <MetricCard title="Risk Score (All Sites)" value={summary.riskScore} suffix="/100" detail="Down 9 pts vs last 7 days" tone="amber" icon={<ShieldCheck className="h-7 w-7" />} sparkline={<MiniSparkline data={[58, 62, 56, 74, 71, 68]} color="#f97316" />} />
+        <MetricCard title="Total Open Actions" value={summary.open} detail={summary.open === 0 ? "No actions yet" : "Filtered action board"} tone="blue" icon={<ShieldCheck className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View board" />
+        <MetricCard title="Overdue Actions" value={summary.overdue} detail={summary.overdue === 0 ? "Nothing overdue" : "Filtered overdue actions"} tone="red" icon={<CalendarDays className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View overdue" />
+        <MetricCard title="Avg. Time to Close" value={hasClosedActions ? summary.averageDaysToClose : 0} suffix="days" detail={hasClosedActions ? "Based on closed actions" : "No closed actions yet"} tone="purple" icon={<CalendarDays className="h-7 w-7" />} />
+        <MetricCard title="Actions Closed (30 Days)" value={summary.closed} detail={summary.closed === 0 ? "No closures yet" : "Closed actions"} tone="green" icon={<ShieldCheck className="h-7 w-7" />} />
+        <MetricCard title="Risk Score (All Sites)" value={riskScore} suffix="/100" detail={riskScore === 0 ? "No risk inputs yet" : "Current live score"} tone="amber" icon={<ShieldCheck className="h-7 w-7" />} sparkline={riskScore === 0 ? undefined : <MiniSparkline data={[58, 62, 56, 74, 71, riskScore]} color="#f97316" />} />
       </div>
 
       <Card className="mb-5 p-4">
@@ -566,7 +506,7 @@ export default function SafePredictRiskMitigationPage() {
 
           <Card id="corrective-action-tracker" className="scroll-mt-24 p-4">
             <SectionTitle title="Corrective Action Tracker" />
-            {actionsReady ? (
+            {!loading ? (
               <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
                 {statuses.map((status) => {
                   const rows = visibleActions.filter((action) => action.status === status);

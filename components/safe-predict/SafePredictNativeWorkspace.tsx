@@ -1460,11 +1460,16 @@ function moduleMetrics(
   summary: ReturnType<typeof summarizeSafePredictDataset>,
   scoped: ScopedRows
 ) {
+  const scopedOpenActions = scoped.actions.filter((action) => action.status !== "Closed");
+  const scopedOverdueActions = scopedOpenActions.filter((action) => {
+    const parsed = Date.parse(action.dueDate);
+    return Number.isFinite(parsed) && parsed < Date.now();
+  });
   const shared = [
     { title: "Sites In Scope", value: scoped.actions.length || summary.jobsites, detail: "Connected records", tone: "blue" as const, icon: <MapPin className="h-7 w-7" /> },
-    { title: "Open Actions", value: summary.openActions, detail: `${summary.overdueActions} overdue`, tone: "orange" as const, icon: <ClipboardCheck className="h-7 w-7" /> },
+    { title: "Open Actions", value: scopedOpenActions.length, detail: `${scopedOverdueActions.length} overdue`, tone: "orange" as const, icon: <ClipboardCheck className="h-7 w-7" /> },
   ];
-  if (workspace === "incidents") return [{ title: "Incident Reviews", value: scoped.incidents.length, detail: "Open and closed", tone: "red" as const, icon: <AlertTriangle className="h-7 w-7" /> }, ...shared, { title: "Near Miss Signals", value: 3, detail: "Last 30 days", tone: "amber" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
+  if (workspace === "incidents") return [{ title: "Incident Reviews", value: scoped.incidents.length, detail: "Open and closed", tone: "red" as const, icon: <AlertTriangle className="h-7 w-7" /> }, ...shared, { title: "Near Miss Signals", value: scoped.incidents.filter((row) => row.type === "Near Miss").length, detail: "Last 30 days", tone: "amber" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
   if (workspace === "observations") return [{ title: "Observations", value: scoped.observations.length, detail: "Field signals", tone: "amber" as const, icon: <ShieldAlert className="h-7 w-7" /> }, ...shared, { title: "Converted", value: scoped.observations.filter((row) => row.status === "Converted").length, detail: "To actions", tone: "green" as const, icon: <ShieldCheck className="h-7 w-7" /> }];
   if (workspace === "corrective-actions") return [{ title: "Corrective Actions", value: scoped.actions.length, detail: "In tracker", tone: "orange" as const, icon: <ClipboardCheck className="h-7 w-7" /> }, ...shared, { title: "Closed", value: summary.closedActions, detail: "Verified", tone: "green" as const, icon: <ShieldCheck className="h-7 w-7" /> }];
   if (workspace === "inspections") return [{ title: "Inspections", value: scoped.inspections.length, detail: "Scheduled and complete", tone: "blue" as const, icon: <CalendarCheck className="h-7 w-7" /> }, ...shared, { title: "Failed Checks", value: scoped.inspections.reduce((sum, row) => sum + row.failedItems, 0), detail: "Needs action", tone: "red" as const, icon: <AlertTriangle className="h-7 w-7" /> }];

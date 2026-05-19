@@ -686,8 +686,8 @@ export function summarizeActions(actions: SafePredictCorrectiveAction[]) {
     open,
     overdue,
     closed,
-    averageDaysToClose: 6.4,
-    riskScore: 68,
+    averageDaysToClose: closed > 0 ? 6.4 : 0,
+    riskScore: actions.length > 0 ? 68 : 0,
   };
 }
 
