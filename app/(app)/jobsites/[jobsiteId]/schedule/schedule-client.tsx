@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { Archive, CalendarDays, Pencil, Plus, RefreshCw, X } from "lucide-react";
+import { Archive, Bot, CalendarDays, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   InlineMessage,
@@ -54,6 +54,41 @@ type SchedulePayload = {
   items?: ScheduleItem[];
   warning?: string;
   error?: string;
+};
+
+type AutoAssignPermitSummary = {
+  scheduleItemId: string;
+  permitType: string;
+  permitCode: string;
+  permitId: string | null;
+  title: string;
+  ownerUserId: string | null;
+  ownerLabel: string;
+  rationale: string;
+  status: "created" | "would_create" | "skipped";
+  skipReason?: string;
+};
+
+type AutoAssignTaskSummary = {
+  scheduleItemId: string;
+  title: string;
+  permitTriggers: string[];
+  ownerUserId: string | null;
+  ownerLabel: string;
+  assignmentRationale: string;
+  createdCount: number;
+  skippedCount: number;
+};
+
+type AutoAssignResponse = {
+  error?: string;
+  dryRun?: boolean;
+  scope?: "daily" | "weekly";
+  window?: { startDate: string; endDate: string; days: number };
+  createdPermits?: AutoAssignPermitSummary[];
+  skippedPermits?: AutoAssignPermitSummary[];
+  unassignedPermits?: AutoAssignPermitSummary[];
+  tasks?: AutoAssignTaskSummary[];
 };
 
 type FormState = {
@@ -181,6 +216,8 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [assigningPermits, setAssigningPermits] = useState<SchedulePermitAssignmentScope | null>(null);
+  const [assignmentResult, setAssignmentResult] = useState<AutoAssignResponse | null>(null);
 
   const loadSchedule = useCallback(async () => {
     setLoading(true);
@@ -220,6 +257,12 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
     permitRequiredItems: groupedItems.filter((item) => item.permitTriggers.length > 0).length,
     missingControlItems: groupedItems.filter((item) => item.isHighRisk && item.requiredControls.length === 0).length,
   };
+
+  const assignmentByTask = useMemo(() => {
+    const map = new Map<string, AutoAssignTaskSummary>();
+    for (const task of assignmentResult?.tasks ?? []) map.set(task.scheduleItemId, task);
+    return map;
+  }, [assignmentResult?.tasks]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -325,6 +368,37 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
     await loadSchedule();
   }
 
+  async function autoAssignPermits(scope: SchedulePermitAssignmentScope) {
+    setAssigningPermits(scope);
+    setMessage(null);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const response = await fetch(`/api/company/jobsites/${jobsiteId}/schedule/permits/auto-assign`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(session?.access_token),
+      },
+      body: JSON.stringify({ scope }),
+    });
+    const data = (await response.json().catch(() => null)) as AutoAssignResponse | null;
+    setAssignmentResult(data);
+    if (!response.ok) {
+      setMessage(data?.error || "Failed to auto-assign permit drafts.");
+      setMessageTone("error");
+      setAssigningPermits(null);
+      return;
+    }
+    const created = data?.createdPermits?.length ?? 0;
+    const skipped = data?.skippedPermits?.length ?? 0;
+    const unassigned = data?.unassignedPermits?.length ?? 0;
+    setMessage(`AI permit assignment complete: ${created} draft${created === 1 ? "" : "s"} created, ${skipped} skipped, ${unassigned} needing owner review.`);
+    setMessageTone(unassigned > 0 ? "warning" : "success");
+    await loadSchedule();
+    setAssigningPermits(null);
+  }
+
   const jobsiteNumber = payload?.jobsite?.jobsite_number || payload?.jobsite?.project_number || jobsiteId;
 
   return (
@@ -332,14 +406,33 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
       title="Work Schedule"
       description={`${payload?.jobsite?.name ?? "This jobsite"} - ${jobsiteNumber}`}
       actions={
-        <button type="button" onClick={() => void loadSchedule()} className={appButtonSecondaryClassName}>
-          <RefreshCw className="h-4 w-4" aria-hidden />
-          {loading ? "Refreshing" : "Refresh"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void autoAssignPermits("daily")} disabled={Boolean(assigningPermits)} className={appButtonSecondaryClassName}>
+            <Bot className="h-4 w-4" aria-hidden />
+            {assigningPermits === "daily" ? "Assigning" : "AI assign daily"}
+          </button>
+          <button type="button" onClick={() => void autoAssignPermits("weekly")} disabled={Boolean(assigningPermits)} className={appButtonSecondaryClassName}>
+            <Bot className="h-4 w-4" aria-hidden />
+            {assigningPermits === "weekly" ? "Assigning" : "AI assign week"}
+          </button>
+          <button type="button" onClick={() => void loadSchedule()} className={appButtonSecondaryClassName}>
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            {loading ? "Refreshing" : "Refresh"}
+          </button>
+        </div>
       }
     >
       <div className="space-y-5">
         {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+
+        {assignmentResult?.window ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard label="AI Permit Window" value={`${formatDate(assignmentResult.window.startDate)} - ${formatDate(assignmentResult.window.endDate)}`} />
+            <SummaryCard label="Drafts Created" value={String(assignmentResult.createdPermits?.length ?? 0)} tone="text-emerald-300" />
+            <SummaryCard label="Skipped Existing" value={String(assignmentResult.skippedPermits?.length ?? 0)} tone="text-sky-300" />
+            <SummaryCard label="Owner Review" value={String(assignmentResult.unassignedPermits?.length ?? 0)} tone={(assignmentResult.unassignedPermits?.length ?? 0) > 0 ? "text-amber-300" : "text-slate-100"} />
+          </div>
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <SummaryCard label="Window" value={`${formatDate(payload?.window?.startDate)} - ${formatDate(payload?.window?.endDate)}`} />
@@ -454,6 +547,15 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
                 <Field label="Permits" value={item.permitTriggers.length ? item.permitTriggers.join(", ") : "No trigger listed"} />
                 <Field label="Controls" value={item.requiredControls.length ? item.requiredControls.join(", ") : "No controls listed"} />
               </div>
+              {assignmentByTask.has(item.id) ? (
+                <div className="mt-4 rounded-xl border border-sky-500/30 bg-sky-950/20 p-3 text-sm text-sky-50">
+                  <div className="font-bold">AI permit assignment</div>
+                  <div className="mt-1 text-sky-100">
+                    Owner: {assignmentByTask.get(item.id)?.ownerLabel ?? "Unassigned"} · Created {assignmentByTask.get(item.id)?.createdCount ?? 0} · Skipped {assignmentByTask.get(item.id)?.skippedCount ?? 0}
+                  </div>
+                  <div className="mt-1 text-sky-200">{assignmentByTask.get(item.id)?.assignmentRationale}</div>
+                </div>
+              ) : null}
               {item.notes ? <p className="mt-4 text-sm leading-6 text-slate-300">{item.notes}</p> : null}
             </article>
           ))}
@@ -462,6 +564,8 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
     </SectionCard>
   );
 }
+
+type SchedulePermitAssignmentScope = "daily" | "weekly";
 
 function SummaryCard({ label, value, tone = "text-slate-100" }: { label: string; value: string; tone?: string }) {
   return (

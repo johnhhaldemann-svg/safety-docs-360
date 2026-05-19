@@ -17,6 +17,10 @@
     {
       "path": "/api/cron/microsoft-project-sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/ai-engine-permit-auto-assign",
+      "schedule": "25 6 * * *"
     }
   ]
 }
