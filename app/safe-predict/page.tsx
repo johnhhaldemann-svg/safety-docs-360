@@ -21,7 +21,7 @@ import {
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
-import { riskForecastForSite, summarizeSafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
+import { hasSafePredictForecastInputs, riskForecastForSite, summarizeSafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
 
 function SourceStatCard({
   title,
@@ -172,18 +172,35 @@ function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord
   );
 }
 
+function EmptySafePredictPanel({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="mt-4 grid min-h-[260px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+      <div>
+        <p className="text-sm font-black text-slate-900">{title}</p>
+        <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function SafePredictDashboardPage() {
   const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
   const [forecastWindow, setForecastWindow] = useState<ForecastWindow>(30);
   const totals = summarizeSafePredictDataset(dataset);
   const selectedSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "riverside" : selectedJobsiteId;
   const forecast = riskForecastForSite(dataset, selectedSiteId);
+  const hasForecastInputs = hasSafePredictForecastInputs(dataset, selectedSiteId);
   const displayedForecast = useMemo(
     () => extendForecastWindow(forecast, forecastWindow),
     [forecast, forecastWindow]
   );
+  const hasForecast = hasForecastInputs && displayedForecast.length > 0;
   const completedInspections = dataset.inspections.filter((inspection) => inspection.status === "Completed").length;
   const complianceRate = totals.workforce.compliantPercent;
+  const liveWithoutRiskData = dataset.mode === "live" && totals.riskScore === 0 && !hasForecastInputs;
+  const liveWithoutForecast = dataset.mode === "live" && !hasForecast;
+  const liveWithoutOpenActions = dataset.mode === "live" && totals.openActions === 0;
+  const liveWithoutCompletedInspections = dataset.mode === "live" && completedInspections === 0;
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -274,31 +291,31 @@ export default function SafePredictDashboardPage() {
           title="Overall Site Risk Score"
           value={totals.riskScore}
           suffix="/100"
-          detail="High Risk"
-          trend="Up 8 pts vs. last 7 days"
-          tone="red"
+          detail={liveWithoutRiskData ? "No Data" : "High Risk"}
+          trend={liveWithoutRiskData ? "Add jobsites and safety records to calculate a live score" : "Up 8 pts vs. last 7 days"}
+          tone={liveWithoutRiskData ? "blue" : "red"}
           icon={<ShieldAlert className="h-7 w-7" />}
-          sparkline={<MiniSparkline data={[42, 47, 58, 44, 46, 56, 54]} />}
+          sparkline={liveWithoutRiskData ? undefined : <MiniSparkline data={[42, 47, 58, 44, 46, 56, 54]} />}
           href="/safe-predict/risk-mitigation#prioritized-risk-queue"
           sourceLabel="Open risk queue"
         />
         <MetricCard
           title="Predicted Incident Risk"
-          value="24%"
-          detail="High"
-          trend="Up 6% vs. last 30 days"
-          tone="orange"
+          value={liveWithoutForecast ? "No Data" : "24%"}
+          detail={liveWithoutForecast ? "Waiting for forecast" : "High"}
+          trend={liveWithoutForecast ? "Predictive risk appears after live inspections, observations, actions, permits, or workforce records exist" : "Up 6% vs. last 30 days"}
+          tone={liveWithoutForecast ? "blue" : "orange"}
           icon={<TrendingUp className="h-7 w-7" />}
-          sparkline={<MiniSparkline data={[20, 22, 31, 28, 35, 38, 47]} color="#f97316" />}
+          sparkline={liveWithoutForecast ? undefined : <MiniSparkline data={[20, 22, 31, 28, 35, 38, 47]} color="#f97316" />}
           href="/safe-predict/predictive-risk#forecast-drivers"
           sourceLabel="Open forecast"
         />
         <MetricCard
           title="Open Corrective Actions"
           value={totals.openActions}
-          detail="High Priority"
-          trend="Up 5 vs. last 7 days"
-          tone="red"
+          detail={liveWithoutOpenActions ? "None Open" : "High Priority"}
+          trend={liveWithoutOpenActions ? "No corrective actions are currently open" : "Up 5 vs. last 7 days"}
+          tone={liveWithoutOpenActions ? "blue" : "red"}
           icon={<ClipboardCheck className="h-7 w-7" />}
           href="/safe-predict/risk-mitigation#corrective-action-tracker"
           sourceLabel="Open action tracker"
@@ -306,9 +323,9 @@ export default function SafePredictDashboardPage() {
         <MetricCard
           title="Completed Inspections"
           value={completedInspections}
-          detail="This Week"
-          trend="Up 18 vs. last 7 days"
-          tone="green"
+          detail={liveWithoutCompletedInspections ? "None Completed" : "This Week"}
+          trend={liveWithoutCompletedInspections ? "Completed inspections will appear after field audits are logged" : "Up 18 vs. last 7 days"}
+          tone={liveWithoutCompletedInspections ? "blue" : "green"}
           icon={<ShieldCheck className="h-7 w-7" />}
           href="/safe-predict/inspections"
           sourceLabel="Open inspection rows"
@@ -316,8 +333,8 @@ export default function SafePredictDashboardPage() {
         <MetricCard
           title="Training Compliance Rate"
           value={`${complianceRate}%`}
-          detail="Compliant"
-          trend="Up 4% vs. last 7 days"
+          detail={dataset.mode === "live" && totals.employees === 0 ? "No workers" : "Compliant"}
+          trend={dataset.mode === "live" && totals.employees === 0 ? "Add workforce records to calculate compliance" : "Up 4% vs. last 7 days"}
           tone="green"
           icon={<GraduationCap className="h-7 w-7" />}
           href="/safe-predict/workforce#training-matrix"
@@ -370,17 +387,26 @@ export default function SafePredictDashboardPage() {
               </div>
             }
           />
-          <div className="mt-4 inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
-            AI models indicate risk levels will remain elevated over the next {forecastWindow} days.
-          </div>
-          <ForecastTrendChart data={displayedForecast} />
-          <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
-            <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-red-500" /> Historical Risk</span>
-            <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 border-t border-dashed border-orange-500" /> Predicted Risk</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-red-200" /> High Risk</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-amber-200" /> Medium Risk</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-emerald-200" /> Low Risk</span>
-          </div>
+          {hasForecast ? (
+            <>
+              <div className="mt-4 inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
+                AI models indicate risk levels will remain elevated over the next {forecastWindow} days.
+              </div>
+              <ForecastTrendChart data={displayedForecast} />
+              <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
+                <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-red-500" /> Historical Risk</span>
+                <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 border-t border-dashed border-orange-500" /> Predicted Risk</span>
+                <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-red-200" /> High Risk</span>
+                <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-amber-200" /> Medium Risk</span>
+                <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-emerald-200" /> Low Risk</span>
+              </div>
+            </>
+          ) : (
+            <EmptySafePredictPanel
+              title="No live forecast yet"
+              detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive trend."
+            />
+          )}
         </Card>
 
         <Card className="p-5">

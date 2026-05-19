@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSafePredictDataset,
+  hasSafePredictForecastInputs,
   jobsiteById,
   nextActionStatus,
   normalizeLiveActions,
@@ -66,6 +67,8 @@ describe("safePredictData", () => {
     expect(dataset.permits).toEqual([]);
     expect(dataset.events).toEqual([]);
     expect(dataset.hazards).toEqual([]);
+    expect(hasSafePredictForecastInputs(dataset)).toBe(false);
+    expect(riskForecastForSite(dataset, "all")).toEqual([]);
     expect(summary).toMatchObject({
       jobsites: 0,
       employees: 0,
@@ -137,6 +140,7 @@ describe("safePredictData", () => {
     expect(dataset.employees[0]).toMatchObject({ name: "Sam Rivera", assignedSiteId: "live-site-1" });
     expect(dataset.employees.some((employee) => employee.name === "Alicia Moore")).toBe(true);
     expect(siteScoped(dataset.documents, "live-site-1")[0]).toMatchObject({ title: "North Pier JSA", type: "JSA", status: "Approved" });
+    expect(hasSafePredictForecastInputs(dataset, "live-site-1")).toBe(true);
   });
 
   it("maps SafePredict action status changes to existing API statuses", () => {

@@ -16,6 +16,7 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
+  hasSafePredictForecastInputs,
   riskForecastForSite,
 } from "@/lib/safePredictData";
 
@@ -25,7 +26,8 @@ export default function SafePredictPredictiveRiskPage() {
   const activeSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "all" : selectedJobsiteId;
   const activeForecast = riskForecastForSite(dataset, activeSiteId);
   const activeSite = dataset.jobsites.find((site) => site.id === activeSiteId) ?? dataset.jobsites[0];
-  const hasForecast = activeForecast.length > 0;
+  const hasForecastInputs = hasSafePredictForecastInputs(dataset, activeSiteId);
+  const hasForecast = hasForecastInputs && activeForecast.length > 0;
   const hasDrivers = dataset.riskDrivers.length > 0;
   const recommendedActions = dataset.mode === "live" && !hasDrivers
     ? []
@@ -106,8 +108,8 @@ export default function SafePredictPredictiveRiskPage() {
           <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
             <RefreshCw className="h-6 w-6 text-slate-500" />
             <span>
-              <span className="block text-sm font-black text-slate-800">Model updated</span>
-              <span className="text-xs text-slate-500">Today, 7:30 AM</span>
+              <span className="block text-sm font-black text-slate-800">{hasForecast ? "Model updated" : "Waiting for data"}</span>
+              <span className="text-xs text-slate-500">{hasForecast ? "Today, 7:30 AM" : "No forecast generated yet"}</span>
             </span>
           </div>
         </div>
@@ -165,7 +167,7 @@ export default function SafePredictPredictiveRiskPage() {
           ) : (
             <EmptyLivePanel
               title="No live forecast yet"
-              detail="Connect jobsites and field records before SafetyDoc360 shows a predictive risk forecast."
+              detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive forecast."
             />
           )}
         </Card>

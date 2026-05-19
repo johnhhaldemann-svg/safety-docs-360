@@ -892,7 +892,32 @@ export function jobsiteById(dataset: SafePredictDataset, siteId: string) {
   return dataset.jobsites.find((site) => site.id === siteId) ?? dataset.jobsites[0];
 }
 
+function safePredictScopeSiteIds(dataset: SafePredictDataset, siteId: string) {
+  if (!siteId || siteId === "all") return new Set(dataset.jobsites.map((site) => site.id));
+  return new Set(dataset.jobsites.some((site) => site.id === siteId) ? [siteId] : []);
+}
+
+export function hasSafePredictForecastInputs(dataset: SafePredictDataset, siteId = "all") {
+  if (dataset.mode !== "live") return dataset.forecasts.length > 0;
+
+  const siteIds = safePredictScopeSiteIds(dataset, siteId);
+  if (siteIds.size === 0) return false;
+
+  const inScope = <T extends { siteId: string }>(rows: T[]) => rows.some((row) => siteIds.has(row.siteId));
+  return (
+    inScope(dataset.actions) ||
+    inScope(dataset.incidents) ||
+    inScope(dataset.observations) ||
+    inScope(dataset.inspections) ||
+    inScope(dataset.permits) ||
+    inScope(dataset.hazards) ||
+    dataset.employees.some((employee) => siteIds.has(employee.assignedSiteId))
+  );
+}
+
 export function riskForecastForSite(dataset: SafePredictDataset, siteId: string) {
+  if (!hasSafePredictForecastInputs(dataset, siteId)) return [];
+
   const site = jobsiteById(dataset, siteId);
   const delta = site ? site.riskScore - 68 : 0;
   return dataset.forecasts.map((point) => ({
