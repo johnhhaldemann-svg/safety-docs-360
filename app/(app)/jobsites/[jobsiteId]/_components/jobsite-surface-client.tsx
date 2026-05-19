@@ -223,9 +223,9 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
     },
     {
       href: `/jobsites/${encodeURIComponent(jobsiteId)}/schedule`,
-      title: "Schedule",
-      detail: "Review the active 30-day work outlook for this jobsite",
-      action: "Open schedule",
+      title: "Work Schedule",
+      detail: "Plan upcoming high-risk work and feed the predictive model",
+      action: "Open work schedule",
     },
     {
       href: links.permits ?? `/jobsites/${encodeURIComponent(jobsiteId)}/permits`,

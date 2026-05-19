@@ -13,7 +13,9 @@ import {
   type PredictiveRiskJobsiteRow,
   type PredictiveRiskJsaActivityRow,
   type PredictiveRiskPermitRow,
+  type PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
+import type { WorkScheduleInputs } from "@/lib/injuryWeather/types";
 import type { BehaviorRiskObservationRow } from "@/lib/predictive/behaviorRisk";
 
 export const runtime = "nodejs";
@@ -49,6 +51,65 @@ function applyJobsiteScope<T>(
   return query;
 }
 
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function itemOverlapsWindow(item: PredictiveRiskScheduleItemRow, startDate: string, endDate: string) {
+  const itemStart = item.work_start_date ?? "";
+  const itemEnd = item.work_end_date ?? itemStart;
+  return Boolean(itemStart && itemStart <= endDate && itemEnd >= startDate);
+}
+
+function shiftHours(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return null;
+  const startMinutes = sh * 60 + sm;
+  let endMinutes = eh * 60 + em;
+  if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+  return Math.max(0.25, Math.min(24, (endMinutes - startMinutes) / 60));
+}
+
+function scheduleDateRange(start: string, end: string) {
+  const dates: Date[] = [];
+  const current = new Date(`${start}T00:00:00.000Z`);
+  const last = new Date(`${end}T00:00:00.000Z`);
+  if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) return dates;
+  while (current.getTime() <= last.getTime() && dates.length < 31) {
+    dates.push(new Date(current));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function workScheduleFromScheduleItems(items: PredictiveRiskScheduleItemRow[]): Partial<WorkScheduleInputs> | undefined {
+  if (items.length === 0) return undefined;
+  const hours = items
+    .map((item) => shiftHours(item.shift_start_time, item.shift_end_time))
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const hoursPerDay = hours.length > 0 ? Math.max(...hours) : null;
+  const scheduledDates = new Set<string>();
+  for (const item of items) {
+    const start = item.work_start_date ?? "";
+    const end = item.work_end_date ?? start;
+    for (const date of scheduleDateRange(start, end)) {
+      scheduledDates.add(dateOnly(date));
+    }
+  }
+  const weekendWork = [...scheduledDates].some((value) => {
+    const day = new Date(`${value}T00:00:00.000Z`).getUTCDay();
+    return day === 0 || day === 6;
+  });
+  const denseWeek = scheduledDates.size >= 7;
+  if (!weekendWork && !denseWeek && hoursPerDay == null) return undefined;
+  return {
+    workSevenDaysPerWeek: weekendWork || denseWeek,
+    hoursPerDay,
+  };
+}
+
 function applyJobsiteIdScope<T>(
   query: ScopedQueryBuilder<T>,
   options: { requestedJobsiteId: string | null; assignedJobsiteIds: string[] | null }
@@ -73,6 +134,8 @@ export async function GET(request: Request) {
   const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() || null;
   const month = searchParams.get("month")?.trim() || null;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const today = dateOnly(new Date());
+  const scheduleWindowEnd = dateOnly(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
 
   if (auth.role === "sales_demo") {
     return NextResponse.json(buildSalesDemoPredictiveRiskPayload(days));
@@ -168,6 +231,17 @@ export async function GET(request: Request) {
     scopeOptions
   ).gte("created_at", since) as PromiseLike<QueryResult<PredictiveRiskJsaActivityRow>>;
 
+  const scheduleItemsQuery = applyJobsiteScope(
+    auth.supabase
+      .from("company_jobsite_schedule_items")
+      .select(
+        "id, jobsite_id, title, work_start_date, work_end_date, shift_start_time, shift_end_time, trade, work_area, crew_or_contractor, crew_size, supervisor_name, risk_level, is_high_risk, hazard_categories, permit_triggers, required_controls, status, notes, created_at"
+      )
+      .eq("company_id", companyId)
+      .neq("status", "archived") as unknown as ScopedQueryBuilder<PredictiveRiskScheduleItemRow>,
+    scopeOptions
+  ) as unknown as PromiseLike<QueryResult<PredictiveRiskScheduleItemRow>>;
+
   const observationsQuery = auth.supabase
     .from("company_sor_records")
     .select("id, date, location, trade, category, hazard_category_code, subcategory, description, severity, status, created_at")
@@ -175,19 +249,26 @@ export async function GET(request: Request) {
     .eq("is_deleted", false)
     .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
 
-  const [forecast, jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, observationsRes] = await Promise.all([
-    getInjuryWeatherDashboardData({
-      companyId,
-      jobsiteId: forecastJobsiteId,
-      ...(month ? { month } : {}),
-    }),
+  const [jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, scheduleItemsRes, observationsRes] = await Promise.all([
     jobsitesQuery,
     correctiveQuery,
     incidentsQuery,
     permitsQuery,
     jsaActivitiesQuery,
+    scheduleItemsQuery,
     observationsQuery,
   ]);
+
+  const scheduleItems = scheduleItemsRes.error
+    ? []
+    : (scheduleItemsRes.data ?? []).filter((item) => itemOverlapsWindow(item, today, scheduleWindowEnd));
+  const workSchedule = workScheduleFromScheduleItems(scheduleItems);
+  const forecast = await getInjuryWeatherDashboardData({
+    companyId,
+    jobsiteId: forecastJobsiteId,
+    ...(month ? { month } : {}),
+    ...(workSchedule ? { workSchedule } : {}),
+  });
 
   const hardError =
     jobsitesRes.error?.message ||
@@ -195,6 +276,7 @@ export async function GET(request: Request) {
     incidentsRes.error?.message ||
     permitsRes.error?.message ||
     (jsaActivitiesRes.error && !isMissingTable(jsaActivitiesRes.error.message) ? jsaActivitiesRes.error.message : null) ||
+    (scheduleItemsRes.error && !isMissingTable(scheduleItemsRes.error.message) ? scheduleItemsRes.error.message : null) ||
     (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null);
 
   if (hardError) {
@@ -213,9 +295,12 @@ export async function GET(request: Request) {
       incidents: incidentsRes.data ?? [],
       permits: permitsRes.data ?? [],
       jsaActivities: jsaActivitiesRes.error ? [] : jsaActivitiesRes.data ?? [],
+      scheduleItems,
       observations: observationsRes.error ? [] : observationsRes.data ?? [],
       warning:
-        jobsiteScope.restricted && !requestedJobsiteId && forecastJobsiteId
+        scheduleItemsRes.error && isMissingTable(scheduleItemsRes.error.message)
+          ? "Work schedule data is not available yet. Run the latest Supabase migration to include schedule pressure in predictive risk."
+          : jobsiteScope.restricted && !requestedJobsiteId && forecastJobsiteId
           ? "Forecast headline uses your first assigned jobsite; location rankings use all assigned jobsites."
           : undefined,
     })

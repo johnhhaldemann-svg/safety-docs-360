@@ -49,7 +49,7 @@ function segmentLabel(segment: string) {
     "live-view": "Live view",
     team: "Team",
     "contractor-training": "Contractor Training",
-    schedule: "Schedule",
+    schedule: "Work Schedule",
     jsa: "JSA",
     toolbox: "Toolbox",
     permits: "Permits",

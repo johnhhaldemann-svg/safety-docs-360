@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Database,
   HardHat,
+  ImageIcon,
   ShieldCheck,
+  Upload,
   Users,
+  X,
 } from "lucide-react";
 import {
   safePredictModuleHealth,
@@ -18,6 +22,7 @@ import {
   type SafePredictModuleSummary,
 } from "@/lib/safePredictLaunchReadiness";
 import { summarizeSafePredictDataset } from "@/lib/safePredictData";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import { Card, SectionTitle, cx } from "@/components/safe-predict/SafePredictPrimitives";
 
@@ -26,6 +31,31 @@ const healthClasses: Record<SafePredictLaunchHealth, string> = {
   attention: "border-amber-200 bg-amber-50 text-amber-700",
   "needs-data": "border-slate-200 bg-slate-50 text-slate-600",
 };
+
+const companyLogoStoragePrefix = "safe-predict-company-logo-v1";
+const maxLogoBytes = 1_500_000;
+
+type CompanyLogoState = {
+  dataUrl: string;
+  fileName: string;
+};
+
+function companyLogoStorageKey(companyId: string) {
+  return `${companyLogoStoragePrefix}:${companyId || "workspace"}`;
+}
+
+function loadStoredCompanyLogo(companyId: string): CompanyLogoState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(companyLogoStorageKey(companyId)) || "null") as Partial<CompanyLogoState> | null;
+    if (typeof parsed?.dataUrl === "string" && parsed.dataUrl.startsWith("data:image/")) {
+      return { dataUrl: parsed.dataUrl, fileName: typeof parsed.fileName === "string" ? parsed.fileName : "Company logo" };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 function healthLabel(health: SafePredictLaunchHealth) {
   if (health === "ready") return "Ready";
@@ -39,6 +69,10 @@ function formatNumber(value: number) {
 
 export function SafePredictLaunchReadiness() {
   const { dataset, loading, mode } = useSafePredictData();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [storedLogo, setStoredLogo] = useState<CompanyLogoState | null>(null);
+  const [logoMessage, setLogoMessage] = useState("");
+  const [logoSaving, setLogoSaving] = useState(false);
   const totals = summarizeSafePredictDataset(dataset);
   const modules: SafePredictModuleSummary[] = [
     {
@@ -124,6 +158,7 @@ export function SafePredictLaunchReadiness() {
     demoCompanyName: dataset.company.name,
   });
   const modeLabel = mode === "live" ? "Live data active" : "Workspace data active";
+  const companyLogo = storedLogo ?? (dataset.company.logoDataUrl ? { dataUrl: dataset.company.logoDataUrl, fileName: dataset.company.logoFileName ?? "Company logo" } : null);
   const criticalGaps = [
     dataset.jobsites.length === 0 ? "Add at least one jobsite." : "",
     dataset.employees.length === 0 ? "Add workforce records." : "",
@@ -131,20 +166,146 @@ export function SafePredictLaunchReadiness() {
     dataset.permits.length === 0 ? "Add permit records." : "",
   ].filter(Boolean);
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => setStoredLogo(loadStoredCompanyLogo(dataset.company.id)), 0);
+    return () => window.clearTimeout(handle);
+  }, [dataset.company.id]);
+
+  async function saveCompanyLogo(logo: CompanyLogoState | null) {
+    if (logo) {
+      window.localStorage.setItem(companyLogoStorageKey(dataset.company.id), JSON.stringify(logo));
+      setStoredLogo(logo);
+    } else {
+      window.localStorage.removeItem(companyLogoStorageKey(dataset.company.id));
+      setStoredLogo(null);
+    }
+
+    setLogoMessage(logo ? "Logo added." : "Logo removed.");
+    if (mode !== "live") return;
+
+    setLogoSaving(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setLogoMessage("Logo is shown here, but you need to sign in again to save it to the company profile.");
+        return;
+      }
+      const response = await fetch("/api/company/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          logoDataUrl: logo?.dataUrl ?? null,
+          logoFileName: logo?.fileName ?? "",
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        setLogoMessage(data?.error?.trim() || "Logo is shown here, but could not be saved to the company profile.");
+        return;
+      }
+      setLogoMessage(logo ? "Logo saved to company profile." : "Logo removed from company profile.");
+    } catch (err) {
+      setLogoMessage(err instanceof Error ? err.message : "Logo is shown here, but could not be saved to the company profile.");
+    } finally {
+      setLogoSaving(false);
+    }
+  }
+
+  function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setLogoMessage("Choose an image file for the company logo.");
+      return;
+    }
+
+    if (file.size > maxLogoBytes) {
+      setLogoMessage("Logo image must be under 1.5 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setLogoMessage("Could not read that logo file.");
+        return;
+      }
+      void saveCompanyLogo({ dataUrl: reader.result, fileName: file.name });
+    };
+    reader.onerror = () => setLogoMessage("Could not read that logo file.");
+    reader.readAsDataURL(file);
+  }
+
   return (
     <Card className="mb-5 overflow-hidden border-blue-100">
       <div className="grid gap-0 2xl:grid-cols-[0.9fr_1.4fr]">
         <div className="border-b border-blue-100 bg-blue-50/55 p-5 2xl:border-b-0 2xl:border-r">
           <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-blue-100 bg-white text-blue-600 shadow-sm">
-              <Database className="h-6 w-6" />
-            </span>
+            <div className="shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={cx(
+                  "group relative grid h-14 w-14 place-items-center overflow-hidden rounded-xl border bg-white text-blue-600 shadow-sm transition hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
+                  companyLogo ? "border-slate-200" : "border-blue-100"
+                )}
+                aria-label={companyLogo ? "Replace company logo" : "Add company logo"}
+                title={companyLogo ? "Replace company logo" : "Add company logo"}
+              >
+                {companyLogo ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- User-selected data URL logo preview. */}
+                    <img src={companyLogo.dataUrl} alt={`${summary.companyName} logo`} className="h-full w-full object-contain p-1.5" />
+                    <span className="absolute inset-0 grid place-items-center bg-slate-950/0 opacity-0 transition group-hover:bg-slate-950/45 group-hover:opacity-100">
+                      <Upload className="h-5 w-5 text-white" aria-hidden />
+                    </span>
+                  </>
+                ) : (
+                  <ImageIcon className="h-6 w-6" aria-hidden />
+                )}
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+              {companyLogo ? (
+                <button
+                  type="button"
+                  onClick={() => void saveCompanyLogo(null)}
+                  className="mt-2 inline-flex h-7 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                  aria-label="Remove company logo"
+                  title="Remove company logo"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+            </div>
             <div>
               <p className="text-xs font-black uppercase tracking-wide text-blue-700">Launch readiness</p>
               <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{summary.companyName}</h2>
               <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
                 {modeLabel}. SafetyDoc360 now owns the operating workflow while connected APIs and files feed the platform behind the scenes.
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 py-1.5 text-xs font-black text-blue-700 transition hover:border-blue-200 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                >
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  {companyLogo ? "Replace logo" : "Add logo"}
+                </button>
+                {logoMessage ? (
+                  <span className="text-xs font-semibold text-slate-500" aria-live="polite">
+                    {logoSaving ? "Saving logo..." : logoMessage}
+                  </span>
+                ) : null}
+              </div>
               <div className="mt-4 flex flex-wrap gap-2 text-xs font-black">
                 <span className={cx("rounded-full border px-3 py-1", healthClasses[summary.health])}>
                   {healthLabel(summary.health)}

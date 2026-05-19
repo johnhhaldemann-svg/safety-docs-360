@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyTrainingRequirements } from "@/lib/companyTrainingAccess";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
+import { normalizeEmail } from "@/lib/companyTrackedEmployees";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { sendTrainingAssignmentEmail } from "@/lib/trainingAssignmentEmail";
 
 export const runtime = "nodejs";
 
 type TrainingAssignmentWorker = {
   id?: string;
   name?: string;
+  email?: string;
   trade?: string;
   role?: string;
   status?: string;
@@ -28,6 +33,15 @@ type AssignmentPlan = {
   detail: string;
   createdRequirementId?: string | null;
   createdActionId?: string | null;
+  notificationStatus?: "sent" | "skipped" | "failed";
+  notificationWarning?: string | null;
+};
+
+type NotificationSummary = {
+  sent: number;
+  skipped: number;
+  failed: number;
+  warnings: string[];
 };
 
 const TRAINING_LIBRARY = [
@@ -164,6 +178,97 @@ function assignableUserId(workerId: string) {
   return cleaned;
 }
 
+function actorName(user: { email?: string | null; user_metadata?: Record<string, unknown> }) {
+  const metadataName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : "";
+  return metadataName.trim() || user.email?.trim() || "Safety team";
+}
+
+async function resolveWorkerEmail(params: {
+  worker: TrainingAssignmentWorker;
+  companyId: string;
+  currentUser: { id: string; email?: string | null };
+  supabase: SupabaseClient;
+}) {
+  const directEmail = normalizeEmail(params.worker.email);
+  if (directEmail) return directEmail;
+
+  const workerId = clean(params.worker.id);
+  if (!workerId) return null;
+
+  if (workerId.startsWith("tracked:")) {
+    const employeeId = workerId.slice("tracked:".length).trim();
+    if (!employeeId) return null;
+    const db = createSupabaseAdminClient() ?? params.supabase;
+    const result = await db
+      .from("company_employee_profiles")
+      .select("email")
+      .eq("company_id", params.companyId)
+      .eq("id", employeeId)
+      .maybeSingle();
+    if (result.error) return null;
+    return normalizeEmail((result.data as { email?: string | null } | null)?.email);
+  }
+
+  if (workerId === params.currentUser.id) {
+    const currentEmail = normalizeEmail(params.currentUser.email);
+    if (currentEmail) return currentEmail;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) return null;
+  const result = await adminClient.auth.admin.getUserById(workerId);
+  if (result.error) return null;
+  return normalizeEmail(result.data.user?.email);
+}
+
+async function resolveJobsiteName(params: {
+  supabase: SupabaseClient;
+  companyId: string;
+  jobsiteId: string;
+}) {
+  if (!params.jobsiteId) return null;
+  const result = await params.supabase
+    .from("company_jobsites")
+    .select("name")
+    .eq("company_id", params.companyId)
+    .eq("id", params.jobsiteId)
+    .maybeSingle();
+  if (result.error) return null;
+  const name = (result.data as { name?: string | null } | null)?.name?.trim();
+  return name || null;
+}
+
+async function recordNotificationEvent(params: {
+  supabase: SupabaseClient;
+  actionId: string;
+  companyId: string;
+  actorUserId: string;
+  email: string | null;
+  status: "sent" | "skipped" | "failed";
+  warning?: string | null;
+}) {
+  await params.supabase.from("company_corrective_action_events").insert({
+    action_id: params.actionId,
+    company_id: params.companyId,
+    event_type: "training_assignment_notification",
+    detail:
+      params.status === "sent"
+        ? "Training assignment notification email sent."
+        : "Training assignment notification email was not sent.",
+    event_payload: {
+      email: params.email,
+      status: params.status,
+      warning: params.warning ?? null,
+    },
+    created_by: params.actorUserId,
+  });
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request);
   if ("error" in auth) return auth.error;
@@ -225,6 +330,12 @@ export async function POST(request: Request) {
   const createdRequirementByTitle = new Map<string, string | null>();
   const plans: AssignmentPlan[] = [];
   const skipped: string[] = [];
+  const notificationSummary: NotificationSummary = {
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    warnings: [],
+  };
 
   for (const worker of workers) {
     const plan = classifyWorker(worker, existingRequirements.length > 0);
@@ -279,6 +390,7 @@ export async function POST(request: Request) {
     }
 
     if (plan.action !== "review") {
+      const dueAt = nextDueDate();
       const actionResult = await auth.supabase
         .from("company_corrective_actions")
         .insert({
@@ -296,7 +408,7 @@ export async function POST(request: Request) {
           sif_category: plan.riskLevel === "critical" ? "line_of_fire" : null,
           immediate_action_required: plan.riskLevel === "critical" || plan.riskLevel === "high",
           priority: plan.riskLevel === "critical" ? "high" : plan.riskLevel,
-          due_at: nextDueDate(),
+          due_at: dueAt,
           created_by: auth.user.id,
           updated_by: auth.user.id,
         })
@@ -306,20 +418,88 @@ export async function POST(request: Request) {
       if (!actionResult.error && actionResult.data && typeof actionResult.data === "object" && "id" in actionResult.data) {
         plan.createdActionId = String(actionResult.data.id);
       }
+
+      if (plan.action === "assign_training" && plan.createdActionId) {
+        const recipientEmail = await resolveWorkerEmail({
+          worker,
+          companyId: companyScope.companyId,
+          currentUser: auth.user,
+          supabase: auth.supabase,
+        });
+
+        if (!recipientEmail) {
+          plan.notificationStatus = "skipped";
+          plan.notificationWarning = "No email address is available for this assignee.";
+          notificationSummary.skipped += 1;
+          notificationSummary.warnings.push(`${plan.workerName}: no email address is available.`);
+          await recordNotificationEvent({
+            supabase: auth.supabase,
+            actionId: plan.createdActionId,
+            companyId: companyScope.companyId,
+            actorUserId: auth.user.id,
+            email: null,
+            status: "skipped",
+            warning: plan.notificationWarning,
+          });
+        } else {
+          const jobsiteName = await resolveJobsiteName({
+            supabase: auth.supabase,
+            companyId: companyScope.companyId,
+            jobsiteId,
+          });
+          const emailResult = await sendTrainingAssignmentEmail({
+            toEmail: recipientEmail,
+            workerName: plan.workerName,
+            companyName: companyScope.companyName || "Your company",
+            assignedByName: actorName(auth.user),
+            assignmentTitle: plan.title,
+            requirementTitle: plan.requirementTitle,
+            detail: plan.detail,
+            dueAt,
+            jobsiteName,
+          });
+          plan.notificationStatus = emailResult.status;
+          plan.notificationWarning = emailResult.warning ?? null;
+          if (emailResult.status === "sent") {
+            notificationSummary.sent += 1;
+          } else if (emailResult.status === "failed") {
+            notificationSummary.failed += 1;
+            if (emailResult.warning) notificationSummary.warnings.push(`${plan.workerName}: ${emailResult.warning}`);
+          } else {
+            notificationSummary.skipped += 1;
+            if (emailResult.warning) notificationSummary.warnings.push(`${plan.workerName}: ${emailResult.warning}`);
+          }
+          await recordNotificationEvent({
+            supabase: auth.supabase,
+            actionId: plan.createdActionId,
+            companyId: companyScope.companyId,
+            actorUserId: auth.user.id,
+            email: recipientEmail,
+            status: emailResult.status,
+            warning: emailResult.warning ?? null,
+          });
+        }
+      }
     }
 
     plans.push(plan);
   }
 
+  const notificationText =
+    notificationSummary.sent > 0 || notificationSummary.skipped > 0 || notificationSummary.failed > 0
+      ? ` Email notifications: ${notificationSummary.sent} sent, ${notificationSummary.skipped} skipped, ${notificationSummary.failed} failed.`
+      : "";
+
   return NextResponse.json({
     success: true,
     assignments: plans,
     skipped,
+    notifications: notificationSummary,
     createdRequirements: [...createdRequirementByTitle.values()].filter(Boolean).length,
     createdActions: plans.filter((plan) => plan.createdActionId).length,
     message:
       plans.length === 0
         ? "No eligible training assignments were created."
-        : "AI training assignments queued. Refresh the training matrix to see newly generated requirements.",
+        : `AI training assignments queued. Refresh the training matrix to see newly generated requirements.${notificationText}`,
   });
 }

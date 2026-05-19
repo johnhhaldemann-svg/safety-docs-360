@@ -120,6 +120,36 @@ describe("calculateBehaviorRisk", () => {
     expect(result.byTrade.length).toBeGreaterThan(0);
   });
 
+  it("uses work schedule rows as predictive behavior-risk signals", () => {
+    const result = calculateBehaviorRisk({
+      now,
+      scheduleItems: [
+        {
+          id: "schedule-1",
+          jobsite_id: "site-1",
+          title: "Critical lift over active access route",
+          work_start_date: tomorrow(),
+          trade: "Steel",
+          work_area: "Level 4 east",
+          crew_size: 10,
+          risk_level: "critical",
+          is_high_risk: true,
+          hazard_categories: ["crane_rigging", "line_of_fire"],
+          permit_triggers: ["lift_plan"],
+          required_controls: [],
+          status: "planned",
+        },
+      ],
+      permits: [],
+    });
+
+    expect(result.topDrivers.map((driver) => driver.driver)).toContain("schedule_pressure");
+    expect(result.topDrivers.map((driver) => driver.driver)).toContain("permit_mismatch");
+    expect(result.topDrivers.map((driver) => driver.driver)).toContain("missing_critical_control");
+    expect(result.topDrivers.map((driver) => driver.driver)).toContain("missing_supervisor_verification");
+    expect(result.sourceEvents.some((event) => event.sourceType === "schedule" && event.sourceId === "schedule-1")).toBe(true);
+  });
+
   it("flags training gaps and prior incident patterns", () => {
     const result = calculateBehaviorRisk({
       now,

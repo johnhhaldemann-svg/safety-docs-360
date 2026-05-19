@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { AlertCircle, ArrowRight, CalendarDays, Check, Clock, Download, FileText, Flame, MapPin, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, ArrowRight, CalendarDays, Check, Clock, Download, FileText, Flame, MapPin, ShieldCheck, TrendingUp, UserRound, Users, X } from "lucide-react";
 import {
   Card,
   ExportButton,
@@ -22,6 +22,7 @@ import {
   safePredictPermits,
   safePredictTradeReadiness,
   workforceTotals,
+  type SafePredictDemoEmployee,
   type SafePredictDemoEmployeeStatus,
 } from "@/lib/safePredictMockData";
 
@@ -34,6 +35,7 @@ const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
 export default function SafePredictWorkforcePage() {
   const [statusFilter, setStatusFilter] = useState<"all" | SafePredictDemoEmployeeStatus>("all");
   const [siteFilter, setSiteFilter] = useState("all");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const workforce = workforceTotals(safePredictTradeReadiness);
   const permits = permitTotals(safePredictPermits);
   const visibleEmployees = useMemo(
@@ -42,9 +44,23 @@ export default function SafePredictWorkforcePage() {
         (employee) =>
           (statusFilter === "all" || employee.status === statusFilter) &&
           (siteFilter === "all" || employee.assignedSiteId === siteFilter)
-      ),
+    ),
     [siteFilter, statusFilter]
   );
+  const selectedEmployee = selectedEmployeeId
+    ? safePredictDemoEmployees.find((employee) => employee.id === selectedEmployeeId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (!selectedEmployee) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelectedEmployeeId(null);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedEmployee]);
 
   function focusRoster() {
     document.getElementById("employee-roster")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -63,6 +79,10 @@ export default function SafePredictWorkforcePage() {
   function clearRosterFilters() {
     setStatusFilter("all");
     setSiteFilter("all");
+  }
+
+  function openEmployeeProfile(employeeId: string) {
+    setSelectedEmployeeId(employeeId);
   }
 
   return (
@@ -196,6 +216,9 @@ export default function SafePredictWorkforcePage() {
                 <MobileRecordCard
                   key={`${employee.id}-mobile`}
                   title={employee.name}
+                  active={selectedEmployeeId === employee.id}
+                  actionLabel={`Open ${employee.name} profile`}
+                  onClick={() => openEmployeeProfile(employee.id)}
                   rows={[
                     ["Trade", employee.trade],
                     ["Role", employee.role],
@@ -227,9 +250,28 @@ export default function SafePredictWorkforcePage() {
                 {visibleEmployees.map((employee) => {
                   const jobsite = jobsiteForId(safePredictDemoJobsites, employee.assignedSiteId);
                   return (
-                    <tr key={employee.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <tr
+                      key={employee.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open ${employee.name} profile`}
+                      onClick={() => openEmployeeProfile(employee.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openEmployeeProfile(employee.id);
+                        }
+                      }}
+                      className={cx(
+                        "group cursor-pointer border-b border-slate-100 transition hover:bg-blue-50/50 focus:bg-blue-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-blue-100",
+                        selectedEmployeeId === employee.id ? "bg-blue-50" : undefined
+                      )}
+                    >
                       <td className="px-5 py-3">
-                        <p className="font-black text-slate-900">{employee.name}</p>
+                        <p className="inline-flex items-center gap-2 font-black text-slate-900">
+                          {employee.name}
+                          <ArrowRight className="h-3.5 w-3.5 text-blue-500 opacity-0 transition group-hover:opacity-100" />
+                        </p>
                         <p className="mt-1 text-xs text-slate-500">{employee.id} - {employee.shift} shift</p>
                       </td>
                       <td className="px-5 py-3">
@@ -472,12 +514,186 @@ export default function SafePredictWorkforcePage() {
         </Card>
       </div>
 
+      <EmployeeProfileDrawer employee={selectedEmployee} onClose={() => setSelectedEmployeeId(null)} />
+
       <p className="mt-5 text-center text-xs font-semibold text-slate-500">Data is refreshed every 15 minutes</p>
     </div>
   );
 }
 
-function MobileRecordCard({ title, rows }: { title: string; rows: Array<[string, string]> }) {
+function EmployeeProfileDrawer({
+  employee,
+  onClose,
+}: {
+  employee: SafePredictDemoEmployee | null;
+  onClose: () => void;
+}) {
+  if (!employee) return null;
+
+  const jobsite = jobsiteForId(safePredictDemoJobsites, employee.assignedSiteId);
+  const profileRows: Array<[string, string]> = [
+    ["Employee ID", employee.id],
+    ["Supervisor", employee.supervisor],
+    ["Shift", `${employee.shift} shift`],
+    ["Assigned jobsite", jobsite?.name ?? "Unassigned"],
+    ["Project phase", jobsite?.phase ?? "No active assignment"],
+    ["Last activity", employee.lastActivity],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" aria-label="Close employee profile" onClick={onClose} className="absolute inset-0 cursor-default bg-slate-950/35" />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="employee-profile-title"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[480px] flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)]"
+      >
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-wide text-blue-600">Employee profile</p>
+              <h2 id="employee-profile-title" className="mt-2 text-2xl font-black leading-tight text-slate-950">
+                {employee.name}
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-slate-600">
+                {employee.trade} - {employee.role}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close employee profile"
+              onClick={onClose}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-slate-500">Readiness</p>
+              <p className="mt-1 text-3xl font-black text-slate-950">{employee.readinessScore}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-slate-500">Status</p>
+              <span className={cx("mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black", employeeStatusClass(employee.status))}>
+                {statusLabels[employee.status]}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-5 p-5">
+          <section>
+            <h3 className="flex items-center gap-2 text-sm font-black text-slate-950">
+              <UserRound className="h-4 w-4 text-blue-600" />
+              Profile details
+            </h3>
+            <dl className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">
+              {profileRows.map(([label, value]) => (
+                <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_1fr] sm:gap-4">
+                  <dt className="text-xs font-bold uppercase text-slate-500">{label}</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section>
+            <h3 className="flex items-center gap-2 text-sm font-black text-slate-950">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Credentials
+            </h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {employee.credentials.map((credential) => (
+                <span key={credential} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                  {credential}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          {jobsite ? (
+            <section className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-black text-slate-950">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                Assignment
+              </h3>
+              <p className="mt-2 text-sm font-black text-slate-900">{jobsite.name}</p>
+              <p className="mt-1 text-sm text-slate-600">{jobsite.address}, {jobsite.cityState}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500">Site risk</p>
+                  <p className="font-black text-slate-900">{jobsite.riskScore}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500">Open actions</p>
+                  <p className="font-black text-slate-900">{jobsite.openActions}</p>
+                </div>
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-3 border-t border-slate-200 p-5">
+          <Link href="/safe-predict/training" className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white">
+            Training records <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link href="/safe-predict/team-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">
+            Team access <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function employeeStatusClass(status: SafePredictDemoEmployeeStatus) {
+  if (status === "overdue") return "bg-red-50 text-red-600";
+  if (status === "expiring") return "bg-amber-50 text-amber-600";
+  return "bg-emerald-50 text-emerald-600";
+}
+
+function MobileRecordCard({
+  title,
+  rows,
+  actionLabel,
+  active,
+  onClick,
+}: {
+  title: string;
+  rows: Array<[string, string]>;
+  actionLabel?: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-label={actionLabel ?? title}
+        onClick={onClick}
+        className={cx(
+          "block w-full rounded-lg border bg-slate-50 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100",
+          active ? "border-blue-300 bg-blue-50" : "border-slate-200"
+        )}
+      >
+        <span className="flex items-start justify-between gap-3">
+          <span className="text-base font-black leading-snug text-slate-950">{title}</span>
+          <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+        </span>
+        <span className="mt-3 grid gap-2 text-sm">
+          {rows.map(([label, value]) => (
+            <span key={`${title}-${label}`} className="flex justify-between gap-3 border-t border-slate-200 pt-2">
+              <span className="font-bold text-slate-500">{label}</span>
+              <span className="text-right font-semibold text-slate-800">{value}</span>
+            </span>
+          ))}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <article className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <p className="text-base font-black leading-snug text-slate-950">{title}</p>

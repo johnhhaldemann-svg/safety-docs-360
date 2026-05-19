@@ -73,7 +73,7 @@ describe("/api/company/onboarding/import", () => {
         method: "POST",
         body: JSON.stringify({
           employees: [{ full_name: "Jordan Lee", email: "jordan@example.com" }],
-          jobsites: [{ name: "North Tower" }],
+          jobsites: [{ name: "North Tower", jobsite_number: "SITE-0001" }],
           trainingRecords: [
             {
               email: "jordan@example.com",

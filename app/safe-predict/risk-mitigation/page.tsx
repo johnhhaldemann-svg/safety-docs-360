@@ -429,6 +429,14 @@ export default function SafePredictRiskMitigationPage() {
         </button>
       </div>
 
+      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <MetricCard title="Total Open Actions" value={summary.open} detail="Filtered action board" tone="blue" icon={<ShieldCheck className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View board" />
+        <MetricCard title="Overdue Actions" value={summary.overdue} detail="Filtered overdue actions" tone="red" icon={<CalendarDays className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View overdue" />
+        <MetricCard title="Avg. Time to Close" value={summary.averageDaysToClose} suffix="days" detail="Down 18% vs last 7 days" tone="purple" icon={<CalendarDays className="h-7 w-7" />} />
+        <MetricCard title="Actions Closed (30 Days)" value={summary.closed * 14} detail="Up 24% vs last 30 days" tone="green" icon={<ShieldCheck className="h-7 w-7" />} />
+        <MetricCard title="Risk Score (All Sites)" value={summary.riskScore} suffix="/100" detail="Down 9 pts vs last 7 days" tone="amber" icon={<ShieldCheck className="h-7 w-7" />} sparkline={<MiniSparkline data={[58, 62, 56, 74, 71, 68]} color="#f97316" />} />
+      </div>
+
       <Card className="mb-5 p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -593,14 +601,6 @@ export default function SafePredictRiskMitigationPage() {
             <div className="mt-5"><EventTimeline events={dataset.events} /></div>
           </Card>
         </div>
-      </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <MetricCard title="Total Open Actions" value={summary.open} detail="Filtered action board" tone="blue" icon={<ShieldCheck className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View board" />
-        <MetricCard title="Overdue Actions" value={summary.overdue} detail="Filtered overdue actions" tone="red" icon={<CalendarDays className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View overdue" />
-        <MetricCard title="Avg. Time to Close" value={summary.averageDaysToClose} suffix="days" detail="Down 18% vs last 7 days" tone="purple" icon={<CalendarDays className="h-7 w-7" />} />
-        <MetricCard title="Actions Closed (30 Days)" value={summary.closed * 14} detail="Up 24% vs last 30 days" tone="green" icon={<ShieldCheck className="h-7 w-7" />} />
-        <MetricCard title="Risk Score (All Sites)" value={summary.riskScore} suffix="/100" detail="Down 9 pts vs last 7 days" tone="amber" icon={<ShieldCheck className="h-7 w-7" />} sparkline={<MiniSparkline data={[58, 62, 56, 74, 71, 68]} color="#f97316" />} />
       </div>
     </div>
   );

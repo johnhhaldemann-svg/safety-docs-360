@@ -149,6 +149,7 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
     }),
     company_permits: queryBuilder({ data: [] }),
     company_jsa_activities: queryBuilder({ data: [] }),
+    company_jobsite_schedule_items: queryBuilder({ data: [] }),
     company_sor_records: queryBuilder({ data: [] }),
     ...overrides,
   };
@@ -245,6 +246,57 @@ describe("/api/company/predictive-risk", () => {
     expect(body.summary.predictedIncidents).toBe(2);
     expect(getInjuryWeatherDashboardData).toHaveBeenCalledWith(expect.objectContaining({ companyId: "co1", jobsiteId: "j1" }));
     expect(builders.company_corrective_actions.eq).toHaveBeenCalledWith("jobsite_id", "j1");
+  });
+
+  it("includes upcoming work schedule rows in predictive behavior risk", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "schedule-1",
+            jobsite_id: "j1",
+            title: "Critical lift over active access route",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            shift_start_time: "07:00",
+            shift_end_time: "17:00",
+            trade: "Steel",
+            work_area: "Level 4 east",
+            crew_size: 10,
+            supervisor_name: null,
+            risk_level: "critical",
+            is_high_risk: true,
+            hazard_categories: ["crane_rigging", "line_of_fire"],
+            permit_triggers: ["lift_plan"],
+            required_controls: [],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.behaviorRisk.topDrivers.map((driver: { driver: string }) => driver.driver)).toContain("schedule_pressure");
+    expect(body.leadershipTrust.sourceCoverage).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "scheduleItems", label: "Work schedule", count: 1 })])
+    );
+    expect(getInjuryWeatherDashboardData).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: "co1",
+      jobsiteId: "j1",
+      workSchedule: expect.objectContaining({ hoursPerDay: 10 }),
+    }));
   });
 
   it("rejects a restricted user requesting an unassigned jobsite", async () => {

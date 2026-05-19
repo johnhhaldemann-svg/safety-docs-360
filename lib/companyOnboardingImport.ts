@@ -197,6 +197,31 @@ function normalizeKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
+function fullNameForEmployeeRow(row: Record<string, unknown>) {
+  const direct = cleanString(
+    valueFor(row, [
+      "full_name",
+      "full name",
+      "fullName",
+      "employee_name",
+      "employee name",
+      "worker_name",
+      "worker name",
+      "person_name",
+      "person name",
+      "name",
+    ])
+  );
+  if (direct) return direct;
+
+  const firstName = cleanString(valueFor(row, ["first_name", "first name", "firstName", "first"]));
+  const middleName = cleanString(
+    valueFor(row, ["middle_name", "middle name", "middleName", "middle"])
+  );
+  const lastName = cleanString(valueFor(row, ["last_name", "last name", "lastName", "last"]));
+  return [firstName, middleName, lastName].filter(Boolean).join(" ").trim();
+}
+
 function normalizeYears(value: unknown): number | null | "invalid" {
   const raw = cleanString(value);
   if (!raw) return null;
@@ -218,7 +243,7 @@ export function validateEmployeeImportRows(
 
   rows.forEach((row, index) => {
     const rowNumber = index + 2;
-    const fullName = cleanString(valueFor(row, ["full_name", "full name", "fullName", "name"]));
+    const fullName = fullNameForEmployeeRow(row);
     const rawEmail = valueFor(row, ["email", "email_address", "email address"]);
     const email = normalizeEmail(rawEmail);
     const yearsExperience = normalizeYears(valueFor(row, ["years_experience", "years experience", "yearsExperience"]));
@@ -249,13 +274,38 @@ export function validateEmployeeImportRows(
     const phone = cleanNullable(valueFor(row, ["phone", "phone_number", "phone number"]));
     validRows.push({
       rowNumber,
-      externalEmployeeId: cleanNullable(valueFor(row, ["employee_id", "external_employee_id", "employee id", "employeeId"])),
+      externalEmployeeId: cleanNullable(
+        valueFor(row, [
+          "employee_id",
+          "external_employee_id",
+          "employee id",
+          "employeeId",
+          "employee_number",
+          "employee number",
+          "worker_id",
+          "worker id",
+          "badge_id",
+          "badge id",
+          "badge",
+        ])
+      ),
       fullName,
       email,
       phone,
       phoneNormalized: normalizePhone(phone),
-      jobTitle: cleanNullable(valueFor(row, ["job_title", "job title", "jobTitle", "position"])),
-      tradeSpecialty: cleanNullable(valueFor(row, ["trade_specialty", "trade specialty", "tradeSpecialty", "trade"])),
+      jobTitle: cleanNullable(
+        valueFor(row, ["job_title", "job title", "jobTitle", "position", "title", "role"])
+      ),
+      tradeSpecialty: cleanNullable(
+        valueFor(row, [
+          "trade_specialty",
+          "trade specialty",
+          "tradeSpecialty",
+          "trade",
+          "craft",
+          "discipline",
+        ])
+      ),
       readinessStatus: normalizeReadinessStatus(valueFor(row, ["readiness_status", "readiness status", "readinessStatus"])),
       yearsExperience,
       status: normalizeEmployeeStatus(valueFor(row, ["status"])),

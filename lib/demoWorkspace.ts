@@ -28,6 +28,8 @@ export const demoCompanyProfile: DashboardCompanyProfile = {
   country: "USA",
   primary_contact_name: "Jordan Lee",
   primary_contact_email: "demo@safety360docs.com",
+  logo_data_url: null,
+  logo_file_name: null,
   status: "active",
   pilot_trial_ends_at: isoDaysFromNow(21),
   pilot_converted_at: null,

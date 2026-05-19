@@ -155,12 +155,36 @@ export type BehaviorRiskTrainingGapRow = {
   expires_at?: string | null;
 };
 
+export type BehaviorRiskScheduleItemRow = {
+  id?: string | null;
+  jobsite_id?: string | null;
+  title?: string | null;
+  work_start_date?: string | null;
+  work_end_date?: string | null;
+  shift_start_time?: string | null;
+  shift_end_time?: string | null;
+  trade?: string | null;
+  work_area?: string | null;
+  crew_or_contractor?: string | null;
+  crew_size?: number | null;
+  supervisor_name?: string | null;
+  risk_level?: string | null;
+  is_high_risk?: boolean | null;
+  hazard_categories?: string[] | null;
+  permit_triggers?: string[] | null;
+  required_controls?: string[] | null;
+  status?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
 export type BehaviorRiskInput = {
   projectId?: string | null;
   lookAheadDays?: number | null;
   includeResolved?: boolean | null;
   now?: Date;
   jsaActivities?: BehaviorRiskJsaActivityRow[];
+  scheduleItems?: BehaviorRiskScheduleItemRow[];
   permits?: BehaviorRiskPermitRow[];
   correctiveActions?: BehaviorRiskCorrectiveActionRow[];
   incidents?: BehaviorRiskIncidentRow[];
@@ -375,6 +399,68 @@ function activityHazardKeys(rows: BehaviorRiskJsaActivityRow[]) {
   return new Set(rows.flatMap((row) => [row.hazard_category, row.activity_name].map(hazardKey)));
 }
 
+type ScheduledActivityRow = BehaviorRiskJsaActivityRow & {
+  sourceKind?: "jsa" | "schedule";
+  required_controls?: string[] | null;
+};
+
+function scheduleItemWithinLookAhead(row: BehaviorRiskScheduleItemRow, now: Date, days: number) {
+  const start = parseDate(row.work_start_date);
+  const end = parseDate(row.work_end_date ?? row.work_start_date);
+  if (!start && !end) return false;
+  const windowStart = new Date(now);
+  windowStart.setHours(0, 0, 0, 0);
+  const windowEnd = new Date(windowStart.getTime() + days * 86400000);
+  const itemStart = start ?? end!;
+  const itemEnd = end ?? start!;
+  return itemStart.getTime() <= windowEnd.getTime() && itemEnd.getTime() >= windowStart.getTime();
+}
+
+function riskLevelForScheduleItem(row: BehaviorRiskScheduleItemRow) {
+  const level = norm(row.risk_level);
+  if (level === "critical" || level === "high" || level === "medium" || level === "low") return level;
+  if (row.is_high_risk) return "high";
+  const text = norm(`${row.title ?? ""} ${row.trade ?? ""} ${row.notes ?? ""} ${(row.hazard_categories ?? []).join(" ")} ${(row.permit_triggers ?? []).join(" ")}`);
+  if (/confined|trench|excavat|energized|crane|critical lift|fall|height|roof|edge/.test(text)) return "critical";
+  if (/hot work|weld|cutting|loto|lockout|rigging|steel|overhead|line of fire/.test(text)) return "high";
+  return "medium";
+}
+
+function scheduledActivitiesFromScheduleItems(
+  rows: BehaviorRiskScheduleItemRow[],
+  now: Date,
+  lookAheadDays: number
+): ScheduledActivityRow[] {
+  return rows
+    .filter((row) => scheduleItemWithinLookAhead(row, now, lookAheadDays))
+    .map((row): ScheduledActivityRow => {
+      const hazardCategories = row.hazard_categories ?? [];
+      const permitTriggers = row.permit_triggers ?? [];
+      const requiredControls = row.required_controls ?? [];
+      const riskLevel = riskLevelForScheduleItem(row);
+      return {
+        id: row.id ?? null,
+        jobsite_id: row.jobsite_id ?? null,
+        work_date: row.work_start_date ?? row.created_at ?? null,
+        trade: row.trade ?? null,
+        activity_name: row.title ?? "Scheduled work",
+        area: row.work_area ?? null,
+        crew_size: row.crew_size ?? null,
+        hazard_category: hazardCategories[0] ?? riskLevel,
+        hazard_description: hazardCategories.join(", ") || (row.notes ?? null),
+        mitigation: requiredControls.join(", "),
+        permit_required: permitTriggers.length > 0,
+        permit_type: permitTriggers.join(", ") || null,
+        planned_risk_level: row.is_high_risk && riskLevel === "medium" ? "high" : riskLevel,
+        status: row.status ?? "planned",
+        created_at: row.created_at ?? null,
+        supervisor_name: row.supervisor_name ?? null,
+        sourceKind: "schedule",
+        required_controls: requiredControls,
+      };
+    });
+}
+
 function eventId(driver: BehaviorRiskDriverId, sourceType: BehaviorRiskSourceType, sourceId: string | null | undefined, suffix = "") {
   return [driver, sourceType, sourceId || "summary", suffix].filter(Boolean).join(":");
 }
@@ -444,12 +530,17 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
   const lookAheadDays = clamp(Math.floor(input.lookAheadDays ?? 7), 1, 30);
   const projectId = input.projectId ?? null;
   const jsaActivities = input.jsaActivities ?? [];
+  const scheduleItems = input.scheduleItems ?? [];
   const permits = input.permits ?? [];
   const correctiveActions = input.correctiveActions ?? [];
   const incidents = input.incidents ?? [];
   const observations = input.observations ?? [];
   const trainingGaps = input.trainingGaps ?? [];
-  const scheduled = jsaActivities.filter((row) => isWithinLookAhead(parseDate(row.work_date ?? row.created_at), now, lookAheadDays));
+  const jsaScheduled: ScheduledActivityRow[] = jsaActivities
+    .filter((row) => isWithinLookAhead(parseDate(row.work_date ?? row.created_at), now, lookAheadDays))
+    .map((row) => ({ ...row, sourceKind: "jsa" }));
+  const scheduleScheduled = scheduledActivitiesFromScheduleItems(scheduleItems, now, lookAheadDays);
+  const scheduled = [...jsaScheduled, ...scheduleScheduled];
   const activeScheduled = scheduled.filter((row) => input.includeResolved || !isResolvedEvent(row.status));
   const highRiskScheduled = activeScheduled.filter(isHighRiskActivity);
   const events: BehaviorRiskSourceEvent[] = [];
@@ -489,7 +580,7 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
           supervisorId: row.supervisor_id ?? row.supervisor_name ?? null,
           workArea: row.area ?? null,
           taskName: row.activity_name ?? null,
-          sourceType: "jsa",
+          sourceType: row.sourceKind === "schedule" ? "schedule" : "jsa",
           sourceId: row.id ?? null,
           riskDriver: "weak_jsa_language",
           riskPoints: 10,
@@ -511,7 +602,7 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
           supervisorId: row.supervisor_id ?? row.supervisor_name ?? null,
           workArea: row.area ?? null,
           taskName: row.activity_name ?? null,
-          sourceType: "jsa",
+          sourceType: row.sourceKind === "schedule" ? "schedule" : "jsa",
           sourceId: row.id ?? null,
           riskDriver: "missing_critical_control",
           riskPoints: 10,
@@ -534,7 +625,7 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
           supervisorId: row.supervisor_id ?? row.supervisor_name ?? null,
           workArea: row.area ?? null,
           taskName: row.activity_name ?? null,
-          sourceType: "permit",
+          sourceType: row.sourceKind === "schedule" ? "schedule" : "permit",
           sourceId: row.id ?? null,
           riskDriver: "permit_mismatch",
           riskPoints: 15,
@@ -556,7 +647,7 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
           supervisorId: row.supervisor_id ?? row.supervisor_name ?? null,
           workArea: row.area ?? null,
           taskName: row.activity_name ?? null,
-          sourceType: "manual_review",
+          sourceType: row.sourceKind === "schedule" ? "schedule" : "manual_review",
           sourceId: row.id ?? null,
           riskDriver: "missing_supervisor_verification",
           riskPoints: 10,
@@ -579,7 +670,7 @@ export function calculateBehaviorRisk(input: BehaviorRiskInput): BehaviorRiskRes
           supervisorId: row.supervisor_id ?? row.supervisor_name ?? null,
           workArea: row.area ?? null,
           taskName: row.activity_name ?? null,
-          sourceType: "jsa",
+          sourceType: row.sourceKind === "schedule" ? "schedule" : "jsa",
           sourceId: row.id ?? null,
           riskDriver: "control_dependency",
           riskPoints: 10,

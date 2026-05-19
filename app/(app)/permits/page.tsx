@@ -11,9 +11,13 @@ import { listSectionDensity } from "@/lib/tableDensityLayout";
 import {
   EmptyState,
   InlineMessage,
+  MetricTile,
   PageHero,
   SectionCard,
   StatusBadge,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
+  appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import {
   demoCompanyJobsiteRows,
@@ -100,6 +104,11 @@ const CATEGORIES = [
 const ESCALATION_OPTIONS = ["none", "monitor", "urgent", "critical"] as const;
 const STOP_WORK_OPTIONS = ["normal", "stop_work_requested", "stop_work_active", "cleared"] as const;
 
+const permitOperationButtonClassName =
+  "rounded-lg border border-[var(--app-border-strong)] bg-white/82 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] transition hover:bg-[var(--app-accent-primary-soft)]";
+const permitStopWorkButtonClassName =
+  "rounded-lg border border-[rgba(217,164,65,0.34)] bg-[var(--semantic-warning-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--semantic-warning)] transition hover:bg-[#fdeabf]";
+
 function isActiveJobsite(jobsite: JobsiteRow) {
   const status = jobsite.status.trim().toLowerCase();
   return !["archived", "closed", "completed", "inactive"].includes(status);
@@ -159,6 +168,14 @@ function formatDateTime(value: string | null | undefined) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function getPermitStatusTone(status: string): "neutral" | "success" | "warning" | "error" | "info" {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "active") return "success";
+  if (normalized === "closed") return "neutral";
+  if (normalized === "expired") return "warning";
+  return "info";
 }
 
 export default function PermitsPage() {
@@ -439,7 +456,7 @@ export default function PermitsPage() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
-            <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
+            <Link href="/dashboard" className={appButtonSecondaryClassName}>
               Back to Dashboard
             </Link>
           </div>
@@ -448,11 +465,34 @@ export default function PermitsPage() {
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
-      <section className="grid gap-4 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Total</div><div className="mt-2 text-3xl font-black">{counts.total}</div></div>
-        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Active</div><div className="mt-2 text-3xl font-black">{counts.active}</div></div>
-        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">SIF Flagged</div><div className="mt-2 text-3xl font-black">{counts.sif}</div></div>
-        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4"><div className="text-xs text-slate-500">Stop Work</div><div className="mt-2 text-3xl font-black">{counts.stopWork}</div></div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Permit summary">
+        <MetricTile
+          eyebrow="Permit board"
+          title="Total"
+          value={String(counts.total)}
+          detail="All permits in the current view."
+        />
+        <MetricTile
+          eyebrow="Lifecycle"
+          title="Active"
+          value={String(counts.active)}
+          detail="Permits currently released to work."
+          tone={counts.active > 0 ? "attention" : "panel"}
+        />
+        <MetricTile
+          eyebrow="Critical risk"
+          title="SIF Flagged"
+          value={String(counts.sif)}
+          detail="Serious injury or fatality controls."
+          tone={counts.sif > 0 ? "attention" : "panel"}
+        />
+        <MetricTile
+          eyebrow="Controls"
+          title="Stop Work"
+          value={String(counts.stopWork)}
+          detail="Active stop-work conditions."
+          tone={counts.stopWork > 0 ? "attention" : "panel"}
+        />
       </section>
 
       <SectionCard title="Create Permit" description="Capture the jobsite, controls, and risk context so the permit appears in the right board.">
@@ -678,7 +718,7 @@ export default function PermitsPage() {
                 <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-[var(--app-accent-primary)]" />
                 SIF flag
               </label>
-              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || (!form.jobsiteId.trim() && !form.jsaActivityId.trim())} className="app-btn-primary rounded-xl px-4 py-2.5 text-sm disabled:opacity-60">
+              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || (!form.jobsiteId.trim() && !form.jsaActivityId.trim())} className={`${appButtonPrimaryClassName} disabled:pointer-events-none disabled:opacity-60`}>
                 {saving ? "Creating..." : "Create Permit"}
               </button>
             </div>
@@ -752,16 +792,25 @@ export default function PermitsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Permit Operations" description="Track permit status and high-risk controls.">
-        <div className="mb-4">
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 [color-scheme:dark]">
+      <SectionCard
+        title="Permit Operations"
+        description="Track permit status and high-risk controls."
+        aside={
+          <StatusBadge
+            label={`${loading ? "-" : permitRows.length} visible`}
+            tone={permitRows.length > 0 ? "info" : "neutral"}
+          />
+        }
+        actions={
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={appNativeSelectClassName}>
             <option value="all">All statuses</option>
             <option value="draft">Draft</option>
             <option value="active">Active</option>
             <option value="closed">Closed</option>
             <option value="expired">Expired</option>
           </select>
-        </div>
+        }
+      >
         {loading ? (
           <InlineMessage>Loading permits...</InlineMessage>
         ) : permitRows.length === 0 ? (
@@ -781,9 +830,9 @@ export default function PermitsPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <StatusBadge label={permit.status} tone={permit.status === "active" ? "success" : permit.status === "closed" ? "neutral" : "info"} />
-                    <StatusBadge label={permit.escalation_level} tone={permit.escalation_level === "critical" ? "warning" : "info"} />
-                    <StatusBadge label={permit.stop_work_status} tone={permit.stop_work_status === "stop_work_active" || permit.stop_work_status === "stop_work_requested" ? "warning" : "neutral"} />
+                    <StatusBadge label={labelize(permit.status)} tone={getPermitStatusTone(permit.status)} />
+                    <StatusBadge label={labelize(permit.escalation_level)} tone={permit.escalation_level === "critical" ? "warning" : "info"} />
+                    <StatusBadge label={labelize(permit.stop_work_status)} tone={permit.stop_work_status === "stop_work_active" || permit.stop_work_status === "stop_work_requested" ? "warning" : "neutral"} />
                     {permit.sif_flag ? <StatusBadge label="SIF" tone="warning" /> : null}
                   </div>
                 </div>
@@ -836,7 +885,7 @@ export default function PermitsPage() {
                     <div className={listDensity.statLabel}>Control notes</div>
                     <div
                       className={
-                        isCompact ? "mt-1.5 space-y-1.5 text-xs text-slate-300" : "mt-2 space-y-2 text-sm text-slate-300"
+                        isCompact ? "mt-1.5 space-y-1.5 text-xs text-[var(--app-text)]" : "mt-2 space-y-2 text-sm text-[var(--app-text)]"
                       }
                     >
                       <p>Escalation reason: {permit.escalation_reason ?? "Not provided"}</p>
@@ -846,16 +895,16 @@ export default function PermitsPage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                  <button type="button" onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className={permitOperationButtonClassName}>
                     {permit.status === "active" ? "Close" : "Activate"}
                   </button>
-                  <button type="button" onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                  <button type="button" onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className={permitOperationButtonClassName}>
                     {permit.sif_flag ? "Unset SIF" : "Set SIF"}
                   </button>
-                  <button type="button" onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                  <button type="button" onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className={permitOperationButtonClassName}>
                     {permit.escalation_level === "none" ? "Escalate" : "Clear Escalation"}
                   </button>
-                  <button type="button" onClick={() => void updateRiskState(permit, permit.stop_work_status === "stop_work_active" ? { stopWorkStatus: "cleared", stopWorkReason: "Cleared by manager." } : { stopWorkStatus: "stop_work_active", stopWorkReason: "High-risk condition detected." })} className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                  <button type="button" onClick={() => void updateRiskState(permit, permit.stop_work_status === "stop_work_active" ? { stopWorkStatus: "cleared", stopWorkReason: "Cleared by manager." } : { stopWorkStatus: "stop_work_active", stopWorkReason: "High-risk condition detected." })} className={permitStopWorkButtonClassName}>
                     {permit.stop_work_status === "stop_work_active" ? "Clear Stop Work" : "Stop Work"}
                   </button>
                 </div>

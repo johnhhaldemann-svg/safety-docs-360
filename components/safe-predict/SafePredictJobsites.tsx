@@ -2,20 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
   Building2,
   CalendarCheck,
+  CalendarDays,
+  CheckCircle2,
   ClipboardCheck,
   FilterX,
   MapPin,
   Plus,
   Search,
   ShieldCheck,
+  Sparkles,
   Users,
 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import {
   Card,
@@ -40,6 +44,11 @@ import {
   type SafePredictJobsiteStatus,
 } from "@/lib/safePredictData";
 import type { SafePredictRiskLevel } from "@/lib/safePredictMockData";
+import { CONSTRUCTION_TRADE_LABELS } from "@/lib/constructionTradeTaxonomy";
+import {
+  buildRuleBasedScheduleHazardPrediction,
+  type ScheduleHazardPredictionResponse,
+} from "@/lib/scheduleHazardPrediction";
 
 const statusOptions: Array<{ label: string; value: SafePredictJobsiteStatus | "all" }> = [
   { label: "All Statuses", value: "all" },
@@ -54,6 +63,7 @@ const detailTabs = [
   "Predictive Risk",
   "Corrective Actions",
   "Workforce",
+  "Schedule",
   "Permits",
   "Inspections",
   "Incidents & Observations",
@@ -61,10 +71,72 @@ const detailTabs = [
   "Activity Timeline",
 ] as const;
 
+const scheduleTaskTypeOptions = [
+  "Work at height / elevated work",
+  "Hot work / welding / cutting",
+  "Excavation / trenching",
+  "Confined space entry",
+  "Electrical / LOTO",
+  "Crane / rigging / lifting",
+  "Steel erection / decking",
+  "Demolition / removal",
+  "Concrete / formwork / pour",
+  "Mobile equipment / logistics",
+  "General task",
+];
+
+const scheduleWorkAreaOptions = [
+  "Roof / elevated deck",
+  "Exterior perimeter",
+  "Interior buildout",
+  "Mechanical room",
+  "Electrical room",
+  "Excavation zone",
+  "Laydown / loading zone",
+  "Traffic route",
+  "Manufacturing floor",
+  "Warehouse aisle",
+  "Other work area",
+];
+
 type DetailTableAction = {
   label: string;
   href?: string;
   onClick?: () => void;
+};
+
+type ScheduleTaskForm = {
+  title: string;
+  dueDate: string;
+  shiftStartTime: string;
+  shiftEndTime: string;
+  trade: string;
+  taskType: string;
+  owner: string;
+  workArea: string;
+  crewSize: string;
+  riskLevel: SafePredictRiskLevel;
+  hazards: string;
+  permits: string;
+  controls: string;
+  notes: string;
+};
+
+type ScheduledRiskEvent = {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  owner: string;
+  location: string;
+  riskLevel: SafePredictRiskLevel;
+  detail: string;
+  controls: string[];
+  hazards?: string[];
+  permits?: string[];
+  source: string;
+  predictionSource?: ScheduleHazardPredictionResponse["source"];
+  isManual?: boolean;
 };
 
 function statusLabel(status: SafePredictJobsiteStatus) {
@@ -81,6 +153,39 @@ function statusClasses(status: SafePredictJobsiteStatus) {
 
 function riskSort(level: SafePredictRiskLevel) {
   return level === "critical" ? 4 : level === "high" ? 3 : level === "medium" ? 2 : 1;
+}
+
+function riskText(level: SafePredictRiskLevel) {
+  return level === "critical" ? "Critical" : level === "high" ? "High" : level === "medium" ? "Medium" : "Low";
+}
+
+function predictionSourceLabel(source?: ScheduleHazardPredictionResponse["source"]) {
+  if (source === "ai_updated_today") return "AI updated today";
+  if (source === "ai_cached") return "AI cached";
+  if (source === "rules_fallback") return "Rules fallback";
+  return "Rules";
+}
+
+function compactDateLabel(value: string) {
+  if (!value) return "Next 7 days";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T00:00:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsed);
+    }
+  }
+  return value;
+}
+
+function controlList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function listText(value: string[]) {
+  return value.join(", ");
 }
 
 function jobsiteSearchText(site: SafePredictJobsiteRecord) {
@@ -327,8 +432,31 @@ export function SafePredictJobsitesPortfolio() {
 }
 
 export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
-  const { dataset, updateActionStatus, addDraftAction, setSelectedJobsiteId } = useSafePredictData();
+  const { dataset, updateActionStatus, addDraftAction, setSelectedJobsiteId, mode } = useSafePredictData();
   const [activeTab, setActiveTab] = useState<(typeof detailTabs)[number]>("Overview");
+  const manualScheduleTaskIdRef = useRef(0);
+  const [manualScheduleTasks, setManualScheduleTasks] = useState<ScheduledRiskEvent[]>([]);
+  const [schedulePrediction, setSchedulePrediction] = useState<ScheduleHazardPredictionResponse | null>(null);
+  const [schedulePredictionLoading, setSchedulePredictionLoading] = useState(false);
+  const [schedulePredictionError, setSchedulePredictionError] = useState<string | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
+    title: "",
+    dueDate: "",
+    shiftStartTime: "",
+    shiftEndTime: "",
+    trade: "",
+    taskType: "",
+    owner: "",
+    workArea: "",
+    crewSize: "",
+    riskLevel: "high",
+    hazards: "",
+    permits: "",
+    controls: "",
+    notes: "",
+  });
   const site = jobsiteById(dataset, jobsiteId);
   const siteEmployees = dataset.employees.filter((employee) => employee.assignedSiteId === site.id);
   const siteActions = siteScoped(dataset.actions, site.id);
@@ -341,6 +469,278 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const siteDocuments = siteScoped(dataset.documents, site.id);
   const siteReports = siteScoped(dataset.reports, site.id);
   const siteEvents = dataset.events.filter((event) => event.detail.toLowerCase().includes(site.name.toLowerCase().split(" ")[0]) || event.detail.toLowerCase().includes(site.name.toLowerCase()));
+  const alertScheduleEvents: ScheduledRiskEvent[] = siteAlerts.slice(0, 4).map((alert, index) => ({
+    id: `alert-${alert.id}`,
+    title: alert.title,
+    type: alert.source,
+    date: index === 0 ? "Today" : `Next ${index + 1} shifts`,
+    owner: site.siteLead,
+    location: alert.area,
+    riskLevel: alert.riskLevel,
+    detail: alert.detail,
+    controls: ["Pre-task brief", "Supervisor verification"],
+    source: "Predictive signal",
+  }));
+  const hazardScheduleEvents: ScheduledRiskEvent[] = siteHazards.map((hazard) => ({
+    id: `hazard-${hazard.id}`,
+    title: hazard.title,
+    type: "Hazard control",
+    date: hazard.dueDate,
+    owner: hazard.owner,
+    location: hazard.controlStatus,
+    riskLevel: hazard.riskLevel,
+    detail: `${hazard.controlStatus} before work continues.`,
+    controls: [hazard.controlStatus, "Field verification"],
+    source: "Hazard register",
+  }));
+  const inspectionScheduleEvents: ScheduledRiskEvent[] = siteInspections.map((inspection) => ({
+    id: `inspection-${inspection.id}`,
+    title: inspection.title,
+    type: "Inspection",
+    date: inspection.dueDate,
+    owner: inspection.inspector,
+    location: inspection.checklist,
+    riskLevel: inspection.riskLevel,
+    detail: `${inspection.failedItems} failed check${inspection.failedItems === 1 ? "" : "s"} currently tied to this inspection.`,
+    controls: inspection.failedItems > 0 ? ["Close failed checks", "Document verification"] : ["Complete checklist"],
+    source: "Inspection plan",
+  }));
+  const permitScheduleEvents: ScheduledRiskEvent[] = sitePermits.map((permit) => ({
+    id: `permit-${permit.id}`,
+    title: `${permit.type} permit review`,
+    type: "Permit",
+    date: permit.expiresAt,
+    owner: permit.owner,
+    location: permit.status,
+    riskLevel: permit.riskLevel,
+    detail: `${permit.status} permit needs review before scheduled work.`,
+    controls: ["Permit check", "Crew signoff"],
+    source: "Permit center",
+  }));
+  const actionScheduleEvents: ScheduledRiskEvent[] = siteActions
+    .filter((action) => action.status !== "Closed")
+    .slice(0, 4)
+    .map((action) => ({
+      id: `action-${action.id}`,
+      title: action.title,
+      type: "Task",
+      date: action.dueDate,
+      owner: action.assignee,
+      location: action.linkedRisk,
+      riskLevel: action.priority,
+      detail: `${action.status} corrective action from ${action.createdFrom}.`,
+      controls: ["Complete task", "Verify effectiveness"],
+      source: "Corrective actions",
+    }));
+  const upcomingRiskEvents = [...manualScheduleTasks, ...alertScheduleEvents, ...hazardScheduleEvents, ...inspectionScheduleEvents, ...permitScheduleEvents, ...actionScheduleEvents]
+    .sort((a, b) => riskSort(b.riskLevel) - riskSort(a.riskLevel) || a.title.localeCompare(b.title));
+
+  const highRiskScheduleCount = upcomingRiskEvents.filter((event) => event.riskLevel === "critical" || event.riskLevel === "high").length;
+
+  function updateScheduleTaskForm<K extends keyof ScheduleTaskForm>(key: K, value: ScheduleTaskForm[K]) {
+    setScheduleTaskForm((current) => ({ ...current, [key]: value }));
+  }
+
+  useEffect(() => {
+    const hasPredictionInputs = Boolean(scheduleTaskForm.trade && scheduleTaskForm.taskType && scheduleTaskForm.workArea);
+    if (!hasPredictionInputs) {
+      const handle = window.setTimeout(() => {
+        setSchedulePrediction(null);
+        setSchedulePredictionError(null);
+        setSchedulePredictionLoading(false);
+      }, 0);
+      return () => window.clearTimeout(handle);
+    }
+
+    const input = {
+      title: "",
+      trade: scheduleTaskForm.trade,
+      taskType: scheduleTaskForm.taskType,
+      workArea: scheduleTaskForm.workArea,
+      crewSize: scheduleTaskForm.crewSize,
+      shiftStartTime: scheduleTaskForm.shiftStartTime,
+      shiftEndTime: scheduleTaskForm.shiftEndTime,
+      notes: "",
+    };
+
+    if (mode !== "live") {
+      const rules = buildRuleBasedScheduleHazardPrediction(input);
+      const handle = window.setTimeout(() => {
+        setSchedulePrediction({ ...rules, source: "rules", aiMeta: null });
+        setSchedulePredictionError(null);
+        setSchedulePredictionLoading(false);
+      }, 0);
+      return () => window.clearTimeout(handle);
+    }
+
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      setSchedulePredictionLoading(true);
+      setSchedulePredictionError(null);
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/schedule/predict`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify(input),
+        });
+        const data = (await response.json().catch(() => null)) as ScheduleHazardPredictionResponse | { error?: string } | null;
+        const errorMessage = data && "error" in data ? data.error : null;
+        if (cancelled) return;
+        if (!response.ok || !data || errorMessage) {
+          const rules = buildRuleBasedScheduleHazardPrediction(input);
+          setSchedulePrediction({ ...rules, source: "rules_fallback", aiMeta: null });
+          setSchedulePredictionError(errorMessage || "AI enrichment is unavailable; rules are shown.");
+        } else {
+          setSchedulePrediction(data as ScheduleHazardPredictionResponse);
+        }
+      } catch {
+        if (!cancelled) {
+          const rules = buildRuleBasedScheduleHazardPrediction(input);
+          setSchedulePrediction({ ...rules, source: "rules_fallback", aiMeta: null });
+          setSchedulePredictionError("AI enrichment is unavailable; rules are shown.");
+        }
+      } finally {
+        if (!cancelled) setSchedulePredictionLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [
+    mode,
+    scheduleTaskForm.crewSize,
+    scheduleTaskForm.shiftEndTime,
+    scheduleTaskForm.shiftStartTime,
+    scheduleTaskForm.taskType,
+    scheduleTaskForm.trade,
+    scheduleTaskForm.workArea,
+    site.id,
+  ]);
+
+  function acceptSchedulePrediction() {
+    if (!schedulePrediction) return;
+    setScheduleTaskForm((current) => ({
+      ...current,
+      riskLevel: schedulePrediction.riskLevel,
+      hazards: listText(schedulePrediction.hazardCategories),
+      permits: listText(schedulePrediction.permitTriggers),
+      controls: listText(schedulePrediction.requiredControls),
+    }));
+  }
+
+  function resetScheduleTaskForm() {
+    setScheduleTaskForm({
+      title: "",
+      dueDate: "",
+      shiftStartTime: "",
+      shiftEndTime: "",
+      trade: "",
+      taskType: "",
+      owner: "",
+      workArea: "",
+      crewSize: "",
+      riskLevel: "high",
+      hazards: "",
+      permits: "",
+      controls: "",
+      notes: "",
+    });
+    setSchedulePrediction(null);
+    setSchedulePredictionError(null);
+  }
+
+  async function addScheduleTask() {
+    const title = scheduleTaskForm.title.trim();
+    if (!title) return;
+    const controls = controlList(scheduleTaskForm.controls);
+    const hazards = controlList(scheduleTaskForm.hazards);
+    const permits = controlList(scheduleTaskForm.permits);
+    setScheduleSaving(true);
+    setScheduleMessage(null);
+    if (mode === "live") {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/schedule`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            title,
+            workStartDate: scheduleTaskForm.dueDate || new Date().toISOString().slice(0, 10),
+            shiftStartTime: scheduleTaskForm.shiftStartTime || null,
+            shiftEndTime: scheduleTaskForm.shiftEndTime || null,
+            trade: scheduleTaskForm.trade,
+            workArea: scheduleTaskForm.workArea,
+            crewSize: scheduleTaskForm.crewSize ? Number(scheduleTaskForm.crewSize) : null,
+            supervisorName: scheduleTaskForm.owner,
+            riskLevel: scheduleTaskForm.riskLevel,
+            isHighRisk: scheduleTaskForm.riskLevel === "critical" || scheduleTaskForm.riskLevel === "high",
+            hazardCategories: hazards,
+            permitTriggers: permits,
+            requiredControls: controls,
+            status: "planned",
+            notes: scheduleTaskForm.notes,
+            sourceMetadata: schedulePrediction
+              ? {
+                  schedulePrediction: {
+                    source: schedulePrediction.source,
+                    inputFingerprint: schedulePrediction.inputFingerprint ?? null,
+                    confidence: schedulePrediction.confidence,
+                    rationale: schedulePrediction.rationale,
+                    matchedSignals: schedulePrediction.matchedSignals,
+                  },
+                }
+              : null,
+          }),
+        });
+        const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+        if (!response.ok) {
+          setScheduleMessage(data?.error || "Schedule task could not be saved.");
+          setScheduleSaving(false);
+          return;
+        }
+        setScheduleMessage(data?.message || "Schedule task saved.");
+      } catch (error) {
+        setScheduleMessage(error instanceof Error ? error.message : "Schedule task could not be saved.");
+        setScheduleSaving(false);
+        return;
+      }
+    }
+    manualScheduleTaskIdRef.current += 1;
+    const task: ScheduledRiskEvent = {
+      id: `manual-schedule-${manualScheduleTaskIdRef.current}`,
+      title,
+      type: scheduleTaskForm.taskType || "Task",
+      date: compactDateLabel(scheduleTaskForm.dueDate),
+      owner: scheduleTaskForm.owner.trim() || site.siteLead,
+      location: scheduleTaskForm.workArea.trim() || site.phase,
+      riskLevel: scheduleTaskForm.riskLevel,
+      detail: schedulePrediction?.rationale || `${riskText(scheduleTaskForm.riskLevel)} risk scheduled task added for upcoming work planning.`,
+      controls: controls.length > 0 ? controls : ["Pre-task plan", "Supervisor verification"],
+      hazards,
+      permits,
+      source: mode === "live" ? "Saved schedule task" : "Added task",
+      predictionSource: schedulePrediction?.source,
+      isManual: true,
+    };
+    setManualScheduleTasks((current) => [task, ...current]);
+    resetScheduleTaskForm();
+    setScheduleSaving(false);
+  }
 
   function createSiteAction() {
     const alert = siteAlerts[0] ?? dataset.alerts[0];
@@ -540,6 +940,235 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           <div className="mt-5"><EventTimeline events={siteEvents.length > 0 ? siteEvents : dataset.events} /></div>
         </Card>
       ) : null}
+
+      {activeTab === "Schedule" ? (
+        <Card className="p-5">
+          <SectionTitle title="Schedule" hint="Add upcoming tasks and plan work from highest risk down to lowest risk before the crew starts." />
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <InfoTile label="Upcoming Events" value={upcomingRiskEvents.length} />
+            <InfoTile label="High Risk Events" value={highRiskScheduleCount} tone="text-red-600" />
+            <InfoTile label="Added Tasks" value={manualScheduleTasks.length} tone="text-blue-600" />
+            <InfoTile label="Next Owner" value={upcomingRiskEvents[0]?.owner ?? site.siteLead} />
+          </div>
+
+          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-950">
+                <Plus className="h-4 w-4 text-blue-600" />
+                Add Schedule Task
+              </div>
+              <span className="text-xs font-black uppercase tracking-wide text-slate-500">Plans into high-to-low risk order</span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input
+                value={scheduleTaskForm.title}
+                onChange={(event) => updateScheduleTaskForm("title", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                placeholder="Task title"
+              />
+              <input
+                type="date"
+                value={scheduleTaskForm.dueDate}
+                onChange={(event) => updateScheduleTaskForm("dueDate", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Task date"
+              />
+              <select
+                value={scheduleTaskForm.trade}
+                onChange={(event) => updateScheduleTaskForm("trade", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Trade"
+              >
+                <option value="">Trade</option>
+                {CONSTRUCTION_TRADE_LABELS.map((trade) => (
+                  <option key={trade} value={trade}>{trade}</option>
+                ))}
+              </select>
+              <select
+                value={scheduleTaskForm.taskType}
+                onChange={(event) => updateScheduleTaskForm("taskType", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Task type"
+              >
+                <option value="">Task type</option>
+                {scheduleTaskTypeOptions.map((taskType) => (
+                  <option key={taskType} value={taskType}>{taskType}</option>
+                ))}
+              </select>
+              <select
+                value={scheduleTaskForm.workArea}
+                onChange={(event) => updateScheduleTaskForm("workArea", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Work area"
+              >
+                <option value="">Work area</option>
+                {scheduleWorkAreaOptions.map((area) => (
+                  <option key={area} value={area}>{area}</option>
+                ))}
+              </select>
+              <input
+                type="time"
+                value={scheduleTaskForm.shiftStartTime}
+                onChange={(event) => updateScheduleTaskForm("shiftStartTime", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Shift start time"
+              />
+              <input
+                type="time"
+                value={scheduleTaskForm.shiftEndTime}
+                onChange={(event) => updateScheduleTaskForm("shiftEndTime", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Shift end time"
+              />
+              <input
+                value={scheduleTaskForm.crewSize}
+                onChange={(event) => updateScheduleTaskForm("crewSize", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                min="0"
+                placeholder="Crew size"
+                type="number"
+              />
+              <select
+                value={scheduleTaskForm.riskLevel}
+                onChange={(event) => updateScheduleTaskForm("riskLevel", event.target.value as SafePredictRiskLevel)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                aria-label="Risk level"
+              >
+                <option value="critical">Critical risk</option>
+                <option value="high">High risk</option>
+                <option value="medium">Medium risk</option>
+                <option value="low">Low risk</option>
+              </select>
+              <input
+                value={scheduleTaskForm.owner}
+                onChange={(event) => updateScheduleTaskForm("owner", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                placeholder="Owner / supervisor"
+              />
+            </div>
+            {schedulePrediction ? (
+              <div className="mt-3 rounded-lg border border-blue-100 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-black text-slate-950">Predicted Hazards</p>
+                      <RiskBadge level={schedulePrediction.riskLevel} />
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{predictionSourceLabel(schedulePrediction.source)}</span>
+                    </div>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">{schedulePrediction.rationale}</p>
+                    {schedulePredictionError ? <p className="mt-2 text-xs font-bold text-amber-700">{schedulePredictionError}</p> : null}
+                  </div>
+                  <button type="button" onClick={acceptSchedulePrediction} className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 hover:bg-blue-100">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Use prediction
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <PredictionField label="Hazards" values={schedulePrediction.hazardCategories} empty="No hazards predicted" />
+                  <PredictionField label="Permits" values={schedulePrediction.permitTriggers} empty="No permits predicted" />
+                  <PredictionField label="Controls" values={schedulePrediction.requiredControls} empty="No controls predicted" />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
+                Pick trade, task type, and work area to predict likely hazards.
+              </div>
+            )}
+            {schedulePredictionLoading ? <p className="mt-2 text-xs font-bold text-blue-600">Checking daily AI cache...</p> : null}
+            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              <input
+                value={scheduleTaskForm.hazards}
+                onChange={(event) => updateScheduleTaskForm("hazards", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                placeholder="Hazards, comma separated"
+              />
+              <input
+                value={scheduleTaskForm.permits}
+                onChange={(event) => updateScheduleTaskForm("permits", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                placeholder="Permit triggers, comma separated"
+              />
+              <input
+                value={scheduleTaskForm.controls}
+                onChange={(event) => updateScheduleTaskForm("controls", event.target.value)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+                placeholder="Required controls, comma separated"
+              />
+            </div>
+            <textarea
+              value={scheduleTaskForm.notes}
+              onChange={(event) => updateScheduleTaskForm("notes", event.target.value)}
+              className="mt-3 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              placeholder="Notes or adjacent work context"
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void addScheduleTask()}
+                disabled={!scheduleTaskForm.title.trim() || scheduleSaving}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {scheduleSaving ? "Saving" : mode === "live" ? "Save" : "Add"}
+              </button>
+              {scheduleMessage ? <span className="text-xs font-bold text-slate-600">{scheduleMessage}</span> : null}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-5 2xl:grid-cols-[1fr_360px]">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-black text-slate-950">Upcoming High-to-Low Risk Plan</h3>
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Critical, high, medium, low</span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {upcomingRiskEvents.map((event) => (
+                  <article key={event.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-blue-600" />
+                          <h4 className="text-sm font-black leading-5 text-slate-950">{event.title}</h4>
+                          <RiskBadge level={event.riskLevel} />
+                          {event.isManual ? <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Added</span> : null}
+                        </div>
+                        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600">{event.detail}</p>
+                      </div>
+                      <div className="shrink-0 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-left lg:w-40">
+                        <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{event.type}</p>
+                        <p className="mt-1 text-sm font-black text-slate-950">{event.date}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 md:grid-cols-3">
+                      <span className="rounded-md bg-slate-50 p-2">Owner: {event.owner}</span>
+                      <span className="rounded-md bg-slate-50 p-2">Area: {event.location}</span>
+                      <span className="rounded-md bg-slate-50 p-2">Source: {event.predictionSource ? predictionSourceLabel(event.predictionSource) : event.source}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(event.hazards ?? []).map((hazard) => (
+                        <span key={`${event.id}-${hazard}`} className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-black text-red-700">{hazard.replace(/_/g, " ")}</span>
+                      ))}
+                      {(event.permits ?? []).map((permit) => (
+                        <span key={`${event.id}-${permit}`} className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">{permit.replace(/_/g, " ")}</span>
+                      ))}
+                      {event.controls.map((control) => (
+                        <span key={`${event.id}-${control}`} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-600">{control}</span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <SectionTitle title="Recent Activity" />
+              <div className="mt-5">
+                <EventTimeline events={siteEvents.length > 0 ? siteEvents : dataset.events} />
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -549,6 +1178,25 @@ function InfoTile({ label, value, tone = "text-slate-950" }: { label: string; va
     <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
       <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
       <p className={cx("mt-2 text-lg font-black leading-snug break-words", tone)}>{value}</p>
+    </div>
+  );
+}
+
+function PredictionField({ label, values, empty }: { label: string; values: string[]; empty: string }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {values.length > 0 ? (
+          values.map((value) => (
+            <span key={`${label}-${value}`} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-slate-700">
+              {value.replace(/_/g, " ")}
+            </span>
+          ))
+        ) : (
+          <span className="text-xs font-semibold text-slate-500">{empty}</span>
+        )}
+      </div>
     </div>
   );
 }

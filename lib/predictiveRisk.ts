@@ -17,6 +17,7 @@ import {
   type BehaviorRiskObservationRow,
   type BehaviorRiskPermitRow,
   type BehaviorRiskResult,
+  type BehaviorRiskScheduleItemRow,
   type BehaviorRiskTrainingGapRow,
 } from "@/lib/predictive/behaviorRisk";
 
@@ -25,6 +26,7 @@ export type PredictiveRiskSourceCounts = {
   incidents: number;
   permits: number;
   jsaActivities: number;
+  scheduleItems: number;
 };
 
 export type PredictiveRiskLocation = {
@@ -148,6 +150,23 @@ export type PredictiveRiskJsaActivityRow = BehaviorRiskJsaActivityRow & {
   jobsite_id?: string | null;
 };
 
+export type PredictiveRiskScheduleItemRow = BehaviorRiskScheduleItemRow & {
+  id?: string | null;
+  title?: string | null;
+  jobsite_id?: string | null;
+  work_start_date?: string | null;
+  work_end_date?: string | null;
+  trade?: string | null;
+  work_area?: string | null;
+  risk_level?: string | null;
+  is_high_risk?: boolean | null;
+  hazard_categories?: string[] | null;
+  permit_triggers?: string[] | null;
+  required_controls?: string[] | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
 type LocationAccumulator = {
   id: string;
   label: string;
@@ -255,6 +274,7 @@ function buildRiskRows(input: {
   incidents: PredictiveRiskIncidentRow[];
   permits: PredictiveRiskPermitRow[];
   jsaActivities: PredictiveRiskJsaActivityRow[];
+  scheduleItems?: PredictiveRiskScheduleItemRow[];
 }): RiskRow[] {
   return [
     ...input.correctiveActions.map((row): RiskRow => ({
@@ -300,6 +320,20 @@ function buildRiskRows(input: {
       title: row.hazard_category ?? null,
       extraWeight: isOpenStatus(row.status) ? 4 : 0,
     })),
+    ...(input.scheduleItems ?? []).map((row): RiskRow => ({
+      jobsiteId: row.jobsite_id ?? null,
+      label: row.title ?? "Scheduled work",
+      createdAt: row.work_start_date ?? row.created_at ?? null,
+      category: row.hazard_categories?.[0] ?? row.permit_triggers?.[0] ?? row.title ?? "scheduled_work",
+      severity: row.risk_level ?? null,
+      kind: "scheduleItems",
+      title: row.title ?? null,
+      extraWeight:
+        (row.is_high_risk ? 16 : 0) +
+        ((row.permit_triggers?.length ?? 0) > 0 ? 6 : 0) +
+        ((row.is_high_risk && (row.required_controls?.length ?? 0) === 0) ? 10 : 0) +
+        (isOpenStatus(row.status) ? 3 : 0),
+    })),
   ];
 }
 
@@ -324,7 +358,7 @@ function buildLocationAccumulators(params: {
         rawScore: 0,
         recentScore: 0,
         priorScore: 0,
-        sourceCounts: { correctiveActions: 0, incidents: 0, permits: 0, jsaActivities: 0 },
+        sourceCounts: { correctiveActions: 0, incidents: 0, permits: 0, jsaActivities: 0, scheduleItems: 0 },
         driverCounts: new Map<string, number>(),
       } satisfies LocationAccumulator);
 
@@ -352,7 +386,7 @@ function buildLocationAccumulators(params: {
       rawScore: 0,
       recentScore: 0,
       priorScore: 0,
-      sourceCounts: { correctiveActions: 0, incidents: 0, permits: 0, jsaActivities: 0 },
+      sourceCounts: { correctiveActions: 0, incidents: 0, permits: 0, jsaActivities: 0, scheduleItems: 0 },
       driverCounts: new Map(),
     });
   }
@@ -487,6 +521,7 @@ export function buildPredictiveRiskPayload(input: {
   incidents: PredictiveRiskIncidentRow[];
   permits: PredictiveRiskPermitRow[];
   jsaActivities: PredictiveRiskJsaActivityRow[];
+  scheduleItems?: PredictiveRiskScheduleItemRow[];
   observations?: BehaviorRiskObservationRow[];
   trainingGaps?: BehaviorRiskTrainingGapRow[];
   warning?: string;
@@ -501,6 +536,7 @@ export function buildPredictiveRiskPayload(input: {
     correctiveActions: input.correctiveActions,
     incidents: input.incidents,
     observations: input.observations ?? [],
+    scheduleItems: input.scheduleItems ?? [],
     trainingGaps: input.trainingGaps ?? [],
   });
   const accumulators = buildLocationAccumulators({
@@ -570,6 +606,13 @@ export function buildPredictiveRiskPayload(input: {
       status: coverageStatus(input.jsaActivities.length),
     },
     {
+      key: "scheduleItems",
+      label: "Work schedule",
+      count: input.scheduleItems?.length ?? 0,
+      href: "/jobsites",
+      status: coverageStatus(input.scheduleItems?.length ?? 0),
+    },
+    {
       key: "jobsites",
       label: "Jobsites",
       count: input.jobsites.length,
@@ -585,6 +628,7 @@ export function buildPredictiveRiskPayload(input: {
     missingSignals: [
       ...(input.jobsites.length === 0 ? ["No active jobsite roster was available for this predictive model view."] : []),
       ...(rows.length === 0 ? ["No jobsite-aware risk records were available in this window."] : []),
+      ...((input.scheduleItems?.length ?? 0) === 0 ? ["No upcoming work schedule rows were available for this predictive window."] : []),
       ...(input.forecast.summary.forecastMode === "baseline_only"
         ? ["Forecast is currently baseline-only because live signal volume is sparse."]
         : []),
@@ -609,6 +653,14 @@ export function buildPredictiveRiskPayload(input: {
         sourceModule: "predictive_risk_driver",
         sourceId: driver.id,
         detail: `${driver.count} signal${driver.count === 1 ? "" : "s"}`,
+      })),
+      ...(input.scheduleItems ?? []).slice(0, 2).map((item) => ({
+        id: `schedule-${item.id ?? item.title ?? "work"}`,
+        label: item.title ?? "Scheduled work",
+        href: item.jobsite_id ? `/jobsites/${item.jobsite_id}/schedule` : "/jobsites",
+        sourceModule: "company_jobsite_schedule_items",
+        sourceId: item.id ?? "scheduled-work",
+        detail: `${item.risk_level ?? "medium"} risk work scheduled ${item.work_start_date ?? "in this window"}`,
       })),
     ],
     nextActions: actions.slice(0, 3).map((action) => ({

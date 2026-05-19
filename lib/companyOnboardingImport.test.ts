@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   templateCsvFor,
+  normalizeRowsArray,
   validateEmployeeImportRows,
   validateJobsiteImportRows,
   validateTrainingRecordImportRows,
@@ -34,6 +35,28 @@ describe("company onboarding import helpers", () => {
     });
   });
 
+  it("accepts common roster headers with split employee names", () => {
+    const result = validateEmployeeImportRows(
+      normalizeRowsArray([
+        {
+          "Employee Number": "B-42",
+          "First Name": "Sam",
+          "Last Name": "Rivera",
+          Position: "Journeyman",
+          Craft: "Electrical",
+        },
+      ])
+    );
+
+    expect(result.rowErrors).toEqual([]);
+    expect(result.validRows[0]).toMatchObject({
+      externalEmployeeId: "B-42",
+      fullName: "Sam Rivera",
+      jobTitle: "Journeyman",
+      tradeSpecialty: "Electrical",
+    });
+  });
+
   it("skips invalid employee rows with row-level errors", () => {
     const result = validateEmployeeImportRows([
       { full_name: "", email: "bad-email" },
@@ -46,7 +69,12 @@ describe("company onboarding import helpers", () => {
 
   it("validates jobsites and training rows independently", () => {
     const jobsites = validateJobsiteImportRows([
-      { name: "North Tower", start_date: "2026-06-01", end_date: "2026-12-15" },
+      {
+        name: "North Tower",
+        jobsite_number: "SITE-0001",
+        start_date: "2026-06-01",
+        end_date: "2026-12-15",
+      },
     ]);
     const training = validateTrainingRecordImportRows([
       {

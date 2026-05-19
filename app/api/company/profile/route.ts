@@ -11,6 +11,15 @@ function str(v: unknown): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
+function logoDataUrl(v: unknown): string | undefined {
+  if (v === null) return "";
+  if (typeof v !== "string") return undefined;
+  const trimmed = v.trim();
+  if (!trimmed) return "";
+  if (!/^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,/i.test(trimmed)) return undefined;
+  return trimmed.length <= 2_200_000 ? trimmed : undefined;
+}
+
 /**
  * Company admins / managers update company profile fields and can complete pilot trial
  * (companies table updates are admin-only in RLS; this route uses service role after auth checks).
@@ -83,12 +92,28 @@ export async function PATCH(request: Request) {
     ["country", str(body.country)],
     ["primary_contact_name", str(body.primaryContactName)],
     ["primary_contact_email", str(body.primaryContactEmail)],
+    ["logo_file_name", str(body.logoFileName)],
   ];
 
   for (const [key, val] of optionalFields) {
     if (val !== undefined) {
       patch[key] = val.trim();
     }
+  }
+
+  const nextLogoDataUrl = logoDataUrl(body.logoDataUrl);
+  if (nextLogoDataUrl !== undefined) {
+    patch.logo_data_url = nextLogoDataUrl;
+    if (nextLogoDataUrl === "") {
+      patch.logo_file_name = "";
+    }
+  }
+
+  if (body.logoDataUrl !== undefined && nextLogoDataUrl === undefined) {
+    return NextResponse.json(
+      { error: "Logo must be a PNG, JPG, WebP, GIF, or SVG data URL under 2 MB." },
+      { status: 400 }
+    );
   }
 
   if (completePilot) {

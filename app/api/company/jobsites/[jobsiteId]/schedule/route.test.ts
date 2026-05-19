@@ -83,9 +83,19 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
             status: "active",
             work_start_date: "2026-05-20",
             work_end_date: "2026-05-21",
+            shift_start_time: "07:00",
+            shift_end_time: "17:00",
             trade: "Ironworkers",
             work_area: "Level 5",
             crew_or_contractor: "Lone Star Steel",
+            crew_size: 8,
+            supervisor_name: "Sam Safety",
+            risk_level: "critical",
+            is_high_risk: true,
+            hazard_categories: ["fall_protection", "crane_rigging"],
+            permit_triggers: ["lift_plan"],
+            required_controls: ["controlled access zone"],
+            source_metadata: { riskInput: "explicit" },
             notes: null,
             updated_at: "2026-05-18T12:00:00.000Z",
           },
@@ -95,9 +105,19 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
             status: "planned",
             work_start_date: "2026-07-01",
             work_end_date: null,
+            shift_start_time: null,
+            shift_end_time: null,
             trade: null,
             work_area: null,
             crew_or_contractor: null,
+            crew_size: null,
+            supervisor_name: null,
+            risk_level: "medium",
+            is_high_risk: false,
+            hazard_categories: [],
+            permit_triggers: [],
+            required_controls: [],
+            source_metadata: {},
             notes: null,
             updated_at: "2026-05-18T12:00:00.000Z",
           },
@@ -140,10 +160,11 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
     expect(body.items).toHaveLength(2);
     expect(body.items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "manual-1", source: "manual", readOnly: false }),
-        expect.objectContaining({ id: "task-1", source: "microsoft_project", readOnly: true }),
+        expect.objectContaining({ id: "manual-1", source: "manual", readOnly: false, riskLevel: "critical", isHighRisk: true }),
+        expect.objectContaining({ id: "task-1", source: "microsoft_project", readOnly: true, riskLevel: "high", isHighRisk: true }),
       ])
     );
+    expect(body.summary).toMatchObject({ totalItems: 2, highRiskItems: 2, permitRequiredItems: 2 });
   });
 
   it("POST creates a manual schedule item scoped to the jobsite", async () => {
@@ -162,7 +183,19 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
     const response = requireRouteResponse(await POST(
       new Request("https://example.com/api/company/jobsites/jobsite-1/schedule", {
         method: "POST",
-        body: JSON.stringify({ title: "Decking release", workStartDate: "2026-05-20" }),
+        body: JSON.stringify({
+          title: "Decking release",
+          workStartDate: "2026-05-20",
+          shiftStartTime: "07:00",
+          shiftEndTime: "17:00",
+          riskLevel: "critical",
+          isHighRisk: true,
+          hazardCategories: ["fall_protection"],
+          permitTriggers: ["lift_plan"],
+          requiredControls: ["controlled access zone"],
+          crewSize: 8,
+          supervisorName: "Sam Safety",
+        }),
       }),
       { params: Promise.resolve({ jobsiteId: "jobsite-1" }) }
     ));
@@ -174,6 +207,13 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
         jobsite_id: "jobsite-1",
         title: "Decking release",
         work_start_date: "2026-05-20",
+        risk_level: "critical",
+        is_high_risk: true,
+        hazard_categories: ["fall_protection"],
+        permit_triggers: ["lift_plan"],
+        required_controls: ["controlled access zone"],
+        crew_size: 8,
+        supervisor_name: "Sam Safety",
       })
     );
   });
@@ -195,5 +235,35 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
 
     expect(response.status).toBe(200);
     expect(update.update).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" }));
+  });
+
+  it("PATCH updates predictive schedule fields on manual work", async () => {
+    const update = queryBuilder({
+      data: { id: "manual-1", status: "planned", risk_level: "high" },
+      error: null,
+    });
+    authWithBuilders([update]);
+
+    const response = requireRouteResponse(await PATCH(
+      new Request("https://example.com/api/company/jobsites/jobsite-1/schedule", {
+        method: "PATCH",
+        body: JSON.stringify({
+          itemId: "manual-1",
+          riskLevel: "high",
+          isHighRisk: true,
+          permitTriggers: ["hot_work_permit"],
+          requiredControls: ["fire watch"],
+        }),
+      }),
+      { params: Promise.resolve({ jobsiteId: "jobsite-1" }) }
+    ));
+
+    expect(response.status).toBe(200);
+    expect(update.update).toHaveBeenCalledWith(expect.objectContaining({
+      risk_level: "high",
+      is_high_risk: true,
+      permit_triggers: ["hot_work_permit"],
+      required_controls: ["fire watch"],
+    }));
   });
 });

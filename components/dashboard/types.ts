@@ -50,6 +50,8 @@ export type DashboardCompanyProfile = {
   country: string | null;
   primary_contact_name: string | null;
   primary_contact_email: string | null;
+  logo_data_url?: string | null;
+  logo_file_name?: string | null;
   status: string | null;
   pilot_trial_ends_at?: string | null;
   pilot_converted_at?: string | null;
