@@ -94,8 +94,8 @@ const navGroups: NavGroup[] = [
     icon: FileText,
     items: [
       { href: "/safe-predict/reports", label: "Document Library", icon: FileText },
-      { href: "/safe-predict/reports?surface=csep", label: "CSEP Build", icon: FileText },
-      { href: "/safe-predict/reports?surface=peshep", label: "PESHEP Build", icon: FileText },
+      { href: "/safe-predict/csep", label: "CSEP Build", icon: FileText },
+      { href: "/safe-predict/peshep", label: "PESHEP Build", icon: FileText },
     ],
   },
   {

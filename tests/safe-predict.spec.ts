@@ -14,8 +14,8 @@ test.describe("SafePredict beta platform routes", () => {
     ["/incidents", "/safe-predict/incidents"],
     ["/analytics", "/safe-predict/analytics"],
     ["/reports", "/safe-predict/reports"],
-    ["/csep", "/safe-predict/reports"],
-    ["/peshep", "/safe-predict/reports"],
+    ["/csep", "/safe-predict/csep"],
+    ["/peshep", "/safe-predict/peshep"],
     ["/command-center", "/safe-predict"],
     ["/settings/risk-memory", "/safe-predict/settings"],
   ] as const;
