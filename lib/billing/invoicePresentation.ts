@@ -13,6 +13,9 @@ export function getBillingSourceLabel(source?: string | null) {
   if (normalized === "marketplace_credit_pack") {
     return "Marketplace credit pack";
   }
+  if (normalized === "marketplace_document_purchase") {
+    return "Marketplace document";
+  }
   if (normalized === "recurring_company_pricing") {
     return "Recurring company billing";
   }
@@ -25,6 +28,9 @@ export function getBillingSourceLabel(source?: string | null) {
 export function getBillingSourceTone(source?: string | null): "success" | "info" | "neutral" {
   const normalized = String(source ?? "").trim().toLowerCase();
   if (normalized === "marketplace_credit_pack") {
+    return "info";
+  }
+  if (normalized === "marketplace_document_purchase") {
     return "info";
   }
   if (normalized === "recurring_company_pricing") {
@@ -130,6 +136,9 @@ export function getInvoiceSourceSummary(invoice: {
     isCompanyPricing: String(invoice.billing_source ?? "").trim().toLowerCase() === "company_pricing",
     isMarketplaceCreditPack:
       String(invoice.billing_source ?? "").trim().toLowerCase() === "marketplace_credit_pack",
+    isMarketplaceDocumentPurchase:
+      String(invoice.billing_source ?? "").trim().toLowerCase() ===
+      "marketplace_document_purchase",
   };
 }
 

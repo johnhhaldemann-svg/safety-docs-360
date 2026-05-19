@@ -13,6 +13,7 @@ import {
   listCreditTransactions,
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
+import { hasMarketplaceDocumentPurchase } from "@/lib/marketplaceDocumentPurchases";
 import { logDocumentDownload } from "@/lib/downloadAudit";
 
 export const runtime = "nodejs";
@@ -92,6 +93,14 @@ export async function GET(
     fallbackTeam: null,
     authUser: user,
   });
+  const marketplacePurchase =
+    companyScope.companyId
+      ? await hasMarketplaceDocumentPurchase({
+          supabase,
+          companyId: companyScope.companyId,
+          documentId: document.id,
+        })
+      : { purchased: false, error: null };
   const docCompanyId =
     typeof document.company_id === "string" ? document.company_id : null;
   const approved = isApprovedDocumentStatus(
@@ -108,6 +117,7 @@ export async function GET(
   const canAccess =
     document.user_id === user.id ||
     purchasedDocumentIds.includes(document.id) ||
+    marketplacePurchase.purchased ||
     isAdminRole(role) ||
     sameCompanyApproved;
 

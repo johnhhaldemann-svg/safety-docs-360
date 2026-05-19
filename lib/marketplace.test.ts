@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMarketplaceNotes,
+  formatDocumentPrice,
+  getDocumentCurrency,
+  getDocumentPriceCents,
   getSubmitterPreviewStatus,
   isBuyerMarketplacePreviewBlocked,
   isValidMarketplacePreviewPath,
 } from "./marketplace";
+
+describe("direct marketplace pricing", () => {
+  it("reads and formats nested USD price metadata", () => {
+    const notes = buildMarketplaceNotes(null, {
+      enabled: true,
+      creditCost: 5,
+      priceCents: 4900,
+      currency: "usd",
+    });
+
+    expect(getDocumentPriceCents(notes)).toBe(4900);
+    expect(getDocumentCurrency(notes)).toBe("usd");
+    expect(formatDocumentPrice(notes)).toBe("$49.00");
+  });
+
+  it("returns null when no direct price is configured", () => {
+    expect(getDocumentPriceCents(JSON.stringify({ marketplace: { enabled: true } }))).toBeNull();
+    expect(formatDocumentPrice(null)).toBeNull();
+  });
+});
 
 describe("getSubmitterPreviewStatus", () => {
   it("returns undefined when absent or invalid", () => {

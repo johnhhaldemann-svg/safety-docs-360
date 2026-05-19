@@ -132,6 +132,15 @@ export const superadminToolGroups: SuperadminNavSection[] = [
         primaryActionLabel: "Edit standards",
         audience: "admin",
       },
+      {
+        href: "/superadmin/document-library",
+        label: "Paid Document Library",
+        short: "DL",
+        description: "Upload global paid documents and manage direct-buy marketplace pricing.",
+        keywords: ["document", "library", "marketplace", "paid", "pricing", "upload"],
+        primaryActionLabel: "Manage library",
+        audience: "admin",
+      },
     ],
   },
   {

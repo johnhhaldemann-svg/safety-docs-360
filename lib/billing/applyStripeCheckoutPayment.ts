@@ -4,6 +4,10 @@ import { computeBalanceDue } from "@/lib/billing/invoiceTotals";
 import { listCompanyCreditTransactions } from "@/lib/companyBilling";
 import { recordBillingEvent } from "@/lib/billing/recordEvent";
 import { sendMarketplaceCreditPurchaseReceiptEmail } from "@/lib/billing/marketplaceCreditReceiptEmail";
+import {
+  ensureMarketplaceDocumentPurchase,
+  getMarketplaceDocumentInvoiceMetadata,
+} from "@/lib/marketplaceDocumentPurchases";
 
 export function stripeCheckoutDedupeKey(session: Stripe.Checkout.Session): string | null {
   const pi = session.payment_intent;
@@ -168,6 +172,53 @@ async function ensureMarketplaceCreditPackGrant(
   return { ok: true };
 }
 
+async function ensureMarketplaceDocumentPurchaseGrant(
+  admin: SupabaseClient,
+  invoice: {
+    id: string;
+    company_id: string;
+    total_cents: number;
+    amount_paid_cents: number;
+    metadata?: Record<string, unknown> | null;
+    billing_source?: string | null;
+  }
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const info = getMarketplaceDocumentInvoiceMetadata(invoice);
+  if (!info) {
+    return { ok: true };
+  }
+
+  const paidAmount = Math.max(0, Number(invoice.amount_paid_cents ?? 0));
+  const expectedAmount =
+    typeof info.amountCents === "number" && Number.isFinite(info.amountCents)
+      ? info.amountCents
+      : Math.max(0, Number(invoice.total_cents ?? 0));
+
+  const result = await ensureMarketplaceDocumentPurchase({
+    supabase: admin,
+    companyId: invoice.company_id,
+    documentId: info.documentId,
+    invoiceId: invoice.id,
+    purchasedByUserId: info.purchasedByUserId,
+    amountCents: expectedAmount || paidAmount,
+    currency: info.currency,
+    metadata: {
+      source: "marketplace_document_purchase",
+      invoice_id: invoice.id,
+      paid_amount_cents: paidAmount,
+    },
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: result.error || "Failed to unlock marketplace document.",
+    };
+  }
+
+  return { ok: true };
+}
+
 export async function applyCheckoutSessionCompleted(
   admin: SupabaseClient,
   session: Stripe.Checkout.Session,
@@ -298,6 +349,25 @@ export async function applyCheckoutSessionCompleted(
 
   if (!grantResult.ok) {
     return grantResult;
+  }
+
+  if (balance_due_cents <= 0) {
+    const documentGrantResult = await ensureMarketplaceDocumentPurchaseGrant(
+      admin,
+      {
+        id: invoiceId,
+        company_id: String((inv as { company_id?: string }).company_id ?? ""),
+        total_cents,
+        amount_paid_cents: nextPaid,
+        metadata: (inv as { metadata?: Record<string, unknown> | null }).metadata ?? null,
+        billing_source:
+          (inv as { billing_source?: string | null }).billing_source ?? null,
+      }
+    );
+
+    if (!documentGrantResult.ok) {
+      return documentGrantResult;
+    }
   }
 
   const packInfo = getMarketplaceCreditPackInfo(inv as {

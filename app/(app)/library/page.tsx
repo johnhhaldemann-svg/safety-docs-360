@@ -18,7 +18,8 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { useUrlTabState } from "@/hooks/useUrlTabState";
 import {
-  getDocumentCreditCost,
+  formatDocumentPrice,
+  getDocumentPriceCents,
   getSubmitterPreviewStatus,
   isMarketplaceEnabled,
 } from "@/lib/marketplace";
@@ -319,7 +320,7 @@ function LibraryPageContent() {
 
       try {
         const token = await getAccessToken();
-        const res = await fetch("/api/library/purchase", {
+        const res = await fetch("/api/library/checkout", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -331,8 +332,8 @@ function LibraryPageContent() {
         const data = (await res.json().catch(() => null)) as
           | {
               error?: string;
-              creditBalance?: number;
-              purchasedDocumentIds?: string[];
+              checkoutUrl?: string | null;
+              alreadyPurchased?: boolean;
             }
           | null;
 
@@ -344,18 +345,22 @@ function LibraryPageContent() {
           return;
         }
 
-        setCreditState((prev) => ({
-          ...prev,
-          creditBalance: Number(data?.creditBalance ?? prev.creditBalance),
-          purchasedDocumentIds: Array.isArray(data?.purchasedDocumentIds)
-            ? data.purchasedDocumentIds.filter(
-                (value): value is string => typeof value === "string"
-              )
-            : prev.purchasedDocumentIds,
-        }));
-        setMessage("Document unlocked successfully.");
-        toast.success("Document unlocked successfully.");
-        await loadCredits();
+        if (data?.alreadyPurchased) {
+          setMessage("Document already purchased. Refreshing your library.");
+          toast.success("Document already purchased.");
+          await loadDocuments();
+          await loadCredits();
+          return;
+        }
+
+        if (!data?.checkoutUrl) {
+          const msg = "Checkout could not be started.";
+          setMessage(msg);
+          toast.error(msg);
+          return;
+        }
+
+        window.location.assign(data.checkoutUrl);
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Purchase failed.";
         setMessage(msg);
@@ -364,7 +369,7 @@ function LibraryPageContent() {
 
       setActionLoadingId("");
     },
-    [getAccessToken, loadCredits]
+    [getAccessToken, loadCredits, loadDocuments]
   );
 
   const handleMarketplacePreview = useCallback(
@@ -868,9 +873,9 @@ function LibraryPageContent() {
       note: "Completed files available to this company account",
         },
         {
-          title: "Company credits",
-          value: String(creditState.creditBalance),
-          note: "Available for completed document unlocks",
+          title: "Marketplace options",
+          value: String(marketplaceDocuments.length),
+          note: "Paid global documents available to this company",
         },
         {
           title: "Templates",
@@ -887,12 +892,12 @@ function LibraryPageContent() {
         {
           title: "Ready to open",
           value: String(accessibleApprovedDocuments.length),
-          note: "Completed documents you already own or unlocked",
+          note: "Completed documents you already own or purchased",
         },
         {
           title: "Marketplace options",
           value: String(marketplaceDocuments.length),
-          note: "Completed documents you can unlock with credits",
+          note: "Paid documents available for direct checkout",
         },
         {
           title: "Active documents",
@@ -900,9 +905,9 @@ function LibraryPageContent() {
           note: "Archived records are hidden from this view",
         },
         {
-          title: "Credits available",
-          value: String(creditState.creditBalance),
-          note: "Available for marketplace unlocks",
+          title: "Purchased docs",
+          value: String(creditState.purchasedDocumentIds.length),
+          note: "Marketplace purchases available to your company",
         },
       ];
 
@@ -914,8 +919,8 @@ function LibraryPageContent() {
       href: "#ready-documents",
     },
     {
-      label: "Marketplace unlocks",
-      note: `${marketplaceDocuments.length} unlockable file${marketplaceDocuments.length === 1 ? "" : "s"}`,
+      label: "Marketplace",
+      note: `${marketplaceDocuments.length} paid file${marketplaceDocuments.length === 1 ? "" : "s"}`,
       href: "?tab=marketplace",
     },
     {
@@ -938,7 +943,7 @@ function LibraryPageContent() {
         {
           label: "Ready & marketplace",
           detail:
-            "Open approved company files from Ready to open. Use Marketplace unlocks to buy listed documents with credits.",
+            "Open approved company files from Ready to open. Use Marketplace to buy listed documents directly.",
           active: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0 || marketplaceDocuments.length > 0,
         },
@@ -976,7 +981,7 @@ function LibraryPageContent() {
         },
         {
           label: "Approved files",
-          detail: "Completed records become ready to open or available to unlock in the marketplace.",
+          detail: "Completed records become ready to open or available to buy in the marketplace.",
           active: accessibleApprovedDocuments.length > 0,
           complete: accessibleApprovedDocuments.length > 0,
         },
@@ -1036,19 +1041,19 @@ function LibraryPageContent() {
     ? [
         {
           label: "Scan listings",
-          detail: "Browse completed documents your company can unlock with shared credits.",
+          detail: "Browse paid documents your company can buy with direct checkout.",
           active: marketplaceDocuments.length > 0,
           complete: marketplaceDocuments.length > 0,
         },
         {
           label: "Preview samples",
-          detail: "Review excerpts or PDF snippets before spending credits.",
+          detail: "Review excerpts or PDF snippets before buying.",
           active: marketplaceDocuments.some((d) => canRequestMarketplaceLibraryPreview(d)),
           complete: false,
         },
         {
-          label: "Unlock & ledger",
-          detail: "Unlocks debit credits and appear in the company ledger.",
+          label: "Checkout & unlock",
+          detail: "Paid invoices unlock the document for the company.",
           active: creditState.transactions.length > 0,
           complete: creditState.purchasedDocumentIds.length > 0,
         },
@@ -1061,20 +1066,20 @@ function LibraryPageContent() {
       ]
     : [
         {
-          label: "Browse unlocks",
-          detail: "Discover marketplace listings you can add with credits.",
+          label: "Browse listings",
+          detail: "Discover paid marketplace documents your company can add.",
           active: marketplaceDocuments.length > 0,
           complete: marketplaceDocuments.length > 0,
         },
         {
-          label: "Keep credits ready",
-          detail: "Top up credits so you can unlock finals when you need them.",
-          active: creditState.creditBalance > 0,
-          complete: creditState.creditBalance > 0,
+          label: "Secure checkout",
+          detail: "Buy the exact document with Stripe checkout when you need it.",
+          active: marketplaceDocuments.length > 0,
+          complete: false,
         },
         {
-          label: "Unlock & open",
-          detail: "After unlock, files appear alongside your other ready-to-open documents.",
+          label: "Open after payment",
+          detail: "After payment, files appear alongside your other ready-to-open documents.",
           active: creditState.purchasedDocumentIds.length > 0,
           complete: creditState.purchasedDocumentIds.length > 0,
         },
@@ -1094,7 +1099,7 @@ function LibraryPageContent() {
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400">
               {isManagerView
                 ? "Company accounts stay focused on completed files only, with no draft or in-review records mixed into the workspace."
-                : "Open completed documents, browse in-progress files, and use credits without digging through separate tools."}
+                : "Open completed documents, browse in-progress files, and buy marketplace documents without digging through separate tools."}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -1148,7 +1153,7 @@ function LibraryPageContent() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
-                  Credits & Access
+                  Purchases & Access
                 </p>
                 <h2 className="mt-3 text-2xl font-black">Account snapshot</h2>
               </div>
@@ -1163,32 +1168,32 @@ function LibraryPageContent() {
             </div>
 
             <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-slate-300">Current balance</p>
+              <p className="text-sm text-slate-300">Purchased documents</p>
               <div className="mt-2 flex items-end gap-2">
                 <span className="text-5xl font-black text-white">
-                  {creditState.creditBalance}
+                  {creditState.purchasedDocumentIds.length}
                 </span>
                 <span className="pb-1 text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">
-                  credits
+                  files
                 </span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {isManagerView
                   ? "Completed files already available to this company account will appear below."
-                  : "Use credits to unlock completed marketplace documents and add them to your ready-to-open list."}
+                  : "Buy marketplace documents with direct checkout and add them to your ready-to-open list."}
               </p>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <MiniInfoCard
-                label="Unlocked docs"
+                label="Purchased docs"
                 value={String(accessibleApprovedDocuments.length)}
                 note="Available now"
               />
               <MiniInfoCard
                 label="Marketplace docs"
                 value={String(marketplaceDocuments.length)}
-                note="Can be unlocked"
+                note="Available to buy"
               />
             </div>
 
@@ -1386,7 +1391,7 @@ function LibraryPageContent() {
                   <StatCard
                     title="Subscription"
                     value={creditState.subscriptionStatus}
-                    note="Default credits can be tied to account status"
+                    note="Account status used for library access"
                   />
                 </section>
 
@@ -1412,11 +1417,11 @@ function LibraryPageContent() {
                   sectionId="ready-documents"
                   title="Ready to open"
                   description="Completed documents you already have access to."
-                  headerPills={["Owned or unlocked", "Open without preview", "Adds to your ready-to-open list"]}
+                  headerPills={["Owned or purchased", "Open without preview", "Adds to your ready-to-open list"]}
                   loading={loading}
                   documents={accessibleApprovedDocuments}
                   emptyTitle="Your ready-to-open shelf is empty"
-                  emptyMessage="Completed documents you own or unlock with credits will land here first."
+                  emptyMessage="Completed documents you own or purchase will land here first."
                   onOpen={(doc) => setPendingDownload({ mode: "completed", documentId: doc.id })}
                   actionLabel="Open document"
                   highlightDocumentId={highlightDocId}
@@ -1501,15 +1506,14 @@ function LibraryPageContent() {
             content: (
               <div className="space-y-6">
                 <WorkflowPath
-                  title="Marketplace unlock workflow"
-                  description="Preview marketplace listings, spend credits intentionally, and land unlocked finals on your ready-to-open shelf."
+                  title="Marketplace purchase workflow"
+                  description="Preview marketplace listings, buy the exact document, and land paid files on your ready-to-open shelf."
                   steps={marketplaceWorkflowSteps}
                 />
 
                 <MarketplaceSection
                   documents={marketplaceDocuments}
                   loading={loading}
-                  creditBalance={creditState.creditBalance}
                   actionLoadingId={actionLoadingId}
                   previewLoadingId={previewLoadingId}
                   marketplacePreviewPageCounts={marketplacePreviewPageCounts}
@@ -1744,7 +1748,6 @@ function DocumentCard({
 function MarketplaceSection({
   documents,
   loading,
-  creditBalance,
   actionLoadingId,
   previewLoadingId,
   marketplacePreviewPageCounts,
@@ -1754,7 +1757,6 @@ function MarketplaceSection({
 }: {
   documents: DocumentRow[];
   loading: boolean;
-  creditBalance: number;
   actionLoadingId: string;
   previewLoadingId: string;
   marketplacePreviewPageCounts: Record<string, number | null>;
@@ -1771,44 +1773,39 @@ function MarketplaceSection({
         <div className="space-y-3">
           <div>
             <h2 className="text-2xl font-black tracking-tight text-white">
-              Marketplace unlocks
+              Marketplace documents
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Use credits to unlock completed documents and add them to your ready-to-open list.
+              Buy approved safety documents directly and add them to your ready-to-open list after payment.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-slate-600 bg-slate-950/50 px-3 py-1.5 text-xs font-semibold text-slate-300">
-              See the sample first, then unlock
+              Preview before checkout
             </span>
             <span className="rounded-full border border-slate-600 bg-slate-950/50 px-3 py-1.5 text-xs font-semibold text-slate-300">
-              Unlocks move straight to Ready to open
+              Stripe checkout
             </span>
             <span className="rounded-full border border-slate-600 bg-slate-950/50 px-3 py-1.5 text-xs font-semibold text-slate-300">
-              Credits are shared across the company account
+              Purchases unlock for the company
             </span>
           </div>
         </div>
         <div className="rounded-3xl border border-slate-700/80 bg-slate-950/60 p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Current balance
+            Direct checkout
           </p>
-          <div className="mt-3 flex items-end gap-2">
-            <span className="text-4xl font-black tracking-tight text-white">
-              {creditBalance}
-            </span>
-            <span className="pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
-              credits
-            </span>
-          </div>
+          <p className="mt-3 text-3xl font-black tracking-tight text-white">
+            USD pricing
+          </p>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            Use credits to open completed files. If you need more, buy a top-up pack from the marketplace.
+            Each document has its own price. After Stripe confirms payment, the file appears in Ready to open.
           </p>
           <Link
-            href="/purchases"
+            href="/customer/billing"
             className="mt-4 inline-flex rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15"
           >
-            Buy credits
+            View billing
           </Link>
         </div>
       </div>
@@ -1827,14 +1824,14 @@ function MarketplaceSection({
           <EmptyState
             eyebrow="Marketplace"
             title="The marketplace is quiet right now"
-            description="When completed documents are listed for credits, they will appear here. Check back when the board has fresh unlocks."
+            description="When paid documents are listed, they will appear here with a price and checkout action."
           />
         </div>
       ) : (
         <div className="mt-6 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
           {documents.map((doc) => {
-            const cost = getDocumentCreditCost(doc.notes);
-            const canAfford = creditBalance >= cost;
+            const priceLabel = formatDocumentPrice(doc.notes) ?? "Contact admin";
+            const hasDirectPrice = Boolean(getDocumentPriceCents(doc.notes));
             const previewGate = getSubmitterPreviewStatus(doc.notes);
             const previewPageCount = marketplacePreviewPageCounts[doc.id] ?? null;
             const previewGateMessage =
@@ -1852,14 +1849,14 @@ function MarketplaceSection({
               previewGateMessage ? "warning" : canRequestMarketplaceLibraryPreview(doc) ? "success" : "neutral";
             const teaserLine =
               previewGateMessage ||
-              (canAfford
-                ? "You can unlock this document right now."
-                : `Add ${cost - creditBalance} more credit${cost - creditBalance === 1 ? "" : "s"} to unlock.`);
+              (hasDirectPrice
+                ? "Checkout opens securely and unlocks the document after payment."
+                : "This listing needs a USD price before checkout is available.");
             const documentValueLine = canRequestMarketplaceLibraryPreview(doc)
               ? "See the structure first, then decide whether to buy."
-              : "This listing is ready for purchase and will move to your ready shelf after unlock.";
+              : "This listing is ready for purchase and will move to your ready shelf after payment.";
             const previewRevealLine = canRequestMarketplaceLibraryPreview(doc)
-              ? "You’ll see named sections, a readable sample, and a blurred continuation before unlocking."
+              ? "You’ll see named sections, a readable sample, and a blurred continuation before checkout."
               : "The card stays brief here, but the full file still moves into your ready shelf after purchase.";
 
             const highlighted = highlightDocumentId === doc.id;
@@ -1907,14 +1904,14 @@ function MarketplaceSection({
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                           Price
                         </p>
-                        <p className="mt-1 text-base font-black text-white">{cost} credits</p>
+                        <p className="mt-1 text-base font-black text-white">{priceLabel}</p>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
                           Access
                         </p>
                         <p className="mt-1 text-base font-black text-white">
-                          {canAfford ? "Available now" : "Needs top-up"}
+                          {hasDirectPrice ? "Checkout" : "Not priced"}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
@@ -1987,21 +1984,21 @@ function MarketplaceSection({
                   <button
                     type="button"
                     onClick={() => onPurchase(doc.id)}
-                    disabled={actionLoadingId === doc.id || !canAfford}
+                    disabled={actionLoadingId === doc.id || !hasDirectPrice}
                     className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#38bdf8_0%,_#0ea5e9_55%,_#0284c7_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_28px_rgba(14,165,233,0.24)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                     >
                       {actionLoadingId === doc.id
-                        ? "Unlocking..."
-                        : canAfford
-                          ? "Unlock document"
-                          : "Not enough credits"}
+                        ? "Starting checkout..."
+                        : hasDirectPrice
+                          ? "Buy document"
+                          : "Price unavailable"}
                   </button>
                 </div>
 
                 <p className="mt-3 text-xs leading-5 text-slate-500">
                   {canRequestMarketplaceLibraryPreview(doc)
                     ? "Preview shows the structure, a few labels, and the page count if it is a PDF."
-                    : "This listing is still available to unlock even when a sample preview is not shown."}
+                    : "This listing is still available to buy even when a sample preview is not shown."}
                 </p>
               </article>
             );

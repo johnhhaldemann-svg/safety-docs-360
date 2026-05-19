@@ -7,6 +7,10 @@ import {
 } from "@/lib/billing/access";
 import { computeBalanceDue } from "@/lib/billing/invoiceTotals";
 import { recordBillingEvent } from "@/lib/billing/recordEvent";
+import {
+  ensureMarketplaceDocumentPurchase,
+  getMarketplaceDocumentInvoiceMetadata,
+} from "@/lib/marketplaceDocumentPurchases";
 
 export const runtime = "nodejs";
 
@@ -122,6 +126,38 @@ export async function POST(request: Request, context: RouteContext) {
       created_by_user_id: auth.user.id,
       event_data: { amount_cents, payment_method },
     });
+
+    const marketplaceDocument = getMarketplaceDocumentInvoiceMetadata({
+      billing_source: updated.billing_source as string | null,
+      metadata: updated.metadata as Record<string, unknown> | null,
+    });
+
+    if (balance_due_cents <= 0 && marketplaceDocument) {
+      const unlockResult = await ensureMarketplaceDocumentPurchase({
+        supabase: auth.supabase,
+        companyId: updated.company_id as string,
+        documentId: marketplaceDocument.documentId,
+        invoiceId: id,
+        purchasedByUserId: marketplaceDocument.purchasedByUserId,
+        amountCents:
+          marketplaceDocument.amountCents ??
+          Math.max(0, Number(updated.total_cents ?? 0)),
+        currency: marketplaceDocument.currency,
+        metadata: {
+          source: "marketplace_document_purchase",
+          invoice_id: id,
+          unlocked_by: "manual_mark_paid",
+          payment_method,
+        },
+      });
+
+      if (!unlockResult.ok) {
+        return NextResponse.json(
+          { error: unlockResult.error || "Invoice was paid, but document unlock failed." },
+          { status: 500 }
+        );
+      }
+    }
 
     return NextResponse.json({ invoice: updated });
   } catch (e) {

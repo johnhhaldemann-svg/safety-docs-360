@@ -17,6 +17,10 @@ import {
   purchasedDocumentIdsFromTransactions,
   sumCreditBalance,
 } from "@/lib/credits";
+import {
+  listMarketplaceDocumentPurchases,
+  purchasedMarketplaceDocumentIds,
+} from "@/lib/marketplaceDocumentPurchases";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
@@ -99,11 +103,21 @@ export async function GET(request: Request) {
           : companyTransactionResult;
 
       if (!ledgerResult.error) {
+        const directPurchases = await listMarketplaceDocumentPurchases(
+          companyDataClient,
+          companyScope.companyId
+        );
+        const purchasedDocumentIds = Array.from(
+          new Set([
+            ...purchasedCompanyDocumentIdsFromTransactions(ledgerResult.data),
+            ...(!directPurchases.error
+              ? purchasedMarketplaceDocumentIds(directPurchases.data)
+              : []),
+          ])
+        );
         return NextResponse.json({
           creditBalance: sumCompanyCreditBalance(ledgerResult.data),
-          purchasedDocumentIds: purchasedCompanyDocumentIdsFromTransactions(
-            ledgerResult.data
-          ),
+          purchasedDocumentIds,
           subscriptionStatus: companySubStatus,
           transactions: ledgerResult.data.slice(0, 10),
           ledgerEnabled: true,
@@ -117,9 +131,15 @@ export async function GET(request: Request) {
     // Company scope is known but the credit ledger could not be read (e.g. RLS with a
     // user-scoped client). Still report subscription from company_subscriptions so UI
     // does not fall back to the per-user subscriptions table.
+    const directPurchases = await listMarketplaceDocumentPurchases(
+      companyDataClient,
+      companyScope.companyId
+    );
     return NextResponse.json({
       creditBalance: 0,
-      purchasedDocumentIds: [],
+      purchasedDocumentIds: !directPurchases.error
+        ? purchasedMarketplaceDocumentIds(directPurchases.data)
+        : [],
       subscriptionStatus: companySubStatus,
       transactions: [],
       ledgerEnabled: false,

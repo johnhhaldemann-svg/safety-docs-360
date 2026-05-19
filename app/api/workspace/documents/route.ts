@@ -14,6 +14,10 @@ import {
   purchasedDocumentIdsFromTransactions,
 } from "@/lib/credits";
 import { isMarketplaceEnabled, normalizePurchasedIds } from "@/lib/marketplace";
+import {
+  listMarketplaceDocumentPurchases,
+  purchasedMarketplaceDocumentIds,
+} from "@/lib/marketplaceDocumentPurchases";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
 export const runtime = "nodejs";
@@ -59,9 +63,23 @@ export async function GET(request: Request) {
       authUser: auth.user,
     });
     const transactionResult = await listCreditTransactions(auth.supabase, auth.user.id);
-    const purchasedDocumentIds = !transactionResult.error
+    const legacyPurchasedDocumentIds = !transactionResult.error
       ? purchasedDocumentIdsFromTransactions(transactionResult.data)
       : normalizePurchasedIds(auth.user.user_metadata?.purchased_document_ids);
+    const purchaseResult = companyScope.companyId
+      ? await listMarketplaceDocumentPurchases(
+          auth.supabase,
+          companyScope.companyId
+        )
+      : { data: [], error: null };
+    const purchasedDocumentIds = Array.from(
+      new Set([
+        ...legacyPurchasedDocumentIds,
+        ...(!purchaseResult.error
+          ? purchasedMarketplaceDocumentIds(purchaseResult.data)
+          : []),
+      ])
+    );
 
     const workspaceDocumentIds = new Set<string>();
 
@@ -73,6 +91,7 @@ export async function GET(request: Request) {
       const companyId =
         typeof document.company_id === "string" ? document.company_id : null;
       const id = typeof document.id === "string" ? document.id : "";
+      const isPurchased = purchasedDocumentIds.some((pid) => uuidMatches(pid, id));
 
       if (isArchivedDocumentStatus(status)) {
         return false;
@@ -82,8 +101,9 @@ export async function GET(request: Request) {
         const include = companyScope.companyId
           ? uuidMatches(companyId, companyScope.companyId)
           : uuidMatches(userId, auth.user.id);
-        if (include && id) workspaceDocumentIds.add(id);
-        return include;
+        const includeWithPurchase = include || isPurchased;
+        if (includeWithPurchase && id) workspaceDocumentIds.add(id);
+        return includeWithPurchase;
       }
 
       const include =
@@ -93,7 +113,7 @@ export async function GET(request: Request) {
             ? uuidMatches(companyId, companyScope.companyId)
             : false) ||
           uuidMatches(userId, auth.user.id) ||
-          purchasedDocumentIds.some((pid) => uuidMatches(pid, id))
+          isPurchased
         );
       if (include && id) workspaceDocumentIds.add(id);
       return include;
