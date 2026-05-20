@@ -16,6 +16,7 @@ import {
   type SafePredictLiveRecordRow,
   type SafePredictPermitRecord,
   type SafePredictJobsiteRecord,
+  type SafePredictJobsiteStatus,
 } from "@/lib/safePredictData";
 import type { SafePredictActionStatus, SafePredictCorrectiveAction } from "@/lib/safePredictMockData";
 import {
@@ -99,6 +100,28 @@ type SafePredictDataContextValue = {
     customerName: string;
     customerReportEmail: string;
   }) => SafePredictJobsiteRecord;
+  updateJobsite: (id: string, input: SafePredictJobsiteUpdateInput) => Promise<{ success: boolean; error?: string }>;
+};
+
+export type SafePredictJobsiteUpdateInput = {
+  name: string;
+  jobsiteNumber?: string;
+  projectNumber?: string;
+  location?: string;
+  projectManager?: string;
+  safetyLead?: string;
+  customerCompanyName?: string;
+  customerReportEmail?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  zipCode?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  status?: SafePredictJobsiteStatus;
 };
 
 const SafePredictDataContext = createContext<SafePredictDataContextValue | null>(null);
@@ -961,6 +984,75 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     [draftJobsites, liveToken, mode, persistDraftJobsites]
   );
 
+  const updateJobsite = useCallback(
+    async (id: string, input: SafePredictJobsiteUpdateInput) => {
+      const nextSite = (site: SafePredictJobsiteRecord): SafePredictJobsiteRecord => ({
+        ...site,
+        name: input.name || site.name,
+        code: input.jobsiteNumber || input.projectNumber || site.code,
+        jobsiteNumber: input.jobsiteNumber ?? site.jobsiteNumber ?? null,
+        projectNumber: input.projectNumber ?? site.projectNumber ?? null,
+        address: input.addressLine1 || input.location || site.address,
+        cityState: [input.city, input.state].filter(Boolean).join(", ") || input.location || site.cityState,
+        phase: input.status === "planned" ? "Planning" : input.status === "completed" ? "Closeout" : site.phase,
+        siteLead: input.safetyLead || site.siteLead,
+        projectManager: input.projectManager || site.projectManager,
+        customerName: input.customerCompanyName || site.customerName,
+        customerReportEmail: input.customerReportEmail || site.customerReportEmail,
+        startDate: input.startDate ?? site.startDate,
+        endDate: input.endDate ?? site.endDate,
+        status: input.status ?? site.status,
+        addressLine1: input.addressLine1 ?? site.addressLine1 ?? null,
+        addressLine2: input.addressLine2 ?? site.addressLine2 ?? null,
+        city: input.city ?? site.city ?? null,
+        state: input.state ?? site.state ?? null,
+        country: input.country ?? site.country ?? null,
+        notes: input.notes ?? site.notes ?? null,
+        zipCode: input.zipCode ?? site.zipCode ?? null,
+      });
+
+      const isDraft = draftJobsites.some((site) => site.id === id);
+      if (isDraft || mode !== "live" || !liveToken) {
+        if (isDraft) {
+          persistDraftJobsites(draftJobsites.map((site) => (site.id === id ? nextSite(site) : site)));
+        } else {
+          setBaseDataset((current) => ({
+            ...current,
+            jobsites: current.jobsites.map((site) => (site.id === id ? nextSite(site) : site)),
+          }));
+        }
+        return { success: true };
+      }
+
+      try {
+        const response = await fetch(`/api/company/jobsites/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${liveToken}`,
+          },
+          body: JSON.stringify(input),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          return { success: false, error: payload?.error || "Could not update this jobsite." };
+        }
+        setBaseDataset((current) => ({
+          ...current,
+          jobsites: current.jobsites.map((site) => (site.id === id ? nextSite(site) : site)),
+        }));
+        refreshLiveData();
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Could not update this jobsite.",
+        };
+      }
+    },
+    [draftJobsites, liveToken, mode, persistDraftJobsites, refreshLiveData]
+  );
+
   return (
     <SafePredictDataContext.Provider
       value={{
@@ -980,6 +1072,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         addDraftPermit,
         updatePermit,
         addDraftJobsite,
+        updateJobsite,
       }}
     >
       {children}

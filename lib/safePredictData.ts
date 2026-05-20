@@ -40,6 +40,8 @@ export type SafePredictJobsiteStatus = "planned" | "active" | "action-needed" | 
 
 export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   status: SafePredictJobsiteStatus;
+  jobsiteNumber?: string | null;
+  projectNumber?: string | null;
   projectManager: string;
   customerName: string;
   customerReportEmail: string;
@@ -48,6 +50,12 @@ export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   inspectionGaps: number;
   incidentCount: number;
   observationCount: number;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  notes?: string | null;
   zipCode?: string | null;
   weatherEnabled?: boolean | null;
   weatherLocationSource?: string | null;
@@ -194,6 +202,16 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   projectNumber?: string | null;
   location?: string | null;
   status?: string | null;
+  weather_address_line_1?: string | null;
+  weatherAddressLine1?: string | null;
+  weather_address_line_2?: string | null;
+  weatherAddressLine2?: string | null;
+  weather_city?: string | null;
+  weatherCity?: string | null;
+  weather_state?: string | null;
+  weatherState?: string | null;
+  weather_country?: string | null;
+  weatherCountry?: string | null;
   project_manager?: string | null;
   projectManager?: string | null;
   safety_lead?: string | null;
@@ -224,6 +242,7 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   weatherLatitude?: number | string | null;
   weather_longitude?: number | string | null;
   weatherLongitude?: number | string | null;
+  notes?: string | null;
 };
 
 export type SafePredictLiveRecordRow = Record<string, unknown>;
@@ -513,12 +532,20 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
       const location = String(row.location ?? "").trim();
       const jobsiteNumber = String(row.jobsite_number ?? row.jobsiteNumber ?? "").trim();
       const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
+      const addressLine1 = textValue(row, ["weather_address_line_1", "weatherAddressLine1"]);
+      const addressLine2 = textValue(row, ["weather_address_line_2", "weatherAddressLine2"]);
+      const city = textValue(row, ["weather_city", "weatherCity"]);
+      const state = textValue(row, ["weather_state", "weatherState"]);
+      const country = textValue(row, ["weather_country", "weatherCountry"]);
+      const cityState = [city, state].filter(Boolean).join(", ");
       return {
         id: String(row.id),
         code: jobsiteNumber || projectNumber || "Not set",
+        jobsiteNumber: jobsiteNumber || null,
+        projectNumber: projectNumber || null,
         name: String(row.name),
-        address: location || "Not set",
-        cityState: location || "Not set",
+        address: addressLine1 || location || "Not set",
+        cityState: cityState || location || "Not set",
         projectType: "Construction",
         phase: status === "planned" ? "Planning" : status === "completed" ? "Closeout" : "Not set",
         riskScore: 0,
@@ -533,6 +560,12 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
         startDate: String(row.start_date ?? row.startDate ?? ""),
         endDate: String(row.end_date ?? row.endDate ?? ""),
         status,
+        addressLine1: addressLine1 || null,
+        addressLine2: addressLine2 || null,
+        city: city || null,
+        state: state || null,
+        country: country || null,
+        notes: textValue(row, ["notes"]) || null,
         zipCode: String(row.zip_code ?? row.zipCode ?? "").trim() || null,
         weatherEnabled: Boolean(row.weather_enabled ?? row.weatherEnabled),
         weatherLocationSource: String(row.weather_location_source ?? row.weatherLocationSource ?? "").trim() || null,

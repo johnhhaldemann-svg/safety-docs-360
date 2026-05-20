@@ -27,7 +27,6 @@ import {
   Card,
   ExportButton,
   PageHeader,
-  ReadinessDonut,
   SectionTitle,
   StatusIcon,
   cx,
@@ -39,7 +38,7 @@ import {
   type SafePredictPermitSummary,
   type SafePredictTradeReadiness,
 } from "@/lib/safePredictMockData";
-import type { SafePredictDataset, SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
+import type { SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
 
 const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
   compliant: "Compliant",
@@ -499,11 +498,6 @@ export function SafePredictWorkforceDashboard() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [selectedEmployee]);
 
-  function filterByStatus(status: "all" | SafePredictDemoEmployeeStatus) {
-    setStatusFilter(status);
-    setActiveTab(status === "all" ? "overview" : "workforce");
-  }
-
   function filterBySite(siteId: string) {
     setSiteFilter(siteId);
     setActiveTab("jobsites");
@@ -789,7 +783,10 @@ function OverviewTab({
   permitExposure,
   permitRows,
   predictedRiskImpact,
+  workflowItems,
   workforce,
+  workflowStatuses,
+  onCreateAction,
 }: {
   employees: SafePredictDemoEmployee[];
   hasEmployees: boolean;
@@ -800,29 +797,121 @@ function OverviewTab({
   permitRows: SafePredictPermitSummary[];
   predictedRiskImpact: string;
   workflowItems: WorkforceWorkflowItem[];
-  workflowStatuses: Record<string, WorkflowStatus>;
   workforce: ReturnType<typeof workforceTotalsFromEmployees>;
+  workflowStatuses: Record<string, WorkflowStatus>;
   onCreateAction: (item: WorkforceWorkflowItem) => void;
 }) {
-  const permits = permitTotals(permitRows);
+  const workersNotReady = employees
+    .filter((employee) => employee.status !== "compliant")
+    .sort((a, b) => employeeStatusRank(a.status) - employeeStatusRank(b.status) || a.readinessScore - b.readinessScore)
+    .slice(0, 5);
+  const permitsDue = permitRows
+    .filter((permit) => permit.expired > 0 || permit.expiringSoon > 0)
+    .sort((a, b) => permitStatusRank(a) - permitStatusRank(b) || b.expired + b.expiringSoon - (a.expired + a.expiringSoon))
+    .slice(0, 5);
+  const elevatedSites = jobsites
+    .filter((jobsite) => jobsite.riskLevel === "critical" || jobsite.riskLevel === "high" || jobsite.openActions > 0)
+    .sort((a, b) => b.riskScore - a.riskScore || b.openActions - a.openActions)
+    .slice(0, 4);
+
   return (
     <div className="grid gap-5">
+      <PreventionInsightsCard
+        hasEmployees={hasEmployees}
+        highRiskActivityCount={highRiskActivityCount}
+        incidentLikelihood={incidentLikelihood}
+        permitExposure={permitExposure}
+        predictedRiskImpact={predictedRiskImpact}
+        workforce={workforce}
+      />
       <div className="grid gap-5 2xl:grid-cols-2">
-        <ReadinessStatusCard hasEmployees={hasEmployees} workforce={workforce} />
-        <PreventionInsightsCard
-          hasEmployees={hasEmployees}
-          highRiskActivityCount={highRiskActivityCount}
-          incidentLikelihood={incidentLikelihood}
-          permitExposure={permitExposure}
-          predictedRiskImpact={predictedRiskImpact}
-          workforce={workforce}
-        />
+        <Card className="p-5">
+          <SectionTitle title="Workers Not Ready" hint="Overdue and expiring workforce records sorted before compliant records." />
+          <div className="mt-4 space-y-3">
+            {workersNotReady.map((employee) => (
+              <div key={employee.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-950">{employee.name}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-500">{employee.trade} - {employee.role}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className={cx("rounded-full px-3 py-1 text-xs font-black", employeeStatusClass(employee.status))}>{statusLabels[employee.status]}</span>
+                  <p className="mt-1 text-xs font-black text-slate-700">{employee.readinessScore}/100</p>
+                </div>
+              </div>
+            ))}
+            {workersNotReady.length === 0 ? <EmptyPanel>No worker readiness exceptions are active.</EmptyPanel> : null}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <SectionTitle title="Permits Required Today" hint="Permit categories with expired or expiring requirements appear first." />
+          <div className="mt-4 space-y-3">
+            {permitsDue.map((permit) => (
+              <div key={permit.type} className="grid gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <p className="text-sm font-black text-slate-950">{permit.type}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{permitCategoryForType(permit.type)}</p>
+                </div>
+                <div className="flex gap-2 text-xs font-black">
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-600">{permit.expired} overdue</span>
+                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-600">{permit.expiringSoon} expiring</span>
+                </div>
+              </div>
+            ))}
+            {permitsDue.length === 0 ? <EmptyPanel>No permit renewals are due today.</EmptyPanel> : null}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <SectionTitle title="Jobsites With Elevated Risk" hint="Sites are sorted by forecast risk, then open action load." />
+          <div className="mt-4 grid gap-3">
+            {elevatedSites.map((jobsite) => (
+              <div key={jobsite.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-950">{jobsite.name}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{jobsite.phase}</p>
+                  </div>
+                  <span className={cx("rounded-full px-3 py-1 text-xs font-black", jobsiteForecastLevel(jobsite) === "Elevated" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-600")}>{jobsiteForecastLevel(jobsite)}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black">
+                  <span className="rounded-lg bg-white p-2 text-slate-700">{jobsite.workforceCount} workers</span>
+                  <span className="rounded-lg bg-white p-2 text-slate-700">{jobsite.activePermits} permits</span>
+                  <span className="rounded-lg bg-white p-2 text-slate-700">{jobsite.openActions} actions</span>
+                </div>
+              </div>
+            ))}
+            {elevatedSites.length === 0 ? <EmptyPanel>No elevated jobsites are active.</EmptyPanel> : null}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <SectionTitle title="Top Recommended Actions" hint="Highest priority actions can be created from the command center." />
+          <div className="mt-4 space-y-3">
+            {workflowItems.slice(0, 5).map((item) => {
+              const status = workflowStatuses[item.id];
+              return (
+                <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-start gap-3">
+                    <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-lg border", workflowToneClass(item.severity))}>{workflowIcon(item.kind)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-black leading-5 text-slate-950">{item.title}</p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{item.detail}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-black text-slate-500">Due {formatDueDate(item.dueAt)} - {workflowStatusText(item, workflowStatuses)}</span>
+                    <button type="button" onClick={() => onCreateAction(item)} disabled={status?.state === "busy" || status?.state === "success"} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-black text-white transition hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500">
+                      {status?.state === "busy" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      Create
+                    </button>
+                  </div>
+                  {status?.message ? <p className={cx("mt-2 text-xs font-bold", status.state === "error" ? "text-red-600" : "text-emerald-700")}>{status.message}</p> : null}
+                </div>
+              );
+            })}
+            {workflowItems.length === 0 ? <EmptyPanel>No recommended actions are available yet.</EmptyPanel> : null}
+          </div>
+        </Card>
       </div>
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-        <PermitRegister permitRows={permitRows} permits={permits} />
-        <JobsiteSnapshot jobsites={jobsites} siteFilter="all" onFilter={() => undefined} />
-      </div>
-      {employees.length === 0 ? <EmptyPanel>No workforce records are available yet. Add workers or invite users to populate this dashboard.</EmptyPanel> : null}
     </div>
   );
 }
@@ -845,80 +934,251 @@ function WorkforceDataGrid({
   onOpenEmployee: (id: string) => void;
 }) {
   return (
-    <RosterCard
-      activeFilterText={activeFilterText}
-      datasetCompanyName="Company"
-      employees={employees}
-      isLiveEmpty={isLiveEmpty}
-      jobsites={jobsites}
-      mode="live"
-      selectedEmployeeId={selectedEmployeeId}
-      visibleEmployees={visibleEmployees}
-      onOpenEmployee={onOpenEmployee}
-    />
+    <Card id="employee-roster" className="scroll-mt-36 overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <SectionTitle title="Workforce Roster" action={<span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700">{visibleEmployees.length} of {employees.length}</span>} hint="Searchable roster sorted exception-first: overdue, expiring soon, then compliant." />
+        <p className="mt-2 text-sm font-semibold text-slate-600">{activeFilterText}</p>
+      </div>
+      <div className="space-y-3 p-4 md:hidden">
+        {visibleEmployees.map((employee) => {
+          const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
+          return (
+            <MobileRecordCard
+              key={`${employee.id}-mobile-grid`}
+              title={employee.name}
+              rows={[["Trade / Role", `${employee.trade} / ${employee.role}`], ["Assigned jobsite", jobsite?.name ?? "Unassigned"], ["Readiness", `${employee.readinessScore}/100`], ["Status", statusLabels[employee.status]]]}
+              active={selectedEmployeeId === employee.id}
+              actionLabel={`Open ${employee.name}`}
+              onClick={() => onOpenEmployee(employee.id)}
+            />
+          );
+        })}
+        {visibleEmployees.length === 0 ? <EmptyPanel>{isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those filters."}</EmptyPanel> : null}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[900px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black uppercase text-slate-500">
+              <th className="px-5 py-3">Worker</th>
+              <th className="px-5 py-3">Trade / Role</th>
+              <th className="px-5 py-3">Jobsite</th>
+              <th className="px-5 py-3 text-center">Readiness</th>
+              <th className="px-5 py-3">Status</th>
+              <th className="px-5 py-3">Supervisor</th>
+              <th className="px-5 py-3">Last Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleEmployees.map((employee) => {
+              const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
+              return (
+                <tr key={employee.id} onClick={() => onOpenEmployee(employee.id)} className={cx("group cursor-pointer border-b border-slate-100 transition hover:bg-blue-50/60", selectedEmployeeId === employee.id ? "bg-blue-50" : undefined)}>
+                  <td className="px-5 py-3">
+                    <button type="button" className="text-left font-black text-slate-950 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100" onClick={() => onOpenEmployee(employee.id)}>{employee.name}</button>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{employee.id} - {employee.shift}</p>
+                  </td>
+                  <td className="px-5 py-3"><p className="font-semibold text-slate-800">{employee.trade}</p><p className="mt-1 text-xs text-slate-500">{employee.role}</p></td>
+                  <td className="px-5 py-3 font-semibold text-slate-700">{jobsite?.name ?? "Unassigned"}</td>
+                  <td className="px-5 py-3 text-center"><span className="inline-flex min-w-12 justify-center rounded-full bg-slate-100 px-3 py-1 font-black text-slate-900">{employee.readinessScore}</span></td>
+                  <td className="px-5 py-3"><span className={cx("rounded-full px-3 py-1 text-xs font-black", employeeStatusClass(employee.status))}>{statusLabels[employee.status]}</span></td>
+                  <td className="px-5 py-3 font-semibold text-slate-700">{employee.supervisor}</td>
+                  <td className="px-5 py-3 text-xs font-semibold text-slate-500">{employee.lastActivity}</td>
+                </tr>
+              );
+            })}
+            {visibleEmployees.length === 0 ? <tr><td colSpan={7} className="px-5 py-10 text-center text-sm font-semibold text-slate-500">{isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those filters."}</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
 function TrainingMatrixTab({ groups }: { groups: TrainingGroup[] }) {
-  return <TrainingMatrix trades={groups} />;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <SectionTitle title="Training Matrix" hint="Trades are collapsed by default and sorted by exception count before compliant groups." />
+      </div>
+      <div className="divide-y divide-slate-100">
+        {groups.map((group) => {
+          const isOpen = expanded[group.trade] ?? group.overdueCount > 0;
+          return (
+            <section key={group.trade}>
+              <button type="button" onClick={() => setExpanded((current) => ({ ...current, [group.trade]: !isOpen }))} className="flex w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
+                <div className="min-w-0">
+                  <p className="text-base font-black text-slate-950">{group.trade}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">{group.workers} workers - {group.overdueCount} overdue - {group.expiringCount} expiring</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{group.overdueCount}</span>
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-600">{group.expiringCount}</span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.compliantCount}</span>
+                  <ChevronDown className={cx("h-4 w-4 text-slate-400 transition", isOpen ? "rotate-180" : undefined)} />
+                </div>
+              </button>
+              {isOpen ? (
+                <div className="grid gap-3 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-5">
+                  {([
+                    ["Fall Protection", group.fallProtection],
+                    ["Confined Space", group.confinedSpace],
+                    ["LOTO", group.loto],
+                    ["HazCom", group.hazcom],
+                    ["First Aid", group.firstAid],
+                  ] as Array<[string, SafePredictDemoEmployeeStatus]>).map(([label, status]) => (
+                    <div key={`${group.trade}-${label}`} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <StatusIcon status={status} />
+                        <span className={cx("rounded-full px-2.5 py-1 text-xs font-black", employeeStatusClass(status))}>{statusLabels[status]}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+        {groups.length === 0 ? <div className="p-5"><EmptyPanel>No training matrix rows yet.</EmptyPanel></div> : null}
+      </div>
+    </Card>
+  );
 }
 
 function PermitsTab({ groups, permits }: { groups: PermitCategoryGroup[]; permits: { active: number; expiringSoon: number; expired: number } }) {
-  const rows = groups.flatMap((group) => group.rows);
-  return <PermitRegister permitRows={rows} permits={permits} />;
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <SectionTitle title="Permit Exposure" action={<Link href="/safe-predict/permits" className="inline-flex items-center gap-2 text-sm font-black text-blue-600">View all permits <ArrowRight className="h-4 w-4" /></Link>} />
+      </div>
+      <div className="grid gap-3 border-b border-slate-100 bg-slate-50 p-4 sm:grid-cols-3">
+        <MetricLine label="Active" value={permits.active} tone="green" />
+        <MetricLine label="Expiring Soon" value={permits.expiringSoon} tone="amber" />
+        <MetricLine label="Overdue" value={permits.expired} tone="red" />
+      </div>
+      <div className="divide-y divide-slate-100">
+        {groups.map((group) => (
+          <section key={group.category} className="p-5">
+            <div className="grid gap-4 lg:grid-cols-[1fr_420px] lg:items-start">
+              <div>
+                <p className="text-lg font-black text-slate-950">{group.category}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{group.rows.length} permit type{group.rows.length === 1 ? "" : "s"} in this high-risk category.</p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center text-xs font-black">
+                <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">{group.active}<span className="block text-[10px] uppercase">Active</span></span>
+                <span className="rounded-lg bg-amber-50 p-2 text-amber-600">{group.expiringSoon}<span className="block text-[10px] uppercase">Expiring</span></span>
+                <span className="rounded-lg bg-red-50 p-2 text-red-600">{group.expired}<span className="block text-[10px] uppercase">Overdue</span></span>
+                <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{group.missingSignatures}<span className="block text-[10px] uppercase">Signature</span></span>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {[...group.rows]
+                .sort((a, b) => permitStatusRank(a) - permitStatusRank(b) || a.type.localeCompare(b.type))
+                .map((permit) => (
+                  <div key={`${group.category}-${permit.type}`} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
+                    <p className="font-black text-slate-950"><Flame className="mr-2 inline h-4 w-4 text-orange-500" />{permit.type}</p>
+                    <p className="mt-2 text-xs font-black text-slate-500">{permit.expired} overdue - {permit.expiringSoon} expiring - {permit.active} active</p>
+                  </div>
+                ))}
+            </div>
+          </section>
+        ))}
+        {groups.length === 0 ? <div className="p-5"><EmptyPanel>No permit records yet.</EmptyPanel></div> : null}
+      </div>
+    </Card>
+  );
 }
 
-function JobsiteAssignmentsTab({
-  employees,
-  jobsites,
-  siteFilter,
-  onFilter,
-}: {
-  employees: SafePredictDemoEmployee[];
-  jobsites: SafePredictJobsiteRecord[];
-  permits: SafePredictPermitRecord[];
-  siteFilter: string;
-  onFilter: (siteId: string) => void;
-}) {
+function JobsiteAssignmentsTab({ employees, jobsites, permits, siteFilter, onFilter }: { employees: SafePredictDemoEmployee[]; jobsites: SafePredictJobsiteRecord[]; permits: SafePredictPermitRecord[]; siteFilter: string; onFilter: (siteId: string) => void }) {
+  const sorted = [...jobsites].sort((a, b) => {
+    const aLevel = jobsiteForecastLevel(a) === "Elevated" ? 0 : jobsiteForecastLevel(a) === "Watch" ? 1 : 2;
+    const bLevel = jobsiteForecastLevel(b) === "Elevated" ? 0 : jobsiteForecastLevel(b) === "Watch" ? 1 : 2;
+    return aLevel - bLevel || b.riskScore - a.riskScore;
+  });
   return (
-    <div className="grid gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
-      <JobsiteSnapshot jobsites={jobsites} siteFilter={siteFilter} onFilter={onFilter} />
-      <Card className="overflow-hidden">
-        <div className="border-b border-slate-200 p-5">
-          <SectionTitle title="Assigned Workforce" />
-        </div>
-        <div className="space-y-3 p-4">
-          {jobsites.map((jobsite) => {
-            const assigned = employees.filter((employee) => employee.assignedSiteId === jobsite.id);
-            return (
-              <button key={jobsite.id} type="button" onClick={() => onFilter(jobsite.id)} className="w-full rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-white">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-black text-slate-950">{jobsite.name}</span>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{assigned.length} assigned</span>
-                </div>
-                <p className="mt-2 text-xs font-semibold text-slate-600">{assigned.slice(0, 4).map((employee) => employee.name).join(", ") || "No workers assigned."}</p>
-              </button>
-            );
-          })}
-        </div>
-      </Card>
+    <div className="grid gap-5 2xl:grid-cols-2">
+      {sorted.map((jobsite) => {
+        const assigned = employees.filter((employee) => employee.assignedSiteId === jobsite.id);
+        const sitePermits = permits.filter((permit) => permit.siteId === jobsite.id);
+        const highRiskTasks = [jobsite.phase, jobsite.projectType].filter(Boolean).join(" / ");
+        const forecast = jobsiteForecastLevel(jobsite);
+        const readiness = jobsiteReadinessScore(jobsite, employees);
+        return (
+          <button key={jobsite.id} type="button" onClick={() => onFilter(jobsite.id)} className={cx("rounded-lg border bg-white p-5 text-left shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:border-blue-200 hover:bg-blue-50/30 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100", siteFilter === jobsite.id ? "border-blue-300 ring-4 ring-blue-100" : "border-slate-200")}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xl font-black leading-tight text-slate-950">{jobsite.name}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{jobsite.address}, {jobsite.cityState}</p>
+              </div>
+              <span className={cx("rounded-full px-3 py-1 text-xs font-black", forecast === "Elevated" ? "bg-violet-50 text-violet-700" : forecast === "Watch" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-700")}>{forecast}</span>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <MetricLine label="Workers" value={assigned.length || jobsite.workforceCount} tone="slate" />
+              <MetricLine label="Readiness" value={assigned.length ? readiness : "--"} tone={readiness >= 80 ? "green" : "amber"} />
+              <MetricLine label="Required Permits" value={sitePermits.length || jobsite.activePermits} tone="blue" />
+              <MetricLine label="High-Risk Tasks" value={jobsite.riskScore} tone={forecast === "Elevated" ? "red" : "amber"} />
+              <MetricLine label="Open Actions" value={jobsite.openActions} tone={jobsite.openActions > 0 ? "red" : "green"} />
+              <MetricLine label="Forecast" value={forecast} tone={forecast === "Elevated" ? "violet" : forecast === "Watch" ? "amber" : "green"} />
+            </div>
+            <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm font-semibold leading-6 text-slate-600">{highRiskTasks}</p>
+          </button>
+        );
+      })}
+      {jobsites.length === 0 ? <Card className="p-5"><EmptyPanel>No jobsites yet. Add or import jobsites before assigning workforce records.</EmptyPanel></Card> : null}
     </div>
   );
 }
 
-function ForecastActionsTab({
-  items,
-  statuses,
-  onCreate,
-}: {
-  items: WorkforceWorkflowItem[];
-  statuses: Record<string, WorkflowStatus>;
-  onCreate: (item: WorkforceWorkflowItem) => void;
-}) {
-  return <WorkflowActionRail items={items} statuses={statuses} topCount={items.filter((item) => item.canCreate).length} onCreate={onCreate} onCreateTop={() => items.filter((item) => item.canCreate).slice(0, 3).forEach(onCreate)} />;
+function ForecastActionsTab({ items, statuses, onCreate }: { items: WorkforceWorkflowItem[]; statuses: Record<string, WorkflowStatus>; onCreate: (item: WorkforceWorkflowItem) => void }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <SectionTitle title="Forecast Actions" hint="AI predictions are organized as prevention work with assignee, due date, and workflow state." />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black uppercase text-slate-500">
+              <th className="px-5 py-3">Prediction</th>
+              <th className="px-5 py-3">Reason</th>
+              <th className="px-5 py-3">Prevention Action</th>
+              <th className="px-5 py-3">Assigned To</th>
+              <th className="px-5 py-3">Due Date</th>
+              <th className="px-5 py-3">Status</th>
+              <th className="px-5 py-3 text-right">Create</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const status = statuses[item.id];
+              return (
+                <tr key={item.id} className="border-b border-slate-100">
+                  <td className="px-5 py-4"><span className={cx("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black", workflowToneClass(item.severity))}>{workflowIcon(item.kind)}{item.severity}</span></td>
+                  <td className="px-5 py-4 font-semibold leading-6 text-slate-700">{item.detail}</td>
+                  <td className="px-5 py-4 font-black text-slate-950">{item.actionTitle}</td>
+                  <td className="px-5 py-4 font-semibold text-slate-700">{item.siteName || "Safety team"}</td>
+                  <td className="px-5 py-4 font-black text-slate-700">{formatDueDate(item.dueAt)}</td>
+                  <td className="px-5 py-4"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{workflowStatusText(item, statuses)}</span>{status?.message ? <p className={cx("mt-2 text-xs font-bold", status.state === "error" ? "text-red-600" : "text-emerald-700")}>{status.message}</p> : null}</td>
+                  <td className="px-5 py-4 text-right">
+                    <button type="button" onClick={() => onCreate(item)} disabled={!item.canCreate || status?.state === "busy" || status?.state === "success"} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-black text-white transition hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500">
+                      {status?.state === "busy" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      Action
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {items.length === 0 ? <tr><td colSpan={7} className="px-5 py-10 text-center text-sm font-semibold text-slate-500">No forecast actions are available yet.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
 }
 
 function ReportsTab({
+  dataset,
   employees,
   jobsites,
   permitGroups,
@@ -927,7 +1187,7 @@ function ReportsTab({
   workflowItems,
   workforce,
 }: {
-  dataset: SafePredictDataset;
+  dataset: ReturnType<typeof useSafePredictData>["dataset"];
   employees: SafePredictDemoEmployee[];
   jobsites: SafePredictJobsiteRecord[];
   permitGroups: PermitCategoryGroup[];
@@ -936,35 +1196,59 @@ function ReportsTab({
   workflowItems: WorkforceWorkflowItem[];
   workforce: ReturnType<typeof workforceTotalsFromEmployees>;
 }) {
+  const cards = [
+    { title: "Executive Readiness Export", detail: `${workforce.workers} workers, ${permits.expiringSoon + permits.expired} permit exceptions, ${workflowItems.length} AI actions.` },
+    { title: "Training Exceptions", detail: `${trades.reduce((total, trade) => total + trade.overdueCount, 0)} overdue modules and ${trades.reduce((total, trade) => total + trade.expiringCount, 0)} expiring modules.` },
+    { title: "Permit Exposure", detail: `${permitGroups.length} high-risk categories with ${permits.expired} overdue permits.` },
+    { title: "Jobsite Forecast", detail: `${jobsites.filter((jobsite) => jobsiteForecastLevel(jobsite) === "Elevated").length} elevated jobsites and ${jobsites.reduce((total, jobsite) => total + jobsite.openActions, 0)} open actions.` },
+  ];
   return (
-    <div className="grid gap-5 2xl:grid-cols-2">
+    <div className="grid gap-5">
       <Card className="p-5">
-        <SectionTitle title="Workforce Report Summary" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <ReportMetric label="Workers" value={employees.length} />
-          <ReportMetric label="Jobsites" value={jobsites.length} />
-          <ReportMetric label="Open workflow items" value={workflowItems.length} />
-          <ReportMetric label="Readiness issues" value={workforce.expiringSoon + workforce.overdue} />
+        <SectionTitle title="Reports" hint="Export-ready command center summaries without rebuilding the long dashboard report." />
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {cards.map((card) => (
+            <article key={card.title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-base font-black text-slate-950">{card.title}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{card.detail}</p>
+            </article>
+          ))}
         </div>
-      </Card>
-      <Card className="p-5">
-        <SectionTitle title="Compliance Snapshot" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <ReportMetric label="Training groups" value={trades.length} />
-          <ReportMetric label="Permit categories" value={permitGroups.length} />
-          <ReportMetric label="Active permits" value={permits.active} />
-          <ReportMetric label="Permit exposure" value={permits.expiringSoon + permits.expired} />
+        <div className="mt-5 flex flex-wrap gap-3">
+          <ExportButton
+            fileName="safe-predict-workforce-command-center.json"
+            label="Export workforce command center report"
+            payload={{ company: dataset.company, workforce, permits, employees, jobsites, trades, permitGroups, workflowItems }}
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+          >
+            <Download className="h-4 w-4" />
+            Export Command Report
+          </ExportButton>
+          <Link href="/safe-predict/training" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Training report <ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/safe-predict/permits" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Permit report <ArrowRight className="h-4 w-4" /></Link>
         </div>
       </Card>
     </div>
   );
 }
 
-function ReportMetric({ label, value }: { label: string; value: number }) {
+function MetricLine({ label, value, tone }: { label: string; value: string | number; tone: "green" | "amber" | "red" | "blue" | "violet" | "slate" }) {
+  const toneClass =
+    tone === "green"
+      ? "bg-emerald-50 text-emerald-700"
+      : tone === "amber"
+        ? "bg-amber-50 text-amber-600"
+        : tone === "red"
+          ? "bg-red-50 text-red-600"
+          : tone === "blue"
+            ? "bg-blue-50 text-blue-700"
+            : tone === "violet"
+              ? "bg-violet-50 text-violet-700"
+              : "bg-slate-100 text-slate-700";
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
+    <div className="rounded-lg border border-slate-100 bg-white p-3">
+      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+      <p className={cx("mt-2 inline-flex rounded-full px-3 py-1 text-sm font-black", toneClass)}>{value}</p>
     </div>
   );
 }
@@ -1029,153 +1313,6 @@ function WorkflowActionRail({ items, statuses, topCount, onCreate, onCreateTop }
           );
         })}
         {items.length === 0 ? <EmptyPanel>No priority actions are visible. New workflow items appear when training, permit, or jobsite risk signals need follow-up.</EmptyPanel> : null}
-      </div>
-    </Card>
-  );
-}
-
-function RosterCard({ activeFilterText, datasetCompanyName, employees, isLiveEmpty, jobsites, mode, selectedEmployeeId, visibleEmployees, onOpenEmployee }: { activeFilterText: string; datasetCompanyName: string; employees: SafePredictDemoEmployee[]; isLiveEmpty: boolean; jobsites: SafePredictJobsiteRecord[]; mode: "demo" | "live"; selectedEmployeeId: string | null; visibleEmployees: SafePredictDemoEmployee[]; onOpenEmployee: (id: string) => void }) {
-  return (
-    <Card id="employee-roster" className="scroll-mt-24 overflow-hidden">
-      <div className="border-b border-slate-200 p-5">
-        <SectionTitle title="Workforce Roster" action={<Link href="/safe-predict/team-access" className="inline-flex items-center gap-2 text-sm font-black text-blue-600">Add or edit access <ArrowRight className="h-4 w-4" /></Link>} />
-        <p className="mt-1 text-sm leading-6 text-slate-600">{mode === "live" ? `${datasetCompanyName} roster-only employees and invited users for workforce, training, assignment, and risk conversations.` : `${datasetCompanyName} demo people data for workforce, training, assignment, and risk conversations.`}</p>
-        <p className="mt-2 text-xs font-black uppercase tracking-wide text-slate-500">Showing {visibleEmployees.length} of {employees.length} {mode === "live" ? "workforce records" : "shell employees"} - {activeFilterText}</p>
-      </div>
-      <div className="space-y-3 p-4 md:hidden">
-        {visibleEmployees.map((employee) => {
-          const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
-          return (
-            <MobileRecordCard key={`${employee.id}-mobile`} title={employee.name} active={selectedEmployeeId === employee.id} actionLabel={`Open ${employee.name} profile`} onClick={() => onOpenEmployee(employee.id)} rows={[["Trade", employee.trade], ["Role", employee.role], ["Jobsite", jobsite?.name ?? "Unassigned"], ["Readiness", `${employee.readinessScore}`], ["Status", statusLabels[employee.status]]]} />
-          );
-        })}
-        {visibleEmployees.length === 0 ? <EmptyPanel>{isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those roster filters."}</EmptyPanel> : null}
-      </div>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[680px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black text-slate-600">
-              <th className="px-4 py-3">Employee</th>
-              <th className="px-4 py-3">Trade / Role</th>
-              <th className="px-4 py-3">Assigned Jobsite</th>
-              <th className="px-4 py-3 text-center">Readiness</th>
-              <th className="px-4 py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleEmployees.map((employee) => {
-              const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
-              return (
-                <tr key={employee.id} role="button" tabIndex={0} aria-label={`Open ${employee.name} profile`} onClick={() => onOpenEmployee(employee.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenEmployee(employee.id); } }} className={cx("group cursor-pointer border-b border-slate-100 transition hover:bg-blue-50/50 focus:bg-blue-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-blue-100", selectedEmployeeId === employee.id ? "bg-blue-50" : undefined)}>
-                  <td className="px-4 py-3">
-                    <p className="inline-flex items-center gap-2 font-black text-slate-900">{employee.name}<ArrowRight className="h-3.5 w-3.5 text-blue-500 opacity-0 transition group-hover:opacity-100" /></p>
-                    <p className="mt-1 text-xs text-slate-500">{employee.id} - {employee.shift} shift</p>
-                  </td>
-                  <td className="px-4 py-3"><p className="font-semibold text-slate-800">{employee.trade}</p><p className="mt-1 text-xs text-slate-500">{employee.role}</p></td>
-                  <td className="px-4 py-3 text-slate-700">{jobsite?.name ?? "Unassigned"}</td>
-                  <td className="px-4 py-3 text-center"><span className="inline-flex min-w-12 justify-center rounded-full bg-slate-100 px-3 py-1 font-black text-slate-900">{employee.readinessScore}</span></td>
-                  <td className="px-4 py-3"><span className={cx("rounded-full px-3 py-1 text-xs font-black", employeeStatusClass(employee.status))}>{statusLabels[employee.status]}</span></td>
-                </tr>
-              );
-            })}
-            {visibleEmployees.length === 0 ? <tr><td colSpan={5} className="px-5 py-8 text-center text-sm font-semibold text-slate-500">{isLiveEmpty ? "No workforce records yet. Add users or upload non-user employees to populate this roster." : "No employees match those roster filters."}</td></tr> : null}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function JobsiteSnapshot({ jobsites, siteFilter, onFilter }: { jobsites: SafePredictJobsiteRecord[]; siteFilter: string; onFilter: (siteId: string) => void }) {
-  return (
-    <Card className="p-5">
-      <SectionTitle title="Jobsite Assignment Snapshot" />
-      <div className="mt-4 space-y-3">
-        {jobsites.map((jobsite) => (
-          <button key={jobsite.id} type="button" onClick={() => onFilter(jobsite.id)} className={cx("flex w-full items-center gap-3 rounded-lg border p-3 text-left transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100", siteFilter === jobsite.id ? "border-blue-300 bg-blue-50" : "border-slate-100 bg-slate-50")}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600"><MapPin className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-black text-slate-900">{jobsite.name}</span><span className="mt-1 block text-xs text-slate-500">{jobsite.workforceCount} workers - {jobsite.siteLead}</span></span>
-            <span className="text-sm font-black text-slate-900">{jobsite.riskScore}</span>
-          </button>
-        ))}
-        {jobsites.length === 0 ? <EmptyPanel>No jobsites yet. Add or import jobsites before assigning workforce records.</EmptyPanel> : null}
-      </div>
-    </Card>
-  );
-}
-
-function TrainingMatrix({ trades }: { trades: SafePredictTradeReadiness[] }) {
-  return (
-    <Card id="training-matrix" className="scroll-mt-24 overflow-hidden">
-      <div className="border-b border-slate-200 p-5"><SectionTitle title="Training & Compliance Matrix" /></div>
-      <div className="space-y-3 p-4 md:hidden">
-        {trades.map((row) => <MobileRecordCard key={`${row.trade}-mobile`} title={row.trade} rows={[["Workers", `${row.workers}`], ["Fall Protection", statusLabels[row.fallProtection]], ["Confined Space", statusLabels[row.confinedSpace]], ["LOTO", statusLabels[row.loto]], ["HazCom", statusLabels[row.hazcom]], ["First Aid", statusLabels[row.firstAid]], ["Overall", row.overallStatus]]} />)}
-        {trades.length === 0 ? <EmptyPanel>No training matrix rows yet.</EmptyPanel> : null}
-      </div>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[780px] text-left text-sm">
-          <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs font-black text-slate-600"><th className="px-5 py-3">Team / Trade</th><th className="px-5 py-3 text-center">Workers</th><th className="px-5 py-3 text-center">Fall Protection</th><th className="px-5 py-3 text-center">Confined Space</th><th className="px-5 py-3 text-center">LOTO</th><th className="px-5 py-3 text-center">HazCom</th><th className="px-5 py-3 text-center">First Aid</th><th className="px-5 py-3 text-center">Overall Status</th></tr></thead>
-          <tbody>
-            {trades.map((row) => (
-              <tr key={row.trade} className="border-b border-slate-100">
-                <td className="px-5 py-3 font-black text-slate-900"><Users className="mr-2 inline h-4 w-4 text-blue-600" />{row.trade}</td>
-                <td className="px-5 py-3 text-center font-semibold text-slate-700">{row.workers}</td>
-                <td className="px-5 py-3 text-center"><StatusIcon status={row.fallProtection} /></td>
-                <td className="px-5 py-3 text-center"><StatusIcon status={row.confinedSpace} /></td>
-                <td className="px-5 py-3 text-center"><StatusIcon status={row.loto} /></td>
-                <td className="px-5 py-3 text-center"><StatusIcon status={row.hazcom} /></td>
-                <td className="px-5 py-3 text-center"><StatusIcon status={row.firstAid} /></td>
-                <td className="px-5 py-3 text-center"><span className={cx("rounded-full px-3 py-1 text-xs font-black", row.overallStatus === "Overdue" ? "bg-red-50 text-red-600" : row.overallStatus === "Expiring" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600")}>{row.overallStatus}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {trades.length === 0 ? <div className="px-5 py-8 text-center text-sm font-semibold text-slate-500">No training matrix rows yet. Upload non-user employees or invite users to build readiness by trade.</div> : null}
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-5 text-sm">
-        <div className="flex flex-wrap gap-5 text-slate-600"><span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Compliant</span><span className="inline-flex items-center gap-2"><Clock className="h-4 w-4 text-amber-500" /> Expiring (&lt;= 30 days)</span><span className="inline-flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-500" /> Overdue (&gt; 30 days)</span></div>
-        <Link href="/safe-predict/training" className="inline-flex items-center gap-2 font-black text-blue-600">View full training report <ArrowRight className="h-4 w-4" /></Link>
-      </div>
-    </Card>
-  );
-}
-
-function PermitRegister({ permitRows, permits }: { permitRows: SafePredictPermitSummary[]; permits: { active: number; expiringSoon: number; expired: number } }) {
-  return (
-    <Card id="permit-register" className="scroll-mt-24 overflow-hidden">
-      <div className="border-b border-slate-200 p-5"><SectionTitle title="Required Permits" action={<Link href="/safe-predict/permits" className="inline-flex items-center gap-2 text-sm font-black text-blue-600">View all permits <ArrowRight className="h-4 w-4" /></Link>} /></div>
-      <div className="space-y-3 p-4 md:hidden">
-        {permitRows.map((permit) => <MobileRecordCard key={`${permit.type}-mobile`} title={permit.type} rows={[["Active", `${permit.active}`], ["Expiring Soon", `${permit.expiringSoon}`], ["Expired", `${permit.expired}`]]} />)}
-        <MobileRecordCard title="Total" rows={[["Active", `${permits.active}`], ["Expiring Soon", `${permits.expiringSoon}`], ["Expired", `${permits.expired}`]]} />
-      </div>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead><tr className="border-b border-slate-200 bg-slate-50 text-xs font-black text-slate-600"><th className="px-5 py-3">Permit Type</th><th className="px-5 py-3 text-center">Active</th><th className="px-5 py-3 text-center">Expiring Soon</th><th className="px-5 py-3 text-center">Expired</th></tr></thead>
-          <tbody>
-            {permitRows.map((permit) => <tr key={permit.type} className="border-b border-slate-100"><td className="px-5 py-3 font-black text-slate-900"><Flame className="mr-2 inline h-4 w-4 text-orange-500" />{permit.type}</td><td className="px-5 py-3 text-center font-black text-emerald-700">{permit.active}</td><td className="px-5 py-3 text-center font-black text-amber-600">{permit.expiringSoon}</td><td className="px-5 py-3 text-center font-black text-red-600">{permit.expired}</td></tr>)}
-            <tr className="bg-slate-50 font-black"><td className="px-5 py-3">Total</td><td className="px-5 py-3 text-center text-emerald-700">{permits.active}</td><td className="px-5 py-3 text-center text-amber-600">{permits.expiringSoon}</td><td className="px-5 py-3 text-center text-red-600">{permits.expired}</td></tr>
-          </tbody>
-        </table>
-        {permitRows.length === 0 ? <div className="px-5 py-8 text-center text-sm font-semibold text-slate-500">No permit records yet.</div> : null}
-      </div>
-    </Card>
-  );
-}
-
-function ReadinessStatusCard({ hasEmployees, workforce }: { hasEmployees: boolean; workforce: ReturnType<typeof workforceTotalsFromEmployees> }) {
-  return (
-    <Card className="p-5">
-      <SectionTitle title="Worker Readiness by Status" />
-      <div className="mt-3 grid gap-4 md:grid-cols-[210px_1fr]">
-        <div className="relative">
-          {hasEmployees ? <ReadinessDonut /> : <div className="grid h-[210px] place-items-center rounded-full border border-dashed border-slate-200 bg-slate-50 text-sm font-black text-slate-500">No roster</div>}
-          <div className="pointer-events-none absolute inset-0 grid place-items-center text-center"><span><Users className="mx-auto h-7 w-7 text-slate-700" /><span className="mt-1 block text-sm font-black text-slate-950">{workforce.workers}</span><span className="text-xs text-slate-500">Total Workers</span></span></div>
-        </div>
-        <div className="space-y-4 self-center text-sm">
-          <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" />Compliant</span><strong>{workforce.compliant} ({workforce.compliantPercent}%)</strong></p>
-          <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-500" />Expiring Soon</span><strong>{workforce.expiringSoon} ({workforce.expiringSoonPercent}%)</strong></p>
-          <p className="flex items-center justify-between gap-3"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" />Overdue</span><strong>{workforce.overdue} ({workforce.overduePercent}%)</strong></p>
-        </div>
       </div>
     </Card>
   );

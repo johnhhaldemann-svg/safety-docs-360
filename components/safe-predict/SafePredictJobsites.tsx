@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -30,7 +31,7 @@ import {
 import { AiEngineRefreshButton } from "@/components/ai-engine/AiEngineRefreshButton";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { triggerBrowserDownload } from "@/lib/browserDownload";
-import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { useSafePredictData, type SafePredictJobsiteUpdateInput } from "@/components/safe-predict/SafePredictDataProvider";
 import {
   SafePredictPermitFormDialog,
   type SafePredictPermitFormMode,
@@ -1239,10 +1240,348 @@ function JobsiteCommandDashboard({
   );
 }
 
+function SafePredictJobsiteEditor({
+  site,
+  onCancel,
+  onSave,
+}: {
+  site: SafePredictJobsiteRecord;
+  onCancel: () => void;
+  onSave: (input: SafePredictJobsiteUpdateInput) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<SafePredictJobsiteUpdateInput>({
+    name: site.name,
+    jobsiteNumber: site.jobsiteNumber ?? site.code ?? "",
+    projectNumber: site.projectNumber ?? "",
+    location: site.address === "Not set" ? "" : site.address,
+    projectManager: site.projectManager === "Not assigned" ? "" : site.projectManager,
+    safetyLead: site.siteLead === "Not set" ? "" : site.siteLead,
+    customerCompanyName: site.customerName === "Not set" ? "" : site.customerName,
+    customerReportEmail: site.customerReportEmail === "Not set" ? "" : site.customerReportEmail,
+    startDate: site.startDate ?? "",
+    endDate: site.endDate ?? "",
+    notes: site.notes ?? "",
+    zipCode: site.zipCode ?? "",
+    addressLine1: site.addressLine1 ?? (site.address === "Not set" ? "" : site.address),
+    addressLine2: site.addressLine2 ?? "",
+    city: site.city ?? "",
+    state: site.state ?? "",
+    country: site.country ?? "",
+    status: site.status,
+  });
+
+  function updateField<K extends keyof SafePredictJobsiteUpdateInput>(key: K, value: SafePredictJobsiteUpdateInput[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function submitForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        name: form.name.trim(),
+        jobsiteNumber: form.jobsiteNumber?.trim() ?? "",
+        projectNumber: form.projectNumber?.trim() ?? "",
+        location: form.location?.trim() ?? "",
+        projectManager: form.projectManager?.trim() ?? "",
+        safetyLead: form.safetyLead?.trim() ?? "",
+        customerCompanyName: form.customerCompanyName?.trim() ?? "",
+        customerReportEmail: form.customerReportEmail?.trim() ?? "",
+        notes: form.notes?.trim() ?? "",
+        zipCode: form.zipCode?.trim() ?? "",
+        addressLine1: form.addressLine1?.trim() ?? "",
+        addressLine2: form.addressLine2?.trim() ?? "",
+        city: form.city?.trim() ?? "",
+        state: form.state?.trim() ?? "",
+        country: form.country?.trim() ?? "",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="mb-5 p-5">
+      <form onSubmit={(event) => void submitForm(event)} className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <SectionTitle title="Edit Jobsite Information" hint="These fields drive the jobsite header, weather location, reports, and customer-facing details." />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={onCancel} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50">
+              <X className="h-4 w-4" />
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || !form.name.trim()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <CheckCircle2 className="h-4 w-4" />
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-4">
+          <EditorField label="Jobsite name" value={form.name} onChange={(value) => updateField("name", value)} required />
+          <EditorField label="Jobsite number" value={form.jobsiteNumber ?? ""} onChange={(value) => updateField("jobsiteNumber", value)} />
+          <EditorField label="Project number" value={form.projectNumber ?? ""} onChange={(value) => updateField("projectNumber", value)} />
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-wide text-slate-500">Status</span>
+            <select value={form.status ?? "active"} onChange={(event) => updateField("status", event.target.value as SafePredictJobsiteStatus)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+              <option value="planned">Planned</option>
+              <option value="active">Active</option>
+              <option value="action-needed">Action Needed</option>
+              <option value="completed">Completed</option>
+              <option value="archived">Archived</option>
+            </select>
+          </label>
+          <EditorField label="Project manager" value={form.projectManager ?? ""} onChange={(value) => updateField("projectManager", value)} />
+          <EditorField label="Safety lead" value={form.safetyLead ?? ""} onChange={(value) => updateField("safetyLead", value)} />
+          <EditorField label="Customer" value={form.customerCompanyName ?? ""} onChange={(value) => updateField("customerCompanyName", value)} />
+          <EditorField label="Report email" value={form.customerReportEmail ?? ""} onChange={(value) => updateField("customerReportEmail", value)} type="email" />
+          <EditorField label="Street address" value={form.addressLine1 ?? ""} onChange={(value) => updateField("addressLine1", value)} className="lg:col-span-2" />
+          <EditorField label="Address line 2" value={form.addressLine2 ?? ""} onChange={(value) => updateField("addressLine2", value)} />
+          <EditorField label="City" value={form.city ?? ""} onChange={(value) => updateField("city", value)} />
+          <EditorField label="State" value={form.state ?? ""} onChange={(value) => updateField("state", value)} />
+          <EditorField label="ZIP" value={form.zipCode ?? ""} onChange={(value) => updateField("zipCode", value)} />
+          <EditorField label="Country" value={form.country ?? ""} onChange={(value) => updateField("country", value)} />
+          <EditorField label="General location" value={form.location ?? ""} onChange={(value) => updateField("location", value)} />
+          <EditorField label="Start date" value={form.startDate ?? ""} onChange={(value) => updateField("startDate", value)} type="date" />
+          <EditorField label="End date" value={form.endDate ?? ""} onChange={(value) => updateField("endDate", value)} type="date" />
+          <label className="block lg:col-span-4">
+            <span className="text-xs font-black uppercase tracking-wide text-slate-500">Notes</span>
+            <textarea value={form.notes ?? ""} onChange={(event) => updateField("notes", event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+          </label>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function EditorField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+  className?: string;
+}) {
+  return (
+    <label className={cx("block", className)}>
+      <span className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        type={type}
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+      />
+    </label>
+  );
+}
+
+type SafePredictJobsiteAssignment = {
+  id?: string;
+  user_id: string;
+  jobsite_id: string;
+  role?: string | null;
+};
+
+function safePredictRoleNeedsJobsiteAssignment(role?: string | null) {
+  const normalized = (role ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  return (
+    normalized === "project_manager" ||
+    normalized === "field_supervisor" ||
+    normalized === "foreman" ||
+    normalized === "field_user" ||
+    normalized === "read_only" ||
+    normalized === "company_user"
+  );
+}
+
+function roleLabel(role: string) {
+  return formatTitleCase(role.replace(/_/g, " ")) || role;
+}
+
+function JobsiteAssignmentManager({
+  site,
+  dataset,
+  mode,
+  onChanged,
+}: {
+  site: SafePredictJobsiteRecord;
+  dataset: SafePredictDataset;
+  mode: "demo" | "live";
+  onChanged: () => void;
+}) {
+  const [assignments, setAssignments] = useState<SafePredictJobsiteAssignment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+
+  const assignmentMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const assignment of assignments) {
+      if (!assignment.user_id || !assignment.jobsite_id) continue;
+      const existing = map.get(assignment.user_id) ?? new Set<string>();
+      existing.add(assignment.jobsite_id);
+      map.set(assignment.user_id, existing);
+    }
+    return map;
+  }, [assignments]);
+
+  const fieldScopedUsers = useMemo(
+    () => dataset.assignableUsers.filter((user) => safePredictRoleNeedsJobsiteAssignment(user.role)),
+    [dataset.assignableUsers]
+  );
+  const companyWideUsers = useMemo(
+    () => dataset.assignableUsers.filter((user) => !safePredictRoleNeedsJobsiteAssignment(user.role)),
+    [dataset.assignableUsers]
+  );
+
+  const loadAssignments = useCallback(async () => {
+    if (mode !== "live") {
+      setAssignments([]);
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const response = await fetch("/api/company/jobsite-assignments", {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const payload = (await response.json().catch(() => null)) as { assignments?: SafePredictJobsiteAssignment[]; warning?: string; error?: string } | null;
+      if (!response.ok) {
+        setMessage(payload?.warning || payload?.error || "Jobsite assignments could not be loaded.");
+        return;
+      }
+      setAssignments(Array.isArray(payload?.assignments) ? payload.assignments : []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Jobsite assignments could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    void loadAssignments();
+  }, [loadAssignments]);
+
+  async function toggleAssignment(userId: string) {
+    if (mode !== "live") {
+      setMessage("Assignments are saved in live company workspaces.");
+      return;
+    }
+    const user = dataset.assignableUsers.find((candidate) => candidate.id === userId);
+    if (!user) return;
+    const currentIds = Array.from(assignmentMap.get(userId) ?? new Set<string>());
+    const isAssigned = currentIds.includes(site.id);
+    const nextIds = isAssigned ? currentIds.filter((id) => id !== site.id) : [...currentIds, site.id];
+
+    setSavingUserId(userId);
+    setMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const response = await fetch("/api/company/jobsite-assignments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ userId, jobsiteIds: nextIds }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setMessage(payload?.error || "Could not update this assignment.");
+        return;
+      }
+      setAssignments((current) => [
+        ...current.filter((assignment) => assignment.user_id !== userId),
+        ...nextIds.map((jobsiteId) => ({
+          user_id: userId,
+          jobsite_id: jobsiteId,
+          role: user.role,
+        })),
+      ]);
+      setMessage(isAssigned ? `${user.name} removed from this jobsite.` : `${user.name} assigned to this jobsite.`);
+      onChanged();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update this assignment.");
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <SectionTitle title="Jobsite Assignments" hint="Assign field-scoped users to this jobsite so their dashboards, work, and reports stay focused." />
+        <button type="button" onClick={() => void loadAssignments()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60">
+          <Users className="h-4 w-4" />
+          {loading ? "Loading..." : "Refresh"}
+        </button>
+      </div>
+      {message ? (
+        <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+          {message}
+        </p>
+      ) : null}
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {fieldScopedUsers.map((user) => {
+          const assigned = assignmentMap.get(user.id)?.has(site.id) ?? false;
+          return (
+            <article key={user.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-950">{user.name}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-slate-500">{user.email}</p>
+                </div>
+                <span className={cx("shrink-0 rounded-full border px-2 py-1 text-[11px] font-black", assigned ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600")}>
+                  {assigned ? "Assigned" : "Not assigned"}
+                </span>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="text-xs font-black uppercase tracking-wide text-slate-500">{roleLabel(user.role)}</span>
+                <button type="button" onClick={() => void toggleAssignment(user.id)} disabled={savingUserId === user.id} className={cx("inline-flex h-9 items-center rounded-lg px-3 text-xs font-black shadow-sm transition disabled:cursor-wait disabled:opacity-60", assigned ? "border border-red-200 bg-white text-red-700 hover:bg-red-50" : "bg-blue-600 text-white hover:bg-blue-700")}>
+                  {savingUserId === user.id ? "Saving..." : assigned ? "Remove" : "Assign"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {fieldScopedUsers.length === 0 ? (
+        <EmptyTabPanel title="No Assignable Users Yet" detail="Add field-scoped users or change user roles in Team Access before assigning them to this jobsite." actionLabel="Open team access" href="/safe-predict/team-access" />
+      ) : null}
+      {companyWideUsers.length > 0 ? (
+        <p className="mt-4 text-xs font-semibold leading-5 text-slate-500">
+          {companyWideUsers.length} company-wide user{companyWideUsers.length === 1 ? "" : "s"} already have access across jobsites.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
 export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
-  const { dataset, updateActionStatus, addDraftAction, addDraftPermit, updatePermit, refreshLiveData, setSelectedJobsiteId, mode } = useSafePredictData();
+  const { dataset, updateActionStatus, addDraftAction, addDraftPermit, updatePermit, updateJobsite, refreshLiveData, setSelectedJobsiteId, mode } = useSafePredictData();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DetailTab>("Overview");
+  const [jobsiteEditorOpen, setJobsiteEditorOpen] = useState(false);
+  const [jobsiteMessage, setJobsiteMessage] = useState("");
   const manualScheduleTaskIdRef = useRef(0);
   const scheduleTemplateInputRef = useRef<HTMLInputElement | null>(null);
   const scheduleTaskFormRef = useRef<HTMLDivElement | null>(null);
@@ -2058,6 +2397,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <Link href="/safe-predict/jobsites" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               All jobsites
             </Link>
+            <button type="button" onClick={() => setJobsiteEditorOpen((open) => !open)} className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-700 shadow-sm transition hover:bg-blue-100">
+              <Pencil className="h-4 w-4" />
+              Edit jobsite
+            </button>
             <button type="button" onClick={() => setActiveTab("Documents & Reports")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               Files & reports
             </button>
@@ -2094,6 +2437,29 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         <p className="mb-5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
           {permitMessage}
         </p>
+      ) : null}
+
+      {jobsiteMessage ? (
+        <p className="mb-5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+          {jobsiteMessage}
+        </p>
+      ) : null}
+
+      {jobsiteEditorOpen ? (
+        <SafePredictJobsiteEditor
+          site={site}
+          onCancel={() => setJobsiteEditorOpen(false)}
+          onSave={async (input) => {
+            setJobsiteMessage("");
+            const result = await updateJobsite(site.id, input);
+            if (!result.success) {
+              setJobsiteMessage(result.error || "Jobsite information could not be saved.");
+              return;
+            }
+            setJobsiteMessage("Jobsite information saved.");
+            setJobsiteEditorOpen(false);
+          }}
+        />
       ) : null}
 
       {permitFormOpen ? (
