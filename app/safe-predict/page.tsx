@@ -573,29 +573,49 @@ function JobsiteRiskMap({
       ) : (
         <div className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
-            <div className="relative min-h-[480px] min-w-[760px] overflow-hidden bg-[#e9eef3]">
-              <div className="absolute inset-0 opacity-90 bg-[linear-gradient(90deg,rgba(255,255,255,0.72)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.72)_1px,transparent_1px)] bg-[size:58px_58px]" />
-              <div className="absolute inset-x-0 top-[58%] h-16 -rotate-3 bg-blue-100/70" />
-              <div className="absolute bottom-8 right-10 h-24 w-40 rounded-[50%] bg-emerald-100/70" />
-              <div className="absolute left-12 top-20 h-20 w-28 rounded-[45%] bg-emerald-100/60" />
-              <svg className="absolute inset-0 h-full w-full text-white drop-shadow-sm" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M-4 30 C12 24 20 28 35 24 C54 18 63 18 104 10" fill="none" stroke="currentColor" strokeWidth="3.2" />
-                <path d="M-4 72 C12 61 23 64 34 55 C45 46 51 30 66 28 C78 26 83 36 104 28" fill="none" stroke="currentColor" strokeWidth="3.6" />
-                <path d="M8 8 C18 22 28 35 37 52 C48 73 58 83 72 100" fill="none" stroke="currentColor" strokeWidth="2.2" />
-                <path d="M-2 90 L29 68 L45 73 L60 55 L83 58 L104 42" fill="none" stroke="currentColor" strokeWidth="2.6" />
-                <path d="M5 48 H95" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M18 4 V96" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.78" />
-                <path d="M78 8 V93" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.78" />
-              </svg>
+            <div
+              className="relative overflow-hidden bg-slate-100"
+              style={{ width: REAL_MAP_WIDTH, height: REAL_MAP_HEIGHT }}
+            >
+              {realMapViewport ? (
+                <>
+                  {realMapViewport.tiles.map((tile) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- Real OpenStreetMap tiles are loaded directly and do not use Next image optimization.
+                    <img
+                      key={tile.key}
+                      src={tile.url}
+                      alt=""
+                      aria-hidden="true"
+                      draggable={false}
+                      className="absolute h-64 w-64 select-none"
+                      style={{ left: tile.left, top: tile.top }}
+                    />
+                  ))}
+                </>
+              ) : (
+                <div className="absolute inset-0 grid place-items-center bg-slate-50 px-6 text-center">
+                  <div>
+                    <p className="text-sm font-black text-slate-900">No mapped locations yet</p>
+                    <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">
+                      Add a ZIP code or saved latitude/longitude to each jobsite to place it on the real map.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-slate-900/5" aria-hidden="true" />
               <div className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
                 {mapSourceLabel}
               </div>
-              <div className="absolute bottom-4 left-4 max-w-[320px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
-                Pins use saved coordinates first, then ZIP lookup, then city/state. {missingLocationCount > 0 ? `${missingLocationCount} jobsite${missingLocationCount === 1 ? "" : "s"} need a ZIP code or saved coordinates.` : "All visible jobsites have map locations."}
+              <div className="absolute bottom-4 left-4 max-w-[360px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
+                Real map tiles are shown from OpenStreetMap. Pins use saved coordinates first, then ZIP lookup, then city/state lookup.
               </div>
-              {mapPoints.map((point) => {
+              <div className="absolute bottom-4 right-4 rounded bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">
+                (c) OpenStreetMap contributors
+              </div>
+              {realMapViewport && locatedMapPoints.map((point) => {
                 const isSelected = selectedJobsite?.id === point.jobsite.id;
                 const zipCode = normalizeZipCode(point.jobsite.zipCode);
+                const projected = realMapViewport.project(point);
                 return (
                   <button
                     key={point.jobsite.id}
@@ -604,26 +624,47 @@ function JobsiteRiskMap({
                     aria-pressed={isSelected}
                     aria-label={`${point.jobsite.name}, ${point.jobsite.code}, Risk ${riskLabel(point.jobsite.riskLevel)}`}
                     className={cx(
-                      "absolute w-36 -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-2 text-left shadow-[0_12px_28px_rgba(15,23,42,0.14)] transition hover:-translate-y-[54%] hover:border-blue-300 hover:shadow-[0_18px_34px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                      isSelected ? "z-20 border-blue-400 ring-4 ring-blue-100" : "z-10 border-slate-200"
+                      "group absolute z-10 -translate-x-1/2 -translate-y-full rounded-full border-2 bg-white p-1 shadow-[0_12px_24px_rgba(15,23,42,0.22)] transition hover:-translate-y-[108%] hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                      isSelected ? "z-30 border-blue-500 ring-4 ring-blue-100" : "border-white"
                     )}
-                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                    style={{ left: projected.left, top: projected.top }}
                   >
-                    <span className="flex items-start gap-2">
-                      <span className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-full border shadow-lg", riskPinClasses(point.jobsite.riskLevel))}>
-                        <MapPin className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-black text-slate-950">{point.jobsite.name}</span>
-                        <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
-                        <span className="mt-1 inline-flex text-[10px] font-black text-slate-700">
-                          {zipCode ? `ZIP ${zipCode}` : `Risk ${riskLabel(point.jobsite.riskLevel)}`}
-                        </span>
+                    <span className={cx("grid h-9 w-9 place-items-center rounded-full border shadow-lg", riskPinClasses(point.jobsite.riskLevel))}>
+                      <MapPin className="h-5 w-5" />
+                    </span>
+                    <span
+                      className={cx(
+                        "pointer-events-none absolute left-1/2 top-full mt-2 w-44 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-[0_14px_30px_rgba(15,23,42,0.18)]",
+                        isSelected ? "block" : "hidden group-hover:block"
+                      )}
+                    >
+                      <span className="block truncate text-xs font-black text-slate-950">{point.jobsite.name}</span>
+                      <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
+                      <span className="mt-1 block text-[10px] font-black text-slate-700">
+                        {zipCode ? `ZIP ${zipCode}` : `Risk ${riskLabel(point.jobsite.riskLevel)}`}
                       </span>
                     </span>
                   </button>
                 );
               })}
+              {missingLocationCount > 0 ? (
+                <div className="absolute right-4 top-16 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
+                  <p className="text-xs font-black uppercase tracking-wide text-slate-500">Needs location</p>
+                  <div className="mt-2 grid gap-2">
+                    {unlocatedMapPoints.map((point) => (
+                      <button
+                        key={point.jobsite.id}
+                        type="button"
+                        onClick={() => onSelectJobsite(point.jobsite.id)}
+                        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-left transition hover:border-blue-200 hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                      >
+                        <span className="block truncate text-xs font-black text-slate-900">{point.jobsite.name}</span>
+                        <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
