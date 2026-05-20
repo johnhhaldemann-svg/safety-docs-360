@@ -80,6 +80,36 @@ function zoneCenter(zone: SiteVisualZone, scene: SiteVisualScene) {
   };
 }
 
+function zoneLevelIndex(zone: SiteVisualZone, scene: SiteVisualScene) {
+  if (!scene.levels.length) return 0;
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  scene.levels.forEach((level, index) => {
+    const distance = Math.abs(zone.position.y - level.elevation);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
+function cutawayPointForZone(zone: SiteVisualZone, scene: SiteVisualScene) {
+  const center = zoneCenter(zone, scene);
+  const levelCount = Math.min(5, Math.max(3, scene.levels.length || 1));
+  const levelIndex = Math.min(levelCount - 1, zoneLevelIndex(zone, scene));
+  const topToBottomIndex = levelCount - 1 - levelIndex;
+  const plateLeft = 0.24 - topToBottomIndex * 0.012;
+  const plateTop = 0.16 + topToBottomIndex * 0.13;
+  const plateWidth = 0.48;
+  const plateHeight = 0.18;
+  const perspectiveShift = (center.y - 0.5) * 0.13;
+  return {
+    x: clamp(plateLeft + center.x * plateWidth + perspectiveShift, 0.16, 0.82, 0.5),
+    y: clamp(plateTop + center.y * plateHeight, 0.14, 0.82, 0.5),
+  };
+}
+
 export function cleanSiteVisualRenderOverlay(value: unknown): SiteVisualRenderOverlay {
   const record = value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   const activities = Array.isArray(record.activities) ? record.activities : [];
@@ -127,7 +157,7 @@ export function buildSiteVisualRenderOverlay(scene: SiteVisualScene): SiteVisual
     return riskRank[right.riskLevel] - riskRank[left.riskLevel];
   });
   const activities = priorityZones.slice(0, 7).map((zone, index) => {
-    const center = zoneCenter(zone, scene);
+    const center = cutawayPointForZone(zone, scene);
     return {
       id: `activity-${index + 1}`,
       zoneId: zone.id,
@@ -210,40 +240,6 @@ function escapeSvgText(value: unknown) {
     .replace(/"/g, "&quot;");
 }
 
-function truncateLabel(value: string, max = 28) {
-  return value.length > max ? `${value.slice(0, Math.max(0, max - 1))}...` : value;
-}
-
-function svgTextLines(value: string, maxChars: number, maxLines: number) {
-  const words = value.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = next;
-    }
-    if (lines.length >= maxLines) break;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  return lines.length ? lines : [value.slice(0, maxChars)];
-}
-
-function svgActivityIcon(activity: SiteVisualRenderOverlayActivity, x: number, y: number) {
-  const color = escapeSvgText(activity.color);
-  return `
-    <g transform="translate(${x} ${y})">
-      <circle cx="0" cy="-13" r="7" fill="#fde68a" stroke="#111827" stroke-width="2"/>
-      <rect x="-5" y="-6" width="10" height="21" rx="4" fill="${color}" stroke="#111827" stroke-width="2"/>
-      <path d="M-17 1 L-5 2 M5 2 L18 -1 M-5 15 L-15 29 M5 15 L16 29" stroke="#111827" stroke-width="4" stroke-linecap="round"/>
-      <path d="M-10 -21 H10 L7 -28 H-7 Z" fill="#facc15" stroke="#111827" stroke-width="2"/>
-    </g>
-  `;
-}
-
 export function buildSiteVisualFallbackRenderSvg(
   input: SiteVisualRenderPromptInput,
   overlay = buildSiteVisualRenderOverlay(input.scene),
@@ -251,87 +247,105 @@ export function buildSiteVisualFallbackRenderSvg(
 ) {
   const width = 1600;
   const height = 900;
-  const sceneX = 320;
-  const sceneY = 88;
-  const sceneW = 910;
-  const sceneH = 690;
-  const activities = overlay.activities.slice(0, 7);
-  const overlaps = overlay.overlaps.slice(0, 8);
-  const deckColors = ["#f8fafc", "#e0f2fe", "#dbeafe", "#f1f5f9"];
-  const floorDecks = [0, 1, 2, 3]
-    .map((floor) => {
-      const y = sceneY + 120 + floor * 130;
-      const x = sceneX + 72 - floor * 12;
+  const levels = [...input.scene.levels].sort((left, right) => right.elevation - left.elevation);
+  const floorCount = Math.min(5, Math.max(3, levels.length || 1));
+  const deckColors = ["#f8fafc", "#eff6ff", "#e0f2fe", "#f1f5f9", "#eef2ff"];
+  const floorDecks = Array.from({ length: floorCount })
+    .map((_, floor) => {
+      const left = 390 - floor * 18;
+      const top = 126 + floor * 118;
+      const right = left + 700;
+      const depth = 154;
+      const skew = 170;
       const color = deckColors[floor % deckColors.length];
+      const clipId = `blueprint-plate-${floor}`;
+      const platePoints = `${left},${top + 78} ${right},${top + 8} ${right + skew},${top + 76} ${left + skew},${top + depth}`;
+      const bluePrintTexture = blueprintDataUrl
+        ? `<image href="${escapeSvgText(blueprintDataUrl)}" x="${left + 64}" y="${top + 28}" width="720" height="126" preserveAspectRatio="xMidYMid meet" opacity="0.48" clip-path="url(#${clipId})"/>`
+        : "";
       return `
         <g>
-          <polygon points="${x},${y + 38} ${x + 650},${y - 12} ${x + 810},${y + 58} ${x + 150},${y + 122}" fill="${color}" stroke="#94a3b8" stroke-width="3"/>
-          <polygon points="${x + 150},${y + 122} ${x + 810},${y + 58} ${x + 810},${y + 88} ${x + 150},${y + 154}" fill="#cbd5e1" opacity="0.75"/>
-          <line x1="${x + 35}" y1="${y + 56}" x2="${x + 690}" y2="${y + 6}" stroke="#cbd5e1" stroke-width="2"/>
-          <line x1="${x + 95}" y1="${y + 103}" x2="${x + 752}" y2="${y + 42}" stroke="#cbd5e1" stroke-width="2"/>
+          <clipPath id="${clipId}">
+            <polygon points="${platePoints}"/>
+          </clipPath>
+          <polygon points="${platePoints}" fill="${color}" stroke="#64748b" stroke-width="4"/>
+          ${bluePrintTexture}
+          <polygon points="${left + skew},${top + depth} ${right + skew},${top + 76} ${right + skew},${top + 104} ${left + skew},${top + depth + 30}" fill="#94a3b8" opacity="0.42"/>
+          <line x1="${left + 52}" y1="${top + 84}" x2="${right + 46}" y2="${top + 24}" stroke="#94a3b8" stroke-width="2" opacity="0.68"/>
+          <line x1="${left + 110}" y1="${top + 129}" x2="${right + 118}" y2="${top + 63}" stroke="#94a3b8" stroke-width="2" opacity="0.56"/>
+          <line x1="${left + 246}" y1="${top + 60}" x2="${left + 416}" y2="${top + 128}" stroke="#bfdbfe" stroke-width="5" opacity="0.7"/>
         </g>
       `;
     })
     .join("");
-  const structureColumns = [420, 610, 810, 1040]
+  const columns = [438, 612, 794, 986, 1154]
     .map(
-      (x) => `
-        <rect x="${x}" y="175" width="16" height="480" fill="#94a3b8"/>
-        <rect x="${x - 4}" y="170" width="24" height="12" fill="#64748b"/>
+      (x, index) => `
+        <rect x="${x}" y="${142 + index * 6}" width="18" height="562" rx="2" fill="#64748b" opacity="0.86"/>
+        <rect x="${x - 5}" y="${136 + index * 6}" width="28" height="12" fill="#475569" opacity="0.9"/>
       `
     )
     .join("");
-  const activityZones = activities
+  const zoneHighlights = overlay.activities
     .map((activity, index) => {
-      const x = sceneX + 90 + activity.x * 655;
-      const y = sceneY + 85 + activity.y * 540;
+      const x = 300 + activity.x * 840;
+      const y = 118 + activity.y * 620;
       const color = escapeSvgText(activity.color);
-      const labelLines = svgTextLines(activity.label, 20, 2);
+      const w = 96 + (index % 2) * 34;
+      const h = 42 + (index % 3) * 9;
       return `
         <g>
-          <polygon points="${x - 76},${y + 20} ${x + 118},${y + 2} ${x + 164},${y + 58} ${x - 32},${y + 82}" fill="${color}" opacity="0.22" stroke="${color}" stroke-width="5"/>
-          <path d="M${x + 2} ${y + 38} C${x + 58} ${y - 22}, ${x + 118} ${y - 30}, ${x + 174} ${y - 64}" fill="none" stroke="${color}" stroke-width="3"/>
-          <circle cx="${x + 2}" cy="${y + 38}" r="10" fill="#fff" stroke="${color}" stroke-width="5"/>
-          <rect x="${x + 164}" y="${y - 101}" width="210" height="74" rx="10" fill="#0f172a" fill-opacity="0.9" stroke="${color}" stroke-width="3"/>
-          <text x="${x + 181}" y="${y - 65}" fill="#fff" font-size="33" font-weight="900">${activity.number}</text>
-          <text x="${x + 222}" y="${y - 74}" fill="#fff" font-size="18" font-weight="900">${escapeSvgText(labelLines[0])}</text>
-          <text x="${x + 222}" y="${y - 48}" fill="#dbeafe" font-size="16" font-weight="700">${escapeSvgText(labelLines[1] ?? activity.subtitle)}</text>
-          ${svgActivityIcon(activity, x + 42 + (index % 2) * 42, y + 2)}
+          <polygon points="${x - w},${y + 14} ${x + w},${y - 6} ${x + w + 48},${y + h} ${x - w + 48},${y + h + 24}" fill="${color}" opacity="0.28" stroke="${color}" stroke-width="5"/>
+          <circle cx="${x}" cy="${y + 20}" r="12" fill="#ffffff" stroke="${color}" stroke-width="6"/>
         </g>
       `;
     })
     .join("");
-  const legendRows = activities
+  const verticalOverlapMarkers = overlay.overlaps
+    .slice(0, 8)
+    .map((overlap, index) => {
+      const x = 300 + overlap.x * 840;
+      const y = 118 + overlap.y * 620;
+      const color = ["#22d3ee", "#facc15", "#c084fc", "#fb923c", "#ef4444"][index % 5];
+      return `
+        <g>
+          <line x1="${x}" y1="${Math.max(110, y - 150)}" x2="${x}" y2="${Math.min(780, y + 126)}" stroke="${color}" stroke-width="4" stroke-dasharray="8 12" opacity="0.88"/>
+          <circle cx="${x}" cy="${y}" r="11" fill="${color}" stroke="#ffffff" stroke-width="4"/>
+        </g>
+      `;
+    })
+    .join("");
+  const equipment = `
+    <g opacity="0.92">
+      <rect x="104" y="685" width="246" height="62" rx="7" fill="#f97316"/>
+      <circle cx="148" cy="758" r="22" fill="#1f2937"/>
+      <circle cx="292" cy="758" r="22" fill="#1f2937"/>
+      <rect x="210" y="620" width="120" height="18" rx="6" fill="#facc15"/>
+      <path d="M214 620 L308 560 L327 569 L235 624 Z" fill="#eab308"/>
+      <rect x="1234" y="642" width="190" height="46" rx="6" fill="#38bdf8"/>
+      <path d="M1282 642 L1344 520 L1360 526 L1306 642 Z" fill="#0891b2"/>
+      <circle cx="1270" cy="700" r="19" fill="#1f2937"/>
+      <circle cx="1392" cy="700" r="19" fill="#1f2937"/>
+      <rect x="1210" y="356" width="182" height="14" fill="#f97316"/>
+      <rect x="1218" y="390" width="182" height="14" fill="#f97316"/>
+      <path d="M1222 356 L1368 632 M1368 356 L1222 632" stroke="#9a3412" stroke-width="7"/>
+    </g>
+  `;
+  const workerMarkers = overlay.activities
+    .slice(0, 6)
     .map((activity, index) => {
-      const y = 108 + index * 84;
-      const lines = svgTextLines(activity.label, 20, 2);
+      const x = 322 + activity.x * 820 + (index % 2) * 28;
+      const y = 150 + activity.y * 590;
       return `
-        <g>
-          <rect x="26" y="${y}" width="254" height="68" rx="10" fill="#1e293b" stroke="${escapeSvgText(activity.color)}" stroke-width="3"/>
-          <text x="60" y="${y + 42}" fill="#fff" font-size="34" font-weight="900">${activity.number}</text>
-          <text x="104" y="${y + 29}" fill="#fff" font-size="18" font-weight="900">${escapeSvgText(lines[0])}</text>
-          <text x="104" y="${y + 53}" fill="#cbd5e1" font-size="15" font-weight="700">${escapeSvgText(lines[1] ?? activity.subtitle)}</text>
+        <g transform="translate(${x} ${y})">
+          <circle cx="0" cy="-15" r="7" fill="#fef3c7" stroke="#111827" stroke-width="2"/>
+          <path d="M-10 -23 H10 L6 -31 H-6 Z" fill="#facc15" stroke="#111827" stroke-width="2"/>
+          <rect x="-6" y="-8" width="12" height="25" rx="4" fill="${escapeSvgText(activity.color)}" stroke="#111827" stroke-width="2"/>
+          <path d="M-6 16 L-17 34 M6 16 L17 34 M-6 0 L-20 9 M6 0 L19 7" stroke="#111827" stroke-width="4" stroke-linecap="round"/>
         </g>
       `;
     })
     .join("");
-  const overlapRows = overlaps.length
-    ? overlaps
-        .map((overlap, index) => {
-          const y = 220 + index * 54;
-          return `
-            <g>
-              <circle cx="1304" cy="${y}" r="8" fill="#38bdf8"/>
-              <text x="1324" y="${y + 6}" fill="#e5e7eb" font-size="16" font-weight="800">${escapeSvgText(truncateLabel(overlap.label, 28))}</text>
-            </g>
-          `;
-        })
-        .join("")
-    : `<text x="1304" y="234" fill="#e5e7eb" font-size="18" font-weight="800">No deterministic overlaps flagged.</text>`;
-
-  const blueprintImage = blueprintDataUrl
-    ? `<image href="${escapeSvgText(blueprintDataUrl)}" x="${sceneX + 154}" y="${sceneY + 230}" width="560" height="300" preserveAspectRatio="xMidYMid meet" opacity="0.34"/>`
-    : "";
 
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -341,44 +355,26 @@ export function buildSiteVisualFallbackRenderSvg(
       <stop offset="1" stop-color="#dbeafe"/>
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="18" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.18"/>
     </filter>
+    <radialGradient id="siteGlow" cx="50%" cy="42%" r="58%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#93c5fd" stop-opacity="0.08"/>
+    </radialGradient>
   </defs>
-  <rect width="1600" height="900" fill="url(#sky)"/>
-  <text x="320" y="52" fill="#0f172a" font-size="28" font-weight="900">${escapeSvgText(input.jobsite.name)}</text>
-  <text x="320" y="82" fill="#475569" font-size="18" font-weight="700">${escapeSvgText(input.blueprint.fileName)} / Page ${escapeSvgText(input.blueprint.pageNumber)} / ${escapeSvgText(SITE_VISUAL_RENDER_DISCLAIMER)}</text>
-  <rect x="14" y="24" width="282" height="626" rx="10" fill="#111827" opacity="0.9"/>
-  <text x="32" y="66" fill="#fff" font-size="23" font-weight="900">WORK ACTIVITIES</text>
-  ${legendRows}
+  <rect width="${width}" height="${height}" fill="url(#sky)"/>
+  <rect width="${width}" height="${height}" fill="url(#siteGlow)"/>
+  <path d="M124 790 C420 720, 802 710, 1456 774" fill="none" stroke="#64748b" stroke-width="28" opacity="0.16"/>
+  ${equipment}
   <g filter="url(#shadow)">
-    <rect x="${sceneX}" y="${sceneY}" width="${sceneW}" height="${sceneH}" rx="20" fill="#ffffff" opacity="0.36"/>
-    <g transform="translate(0 0)">
+    <g>
       ${floorDecks}
-      ${blueprintImage}
-      ${structureColumns}
-      <path d="M390 705 L1180 628" stroke="#334155" stroke-width="10" opacity="0.18"/>
-      <rect x="534" y="142" width="520" height="22" fill="#38bdf8" opacity="0.7"/>
-      <rect x="392" y="690" width="230" height="44" rx="8" fill="#f97316" opacity="0.72"/>
-      <rect x="950" y="632" width="178" height="38" rx="8" fill="#eab308" opacity="0.72"/>
-      ${activityZones}
+      ${columns}
+      <path d="M380 126 L1092 56 L1264 126 L554 200 Z" fill="none" stroke="#0ea5e9" stroke-width="9" opacity="0.78"/>
+      ${zoneHighlights}
+      ${verticalOverlapMarkers}
+      ${workerMarkers}
     </g>
-  </g>
-  <g>
-    <rect x="1262" y="24" width="310" height="328" rx="10" fill="#111827" opacity="0.9"/>
-    <text x="1288" y="70" fill="#fff" font-size="24" font-weight="900">OVERLAPPING WORK</text>
-    <text x="1288" y="99" fill="#e5e7eb" font-size="18" font-weight="800">AT MULTIPLE LEVELS</text>
-    <text x="1288" y="145" fill="#e5e7eb" font-size="17">Deterministic zone and</text>
-    <text x="1288" y="171" fill="#e5e7eb" font-size="17">schedule conflicts are</text>
-    <text x="1288" y="197" fill="#e5e7eb" font-size="17">shown as clickable overlays.</text>
-    ${overlapRows}
-  </g>
-  <g>
-    <rect x="1262" y="610" width="310" height="228" rx="10" fill="#111827" opacity="0.9"/>
-    <text x="1310" y="661" fill="#fff" font-size="22" font-weight="900">SAFETY INSIGHT</text>
-    <text x="1288" y="710" fill="#e5e7eb" font-size="18">Use this as a planning aid.</text>
-    <text x="1288" y="740" fill="#e5e7eb" font-size="18">Verify field conditions,</text>
-    <text x="1288" y="770" fill="#e5e7eb" font-size="18">access, sequencing, permits,</text>
-    <text x="1288" y="800" fill="#e5e7eb" font-size="18">and exclusion zones onsite.</text>
   </g>
 </svg>`;
 }

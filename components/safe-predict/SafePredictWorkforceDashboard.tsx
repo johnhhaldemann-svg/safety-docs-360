@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -13,6 +13,7 @@ import {
   Edit3,
   FileText,
   Flame,
+  ImageUp,
   Loader2,
   MapPin,
   Plus,
@@ -115,6 +116,7 @@ type TrainingRecordForm = {
   expiresOn: string;
   provider: string;
   notes: string;
+  source: string;
 };
 
 const emptyTrainingRecordForm: TrainingRecordForm = {
@@ -123,6 +125,12 @@ const emptyTrainingRecordForm: TrainingRecordForm = {
   expiresOn: "",
   provider: "",
   notes: "",
+  source: "manual",
+};
+
+type TrainingRecordPhotoDraft = Omit<TrainingRecordForm, "source"> & {
+  confidence: number;
+  warnings: string[];
 };
 
 const workforceTabs: Array<{ id: WorkforceTabId; label: string }> = [
@@ -302,6 +310,7 @@ function formFromTrainingRecord(record: TrackedTrainingRecord): TrainingRecordFo
     expiresOn: record.expires_on ?? "",
     provider: record.provider ?? "",
     notes: record.notes ?? "",
+    source: record.source ?? "manual",
   };
 }
 
@@ -1617,6 +1626,8 @@ function EmployeeProfileDrawer({
   const [recordMessage, setRecordMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [recordForm, setRecordForm] = useState<TrainingRecordForm>(emptyTrainingRecordForm);
+  const [photoExtracting, setPhotoExtracting] = useState(false);
+  const [photoExtraction, setPhotoExtraction] = useState<Pick<TrainingRecordPhotoDraft, "confidence" | "warnings"> | null>(null);
 
   const loadTrainingRecords = useCallback(async () => {
     if (!trackedEmployeeId) {
@@ -1654,6 +1665,7 @@ function EmployeeProfileDrawer({
       setEditingRecordId(null);
       setRecordForm(emptyTrainingRecordForm);
       setRecordMessage(null);
+      setPhotoExtraction(null);
       if (trackedEmployeeId) {
         void loadTrainingRecords();
       } else {
@@ -1700,6 +1712,7 @@ function EmployeeProfileDrawer({
       setRecordMessage({ tone: "success", text: editingRecordId ? "Training record updated." : "Training record added." });
       setEditingRecordId(null);
       setRecordForm(emptyTrainingRecordForm);
+      setPhotoExtraction(null);
       await loadTrainingRecords();
       onTrainingRecordsChanged();
     } catch (error) {
@@ -1733,6 +1746,7 @@ function EmployeeProfileDrawer({
       if (editingRecordId === recordId) {
         setEditingRecordId(null);
         setRecordForm(emptyTrainingRecordForm);
+        setPhotoExtraction(null);
       }
       setRecordMessage({ tone: "success", text: "Training record deleted." });
       await loadTrainingRecords();
@@ -1744,6 +1758,61 @@ function EmployeeProfileDrawer({
       });
     } finally {
       setRecordsSaving(false);
+    }
+  }
+
+  async function extractTrainingRecordFromPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!trackedEmployeeId || !file) return;
+    if (!file.type.startsWith("image/")) {
+      setRecordMessage({ tone: "error", text: "Choose an image of the training card or certificate." });
+      return;
+    }
+    setPhotoExtracting(true);
+    setPhotoExtraction(null);
+    setRecordMessage(null);
+    try {
+      const token = await safePredictAccessToken();
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}/training-records/extract-photo`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData,
+        }
+      );
+      const data = (await response.json().catch(() => null)) as {
+        draft?: TrainingRecordPhotoDraft;
+        error?: string;
+      } | null;
+      if (!response.ok || !data?.draft) {
+        setRecordMessage({ tone: "error", text: data?.error || "AI could not read that training image." });
+        return;
+      }
+      setEditingRecordId(null);
+      setRecordForm({
+        title: data.draft.title,
+        completedOn: data.draft.completedOn,
+        expiresOn: data.draft.expiresOn,
+        provider: data.draft.provider,
+        notes: data.draft.notes,
+        source: "ai_photo_extract",
+      });
+      setPhotoExtraction({
+        confidence: data.draft.confidence,
+        warnings: data.draft.warnings ?? [],
+      });
+      setRecordMessage({ tone: "success", text: "Draft filled from photo. Review before adding." });
+    } catch (error) {
+      setRecordMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "AI could not read that training image.",
+      });
+    } finally {
+      setPhotoExtracting(false);
     }
   }
 
@@ -1777,6 +1846,7 @@ function EmployeeProfileDrawer({
                     setEditingRecordId(null);
                     setRecordForm(emptyTrainingRecordForm);
                     setRecordMessage(null);
+                    setPhotoExtraction(null);
                   }}
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-black text-blue-700 transition hover:bg-blue-50"
                 >
@@ -1785,6 +1855,31 @@ function EmployeeProfileDrawer({
                 </button>
               </div>
               <div className="mt-4 grid gap-3">
+                <div className="rounded-lg border border-blue-100 bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase text-slate-500">Read from photo</p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Upload a training card or certificate to fill a draft for review.</p>
+                    </div>
+                    <label className={cx("inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-black text-blue-700 transition hover:bg-blue-100", photoExtracting ? "pointer-events-none opacity-70" : "")}>
+                      {photoExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+                      {photoExtracting ? "Reading" : "Upload Photo"}
+                      <input type="file" accept="image/*" className="sr-only" disabled={photoExtracting} onChange={(event) => void extractTrainingRecordFromPhoto(event)} />
+                    </label>
+                  </div>
+                  {photoExtraction ? (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600">
+                      <p>AI confidence: {Math.round(photoExtraction.confidence * 100)}%</p>
+                      {photoExtraction.warnings.length > 0 ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-4">
+                          {photoExtraction.warnings.map((warning) => (
+                            <li key={warning}>{warning}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
                 <label className="grid gap-1">
                   <span className="text-xs font-bold uppercase text-slate-500">Training title</span>
                   <input value={recordForm.title} onChange={(event) => setRecordForm((current) => ({ ...current, title: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="OSHA 10 Construction" />
@@ -1816,7 +1911,7 @@ function EmployeeProfileDrawer({
                     {editingRecordId ? "Save Record" : "Add Record"}
                   </button>
                   {editingRecordId ? (
-                    <button type="button" onClick={() => { setEditingRecordId(null); setRecordForm(emptyTrainingRecordForm); }} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700">
+                    <button type="button" onClick={() => { setEditingRecordId(null); setRecordForm(emptyTrainingRecordForm); setPhotoExtraction(null); }} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700">
                       Cancel
                     </button>
                   ) : null}
@@ -1837,7 +1932,7 @@ function EmployeeProfileDrawer({
                         {record.provider ? <p className="mt-1 text-xs font-semibold text-slate-600">{record.provider}</p> : null}
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        <button type="button" aria-label={`Edit ${record.title}`} onClick={() => { setEditingRecordId(record.id); setRecordForm(formFromTrainingRecord(record)); setRecordMessage(null); }} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700 transition hover:bg-blue-50">
+                        <button type="button" aria-label={`Edit ${record.title}`} onClick={() => { setEditingRecordId(record.id); setRecordForm(formFromTrainingRecord(record)); setRecordMessage(null); setPhotoExtraction(null); }} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700 transition hover:bg-blue-50">
                           <Edit3 className="h-4 w-4" />
                         </button>
                         <button type="button" aria-label={`Delete ${record.title}`} onClick={() => void deleteTrainingRecord(record.id)} disabled={recordsSaving} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300">

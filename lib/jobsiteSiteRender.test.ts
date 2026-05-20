@@ -86,15 +86,16 @@ describe("jobsite site visual render helpers", () => {
     ).toEqual({ imageBase64: "abc123", revisedPrompt: "revised" });
   });
 
-  it("builds a deterministic detailed visual fallback SVG from blueprint and zones", () => {
+  it("builds a deterministic detailed visual fallback SVG from blueprint floor plates and zones", () => {
     const scene = buildFallbackSiteVisualScene(input);
     const blueprint = input.blueprint!;
     const promptInput = { jobsite: { name: input.jobsite.name }, blueprint, scene };
-    const svg = buildSiteVisualFallbackRenderSvg(promptInput);
+    const svg = buildSiteVisualFallbackRenderSvg(promptInput, undefined, "data:image/png;base64,abc123");
 
     expect(svg).toContain("<svg");
-    expect(svg).toContain("Hillcrest Office Fit-Out");
-    expect(svg).toContain("WORK ACTIVITIES");
-    expect(svg).toContain("SAFETY INSIGHT");
+    expect(svg).toContain("blueprint-plate-0");
+    expect(svg).toContain("data:image/png;base64,abc123");
+    expect(svg).not.toContain("WORK ACTIVITIES");
+    expect(svg).not.toContain("SAFETY INSIGHT");
   });
 });

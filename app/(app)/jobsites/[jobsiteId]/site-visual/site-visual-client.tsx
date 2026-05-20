@@ -197,6 +197,19 @@ function zoneImpacts(scene: VisualScene | null, zoneId: string | null) {
     });
 }
 
+function clampVisual(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function activityCalloutPosition(activity: RenderOverlayActivity, index: number) {
+  const rightSide = activity.x < 0.56;
+  const offsetX = 0.14 + (index % 2) * 0.04;
+  const labelX = clampVisual(activity.x + (rightSide ? offsetX : -offsetX), 0.16, 0.84);
+  const labelY = clampVisual(activity.y - 0.065 + (index % 3) * 0.032, 0.12, 0.84);
+  return { labelX, labelY };
+}
+
 function getMeshMaterial(color: string, selected: boolean, overlapped: boolean) {
   return new THREE.MeshStandardMaterial({
     color,
@@ -555,6 +568,12 @@ function DetailedVisualRenderer({
   const overlaps = render.overlay?.overlaps ?? [];
   const selectedActivity = activities.find((activity) => activity.zoneId === selectedZoneId) ?? activities[0] ?? null;
   const zoneMap = new Map((scene?.zones ?? []).map((zone) => [zone.id, zone]));
+  const selectedOverlapZoneIds = new Set(
+    overlaps
+      .filter((overlap) => (selectedZoneId ? overlap.zoneIds.includes(selectedZoneId) : false))
+      .flatMap((overlap) => overlap.zoneIds)
+  );
+  const callouts = activities.map((activity, index) => ({ activity, ...activityCalloutPosition(activity, index) }));
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-xl">
@@ -566,7 +585,37 @@ function DetailedVisualRenderer({
             Detailed visual is not available.
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/45 via-transparent to-slate-950/45" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/24 via-transparent to-slate-950/24" />
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 56.25" preserveAspectRatio="none" aria-hidden="true">
+          {callouts.map(({ activity, labelX, labelY }) => {
+            const isSelected = activity.zoneId === selectedZoneId;
+            const isAffected = selectedOverlapZoneIds.has(activity.zoneId);
+            const strokeWidth = isSelected ? 0.34 : isAffected ? 0.28 : 0.18;
+            return (
+              <g key={activity.id}>
+                <line
+                  x1={activity.x * 100}
+                  y1={activity.y * 56.25}
+                  x2={labelX * 100}
+                  y2={labelY * 56.25}
+                  stroke={activity.color}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={isAffected && !isSelected ? "1 1" : undefined}
+                />
+                <ellipse
+                  cx={activity.x * 100}
+                  cy={activity.y * 56.25}
+                  rx={isSelected ? 3.2 : isAffected ? 2.7 : 2.15}
+                  ry={isSelected ? 1.35 : isAffected ? 1.15 : 0.9}
+                  fill={activity.color}
+                  fillOpacity={isSelected ? 0.36 : isAffected ? 0.28 : 0.18}
+                  stroke={activity.color}
+                  strokeWidth={isSelected ? 0.35 : 0.2}
+                />
+              </g>
+            );
+          })}
+        </svg>
 
         <div className="absolute left-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur md:block">
           <div className="text-sm font-black uppercase tracking-[0.08em]">Work Activities</div>
@@ -615,34 +664,57 @@ function DetailedVisualRenderer({
           </div>
         </div>
 
-        {activities.map((activity) => {
+        {callouts.map(({ activity, labelX, labelY }) => {
           const isSelected = activity.zoneId === selectedZoneId;
+          const isAffected = selectedOverlapZoneIds.has(activity.zoneId);
           return (
-            <button
-              key={activity.id}
-              type="button"
-              className={`absolute rounded-lg border-2 px-3 py-2 text-left text-white shadow-2xl backdrop-blur transition hover:scale-[1.02] ${
-                isSelected ? "bg-slate-950/88 ring-4 ring-white/45" : "bg-slate-950/72"
-              }`}
-              style={{
-                borderColor: activity.color,
-                left: `${activity.x * 100}%`,
-                top: `${activity.y * 100}%`,
-                width: `${Math.max(13, activity.width * 100)}%`,
-                transform: "translate(-50%, -50%)",
-              }}
-              onClick={() => onSelectZone(activity.zoneId)}
-            >
-              <span className="flex items-center gap-2">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm font-black" style={{ backgroundColor: activity.color }}>
+            <div key={activity.id}>
+              <button
+                type="button"
+                className={`absolute grid h-10 w-10 place-items-center rounded-full border-2 text-sm font-black text-white shadow-[0_0_24px_rgba(255,255,255,0.28)] transition hover:scale-110 ${
+                  isSelected ? "ring-4 ring-white/55" : isAffected ? "ring-4 ring-amber-300/45" : ""
+                }`}
+                style={{
+                  backgroundColor: activity.color,
+                  borderColor: "#ffffff",
+                  left: `${activity.x * 100}%`,
+                  top: `${activity.y * 100}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+                title={activity.label}
+                onClick={() => onSelectZone(activity.zoneId)}
+              >
+                {activity.number}
+              </button>
+              <button
+                type="button"
+                className={`absolute max-w-[210px] rounded-lg border-2 px-3 py-2 text-left text-white shadow-2xl backdrop-blur transition hover:scale-[1.02] ${
+                  isSelected
+                    ? "bg-slate-950/92 ring-4 ring-white/45"
+                    : isAffected
+                      ? "bg-amber-950/82 ring-4 ring-amber-300/30"
+                      : "bg-slate-950/78"
+                }`}
+                style={{
+                  borderColor: activity.color,
+                  left: `${labelX * 100}%`,
+                  top: `${labelY * 100}%`,
+                  width: `${Math.max(12, activity.width * 100)}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+                onClick={() => onSelectZone(activity.zoneId)}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm font-black" style={{ backgroundColor: activity.color }}>
                   {activity.number}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
+                    <span className="block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
+                  </span>
                 </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
-                  <span className="block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
-                </span>
-              </span>
-            </button>
+              </button>
+            </div>
           );
         })}
 
@@ -650,7 +722,9 @@ function DetailedVisualRenderer({
           <button
             key={overlap.id}
             type="button"
-            className="absolute h-5 w-5 rounded-full border-2 border-white bg-amber-400 shadow-[0_0_22px_rgba(251,191,36,0.95)]"
+            className={`absolute h-6 w-6 rounded-full border-2 border-white bg-amber-400 shadow-[0_0_22px_rgba(251,191,36,0.95)] transition hover:scale-110 ${
+              selectedZoneId && overlap.zoneIds.includes(selectedZoneId) ? "ring-4 ring-white/55" : ""
+            }`}
             style={{ left: `${overlap.x * 100}%`, top: `${overlap.y * 100}%`, transform: "translate(-50%, -50%)" }}
             title={overlap.reason}
             onClick={() => onSelectZone(overlap.zoneIds[0])}

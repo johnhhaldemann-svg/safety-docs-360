@@ -2573,8 +2573,8 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         }}
       />
 
-      <div className="mb-5 rounded-lg border border-slate-200 bg-white p-1">
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
+        <div className="flex min-w-max flex-nowrap gap-2">
           {detailTabs.map((tab) => (
             <button
               key={tab}
@@ -2583,9 +2583,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 setActiveTab(tab);
                 setSelectedJobsiteId(site.id);
               }}
-              className={cx("min-h-10 flex-1 rounded-md px-3 py-2 text-xs font-black transition sm:flex-none", activeTab === tab ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50")}
+              className={cx("min-h-10 shrink-0 rounded-md px-3 py-2 text-xs font-black transition", activeTab === tab ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50")}
             >
-              <span className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center gap-2 whitespace-nowrap">
                 {tab}
                 {tabCounts[tab] ? (
                   <span className={cx("rounded-full px-2 py-0.5 text-[10px] font-black", activeTab === tab ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
