@@ -13,6 +13,7 @@ import {
   type SiteVisualBlueprintInput,
 } from "@/lib/jobsiteSiteBlueprint";
 import {
+  buildSiteVisualFallbackRenderSvg,
   buildSiteVisualRenderOverlay,
   buildSiteVisualRenderPrompt,
   extractResponsesImageBase64,
@@ -20,6 +21,8 @@ import {
   siteVisualRenderPromptHash,
   siteVisualRenderThumbnailPath,
   SITE_VISUAL_RENDER_BUCKET,
+  type SiteVisualRenderOverlay,
+  type SiteVisualRenderPromptInput,
 } from "@/lib/jobsiteSiteRender";
 import { sceneWithZones, type SiteVisualScene } from "@/lib/jobsiteSiteVisual";
 import {
@@ -74,6 +77,49 @@ function normalizeImageBase64(value: string) {
   const marker = ";base64,";
   const index = value.indexOf(marker);
   return index >= 0 ? value.slice(index + marker.length) : value;
+}
+
+function parseAiJson(text: string) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { error: { message: text.slice(0, 500) } };
+  }
+}
+
+function aiErrorMessageFromJson(status: number, json: unknown) {
+  const apiError =
+    json && typeof json === "object" && !Array.isArray(json)
+      ? (json as Record<string, unknown>).error
+      : null;
+  const apiMessage =
+    apiError && typeof apiError === "object" && !Array.isArray(apiError)
+      ? String((apiError as Record<string, unknown>).message ?? "")
+      : "";
+  return `OpenAI image generation failed with HTTP ${status}${apiMessage ? `: ${apiMessage}` : ""}.`;
+}
+
+async function buildDeterministicRenderImage(
+  signedPreviewUrl: string,
+  promptInput: SiteVisualRenderPromptInput,
+  overlay: SiteVisualRenderOverlay
+) {
+  let blueprintDataUrl: string | null = null;
+  const previewResponse = await fetch(signedPreviewUrl).catch(() => null);
+  if (previewResponse?.ok) {
+    const previewBytes = Buffer.from(await previewResponse.arrayBuffer());
+    const normalizedPreview = await sharp(previewBytes)
+      .resize({ width: 1000, height: 620, fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer()
+      .catch(() => null);
+    if (normalizedPreview) {
+      blueprintDataUrl = `data:image/png;base64,${normalizedPreview.toString("base64")}`;
+    }
+  }
+  const svg = buildSiteVisualFallbackRenderSvg(promptInput, overlay, blueprintDataUrl);
+  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 export async function POST(
@@ -183,7 +229,7 @@ export async function POST(
   }
 
   const overlay = buildSiteVisualRenderOverlay(scene);
-  const promptInput = {
+  const promptInput: SiteVisualRenderPromptInput = {
     jobsite: {
       name: String(jobsiteResult.data.name ?? "Jobsite"),
       location: jobsiteResult.data.location ?? null,
@@ -195,65 +241,63 @@ export async function POST(
   };
   const prompt = buildSiteVisualRenderPrompt(promptInput, overlay);
   const promptHash = siteVisualRenderPromptHash(promptInput, overlay);
-  const model = resolveAiModelId(process.env.JOBSITE_VISUAL_RENDER_MODEL?.trim() || "gpt-4.1");
+  const model = resolveAiModelId(process.env.JOBSITE_VISUAL_RENDER_MODEL?.trim() || "gpt-5");
   const provider = resolveAiProvider(model);
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENAI_API_KEY is not configured. Detailed visual generation is unavailable." }, { status: 503 });
-  }
-
-  const startedAt = Date.now();
-  const aiResponse = await fetch(`${getAiApiBaseUrl()}/responses`, {
-    method: "POST",
-    signal: AbortSignal.timeout(120_000),
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        {
-          role: "user",
-          content: [
-            { type: "input_text", text: prompt },
-            { type: "input_image", image_url: signedPreviewUrl },
-          ],
-        },
-      ],
-      tools: [{ type: "image_generation", input_fidelity: "high", action: "edit" }],
-    }),
-  });
-  const aiJson = (await aiResponse.json().catch(() => null)) as unknown;
-  const usage = extractResponsesApiUsage(aiJson);
-  const { imageBase64, revisedPrompt } = extractResponsesImageBase64(aiJson);
-  const latencyMs = Date.now() - startedAt;
   const renderId = randomUUID();
+  const startedAt = Date.now();
+  let usage: ReturnType<typeof extractResponsesApiUsage> = null;
+  let revisedPrompt: string | null = null;
+  let imageBytes: Buffer | null = null;
+  let upstreamError: string | null = null;
 
-  if (!aiResponse.ok || !imageBase64) {
-    const errorMessage = !aiResponse.ok
-      ? `OpenAI image generation failed with HTTP ${aiResponse.status}.`
-      : "OpenAI did not return an image.";
-    const failed = await auth.supabase
-      .from("company_jobsite_site_renders")
-      .insert({
-        id: renderId,
-        company_id: companyScope.companyId,
-        jobsite_id: jobsiteId,
-        site_map_id: mapResult.data.id,
-        blueprint_id: blueprint.id,
-        render_status: "failed",
-        prompt_hash: promptHash,
-        overlay_json: overlay,
-        ai_meta: { model, provider, promptHash, latencyMs, usage, revisedPrompt, surface: "jobsite.site-visual.render.generate" },
-        error_message: errorMessage,
-        created_by: auth.user.id,
-        updated_by: auth.user.id,
-      })
-      .select(RENDER_SELECT)
-      .single();
-    const render = failed.data ? await dbRenderToPayload(failed.data as Record<string, unknown>) : null;
-    return NextResponse.json({ error: errorMessage, render }, { status: 502 });
+  if (apiKey) {
+    try {
+      const aiResponse = await fetch(`${getAiApiBaseUrl()}/responses`, {
+        method: "POST",
+        signal: AbortSignal.timeout(120_000),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          input: [
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: prompt },
+                { type: "input_image", image_url: signedPreviewUrl },
+              ],
+            },
+          ],
+          tools: [{ type: "image_generation", input_fidelity: "high", action: "auto" }],
+        }),
+      });
+      const aiText = await aiResponse.text().catch(() => "");
+      const aiJson = parseAiJson(aiText);
+      usage = extractResponsesApiUsage(aiJson);
+      const extracted = extractResponsesImageBase64(aiJson);
+      revisedPrompt = extracted.revisedPrompt;
+      if (aiResponse.ok && extracted.imageBase64) {
+        imageBytes = Buffer.from(normalizeImageBase64(extracted.imageBase64), "base64");
+      } else {
+        upstreamError = aiResponse.ok ? "OpenAI did not return an image." : aiErrorMessageFromJson(aiResponse.status, aiJson);
+      }
+    } catch (error) {
+      upstreamError = error instanceof Error ? error.message : "OpenAI image generation request failed.";
+    }
+  } else {
+    upstreamError = "OPENAI_API_KEY is not configured.";
+  }
+  const latencyMs = Date.now() - startedAt;
+
+  let fallbackUsed = false;
+  let warning: string | null = null;
+  if (!imageBytes) {
+    fallbackUsed = true;
+    imageBytes = await buildDeterministicRenderImage(signedPreviewUrl, promptInput, overlay);
+    warning = `${upstreamError ?? "OpenAI image generation is unavailable."} A deterministic detailed visual was generated from the blueprint and work zones instead.`;
   }
 
   const admin = createSupabaseAdminClient();
@@ -261,7 +305,6 @@ export async function POST(
     return NextResponse.json({ error: "Missing Supabase service role env configuration." }, { status: 500 });
   }
 
-  const imageBytes = Buffer.from(normalizeImageBase64(imageBase64), "base64");
   const imageMetadata = await sharp(imageBytes).metadata();
   const thumbnailBytes = await sharp(imageBytes).resize({ width: 720, fit: "inside", withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
   const imagePath = siteVisualRenderImagePath(companyScope.companyId, jobsiteId, renderId);
@@ -298,7 +341,17 @@ export async function POST(
       image_width: imageMetadata.width ?? null,
       image_height: imageMetadata.height ?? null,
       overlay_json: overlay,
-      ai_meta: { model, provider, promptHash, latencyMs, usage, revisedPrompt, surface: "jobsite.site-visual.render.generate" },
+      ai_meta: {
+        model,
+        provider,
+        promptHash,
+        latencyMs,
+        usage,
+        revisedPrompt,
+        fallbackUsed,
+        upstreamError,
+        surface: "jobsite.site-visual.render.generate",
+      },
       created_by: auth.user.id,
       updated_by: auth.user.id,
     })
@@ -315,5 +368,6 @@ export async function POST(
     render: await dbRenderToPayload(insert.data as Record<string, unknown>),
     scene,
     zones,
+    warning,
   });
 }

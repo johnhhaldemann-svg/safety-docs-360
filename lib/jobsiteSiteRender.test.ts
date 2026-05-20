@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSiteVisualFallbackRenderSvg,
   buildSiteVisualRenderOverlay,
   buildSiteVisualRenderPrompt,
   cleanSiteVisualRenderOverlay,
@@ -83,5 +84,17 @@ describe("jobsite site visual render helpers", () => {
         output: [{ type: "image_generation_call", result: "abc123", revised_prompt: "revised" }],
       })
     ).toEqual({ imageBase64: "abc123", revisedPrompt: "revised" });
+  });
+
+  it("builds a deterministic detailed visual fallback SVG from blueprint and zones", () => {
+    const scene = buildFallbackSiteVisualScene(input);
+    const blueprint = input.blueprint!;
+    const promptInput = { jobsite: { name: input.jobsite.name }, blueprint, scene };
+    const svg = buildSiteVisualFallbackRenderSvg(promptInput);
+
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("Hillcrest Office Fit-Out");
+    expect(svg).toContain("WORK ACTIVITIES");
+    expect(svg).toContain("SAFETY INSIGHT");
   });
 });

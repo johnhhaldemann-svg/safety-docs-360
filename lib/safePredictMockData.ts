@@ -44,6 +44,8 @@ export type SafePredictDemoEmployeeStatus = "compliant" | "expiring" | "overdue"
 
 export type SafePredictDemoEmployee = {
   id: string;
+  trackedEmployeeId?: string;
+  personType?: string;
   name: string;
   email?: string;
   role: string;

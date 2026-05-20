@@ -862,6 +862,8 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
       const assignedSite = liveSiteId(row, jobsites, index);
       return {
         id: textValue(row, ["userId", "user_id", "id"], `live-employee-${index}`),
+        trackedEmployeeId: textValue(row, ["trackedEmployeeId", "tracked_employee_id"]) || undefined,
+        personType: textValue(row, ["personType", "person_type"]) || undefined,
         name: textValue(row, ["name", "email"], "Unnamed worker"),
         email: textValue(row, ["email"]),
         role: textValue(profile, ["jobTitle"], textValue(row, ["role"], "Worker")),

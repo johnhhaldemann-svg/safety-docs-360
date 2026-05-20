@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -10,19 +10,24 @@ import {
   ChevronDown,
   Clock,
   Download,
+  Edit3,
   FileText,
   Flame,
   Loader2,
   MapPin,
+  Plus,
   RefreshCw,
+  Save,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   TrendingUp,
   UserRound,
   Users,
   X,
 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   Card,
   ExportButton,
@@ -91,6 +96,33 @@ type PermitCategoryGroup = {
   expired: number;
   missingSignatures: number;
   rows: SafePredictPermitSummary[];
+};
+
+type TrackedTrainingRecord = {
+  id: string;
+  requirement_id?: string | null;
+  title: string;
+  completed_on?: string | null;
+  expires_on?: string | null;
+  provider?: string | null;
+  source?: string | null;
+  notes?: string | null;
+};
+
+type TrainingRecordForm = {
+  title: string;
+  completedOn: string;
+  expiresOn: string;
+  provider: string;
+  notes: string;
+};
+
+const emptyTrainingRecordForm: TrainingRecordForm = {
+  title: "",
+  completedOn: "",
+  expiresOn: "",
+  provider: "",
+  notes: "",
 };
 
 const workforceTabs: Array<{ id: WorkforceTabId; label: string }> = [
@@ -255,6 +287,34 @@ function addDaysIso(days: number) {
 
 function jobsiteForId(jobsites: SafePredictJobsiteRecord[], siteId: string) {
   return jobsites.find((jobsite) => jobsite.id === siteId);
+}
+
+function trackedEmployeeRecordId(employee: SafePredictDemoEmployee | null) {
+  if (!employee) return null;
+  if (employee.trackedEmployeeId) return employee.trackedEmployeeId;
+  return employee.id.startsWith("tracked:") ? employee.id.slice("tracked:".length) : null;
+}
+
+function formFromTrainingRecord(record: TrackedTrainingRecord): TrainingRecordForm {
+  return {
+    title: record.title,
+    completedOn: record.completed_on ?? "",
+    expiresOn: record.expires_on ?? "",
+    provider: record.provider ?? "",
+    notes: record.notes ?? "",
+  };
+}
+
+function trainingRecordDateLabel(value?: string | null) {
+  return value?.trim() || "No date";
+}
+
+async function safePredictAccessToken() {
+  const supabase = getSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
 }
 
 function tradeReadinessFromEmployees(employees: SafePredictDemoEmployee[]): SafePredictTradeReadiness[] {
@@ -777,7 +837,12 @@ export function SafePredictWorkforceDashboard() {
         </main>
       </div>
 
-      <EmployeeProfileDrawer employee={selectedEmployee} jobsites={jobsites} onClose={() => setSelectedEmployeeId(null)} />
+      <EmployeeProfileDrawer
+        employee={selectedEmployee}
+        jobsites={jobsites}
+        onClose={() => setSelectedEmployeeId(null)}
+        onTrainingRecordsChanged={refreshLiveData}
+      />
       <p className="mt-5 text-center text-xs font-semibold text-slate-500">Data is refreshed every 15 minutes</p>
     </div>
   );
@@ -1534,10 +1599,154 @@ function EmptyPanel({ children }: { children: React.ReactNode }) {
   return <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500">{children}</div>;
 }
 
-function EmployeeProfileDrawer({ employee, jobsites, onClose }: { employee: SafePredictDemoEmployee | null; jobsites: SafePredictJobsiteRecord[]; onClose: () => void }) {
+function EmployeeProfileDrawer({
+  employee,
+  jobsites,
+  onClose,
+  onTrainingRecordsChanged,
+}: {
+  employee: SafePredictDemoEmployee | null;
+  jobsites: SafePredictJobsiteRecord[];
+  onClose: () => void;
+  onTrainingRecordsChanged: () => void;
+}) {
+  const trackedEmployeeId = trackedEmployeeRecordId(employee);
+  const [records, setRecords] = useState<TrackedTrainingRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsSaving, setRecordsSaving] = useState(false);
+  const [recordMessage, setRecordMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [recordForm, setRecordForm] = useState<TrainingRecordForm>(emptyTrainingRecordForm);
+
+  const loadTrainingRecords = useCallback(async () => {
+    if (!trackedEmployeeId) {
+      setRecords([]);
+      return;
+    }
+    setRecordsLoading(true);
+    setRecordMessage(null);
+    try {
+      const token = await safePredictAccessToken();
+      const response = await fetch(`/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}/training-records`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => null)) as { records?: TrackedTrainingRecord[]; error?: string } | null;
+      if (!response.ok) {
+        setRecordMessage({ tone: "error", text: data?.error || "Training records could not be loaded." });
+        setRecords([]);
+        return;
+      }
+      setRecords(data?.records ?? []);
+    } catch (error) {
+      setRecordMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Training records could not be loaded.",
+      });
+      setRecords([]);
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, [trackedEmployeeId]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setEditingRecordId(null);
+      setRecordForm(emptyTrainingRecordForm);
+      setRecordMessage(null);
+      if (trackedEmployeeId) {
+        void loadTrainingRecords();
+      } else {
+        setRecords([]);
+      }
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [loadTrainingRecords, trackedEmployeeId]);
+
   if (!employee) return null;
+
   const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
   const profileRows: Array<[string, string]> = [["Employee ID", employee.id], ["Supervisor", employee.supervisor], ["Shift", `${employee.shift} shift`], ["Assigned jobsite", jobsite?.name ?? "Unassigned"], ["Project phase", jobsite?.phase ?? "No active assignment"], ["Last activity", employee.lastActivity]];
+  const isTrackedEmployee = Boolean(trackedEmployeeId);
+
+  async function saveTrainingRecord() {
+    if (!trackedEmployeeId) return;
+    if (!recordForm.title.trim()) {
+      setRecordMessage({ tone: "error", text: "Training title is required." });
+      return;
+    }
+    setRecordsSaving(true);
+    setRecordMessage(null);
+    try {
+      const token = await safePredictAccessToken();
+      const response = await fetch(
+        editingRecordId
+          ? `/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}/training-records/${encodeURIComponent(editingRecordId)}`
+          : `/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}/training-records`,
+        {
+          method: editingRecordId ? "PATCH" : "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(recordForm),
+        }
+      );
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setRecordMessage({ tone: "error", text: data?.error || "Training record could not be saved." });
+        return;
+      }
+      setRecordMessage({ tone: "success", text: editingRecordId ? "Training record updated." : "Training record added." });
+      setEditingRecordId(null);
+      setRecordForm(emptyTrainingRecordForm);
+      await loadTrainingRecords();
+      onTrainingRecordsChanged();
+    } catch (error) {
+      setRecordMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Training record could not be saved.",
+      });
+    } finally {
+      setRecordsSaving(false);
+    }
+  }
+
+  async function deleteTrainingRecord(recordId: string) {
+    if (!trackedEmployeeId) return;
+    setRecordsSaving(true);
+    setRecordMessage(null);
+    try {
+      const token = await safePredictAccessToken();
+      const response = await fetch(
+        `/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}/training-records/${encodeURIComponent(recordId)}`,
+        {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }
+      );
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setRecordMessage({ tone: "error", text: data?.error || "Training record could not be deleted." });
+        return;
+      }
+      if (editingRecordId === recordId) {
+        setEditingRecordId(null);
+        setRecordForm(emptyTrainingRecordForm);
+      }
+      setRecordMessage({ tone: "success", text: "Training record deleted." });
+      await loadTrainingRecords();
+      onTrainingRecordsChanged();
+    } catch (error) {
+      setRecordMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Training record could not be deleted.",
+      });
+    } finally {
+      setRecordsSaving(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" aria-label="Close employee profile" onClick={onClose} className="absolute inset-0 cursor-default bg-slate-950/35" />
@@ -1552,9 +1761,98 @@ function EmployeeProfileDrawer({ employee, jobsites, onClose }: { employee: Safe
         <div className="flex-1 space-y-5 p-5">
           <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><UserRound className="h-4 w-4 text-blue-600" />Profile details</h3><dl className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">{profileRows.map(([label, value]) => <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_1fr] sm:gap-4"><dt className="text-xs font-bold uppercase text-slate-500">{label}</dt><dd className="text-sm font-semibold text-slate-800">{value}</dd></div>)}</dl></section>
           <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-600" />Credentials</h3><div className="mt-3 flex flex-wrap gap-2">{employee.credentials.map((credential) => <span key={credential} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{credential}</span>)}</div></section>
+          {isTrackedEmployee ? (
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm font-black text-slate-950">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    Non-user training
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Edit records for this tracked employee without adding app access.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRecordId(null);
+                    setRecordForm(emptyTrainingRecordForm);
+                    setRecordMessage(null);
+                  }}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-black text-blue-700 transition hover:bg-blue-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  New
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <label className="grid gap-1">
+                  <span className="text-xs font-bold uppercase text-slate-500">Training title</span>
+                  <input value={recordForm.title} onChange={(event) => setRecordForm((current) => ({ ...current, title: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="OSHA 10 Construction" />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-xs font-bold uppercase text-slate-500">Completed</span>
+                    <input type="date" value={recordForm.completedOn} onChange={(event) => setRecordForm((current) => ({ ...current, completedOn: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs font-bold uppercase text-slate-500">Expires</span>
+                    <input type="date" value={recordForm.expiresOn} onChange={(event) => setRecordForm((current) => ({ ...current, expiresOn: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
+                  </label>
+                </div>
+                <label className="grid gap-1">
+                  <span className="text-xs font-bold uppercase text-slate-500">Provider</span>
+                  <input value={recordForm.provider} onChange={(event) => setRecordForm((current) => ({ ...current, provider: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="Training provider" />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs font-bold uppercase text-slate-500">Notes</span>
+                  <textarea value={recordForm.notes} onChange={(event) => setRecordForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-20 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="Card number, evaluator, restrictions, or document location" />
+                </label>
+                {recordMessage ? (
+                  <p className={cx("rounded-lg px-3 py-2 text-xs font-black", recordMessage.tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>{recordMessage.text}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void saveTrainingRecord()} disabled={recordsSaving} className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                    {recordsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {editingRecordId ? "Save Record" : "Add Record"}
+                  </button>
+                  {editingRecordId ? (
+                    <button type="button" onClick={() => { setEditingRecordId(null); setRecordForm(emptyTrainingRecordForm); }} className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700">
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-5 space-y-2">
+                <p className="text-xs font-bold uppercase text-slate-500">Records on file</p>
+                {recordsLoading ? <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-500">Loading training records...</p> : null}
+                {!recordsLoading && records.length === 0 ? <p className="rounded-lg border border-dashed border-slate-200 bg-white p-3 text-sm font-semibold text-slate-500">No training records yet.</p> : null}
+                {records.map((record) => (
+                  <article key={record.id} className={cx("rounded-lg border bg-white p-3", editingRecordId === record.id ? "border-blue-300 ring-4 ring-blue-50" : "border-slate-200")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-950">{record.title}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          Completed {trainingRecordDateLabel(record.completed_on)} / Expires {trainingRecordDateLabel(record.expires_on)}
+                        </p>
+                        {record.provider ? <p className="mt-1 text-xs font-semibold text-slate-600">{record.provider}</p> : null}
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button type="button" aria-label={`Edit ${record.title}`} onClick={() => { setEditingRecordId(record.id); setRecordForm(formFromTrainingRecord(record)); setRecordMessage(null); }} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-blue-700 transition hover:bg-blue-50">
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button type="button" aria-label={`Delete ${record.title}`} onClick={() => void deleteTrainingRecord(record.id)} disabled={recordsSaving} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-300">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
           {jobsite ? <section className="rounded-lg border border-blue-100 bg-blue-50 p-4"><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><MapPin className="h-4 w-4 text-blue-600" />Assignment</h3><p className="mt-2 text-sm font-black text-slate-900">{jobsite.name}</p><p className="mt-1 text-sm text-slate-600">{jobsite.address}, {jobsite.cityState}</p><div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs font-bold uppercase text-slate-500">Site risk</p><p className="font-black text-slate-900">{jobsite.riskScore}</p></div><div><p className="text-xs font-bold uppercase text-slate-500">Open actions</p><p className="font-black text-slate-900">{jobsite.openActions}</p></div></div></section> : null}
         </div>
-        <div className="flex flex-wrap gap-3 border-t border-slate-200 p-5"><Link href="/safe-predict/training" className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white">Training records <ArrowRight className="h-4 w-4" /></Link><Link href="/safe-predict/team-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Team access <ArrowRight className="h-4 w-4" /></Link></div>
+        <div className="flex flex-wrap gap-3 border-t border-slate-200 p-5"><Link href="/safe-predict/training" className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white">Training matrix <ArrowRight className="h-4 w-4" /></Link><Link href="/safe-predict/team-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Team access <ArrowRight className="h-4 w-4" /></Link></div>
       </aside>
     </div>
   );

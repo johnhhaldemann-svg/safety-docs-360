@@ -930,7 +930,7 @@ export function JobsiteSiteVisualClient({
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { error?: string; render?: SiteVisualRender; scene?: VisualScene | null; zones?: VisualZone[] }
+        | { error?: string; warning?: string | null; render?: SiteVisualRender; scene?: VisualScene | null; zones?: VisualZone[] }
         | null;
       if (!response.ok || !data?.render) throw new Error(data?.error || "Failed to generate detailed visual.");
       setPayload((current) => ({
@@ -940,8 +940,8 @@ export function JobsiteSiteVisualClient({
         render: data.render,
       }));
       setVisualSurfaceMode("detailed");
-      setMessage("Detailed isometric visual generated. Click a numbered activity to inspect task impact.");
-      setMessageTone("success");
+      setMessage(data.warning ?? "Detailed isometric visual generated. Click a numbered activity to inspect task impact.");
+      setMessageTone(data.warning ? "warning" : "success");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to generate detailed visual.");
       setMessageTone("error");
