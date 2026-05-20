@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
 import {
   Card,
@@ -175,25 +175,35 @@ function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord
 
 type JobsiteMapPoint = {
   jobsite: SafePredictJobsiteRecord;
-  x: number;
-  y: number;
   coordinateBacked: boolean;
+  source: "coordinates" | "zip" | "city" | "layout";
+  latitude?: number;
+  longitude?: number;
 };
 
-const offlineMapPositions = [
-  { x: 15, y: 21 },
-  { x: 38, y: 21 },
-  { x: 62, y: 21 },
-  { x: 85, y: 21 },
-  { x: 15, y: 50 },
-  { x: 38, y: 50 },
-  { x: 62, y: 50 },
-  { x: 85, y: 50 },
-  { x: 15, y: 79 },
-  { x: 38, y: 79 },
-  { x: 62, y: 79 },
-  { x: 85, y: 79 },
-] as const;
+type ZipCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+type RealMapTile = {
+  key: string;
+  url: string;
+  left: number;
+  top: number;
+};
+
+type RealMapViewport = {
+  width: number;
+  height: number;
+  zoom: number;
+  tiles: RealMapTile[];
+  project: (point: JobsiteMapPoint) => { left: number; top: number };
+};
+
+const TILE_SIZE = 256;
+const REAL_MAP_WIDTH = 820;
+const REAL_MAP_HEIGHT = 500;
 
 function riskPinClasses(level: SafePredictJobsiteRecord["riskLevel"]) {
   if (level === "critical") return "border-red-200 bg-red-600 text-white shadow-red-200";
@@ -215,54 +225,217 @@ function hasValidCoordinates(jobsite: SafePredictJobsiteRecord) {
   );
 }
 
-function offlineMapPoint(index: number, count: number) {
-  const preset = offlineMapPositions[index];
-  if (preset) return preset;
+function normalizeZipCode(value?: string | null) {
+  const match = String(value ?? "").match(/\b\d{5}\b/);
+  return match?.[0] ?? "";
+}
 
-  const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
-  const rows = Math.max(1, Math.ceil(count / columns));
-  const column = index % columns;
-  const row = Math.floor(index / columns);
+function normalizeCityStateLookupKey(value?: string | null) {
+  const match = String(value ?? "").match(/^\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*$/);
+  if (!match) return "";
+  return `${match[2].toLowerCase()}|${match[1].trim().toLowerCase().replace(/\s+/g, "-")}`;
+}
+
+async function resolveZipCoordinate(zipCode: string, signal: AbortSignal): Promise<ZipCoordinate | null> {
+  const response = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zipCode)}`, { signal });
+  if (!response.ok) return null;
+  const payload = (await response.json().catch(() => null)) as
+    | { places?: Array<{ latitude?: string; longitude?: string }> }
+    | null;
+  const place = payload?.places?.[0];
+  const latitude = Number(place?.latitude);
+  const longitude = Number(place?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+}
+
+async function resolveCityStateCoordinate(cityStateKey: string, signal: AbortSignal): Promise<ZipCoordinate | null> {
+  const [state, city] = cityStateKey.split("|");
+  if (!state || !city) return null;
+  const response = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(state)}/${encodeURIComponent(city)}`, { signal });
+  if (!response.ok) return null;
+  const payload = (await response.json().catch(() => null)) as
+    | { places?: Array<{ latitude?: string; longitude?: string }> }
+    | null;
+  const places = payload?.places ?? [];
+  if (places.length === 0) return null;
+  const averaged = places.reduce(
+    (total, place) => {
+      const latitude = Number(place.latitude);
+      const longitude = Number(place.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return total;
+      return {
+        latitude: total.latitude + latitude,
+        longitude: total.longitude + longitude,
+        count: total.count + 1,
+      };
+    },
+    { latitude: 0, longitude: 0, count: 0 }
+  );
+  if (averaged.count === 0) return null;
   return {
-    x: columns === 1 ? 50 : 14 + column * (72 / (columns - 1)),
-    y: rows === 1 ? 50 : 18 + row * (64 / (rows - 1)),
+    latitude: averaged.latitude / averaged.count,
+    longitude: averaged.longitude / averaged.count,
   };
 }
 
-function buildJobsiteMapPoints(jobsites: SafePredictJobsiteRecord[]): JobsiteMapPoint[] {
+function coordinateForJobsite(
+  jobsite: SafePredictJobsiteRecord,
+  zipCoordinates: Record<string, ZipCoordinate | null>,
+  cityCoordinates: Record<string, ZipCoordinate | null>
+) {
+  if (hasValidCoordinates(jobsite)) {
+    return {
+      latitude: jobsite.weatherLatitude as number,
+      longitude: jobsite.weatherLongitude as number,
+      source: "coordinates" as const,
+    };
+  }
+
+  const zipCode = normalizeZipCode(jobsite.zipCode);
+  const zipCoordinate = zipCode ? zipCoordinates[zipCode] : null;
+  if (zipCoordinate) {
+    return {
+      ...zipCoordinate,
+      source: "zip" as const,
+    };
+  }
+
+  const cityStateKey = normalizeCityStateLookupKey(jobsite.cityState);
+  const cityCoordinate = cityStateKey ? cityCoordinates[cityStateKey] : null;
+  if (cityCoordinate) {
+    return {
+      ...cityCoordinate,
+      source: "city" as const,
+    };
+  }
+
+  return null;
+}
+
+function buildJobsiteMapPoints(
+  jobsites: SafePredictJobsiteRecord[],
+  zipCoordinates: Record<string, ZipCoordinate | null>,
+  cityCoordinates: Record<string, ZipCoordinate | null>
+): JobsiteMapPoint[] {
   if (jobsites.length === 0) return [];
 
-  const canUseCoordinates = jobsites.every(hasValidCoordinates);
-  if (!canUseCoordinates) {
-    return jobsites.map((jobsite, index) => ({
+  const coordinatesById = new Map(
+    jobsites
+      .map((jobsite) => [jobsite.id, coordinateForJobsite(jobsite, zipCoordinates, cityCoordinates)] as const)
+      .filter((entry): entry is readonly [string, NonNullable<ReturnType<typeof coordinateForJobsite>>] => Boolean(entry[1]))
+  );
+
+  if (coordinatesById.size === 0) {
+    return jobsites.map((jobsite) => ({
       jobsite,
-      ...offlineMapPoint(index, jobsites.length),
       coordinateBacked: false,
+      source: "layout",
     }));
   }
 
-  const latitudes = jobsites.map((jobsite) => jobsite.weatherLatitude as number);
-  const longitudes = jobsites.map((jobsite) => jobsite.weatherLongitude as number);
-  const minLatitude = Math.min(...latitudes);
-  const maxLatitude = Math.max(...latitudes);
-  const minLongitude = Math.min(...longitudes);
-  const maxLongitude = Math.max(...longitudes);
-  const latitudeRange = maxLatitude - minLatitude;
-  const longitudeRange = maxLongitude - minLongitude;
-
-  return jobsites.map((jobsite, index) => {
-    if (latitudeRange === 0 && longitudeRange === 0) {
+  return jobsites.map((jobsite) => {
+    const coordinate = coordinatesById.get(jobsite.id);
+    if (!coordinate) {
       return {
         jobsite,
-        ...offlineMapPoint(index, jobsites.length),
-        coordinateBacked: true,
+        coordinateBacked: false,
+        source: "layout",
       };
     }
 
-    const x = longitudeRange === 0 ? 50 : 12 + (((jobsite.weatherLongitude as number) - minLongitude) / longitudeRange) * 76;
-    const y = latitudeRange === 0 ? 50 : 84 - (((jobsite.weatherLatitude as number) - minLatitude) / latitudeRange) * 68;
-    return { jobsite, x, y, coordinateBacked: true };
+    return {
+      jobsite,
+      coordinateBacked: true,
+      source: coordinate.source,
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+    };
   });
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function longitudeToTileX(longitude: number, zoom: number) {
+  return ((longitude + 180) / 360) * 2 ** zoom;
+}
+
+function latitudeToTileY(latitude: number, zoom: number) {
+  const latitudeRadians = (clampNumber(latitude, -85.05112878, 85.05112878) * Math.PI) / 180;
+  return (
+    (1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) /
+    2
+  ) * 2 ** zoom;
+}
+
+function chooseMapZoom(points: JobsiteMapPoint[]) {
+  const latitudes = points.map((point) => point.latitude as number);
+  const longitudes = points.map((point) => point.longitude as number);
+  const latitudeSpan = Math.max(...latitudes) - Math.min(...latitudes);
+  const longitudeSpan = Math.max(...longitudes) - Math.min(...longitudes);
+  const span = Math.max(latitudeSpan, longitudeSpan);
+
+  if (span > 18) return 5;
+  if (span > 8) return 6;
+  if (span > 3) return 7;
+  if (span > 1.2) return 8;
+  if (span > 0.45) return 9;
+  if (span > 0.18) return 10;
+  return 11;
+}
+
+function buildRealMapViewport(points: JobsiteMapPoint[]): RealMapViewport | null {
+  const locatedPoints = points.filter(
+    (point) =>
+      point.coordinateBacked &&
+      typeof point.latitude === "number" &&
+      Number.isFinite(point.latitude) &&
+      typeof point.longitude === "number" &&
+      Number.isFinite(point.longitude)
+  );
+
+  if (locatedPoints.length === 0) return null;
+
+  const latitudes = locatedPoints.map((point) => point.latitude as number);
+  const longitudes = locatedPoints.map((point) => point.longitude as number);
+  const centerLatitude = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
+  const centerLongitude = (Math.min(...longitudes) + Math.max(...longitudes)) / 2;
+  const zoom = chooseMapZoom(locatedPoints);
+  const tileCount = 2 ** zoom;
+  const centerPixelX = longitudeToTileX(centerLongitude, zoom) * TILE_SIZE;
+  const centerPixelY = latitudeToTileY(centerLatitude, zoom) * TILE_SIZE;
+  const originX = centerPixelX - REAL_MAP_WIDTH / 2;
+  const originY = centerPixelY - REAL_MAP_HEIGHT / 2;
+  const startTileX = Math.floor(originX / TILE_SIZE);
+  const endTileX = Math.floor((originX + REAL_MAP_WIDTH) / TILE_SIZE);
+  const startTileY = Math.max(0, Math.floor(originY / TILE_SIZE));
+  const endTileY = Math.min(tileCount - 1, Math.floor((originY + REAL_MAP_HEIGHT) / TILE_SIZE));
+  const tiles: RealMapTile[] = [];
+
+  for (let tileX = startTileX; tileX <= endTileX; tileX += 1) {
+    for (let tileY = startTileY; tileY <= endTileY; tileY += 1) {
+      const wrappedTileX = ((tileX % tileCount) + tileCount) % tileCount;
+      tiles.push({
+        key: `${zoom}-${tileX}-${tileY}`,
+        url: `https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png`,
+        left: tileX * TILE_SIZE - originX,
+        top: tileY * TILE_SIZE - originY,
+      });
+    }
+  }
+
+  return {
+    width: REAL_MAP_WIDTH,
+    height: REAL_MAP_HEIGHT,
+    zoom,
+    tiles,
+    project: (point) => ({
+      left: longitudeToTileX(point.longitude as number, zoom) * TILE_SIZE - originX,
+      top: latitudeToTileY(point.latitude as number, zoom) * TILE_SIZE - originY,
+    }),
+  };
 }
 
 function highestRiskJobsite(jobsites: SafePredictJobsiteRecord[]) {
@@ -281,12 +454,106 @@ function JobsiteRiskMap({
   selectedJobsiteId: string;
   onSelectJobsite: (jobsiteId: string) => void;
 }) {
-  const mapPoints = useMemo(() => buildJobsiteMapPoints(jobsites), [jobsites]);
+  const [zipCoordinates, setZipCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
+  const [cityCoordinates, setCityCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
+  const zipCodes = useMemo(
+    () => [...new Set(jobsites.map((jobsite) => normalizeZipCode(jobsite.zipCode)).filter(Boolean))],
+    [jobsites]
+  );
+  const cityStateKeys = useMemo(
+    () =>
+      [
+        ...new Set(
+          jobsites
+            .filter((jobsite) => !normalizeZipCode(jobsite.zipCode) && !hasValidCoordinates(jobsite))
+            .map((jobsite) => normalizeCityStateLookupKey(jobsite.cityState))
+            .filter(Boolean)
+        ),
+      ],
+    [jobsites]
+  );
+
+  useEffect(() => {
+    const unresolvedZipCodes = zipCodes.filter((zipCode) => !(zipCode in zipCoordinates));
+    if (unresolvedZipCodes.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void Promise.all(
+      unresolvedZipCodes.map(async (zipCode) => {
+        try {
+          const coordinate = await resolveZipCoordinate(zipCode, controller.signal);
+          return [zipCode, coordinate] as const;
+        } catch {
+          return [zipCode, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setZipCoordinates((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [zipCodes, zipCoordinates]);
+
+  useEffect(() => {
+    const unresolvedCityKeys = cityStateKeys.filter((cityStateKey) => !(cityStateKey in cityCoordinates));
+    if (unresolvedCityKeys.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void Promise.all(
+      unresolvedCityKeys.map(async (cityStateKey) => {
+        try {
+          const coordinate = await resolveCityStateCoordinate(cityStateKey, controller.signal);
+          return [cityStateKey, coordinate] as const;
+        } catch {
+          return [cityStateKey, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setCityCoordinates((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [cityCoordinates, cityStateKeys]);
+
+  const mapPoints = useMemo(() => buildJobsiteMapPoints(jobsites, zipCoordinates, cityCoordinates), [cityCoordinates, jobsites, zipCoordinates]);
   const selectedJobsite =
     jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ??
     (selectedJobsiteId === "all" ? highestRiskJobsite(jobsites) : null) ??
     jobsites[0];
-  const coordinateBacked = mapPoints.length > 0 && mapPoints.every((point) => point.coordinateBacked);
+  const locatedMapPoints = mapPoints.filter((point) => point.coordinateBacked);
+  const unlocatedMapPoints = mapPoints.filter((point) => !point.coordinateBacked);
+  const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints), [mapPoints]);
+  const coordinateBacked = mapPoints.length > 0 && unlocatedMapPoints.length === 0;
+  const zipBackedCount = mapPoints.filter((point) => point.source === "zip").length;
+  const cityBackedCount = mapPoints.filter((point) => point.source === "city").length;
+  const missingLocationCount = unlocatedMapPoints.length;
+  const mapSourceLabel = coordinateBacked
+    ? zipBackedCount > 0
+      ? "OpenStreetMap + ZIP"
+      : cityBackedCount > 0
+        ? "OpenStreetMap + city/state"
+        : "OpenStreetMap + saved coordinates"
+    : missingLocationCount < mapPoints.length
+      ? "OpenStreetMap + partial locations"
+      : "Add ZIP or coordinates";
 
   return (
     <Card id="jobsite-source-cards" className="mt-5 scroll-mt-24 p-5">
@@ -306,21 +573,29 @@ function JobsiteRiskMap({
       ) : (
         <div className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
-            <div className="relative min-h-[480px] min-w-[760px] overflow-hidden">
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(0deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:56px_56px]" />
-              <svg className="absolute inset-0 h-full w-full text-slate-300" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M4 72 C16 61 23 64 34 55 C45 46 51 30 66 28 C78 26 83 36 96 28" fill="none" stroke="currentColor" strokeWidth="0.55" strokeDasharray="2 2" />
-                <path d="M8 20 C22 26 30 18 42 26 C56 36 57 48 74 52 C83 54 89 62 94 78" fill="none" stroke="currentColor" strokeWidth="0.48" />
-                <path d="M12 88 L29 68 L45 73 L60 55 L83 58 L94 42" fill="none" stroke="currentColor" strokeWidth="0.42" strokeDasharray="1.5 1.5" />
-                <circle cx="18" cy="24" r="10" fill="currentColor" opacity="0.08" />
-                <circle cx="77" cy="72" r="14" fill="currentColor" opacity="0.08" />
-                <circle cx="55" cy="43" r="18" fill="currentColor" opacity="0.05" />
+            <div className="relative min-h-[480px] min-w-[760px] overflow-hidden bg-[#e9eef3]">
+              <div className="absolute inset-0 opacity-90 bg-[linear-gradient(90deg,rgba(255,255,255,0.72)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.72)_1px,transparent_1px)] bg-[size:58px_58px]" />
+              <div className="absolute inset-x-0 top-[58%] h-16 -rotate-3 bg-blue-100/70" />
+              <div className="absolute bottom-8 right-10 h-24 w-40 rounded-[50%] bg-emerald-100/70" />
+              <div className="absolute left-12 top-20 h-20 w-28 rounded-[45%] bg-emerald-100/60" />
+              <svg className="absolute inset-0 h-full w-full text-white drop-shadow-sm" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M-4 30 C12 24 20 28 35 24 C54 18 63 18 104 10" fill="none" stroke="currentColor" strokeWidth="3.2" />
+                <path d="M-4 72 C12 61 23 64 34 55 C45 46 51 30 66 28 C78 26 83 36 104 28" fill="none" stroke="currentColor" strokeWidth="3.6" />
+                <path d="M8 8 C18 22 28 35 37 52 C48 73 58 83 72 100" fill="none" stroke="currentColor" strokeWidth="2.2" />
+                <path d="M-2 90 L29 68 L45 73 L60 55 L83 58 L104 42" fill="none" stroke="currentColor" strokeWidth="2.6" />
+                <path d="M5 48 H95" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M18 4 V96" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.78" />
+                <path d="M78 8 V93" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.78" />
               </svg>
               <div className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
-                {coordinateBacked ? "Weather coordinates" : "Offline layout"}
+                {mapSourceLabel}
+              </div>
+              <div className="absolute bottom-4 left-4 max-w-[320px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
+                Pins use saved coordinates first, then ZIP lookup, then city/state. {missingLocationCount > 0 ? `${missingLocationCount} jobsite${missingLocationCount === 1 ? "" : "s"} need a ZIP code or saved coordinates.` : "All visible jobsites have map locations."}
               </div>
               {mapPoints.map((point) => {
                 const isSelected = selectedJobsite?.id === point.jobsite.id;
+                const zipCode = normalizeZipCode(point.jobsite.zipCode);
                 return (
                   <button
                     key={point.jobsite.id}
@@ -341,7 +616,9 @@ function JobsiteRiskMap({
                       <span className="min-w-0">
                         <span className="block truncate text-xs font-black text-slate-950">{point.jobsite.name}</span>
                         <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
-                        <span className="mt-1 inline-flex text-[10px] font-black text-slate-700">Risk {riskLabel(point.jobsite.riskLevel)}</span>
+                        <span className="mt-1 inline-flex text-[10px] font-black text-slate-700">
+                          {zipCode ? `ZIP ${zipCode}` : `Risk ${riskLabel(point.jobsite.riskLevel)}`}
+                        </span>
                       </span>
                     </span>
                   </button>
@@ -376,6 +653,10 @@ function JobsiteRiskMap({
                   </div>
                 </div>
                 <dl className="mt-4 grid gap-2 text-sm">
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
+                    <dt className="font-bold text-slate-500">ZIP code</dt>
+                    <dd className="text-right font-semibold text-slate-800">{normalizeZipCode(selectedJobsite.zipCode) || "Not set"}</dd>
+                  </div>
                   <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
                     <dt className="font-bold text-slate-500">Location</dt>
                     <dd className="text-right font-semibold text-slate-800">{selectedJobsite.cityState}</dd>

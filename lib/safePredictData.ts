@@ -48,6 +48,7 @@ export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   inspectionGaps: number;
   incidentCount: number;
   observationCount: number;
+  zipCode?: string | null;
   weatherLatitude?: number | null;
   weatherLongitude?: number | null;
 };
@@ -199,6 +200,8 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   startDate?: string | null;
   end_date?: string | null;
   endDate?: string | null;
+  zip_code?: string | null;
+  zipCode?: string | null;
   weather_latitude?: number | string | null;
   weatherLatitude?: number | string | null;
   weather_longitude?: number | string | null;
@@ -488,14 +491,14 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
     .filter((row) => typeof row.id === "string" && typeof row.name === "string" && row.name.trim())
     .map((row): SafePredictJobsiteRecord => {
       const rawStatus = String(row.status ?? "active");
-        const status = normalizeStatus(rawStatus);
-        const location = String(row.location ?? "").trim();
-        const jobsiteNumber = String(row.jobsite_number ?? row.jobsiteNumber ?? "").trim();
-        const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
-        return {
-          id: String(row.id),
-          code: jobsiteNumber || projectNumber || "Not set",
-          name: String(row.name),
+      const status = normalizeStatus(rawStatus);
+      const location = String(row.location ?? "").trim();
+      const jobsiteNumber = String(row.jobsite_number ?? row.jobsiteNumber ?? "").trim();
+      const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
+      return {
+        id: String(row.id),
+        code: jobsiteNumber || projectNumber || "Not set",
+        name: String(row.name),
         address: location || "Not set",
         cityState: location || "Not set",
         projectType: "Construction",
@@ -512,13 +515,14 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
         startDate: String(row.start_date ?? row.startDate ?? ""),
         endDate: String(row.end_date ?? row.endDate ?? ""),
         status,
-          inspectionGaps: 0,
-          incidentCount: 0,
-          observationCount: 0,
-          weatherLatitude: coordinateValue(row.weather_latitude ?? row.weatherLatitude),
-          weatherLongitude: coordinateValue(row.weather_longitude ?? row.weatherLongitude),
-        };
-      });
+        zipCode: String(row.zip_code ?? row.zipCode ?? "").trim() || null,
+        inspectionGaps: 0,
+        incidentCount: 0,
+        observationCount: 0,
+        weatherLatitude: coordinateValue(row.weather_latitude ?? row.weatherLatitude),
+        weatherLongitude: coordinateValue(row.weather_longitude ?? row.weatherLongitude),
+      };
+    });
 }
 
 export function normalizeLiveActions(
