@@ -13,6 +13,11 @@ type JobsiteUpdatePayload = {
   projectManager?: string;
   safetyLead?: string;
   zipCode?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
   auditCustomerId?: string | null;
   customerCompanyName?: string;
   customerReportEmail?: string;
@@ -86,9 +91,9 @@ export async function PATCH(
     );
   }
 
-  if (!isAdminRole(auth.role) && auth.role !== "company_admin" && auth.role !== "manager") {
+  if (!isAdminRole(auth.role) && auth.role !== "company_admin" && auth.role !== "manager" && auth.role !== "safety_manager") {
     return NextResponse.json(
-      { error: "Only company admins and operations managers can manage jobsites." },
+      { error: "Only company admins, safety managers, and operations managers can manage jobsites." },
       { status: 403 }
     );
   }
@@ -249,6 +254,21 @@ export async function PATCH(
       ? { safety_lead: body.safetyLead.trim() || null }
       : {}),
     ...(typeof zipCode !== "undefined" ? { zip_code: zipCode } : {}),
+    ...(typeof body?.addressLine1 === "string"
+      ? { weather_address_line_1: body.addressLine1.trim() || null }
+      : {}),
+    ...(typeof body?.addressLine2 === "string"
+      ? { weather_address_line_2: body.addressLine2.trim() || null }
+      : {}),
+    ...(typeof body?.city === "string"
+      ? { weather_city: body.city.trim() || null }
+      : {}),
+    ...(typeof body?.state === "string"
+      ? { weather_state: body.state.trim().toUpperCase() || null }
+      : {}),
+    ...(typeof body?.country === "string"
+      ? { weather_country: body.country.trim().toUpperCase() || null }
+      : {}),
     ...(typeof auditCustomerId !== "undefined" ? { audit_customer_id: auditCustomerId || null } : {}),
     ...(typeof body?.customerCompanyName === "string"
       ? { customer_company_name: body.customerCompanyName.trim() || null }

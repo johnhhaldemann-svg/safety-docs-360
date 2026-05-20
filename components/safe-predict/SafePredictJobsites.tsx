@@ -17,6 +17,7 @@ import {
   Download,
   Pencil,
   FilterX,
+  Layers3,
   MapPin,
   Plus,
   Search,
@@ -85,6 +86,7 @@ import {
   type SafePredictScheduleApiItem,
   type SafePredictScheduleEvent,
 } from "@/lib/safePredictScheduleCalendar";
+import { JobsiteSiteVisualClient } from "@/app/(app)/jobsites/[jobsiteId]/site-visual/site-visual-client";
 
 const statusOptions: Array<{ label: string; value: SafePredictJobsiteStatus | "all" }> = [
   { label: "All Statuses", value: "all" },
@@ -96,6 +98,7 @@ const statusOptions: Array<{ label: string; value: SafePredictJobsiteStatus | "a
 
 const detailTabs = [
   "Overview",
+  "Site Visual",
   "Predictive Risk",
   "Corrective Actions",
   "Workforce",
@@ -2175,6 +2178,34 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       {activeTab === "Overview" ? (
         <div className="space-y-5">
           <JobsiteWeatherOverviewCard site={site} weather={displayedWeatherOverview} />
+          <Card className="overflow-hidden border-blue-100 bg-blue-50/40 p-0">
+            <div className="flex flex-col gap-4 border-b border-blue-100 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-blue-700">
+                  <Layers3 className="h-4 w-4" />
+                  AI 3D Site Visual
+                </div>
+                <h2 className="mt-1 text-xl font-black text-slate-950">View work areas, task zones, and overlap impact</h2>
+                <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+                  This rendering lives on the jobsite overview. Click a zone in the map to see the task, controls, timing, and affected nearby work.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("Site Visual");
+                  setSelectedJobsiteId(site.id);
+                }}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Open full visual
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <JobsiteSiteVisualClient jobsiteId={site.id} embedded />
+            </div>
+          </Card>
           <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
             <Card className="p-5">
             <SectionTitle title="Today On This Site" hint="A daily shift board that turns jobsite records into decisions before work starts." />
@@ -2280,6 +2311,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {activeTab === "Site Visual" ? (
+        <JobsiteSiteVisualClient jobsiteId={site.id} />
       ) : null}
 
       {activeTab === "Predictive Risk" ? (

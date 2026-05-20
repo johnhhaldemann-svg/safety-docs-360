@@ -7,6 +7,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  ChevronDown,
   Clock,
   Download,
   FileText,
@@ -14,7 +15,9 @@ import {
   Loader2,
   MapPin,
   RefreshCw,
+  Search,
   ShieldCheck,
+  SlidersHorizontal,
   TrendingUp,
   UserRound,
   Users,
@@ -66,6 +69,130 @@ type WorkflowStatus = {
   state: "idle" | "busy" | "success" | "error";
   message?: string;
 };
+
+type WorkforceTabId = "overview" | "workforce" | "training" | "permits" | "jobsites" | "forecast" | "reports";
+
+type TrainingGroup = SafePredictTradeReadiness & {
+  overdueCount: number;
+  expiringCount: number;
+  compliantCount: number;
+};
+
+type PermitCategoryGroup = {
+  category: string;
+  active: number;
+  expiringSoon: number;
+  expired: number;
+  missingSignatures: number;
+  rows: SafePredictPermitSummary[];
+};
+
+const workforceTabs: Array<{ id: WorkforceTabId; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "workforce", label: "Workforce" },
+  { id: "training", label: "Training Matrix" },
+  { id: "permits", label: "Permits" },
+  { id: "jobsites", label: "Jobsite Assignments" },
+  { id: "forecast", label: "Forecast Actions" },
+  { id: "reports", label: "Reports" },
+];
+
+function employeeStatusRank(status: SafePredictDemoEmployeeStatus) {
+  if (status === "overdue") return 0;
+  if (status === "expiring") return 1;
+  return 2;
+}
+
+function permitStatusRank(row: Pick<SafePredictPermitSummary, "expiringSoon" | "expired">) {
+  if (row.expired > 0) return 0;
+  if (row.expiringSoon > 0) return 1;
+  return 2;
+}
+
+function formatDueDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not scheduled";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function trainingGroupsFromTrades(trades: SafePredictTradeReadiness[]): TrainingGroup[] {
+  return trades
+    .map((trade) => {
+      const statuses = [trade.fallProtection, trade.confinedSpace, trade.loto, trade.hazcom, trade.firstAid];
+      return {
+        ...trade,
+        overdueCount: statuses.filter((status) => status === "overdue").length,
+        expiringCount: statuses.filter((status) => status === "expiring").length,
+        compliantCount: statuses.filter((status) => status === "compliant").length,
+      };
+    })
+    .sort((a, b) => b.overdueCount - a.overdueCount || b.expiringCount - a.expiringCount || a.trade.localeCompare(b.trade));
+}
+
+function permitCategoryForType(type: string) {
+  const value = type.toLowerCase();
+  if (value.includes("hot") || value.includes("fire") || value.includes("burn")) return "Hot Work / Fire";
+  if (value.includes("electrical") || value.includes("loto") || value.includes("lockout") || value.includes("energy")) return "Energy Control";
+  if (value.includes("scaffold") || value.includes("elevated") || value.includes("fall") || value.includes("ladder")) return "Work at Height";
+  if (value.includes("excavat") || value.includes("trench") || value.includes("confined")) return "Excavation / Confined Space";
+  if (value.includes("crane") || value.includes("lift") || value.includes("rigging")) return "Lifting Operations";
+  return "General High Risk";
+}
+
+function permitCategoryGroups(permitRows: SafePredictPermitSummary[], permitRecords: SafePredictPermitRecord[]): PermitCategoryGroup[] {
+  const missingByType = new Map<string, number>();
+  for (const permit of permitRecords) {
+    if (permit.readiness !== "Ready") {
+      missingByType.set(permit.type, (missingByType.get(permit.type) ?? 0) + 1);
+    }
+  }
+
+  const groups = new Map<string, PermitCategoryGroup>();
+  for (const row of permitRows) {
+    const category = permitCategoryForType(row.type);
+    const current = groups.get(category) ?? {
+      category,
+      active: 0,
+      expiringSoon: 0,
+      expired: 0,
+      missingSignatures: 0,
+      rows: [],
+    };
+    current.active += row.active;
+    current.expiringSoon += row.expiringSoon;
+    current.expired += row.expired;
+    current.missingSignatures += missingByType.get(row.type) ?? 0;
+    current.rows.push(row);
+    groups.set(category, current);
+  }
+
+  return Array.from(groups.values()).sort(
+    (a, b) =>
+      b.expired - a.expired ||
+      b.expiringSoon - a.expiringSoon ||
+      b.missingSignatures - a.missingSignatures ||
+      a.category.localeCompare(b.category)
+  );
+}
+
+function jobsiteForecastLevel(jobsite: SafePredictJobsiteRecord) {
+  if (jobsite.riskLevel === "critical" || jobsite.riskLevel === "high") return "Elevated";
+  if (jobsite.riskLevel === "medium" || jobsite.openActions > 0) return "Watch";
+  return "Stable";
+}
+
+function jobsiteReadinessScore(jobsite: SafePredictJobsiteRecord, employees: SafePredictDemoEmployee[]) {
+  const assigned = employees.filter((employee) => employee.assignedSiteId === jobsite.id);
+  return assigned.length > 0 ? readinessScoreForEmployees(assigned) : 0;
+}
+
+function workflowStatusText(item: WorkforceWorkflowItem, statuses: Record<string, WorkflowStatus>) {
+  const status = statuses[item.id];
+  if (status?.state === "success") return "Created";
+  if (status?.state === "busy") return "Creating";
+  if (status?.state === "error") return "Needs Site";
+  return item.canCreate ? "Recommended" : "Needs Assignment";
+}
 
 function workforceTotalsFromEmployees(employees: SafePredictDemoEmployee[]) {
   const workers = employees.length;
@@ -287,14 +414,18 @@ function buildWorkflowItems(params: {
 
 export function SafePredictWorkforceDashboard() {
   const { dataset, loading, mode, createCorrectiveAction, refreshLiveData } = useSafePredictData();
+  const [activeTab, setActiveTab] = useState<WorkforceTabId>("overview");
   const [statusFilter, setStatusFilter] = useState<"all" | SafePredictDemoEmployeeStatus>("all");
   const [siteFilter, setSiteFilter] = useState("all");
+  const [query, setQuery] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [workflowStatuses, setWorkflowStatuses] = useState<Record<string, WorkflowStatus>>({});
   const employees = dataset.employees;
   const jobsites = dataset.jobsites;
   const trades = dataset.tradeReadiness.length > 0 ? dataset.tradeReadiness : tradeReadinessFromEmployees(employees);
   const permitRows = dataset.permitSummaries.length > 0 ? dataset.permitSummaries : permitSummariesFromPermits(dataset.permits);
+  const trainingGroups = useMemo(() => trainingGroupsFromTrades(trades), [trades]);
+  const permitGroups = useMemo(() => permitCategoryGroups(permitRows, dataset.permits), [dataset.permits, permitRows]);
   const workforce = workforceTotalsFromEmployees(employees);
   const permits = permitTotals(permitRows);
   const readinessScore = readinessScoreForEmployees(employees);
@@ -328,15 +459,25 @@ export function SafePredictWorkforceDashboard() {
   const activeFilterText = [
     statusFilter !== "all" ? statusLabels[statusFilter] : "All statuses",
     siteFilter !== "all" ? jobsiteForId(jobsites, siteFilter)?.name ?? "Selected site" : "All jobsites",
+    query.trim() ? `"${query.trim()}"` : "No search",
   ].join(" / ");
   const visibleEmployees = useMemo(
     () =>
-      employees.filter(
-        (employee) =>
-          (statusFilter === "all" || employee.status === statusFilter) &&
-          (siteFilter === "all" || employee.assignedSiteId === siteFilter)
-      ),
-    [employees, siteFilter, statusFilter]
+      employees
+        .filter((employee) => {
+          const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
+          const searchable = [employee.name, employee.id, employee.trade, employee.role, employee.supervisor, jobsite?.name, employee.shift]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return (
+            (statusFilter === "all" || employee.status === statusFilter) &&
+            (siteFilter === "all" || employee.assignedSiteId === siteFilter) &&
+            (!query.trim() || searchable.includes(query.trim().toLowerCase()))
+          );
+        })
+        .sort((a, b) => employeeStatusRank(a.status) - employeeStatusRank(b.status) || a.readinessScore - b.readinessScore || a.name.localeCompare(b.name)),
+    [employees, jobsites, query, siteFilter, statusFilter]
   );
   const workflowItems = useMemo(
     () => buildWorkflowItems({ employees, permits: dataset.permits, permitRows, jobsites }),
@@ -358,23 +499,25 @@ export function SafePredictWorkforceDashboard() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [selectedEmployee]);
 
-  function focusRoster() {
-    document.getElementById("employee-roster")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function filterByStatus(status: "all" | SafePredictDemoEmployeeStatus) {
     setStatusFilter(status);
-    focusRoster();
+    setActiveTab(status === "all" ? "overview" : "workforce");
   }
 
   function filterBySite(siteId: string) {
     setSiteFilter(siteId);
-    focusRoster();
+    setActiveTab("jobsites");
   }
 
   function clearRosterFilters() {
     setStatusFilter("all");
     setSiteFilter("all");
+    setQuery("");
+  }
+
+  function activateKpi(tab: WorkforceTabId, status?: SafePredictDemoEmployeeStatus | "all") {
+    setActiveTab(tab);
+    if (status) setStatusFilter(status);
   }
 
   async function createWorkflowAction(item: WorkforceWorkflowItem) {
@@ -468,7 +611,7 @@ export function SafePredictWorkforceDashboard() {
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
         <div className="grid gap-0 xl:grid-cols-[250px_minmax(0,1fr)_320px]">
-          <button type="button" onClick={() => filterByStatus("all")} className="border-b border-slate-200 p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 xl:border-b-0 xl:border-r">
+          <button type="button" onClick={() => activateKpi("overview", "all")} className="border-b border-slate-200 p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 xl:border-b-0 xl:border-r">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500">Overall Readiness</p>
             <div className="mt-4 flex items-center gap-4">
               <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-2" style={{ background: `conic-gradient(#16a34a 0 ${readinessScore}%, #dcfce7 ${readinessScore}% 100%)` }}>
@@ -488,65 +631,146 @@ export function SafePredictWorkforceDashboard() {
             </div>
           </button>
           <div className="grid divide-y divide-slate-200 md:grid-cols-3 md:divide-x md:divide-y-0">
-            <StatusSummaryButton title="Compliant" value={`${workforce.compliantPercent}%`} detail={`${workforce.compliant} worker${workforce.compliant === 1 ? "" : "s"}`} tone="green" active={statusFilter === "compliant"} onClick={() => filterByStatus("compliant")} />
-            <StatusSummaryButton title="Expiring Soon" value={`${workforce.expiringSoonPercent}%`} detail={`${workforce.expiringSoon} worker${workforce.expiringSoon === 1 ? "" : "s"}`} tone="amber" active={statusFilter === "expiring"} onClick={() => filterByStatus("expiring")} />
-            <StatusSummaryButton title="Overdue" value={`${workforce.overduePercent}%`} detail={`${workforce.overdue} worker${workforce.overdue === 1 ? "" : "s"}`} tone="red" active={statusFilter === "overdue"} onClick={() => filterByStatus("overdue")} />
+            <StatusSummaryButton title="Compliant" value={`${workforce.compliantPercent}%`} detail={`${workforce.compliant} worker${workforce.compliant === 1 ? "" : "s"}`} tone="green" active={statusFilter === "compliant" && activeTab === "workforce"} onClick={() => activateKpi("workforce", "compliant")} />
+            <StatusSummaryButton title="Expiring Soon" value={`${workforce.expiringSoonPercent}%`} detail={`${workforce.expiringSoon} worker${workforce.expiringSoon === 1 ? "" : "s"}`} tone="amber" active={statusFilter === "expiring" && activeTab === "workforce"} onClick={() => activateKpi("workforce", "expiring")} />
+            <StatusSummaryButton title="Overdue" value={`${workforce.overduePercent}%`} detail={`${workforce.overdue} worker${workforce.overdue === 1 ? "" : "s"}`} tone="red" active={statusFilter === "overdue" && activeTab === "workforce"} onClick={() => activateKpi("workforce", "overdue")} />
           </div>
           <div className="grid gap-0 border-t border-slate-200 md:grid-cols-2 xl:border-l xl:border-t-0">
-            <Link href="#permit-register" className="border-b border-slate-200 p-5 transition hover:bg-slate-50 md:border-b-0 md:border-r xl:border-b">
+            <button type="button" onClick={() => activateKpi("permits")} className={cx("border-b border-slate-200 p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 md:border-b-0 md:border-r xl:border-b", activeTab === "permits" ? "bg-blue-50/70" : undefined)}>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white"><FileText className="h-5 w-5" /></span>
               <p className="mt-3 text-sm font-black text-slate-900">Permit Exposure</p>
               <p className="mt-1 font-app-display text-3xl font-black text-slate-950">{permits.expiringSoon + permits.expired}</p>
               <p className="mt-1 text-xs font-semibold text-slate-600">{permits.active} active across {jobsites.length} site{jobsites.length === 1 ? "" : "s"}.</p>
-            </Link>
-            <Link href="/safe-predict/predictive-risk#forecast-drivers" className="p-5 transition hover:bg-slate-50">
+            </button>
+            <button type="button" onClick={() => activateKpi("forecast")} className={cx("p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100", activeTab === "forecast" ? "bg-blue-50/70" : undefined)}>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-purple-600 text-white"><TrendingUp className="h-5 w-5" /></span>
               <p className="mt-3 text-sm font-black text-slate-900">Forecast</p>
               <p className={cx("mt-1 font-app-display text-2xl font-black", forecastClassName)}>{forecastLabel}</p>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{forecastDetail}</p>
-            </Link>
+            </button>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3">
           <p className="text-sm font-bold text-slate-700">Active view: <span className="text-slate-950">{activeFilterText}</span></p>
-          {statusFilter !== "all" || siteFilter !== "all" ? <button type="button" onClick={clearRosterFilters} className="text-sm font-black text-blue-600">Clear filters</button> : null}
+          {statusFilter !== "all" || siteFilter !== "all" || query.trim() ? <button type="button" onClick={clearRosterFilters} className="text-sm font-black text-blue-600">Clear filters</button> : null}
         </div>
       </section>
+
+      <div className="sticky top-0 z-20 mt-5 rounded-lg border border-slate-200 bg-white/95 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="flex gap-2 overflow-x-auto border-b border-slate-200 px-3 py-3">
+          {workforceTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cx(
+                "h-10 shrink-0 rounded-lg px-3 text-sm font-black transition focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100",
+                activeTab === tab.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="grid gap-3 p-3 lg:grid-cols-[minmax(220px,1fr)_190px_190px_auto]">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search workers, trades, supervisors, jobsites"
+              className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value as "all" | SafePredictDemoEmployeeStatus);
+              if (activeTab === "overview") setActiveTab("workforce");
+            }}
+            className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          >
+            <option value="all">All statuses</option>
+            <option value="overdue">Overdue first</option>
+            <option value="expiring">Expiring soon</option>
+            <option value="compliant">Compliant</option>
+          </select>
+          <select
+            value={siteFilter}
+            onChange={(event) => setSiteFilter(event.target.value)}
+            className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          >
+            <option value="all">All jobsites</option>
+            {jobsites.map((jobsite) => (
+              <option key={jobsite.id} value={jobsite.id}>{jobsite.name}</option>
+            ))}
+          </select>
+          <button type="button" onClick={clearRosterFilters} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50">
+            <SlidersHorizontal className="h-4 w-4" />
+            Reset
+          </button>
+        </div>
+      </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <aside className="order-first xl:order-last">
           <WorkflowActionRail items={workflowItems} statuses={workflowStatuses} topCount={topCreatableItems.length} onCreate={createWorkflowAction} onCreateTop={createTopWorkflowActions} />
         </aside>
         <main className="order-last grid min-w-0 gap-5 xl:order-first">
-          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-            <RosterCard
+          {activeTab === "overview" ? (
+            <OverviewTab
+              employees={employees}
+              hasEmployees={hasEmployees}
+              highRiskActivityCount={highRiskActivityCount}
+              incidentLikelihood={incidentLikelihood}
+              jobsites={jobsites}
+              permitExposure={permits.expiringSoon + permits.expired}
+              permitRows={permitRows}
+              predictedRiskImpact={predictedRiskImpact}
+              workflowItems={workflowItems}
+              workforce={workforce}
+              onCreateAction={createWorkflowAction}
+              workflowStatuses={workflowStatuses}
+            />
+          ) : null}
+          {activeTab === "workforce" ? (
+            <WorkforceDataGrid
               activeFilterText={activeFilterText}
-              datasetCompanyName={dataset.company.name}
               employees={employees}
               isLiveEmpty={isLiveEmpty}
               jobsites={jobsites}
-              mode={mode}
               selectedEmployeeId={selectedEmployeeId}
               visibleEmployees={visibleEmployees}
               onOpenEmployee={setSelectedEmployeeId}
             />
-            <JobsiteSnapshot jobsites={jobsites} siteFilter={siteFilter} onFilter={filterBySite} />
-          </div>
-          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
-            <TrainingMatrix trades={trades} />
-            <PermitRegister permitRows={permitRows} permits={permits} />
-          </div>
-          <div className="grid gap-5 xl:grid-cols-2">
-            <ReadinessStatusCard hasEmployees={hasEmployees} workforce={workforce} />
-            <PreventionInsightsCard
-              hasEmployees={hasEmployees}
-              highRiskActivityCount={highRiskActivityCount}
-              incidentLikelihood={incidentLikelihood}
-              permitExposure={permits.expiringSoon + permits.expired}
-              predictedRiskImpact={predictedRiskImpact}
+          ) : null}
+          {activeTab === "training" ? <TrainingMatrixTab groups={trainingGroups} /> : null}
+          {activeTab === "permits" ? <PermitsTab groups={permitGroups} permits={permits} /> : null}
+          {activeTab === "jobsites" ? (
+            <JobsiteAssignmentsTab
+              employees={employees}
+              jobsites={jobsites}
+              permits={dataset.permits}
+              siteFilter={siteFilter}
+              onFilter={filterBySite}
+            />
+          ) : null}
+          {activeTab === "forecast" ? (
+            <ForecastActionsTab items={workflowItems} statuses={workflowStatuses} onCreate={createWorkflowAction} />
+          ) : null}
+          {activeTab === "reports" ? (
+            <ReportsTab
+              dataset={dataset}
+              employees={employees}
+              jobsites={jobsites}
+              permitGroups={permitGroups}
+              permits={permits}
+              trades={trainingGroups}
+              workflowItems={workflowItems}
               workforce={workforce}
             />
-          </div>
+          ) : null}
         </main>
       </div>
 

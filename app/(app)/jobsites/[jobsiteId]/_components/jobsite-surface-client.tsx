@@ -2,13 +2,15 @@
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   InlineMessage,
   SectionCard,
   StatusBadge,
+  appButtonQuietClassName,
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
+  appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { JobsiteSiteVisualClient } from "../site-visual/site-visual-client";
 
@@ -42,8 +44,32 @@ type JobsiteRow = {
   project_number?: string | null;
   location?: string | null;
   status?: string;
+  zip_code?: string | null;
+  weather_address_line_1?: string | null;
+  weather_address_line_2?: string | null;
+  weather_city?: string | null;
+  weather_state?: string | null;
+  weather_country?: string | null;
   project_manager?: string | null;
   safety_lead?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  notes?: string | null;
+};
+
+type TeamUserRow = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
+type JobsiteAssignmentRow = {
+  id?: string | null;
+  user_id?: string | null;
+  jobsite_id?: string | null;
+  role?: string | null;
 };
 
 type SurfaceRow = Record<string, unknown> & { id?: string | null };
@@ -82,6 +108,26 @@ function surfaceRows(payload: Record<string, unknown> | null, key: string) {
   return (((payload?.[key] as SurfaceRow[] | undefined) ?? []) as SurfaceRow[]).filter(Boolean);
 }
 
+function roleNeedsJobsiteAssignment(role?: string | null) {
+  const normalized = String(role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return new Set([
+    "project_manager",
+    "field_supervisor",
+    "foreman",
+    "field_user",
+    "read_only",
+    "company_user",
+  ]).has(normalized);
+}
+
+function getAuthHeaders(accessToken?: string | null): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}
+
 export function JobsiteSurfaceClient({
   jobsiteId,
   surface,
@@ -107,7 +153,7 @@ export function JobsiteSurfaceClient({
   const [errorTone, setErrorTone] = useState<"error" | "warning">("error");
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
 
-  useEffect(() => {
+  const loadSurface = useCallback(async (options?: { keepLoading?: boolean }) => {
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -149,6 +195,16 @@ export function JobsiteSurfaceClient({
     };
   }, [jobsiteId, surface]);
 
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    void loadSurface().then((nextCleanup) => {
+      cleanup = nextCleanup;
+    });
+    return () => {
+      cleanup?.();
+    };
+  }, [loadSurface]);
+
   return (
     <SectionCard title={title} description={description}>
       {loading ? <InlineMessage>Loading...</InlineMessage> : null}
@@ -158,7 +214,7 @@ export function JobsiteSurfaceClient({
           {typeof payload?.analyticsSummaryIssue === "string" && payload.analyticsSummaryIssue.trim() ? (
             <InlineMessage tone="warning">{payload.analyticsSummaryIssue}</InlineMessage>
           ) : null}
-          <OverviewWidgets payload={payload} />
+          <OverviewWidgets payload={payload} onReload={() => void loadSurface({ keepLoading: true })} />
         </div>
       ) : null}
       {!loading && !error && surface === "permits" ? (
@@ -174,7 +230,7 @@ export function JobsiteSurfaceClient({
         <IncidentsSurface payload={payload} />
       ) : null}
       {!loading && !error && surface === "team" ? (
-        <TeamSurface payload={payload} />
+        <TeamSurface payload={payload} jobsiteId={jobsiteId} onReload={() => void loadSurface({ keepLoading: true })} />
       ) : null}
       {!loading && !error && surface === "analytics" ? (
         <AnalyticsSurface payload={payload} />
@@ -186,13 +242,20 @@ export function JobsiteSurfaceClient({
   );
 }
 
-function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null }) {
+function OverviewWidgets({
+  payload,
+  onReload,
+}: {
+  payload: Record<string, unknown> | null;
+  onReload: () => void;
+}) {
   const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
   const overview = (payload?.overview as Record<string, unknown> | undefined) ?? {};
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
   const jobsiteId = String(jobsite?.id ?? "");
+  const [editing, setEditing] = useState(false);
   const cards = [
     { label: "Work Planned Today", value: Number(widgets.workPlannedToday ?? 0) },
     { label: "Active Permits", value: Number(widgets.activePermits ?? 0) },
@@ -309,6 +372,9 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => setEditing((current) => !current)} className={appButtonQuietClassName}>
+              {editing ? "Close Editor" : "Edit Jobsite Info"}
+            </button>
             <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/contractor-training`} className={appButtonPrimaryClassName}>
               Contractor Training
             </Link>
@@ -326,6 +392,17 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
           <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />
         </div>
       </div>
+
+      {editing && jobsite ? (
+        <JobsiteInfoEditor
+          jobsite={jobsite}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            onReload();
+          }}
+        />
+      ) : null}
 
       {jobsiteId ? <JobsiteSiteVisualClient jobsiteId={jobsiteId} embedded /> : null}
 
@@ -390,6 +467,173 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function JobsiteInfoEditor({
+  jobsite,
+  onCancel,
+  onSaved,
+}: {
+  jobsite: JobsiteRow;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState(() => ({
+    name: jobsite.name ?? "",
+    jobsiteNumber: jobsite.jobsite_number ?? "",
+    projectNumber: jobsite.project_number ?? "",
+    location: jobsite.location ?? "",
+    status: String(jobsite.status ?? "active").toLowerCase(),
+    projectManager: jobsite.project_manager ?? "",
+    safetyLead: jobsite.safety_lead ?? "",
+    zipCode: jobsite.zip_code ?? "",
+    addressLine1: jobsite.weather_address_line_1 ?? "",
+    addressLine2: jobsite.weather_address_line_2 ?? "",
+    city: jobsite.weather_city ?? "",
+    state: jobsite.weather_state ?? "",
+    country: jobsite.weather_country ?? "US",
+    startDate: jobsite.start_date ?? "",
+    endDate: jobsite.end_date ?? "",
+    notes: jobsite.notes ?? "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
+
+  function updateForm(key: keyof typeof form, value: string) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveJobsite() {
+    if (!jobsite.id) return;
+    if (!form.name.trim() || !form.jobsiteNumber.trim()) {
+      setMessageTone("warning");
+      setMessage("Jobsite name and jobsite number are required.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(jobsite.id)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(session?.access_token),
+        },
+        body: JSON.stringify(form),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(payload?.error || "Failed to save jobsite information.");
+        return;
+      }
+      setMessageTone("success");
+      setMessage(payload?.message || "Jobsite information saved.");
+      onSaved();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to save jobsite information.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClassName =
+    "mt-2 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3.5 py-2.5 text-sm font-medium text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20";
+  const labelClassName = "text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500";
+
+  return (
+    <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-100">Edit Jobsite Information</h3>
+          <p className="mt-1 text-sm text-slate-400">Update the address, project contacts, schedule, and site notes used across this workspace.</p>
+        </div>
+        <StatusBadge label={labelize(form.status)} tone={form.status === "archived" ? "neutral" : "success"} />
+      </div>
+      {message ? <div className="mt-4"><InlineMessage tone={messageTone}>{message}</InlineMessage></div> : null}
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <label className={labelClassName}>
+          Jobsite Name
+          <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Jobsite Number
+          <input value={form.jobsiteNumber} onChange={(event) => updateForm("jobsiteNumber", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Project Number
+          <input value={form.projectNumber} onChange={(event) => updateForm("projectNumber", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          General Location
+          <input value={form.location} onChange={(event) => updateForm("location", event.target.value)} placeholder="City, project campus, or short address" className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Project Manager
+          <input value={form.projectManager} onChange={(event) => updateForm("projectManager", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Safety Lead
+          <input value={form.safetyLead} onChange={(event) => updateForm("safetyLead", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Street Address
+          <input value={form.addressLine1} onChange={(event) => updateForm("addressLine1", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Address Line 2
+          <input value={form.addressLine2} onChange={(event) => updateForm("addressLine2", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          City
+          <input value={form.city} onChange={(event) => updateForm("city", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          State
+          <input value={form.state} onChange={(event) => updateForm("state", event.target.value.toUpperCase())} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          ZIP Code
+          <input value={form.zipCode} onChange={(event) => updateForm("zipCode", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          Status
+          <select value={form.status} onChange={(event) => updateForm("status", event.target.value)} className={`${appNativeSelectClassName} mt-2 w-full bg-slate-950/60 text-slate-100`}>
+            <option value="planned">Planned</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label className={labelClassName}>
+          Start Date
+          <input type="date" value={form.startDate} onChange={(event) => updateForm("startDate", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={labelClassName}>
+          End Date
+          <input type="date" value={form.endDate} onChange={(event) => updateForm("endDate", event.target.value)} className={inputClassName} />
+        </label>
+        <label className={`${labelClassName} md:col-span-2 xl:col-span-3`}>
+          Site Notes
+          <textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} rows={4} className={inputClassName} />
+        </label>
+      </div>
+      <div className="mt-5 flex flex-wrap justify-end gap-3">
+        <button type="button" onClick={onCancel} className={appButtonSecondaryClassName}>
+          Cancel
+        </button>
+        <button type="button" onClick={() => void saveJobsite()} disabled={saving} className={`${appButtonPrimaryClassName} ${saving ? "cursor-not-allowed opacity-60" : ""}`}>
+          {saving ? "Saving..." : "Save Jobsite"}
+        </button>
       </div>
     </div>
   );
@@ -653,34 +897,163 @@ function IncidentsSurface({ payload }: { payload: Record<string, unknown> | null
   );
 }
 
-function TeamSurface({ payload }: { payload: Record<string, unknown> | null }) {
+function TeamSurface({
+  payload,
+  jobsiteId,
+  onReload,
+}: {
+  payload: Record<string, unknown> | null;
+  jobsiteId: string;
+  onReload: () => void;
+}) {
   const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
-  const users = surfaceRows(payload, "users");
+  const users = ((payload?.users as TeamUserRow[] | undefined) ?? []).filter(Boolean);
+  const assignments = ((payload?.assignments as JobsiteAssignmentRow[] | undefined) ?? []).filter(Boolean);
+  const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
+
+  useEffect(() => {
+    const next: Record<string, string[]> = {};
+    for (const assignment of assignments) {
+      const userId = assignment.user_id ?? "";
+      const assignedJobsiteId = assignment.jobsite_id ?? "";
+      if (!userId || !assignedJobsiteId) continue;
+      next[userId] = next[userId] ? [...next[userId], assignedJobsiteId] : [assignedJobsiteId];
+    }
+    setAssignmentMap(next);
+  }, [assignments]);
+
+  const usersWithAccess = useMemo(
+    () =>
+      users.filter((user) => {
+        const role = user.role ?? "";
+        if (!roleNeedsJobsiteAssignment(role)) return true;
+        return (assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId);
+      }),
+    [assignmentMap, jobsiteId, users]
+  );
+
+  const fieldScopedUsers = useMemo(
+    () => users.filter((user) => roleNeedsJobsiteAssignment(user.role)),
+    [users]
+  );
+  const assignedFieldUsers = fieldScopedUsers.filter((user) =>
+    (assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId)
+  );
+
+  async function toggleJobsiteAssignment(user: TeamUserRow) {
+    const userId = user.id ?? "";
+    if (!userId) return;
+    const currentAssignments = assignmentMap[userId] ?? [];
+    const assigned = currentAssignments.includes(jobsiteId);
+    const nextAssignments = assigned
+      ? currentAssignments.filter((id) => id !== jobsiteId)
+      : Array.from(new Set([...currentAssignments, jobsiteId]));
+
+    setBusyUserId(userId);
+    setMessage("");
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const response = await fetch("/api/company/jobsite-assignments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(session?.access_token),
+        },
+        body: JSON.stringify({ userId, jobsiteIds: nextAssignments }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setMessageTone("error");
+        setMessage(data?.error || "Failed to update jobsite assignments.");
+        return;
+      }
+      setAssignmentMap((current) => ({ ...current, [userId]: nextAssignments }));
+      setMessageTone("success");
+      setMessage(assigned ? `${user.name ?? "User"} removed from this jobsite.` : `${user.name ?? "User"} assigned to this jobsite.`);
+      onReload();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update jobsite assignments.");
+    } finally {
+      setBusyUserId(null);
+    }
+  }
 
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Company users" value={users.length} />
-        <StatCard label="Managers" value={users.filter((user) => rowText(user, ["role"], "").toLowerCase().includes("manager")).length} />
-        <StatCard label="Admins" value={users.filter((user) => rowText(user, ["role"], "").toLowerCase().includes("admin")).length} />
-        <StatCard label="Assigned site" value={jobsite?.id ? 1 : 0} />
+        <StatCard label="Visible users" value={usersWithAccess.length} />
+        <StatCard label="Assigned field users" value={assignedFieldUsers.length} />
+        <StatCard label="Company-wide roles" value={users.filter((user) => !roleNeedsJobsiteAssignment(user.role)).length} />
+        <StatCard label="Assignable users" value={fieldScopedUsers.length} />
       </div>
+      {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
       {users.length === 0 ? (
         <InlineMessage tone="warning">No team members are visible for this jobsite.</InlineMessage>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {users.map((user, index) => (
-            <article key={rowText(user, ["id"], `user-${index}`)} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <h3 className="text-sm font-semibold text-slate-100">{rowText(user, ["name", "full_name", "email"], "Team member")}</h3>
-              <p className="mt-1 text-xs text-slate-500">{rowText(user, ["email"], "No email listed")}</p>
+            <article key={user.id ?? `user-${index}`} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+              <h3 className="text-sm font-semibold text-slate-100">{user.name || user.email || "Team member"}</h3>
+              <p className="mt-1 text-xs text-slate-500">{user.email || "No email listed"}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <StatusBadge label={labelize(rowText(user, ["role", "team"], "member"))} tone="info" />
-                <StatusBadge label={labelize(rowText(user, ["status"], "active"))} tone="success" />
+                <StatusBadge label={labelize(user.role || "member")} tone="info" />
+                <StatusBadge label={labelize(user.status || "active")} tone={String(user.status ?? "").toLowerCase() === "suspended" ? "warning" : "success"} />
+                <StatusBadge
+                  label={
+                    roleNeedsJobsiteAssignment(user.role)
+                      ? (assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId)
+                        ? "Assigned"
+                        : "Not Assigned"
+                      : "Company-Wide"
+                  }
+                  tone={
+                    !roleNeedsJobsiteAssignment(user.role) || (assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId)
+                      ? "success"
+                      : "warning"
+                  }
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {roleNeedsJobsiteAssignment(user.role) ? (
+                  <button
+                    type="button"
+                    onClick={() => void toggleJobsiteAssignment(user)}
+                    disabled={busyUserId === user.id}
+                    className={(assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId) ? appButtonQuietClassName : appButtonPrimaryClassName}
+                  >
+                    {busyUserId === user.id
+                      ? "Saving..."
+                      : (assignmentMap[user.id ?? ""] ?? []).includes(jobsiteId)
+                        ? "Remove From Site"
+                        : "Assign To Site"}
+                  </button>
+                ) : (
+                  <Link href="/company-users" className={appButtonSecondaryClassName}>
+                    Manage Access
+                  </Link>
+                )}
               </div>
             </article>
           ))}
         </div>
       )}
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
+        <h3 className="text-sm font-semibold text-slate-100">Assignment Notes</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          Field-scoped users only see jobsites they are assigned to. Company admins, operations managers, and safety managers keep company-wide access.
+        </p>
+        <div className="mt-4">
+          <Link href="/company-users" className={appButtonSecondaryClassName}>
+            Open Full User Directory
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,15 @@ type SupabaseLike = {
             location: string | null;
             project_manager?: string | null;
             safety_lead?: string | null;
+            zip_code?: string | null;
+            weather_address_line_1?: string | null;
+            weather_address_line_2?: string | null;
+            weather_city?: string | null;
+            weather_state?: string | null;
+            weather_country?: string | null;
+            start_date?: string | null;
+            end_date?: string | null;
+            notes?: string | null;
           } | null;
           error: { message?: string | null } | null;
         }>;
@@ -33,7 +42,7 @@ type SupabaseLike = {
 async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
   return supabase
     .from("company_jobsites")
-    .select("id, company_id, name, status, jobsite_number, project_number, location, project_manager, safety_lead")
+    .select("id, company_id, name, status, jobsite_number, project_number, location, project_manager, safety_lead, zip_code, weather_address_line_1, weather_address_line_2, weather_city, weather_state, weather_country, start_date, end_date, notes")
     .eq("id", jobsiteId)
     .maybeSingle();
 }
@@ -117,7 +126,7 @@ export async function GET(
   }
   const jobsite = row;
 
-  const [jsas, permits, incidents, reports, actions, users, documents, analytics, activities] =
+  const [jsas, permits, incidents, reports, actions, users, documents, analytics, activities, assignments] =
     await Promise.all([
       fetchFromSameOrigin(request, "/api/company/jsas"),
       fetchFromSameOrigin(request, "/api/company/permits"),
@@ -128,6 +137,7 @@ export async function GET(
       fetchFromSameOrigin(request, "/api/workspace/documents"),
       fetchFromSameOrigin(request, "/api/company/analytics/summary"),
       fetchFromSameOrigin(request, `/api/company/jsa-activities?workDate=${new Date().toISOString().slice(0, 10)}`),
+      fetchFromSameOrigin(request, "/api/company/jobsite-assignments"),
     ]);
 
   const jsasRows = filterByJobsiteId(
@@ -142,6 +152,7 @@ export async function GET(
     (doc) => (doc.project_name ?? "").trim().toLowerCase() === (jobsite.name ?? "").trim().toLowerCase()
   );
   const usersRows = ((users.json?.users as unknown[]) ?? []) as unknown[];
+  const assignmentRows = ((assignments.json?.assignments as unknown[]) ?? []) as unknown[];
   const activitiesRows = filterByJobsiteId(
     ((activities.json?.activities as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>,
     jobsiteId
@@ -154,7 +165,7 @@ export async function GET(
   if (surface === "live-view")
     return NextResponse.json({ jobsite, observations: actionsRows, activities: activitiesRows });
   if (surface === "documents") return NextResponse.json({ jobsite, documents: docsRows });
-  if (surface === "team") return NextResponse.json({ jobsite, users: usersRows });
+  if (surface === "team") return NextResponse.json({ jobsite, users: usersRows, assignments: assignmentRows });
   if (surface === "analytics") {
     if (!analytics.ok) {
       return NextResponse.json(
