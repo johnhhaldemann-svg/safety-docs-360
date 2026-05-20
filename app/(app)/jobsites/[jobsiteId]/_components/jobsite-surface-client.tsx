@@ -133,13 +133,13 @@ function roleNeedsJobsiteAssignment(role?: string | null) {
 
 function buildEmployeeOptions(users: TeamUserRow[]) {
   const options = users
-    .filter((user) => String(user.status ?? "").trim().toLowerCase() !== "suspended")
+    .filter((user) => String(user.status ?? "").trim().toLowerCase() === "active")
     .map((user, index) => {
       const email = String(user.email ?? "").trim();
       const name = String(user.name ?? "").trim() || email;
       if (!name) return null;
       return {
-        id: String(user.id ?? email || `employee-${index}`),
+        id: String(user.id ?? (email || `employee-${index}`)),
         name,
         email,
         role: String(user.role ?? "").trim(),
@@ -282,8 +282,11 @@ function OverviewWidgets({
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
-  const users = ((payload?.users as TeamUserRow[] | undefined) ?? []) as TeamUserRow[];
-  const employeeOptions = useMemo(() => buildEmployeeOptions(users), [users]);
+  const payloadUsers = payload?.users;
+  const employeeOptions = useMemo(
+    () => buildEmployeeOptions(((payloadUsers as TeamUserRow[] | undefined) ?? []) as TeamUserRow[]),
+    [payloadUsers]
+  );
   const jobsiteId = String(jobsite?.id ?? "");
   const [editing, setEditing] = useState(false);
   const cards = [

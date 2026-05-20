@@ -34,6 +34,7 @@ import {
 type Vector3 = { x: number; y: number; z: number };
 type RiskLevel = "low" | "medium" | "high" | "critical";
 type ViewMode = "isometric" | "top";
+type VisualSurfaceMode = "detailed" | "schematic";
 type VisualOverlap = { id: string; zoneIds: [string, string]; severity: "medium" | "high" | "critical"; label: string; reason: string };
 type BlueprintBounds = { x: number; y: number; width: number; height: number };
 type BlueprintTransform = { x: number; z: number; scale: number; rotationY: number; opacity: number; width: number; height: number };
@@ -51,6 +52,45 @@ type SiteVisualBlueprint = {
   imageHeight: number | null;
   transform: BlueprintTransform;
   processingError: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type RenderOverlayActivity = {
+  id: string;
+  zoneId: string;
+  number: number;
+  label: string;
+  subtitle: string;
+  riskLevel: RiskLevel;
+  color: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type SiteVisualRender = {
+  id: string;
+  siteMapId: string | null;
+  blueprintId: string | null;
+  renderStatus: string;
+  promptHash: string | null;
+  imagePath: string | null;
+  thumbnailPath: string | null;
+  signedImageUrl: string | null;
+  signedThumbnailUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  overlay: {
+    version: 1;
+    imageAspect: "16:9";
+    disclaimer: string;
+    activities: RenderOverlayActivity[];
+    overlaps: Array<{ id: string; zoneIds: [string, string]; severity: VisualOverlap["severity"]; label: string; reason: string; x: number; y: number }>;
+  } | null;
+  aiMeta?: Record<string, unknown> | null;
+  errorMessage?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -90,6 +130,7 @@ type SiteVisualPayload = {
   zones?: VisualZone[];
   blueprint?: SiteVisualBlueprint | null;
   blueprints?: SiteVisualBlueprint[];
+  render?: SiteVisualRender | null;
   canGenerate?: boolean;
   canEditZones?: boolean;
   canUploadBlueprints?: boolean;
@@ -499,6 +540,160 @@ function SiteVisualRenderer({
   );
 }
 
+function DetailedVisualRenderer({
+  render,
+  scene,
+  selectedZoneId,
+  onSelectZone,
+}: {
+  render: SiteVisualRender;
+  scene: VisualScene | null;
+  selectedZoneId: string | null;
+  onSelectZone: (zoneId: string) => void;
+}) {
+  const activities = render.overlay?.activities ?? [];
+  const overlaps = render.overlay?.overlaps ?? [];
+  const selectedActivity = activities.find((activity) => activity.zoneId === selectedZoneId) ?? activities[0] ?? null;
+  const zoneMap = new Map((scene?.zones ?? []).map((zone) => [zone.id, zone]));
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-xl">
+      <div className="relative aspect-video min-h-[360px] bg-slate-900">
+        {render.signedImageUrl ? (
+          <img src={render.signedImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full place-items-center text-sm font-semibold text-slate-300">
+            Detailed visual is not available.
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/45 via-transparent to-slate-950/45" />
+
+        <div className="absolute left-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur md:block">
+          <div className="text-sm font-black uppercase tracking-[0.08em]">Work Activities</div>
+          <div className="mt-3 space-y-2">
+            {activities.map((activity) => (
+              <button
+                key={activity.id}
+                type="button"
+                className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                  activity.zoneId === selectedZoneId ? "bg-white/18" : "bg-white/7 hover:bg-white/12"
+                }`}
+                style={{ borderColor: activity.color }}
+                onClick={() => onSelectZone(activity.zoneId)}
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-base font-black text-white" style={{ backgroundColor: activity.color }}>
+                  {activity.number}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="absolute right-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/82 p-4 text-white shadow-2xl backdrop-blur lg:block">
+          <div className="text-sm font-black uppercase tracking-[0.08em]">Overlapping Work</div>
+          <p className="mt-2 text-xs leading-5 text-slate-200">
+            Multiple crews working in stacked or intersecting zones are highlighted by the app overlay.
+          </p>
+          <div className="mt-4 border-t border-white/20 pt-4">
+            <div className="text-xs font-black uppercase tracking-[0.08em]">Vertical overlap points</div>
+            <div className="mt-3 flex gap-3">
+              {overlaps.slice(0, 5).map((overlap, index) => (
+                <button
+                  key={overlap.id}
+                  type="button"
+                  className="h-10 w-4 rounded-full border border-white/30"
+                  style={{ backgroundColor: ["#22d3ee", "#facc15", "#c084fc", "#fb923c", "#ef4444"][index % 5] }}
+                  title={overlap.label}
+                  onClick={() => onSelectZone(overlap.zoneIds[0])}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {activities.map((activity) => {
+          const isSelected = activity.zoneId === selectedZoneId;
+          return (
+            <button
+              key={activity.id}
+              type="button"
+              className={`absolute rounded-lg border-2 px-3 py-2 text-left text-white shadow-2xl backdrop-blur transition hover:scale-[1.02] ${
+                isSelected ? "bg-slate-950/88 ring-4 ring-white/45" : "bg-slate-950/72"
+              }`}
+              style={{
+                borderColor: activity.color,
+                left: `${activity.x * 100}%`,
+                top: `${activity.y * 100}%`,
+                width: `${Math.max(13, activity.width * 100)}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+              onClick={() => onSelectZone(activity.zoneId)}
+            >
+              <span className="flex items-center gap-2">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm font-black" style={{ backgroundColor: activity.color }}>
+                  {activity.number}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
+                  <span className="block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+
+        {overlaps.map((overlap) => (
+          <button
+            key={overlap.id}
+            type="button"
+            className="absolute h-5 w-5 rounded-full border-2 border-white bg-amber-400 shadow-[0_0_22px_rgba(251,191,36,0.95)]"
+            style={{ left: `${overlap.x * 100}%`, top: `${overlap.y * 100}%`, transform: "translate(-50%, -50%)" }}
+            title={overlap.reason}
+            onClick={() => onSelectZone(overlap.zoneIds[0])}
+          />
+        ))}
+
+        <div className="absolute bottom-3 right-3 max-w-sm rounded-lg border border-white/20 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur">
+          <div className="flex items-start gap-2">
+            <Layers3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.08em]">Safety Insight</div>
+              <p className="mt-1 text-xs leading-5 text-slate-200">
+                {selectedActivity
+                  ? zoneImpactText(zoneMap.get(selectedActivity.zoneId) ?? {
+                      id: selectedActivity.zoneId,
+                      label: selectedActivity.label,
+                      sourceType: "manual",
+                      sourceId: null,
+                      scheduleItemId: null,
+                      trade: selectedActivity.subtitle,
+                      workArea: null,
+                      startsAt: null,
+                      endsAt: null,
+                      riskLevel: selectedActivity.riskLevel,
+                      controls: [],
+                      position: { x: 0, y: 0, z: 0 },
+                      size: { x: 1, y: 1, z: 1 },
+                      color: selectedActivity.color,
+                    }, overlaps.filter((overlap) => overlap.zoneIds.includes(selectedActivity.zoneId)).length)
+                  : "Click a numbered activity to review task impact and nearby overlaps."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/82 px-3 py-2 text-[11px] font-semibold text-slate-200 backdrop-blur">
+          {render.overlay?.disclaimer ?? "Operational visual aid, not engineering drawing."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NumberField({
   label,
   value,
@@ -534,12 +729,14 @@ export function JobsiteSiteVisualClient({
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [renderingDetailed, setRenderingDetailed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [payload, setPayload] = useState<SiteVisualPayload | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showOverlapsOnly, setShowOverlapsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("isometric");
+  const [visualSurfaceMode, setVisualSurfaceMode] = useState<VisualSurfaceMode>("schematic");
   const [draft, setDraft] = useState<VisualZone | null>(null);
   const [blueprintFile, setBlueprintFile] = useState<File | null>(null);
   const [blueprintPage, setBlueprintPage] = useState(1);
@@ -588,6 +785,7 @@ export function JobsiteSiteVisualClient({
   const zones = scene?.zones ?? [];
   const overlaps = scene?.overlaps ?? [];
   const activeBlueprint = payload?.blueprint ?? payload?.blueprints?.find((item) => item.processingStatus === "ready") ?? payload?.blueprints?.[0] ?? null;
+  const activeRender = payload?.render?.renderStatus === "ready" && payload.render.signedImageUrl ? payload.render : null;
   const selectedZone = useMemo(
     () => zones.find((zone) => zone.id === selectedZoneId) ?? null,
     [selectedZoneId, zones]
@@ -604,6 +802,10 @@ export function JobsiteSiteVisualClient({
   useEffect(() => {
     if (activeBlueprint?.processingStatus === "ready") setViewMode("top");
   }, [activeBlueprint?.id, activeBlueprint?.processingStatus]);
+
+  useEffect(() => {
+    if (activeRender) setVisualSurfaceMode("detailed");
+  }, [activeRender?.id]);
 
   function updatePayloadBlueprint(blueprint: SiteVisualBlueprint) {
     setPayload((current) => {
@@ -672,7 +874,7 @@ export function JobsiteSiteVisualClient({
     setUploadingBlueprint(false);
   }
 
-  async function generateMap() {
+  async function generateMap(): Promise<SiteVisualPayload | null> {
     setGenerating(true);
     setMessage(null);
     try {
@@ -694,11 +896,58 @@ export function JobsiteSiteVisualClient({
             : "AI site visual generated."
       );
       setMessageTone(data?.siteMap?.generationStatus === "fallback" ? "warning" : "success");
+      setGenerating(false);
+      return data ?? null;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to generate site visual.");
       setMessageTone("error");
     }
     setGenerating(false);
+    return null;
+  }
+
+  async function generateDetailedVisual() {
+    if (!activeBlueprint || activeBlueprint.processingStatus !== "ready") {
+      setMessage("Upload and process a blueprint before generating the detailed visual.");
+      setMessageTone("warning");
+      return;
+    }
+    setRenderingDetailed(true);
+    setMessage(null);
+    try {
+      let currentPayload = payload;
+      if (!currentPayload?.scene) {
+        currentPayload = await generateMap();
+      }
+      if (!currentPayload?.scene) throw new Error("Generate the editable site map before creating a detailed visual.");
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/render/generate`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          blueprintId: activeBlueprint.id,
+          siteMapId: currentPayload.siteMap?.id ?? null,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; render?: SiteVisualRender; scene?: VisualScene | null; zones?: VisualZone[] }
+        | null;
+      if (!response.ok || !data?.render) throw new Error(data?.error || "Failed to generate detailed visual.");
+      setPayload((current) => ({
+        ...(current ?? {}),
+        scene: data.scene ?? current?.scene ?? currentPayload?.scene ?? null,
+        zones: data.zones ?? current?.zones,
+        render: data.render,
+      }));
+      setVisualSurfaceMode("detailed");
+      setMessage("Detailed isometric visual generated. Click a numbered activity to inspect task impact.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to generate detailed visual.");
+      setMessageTone("error");
+      setVisualSurfaceMode("schematic");
+    }
+    setRenderingDetailed(false);
   }
 
   async function saveBlueprintTransform(transform: BlueprintTransform) {
@@ -800,6 +1049,12 @@ export function JobsiteSiteVisualClient({
           {generating ? "Generating..." : scene ? "Regenerate map" : "Generate map"}
         </button>
       ) : null}
+      {payload?.canGenerate && activeBlueprint?.processingStatus === "ready" ? (
+        <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateDetailedVisual()} disabled={renderingDetailed || generating}>
+          <FileImage aria-hidden="true" className="h-4 w-4" />
+          {renderingDetailed ? "Rendering..." : activeRender ? "Regenerate detailed visual" : "Generate detailed visual"}
+        </button>
+      ) : null}
     </>
   );
 
@@ -838,9 +1093,9 @@ export function JobsiteSiteVisualClient({
         description="Attach a PDF or image plan so the 3D work zones can sit over the actual jobsite layout."
         actions={
           activeBlueprint?.processingStatus === "ready" && payload?.canGenerate ? (
-            <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateMap()} disabled={generating}>
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
-              {generating ? "Generating..." : "Generate from blueprint"}
+            <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateDetailedVisual()} disabled={renderingDetailed || generating}>
+              <FileImage aria-hidden="true" className="h-4 w-4" />
+              {renderingDetailed ? "Rendering..." : "Generate detailed visual"}
             </button>
           ) : null
         }
@@ -976,14 +1231,36 @@ export function JobsiteSiteVisualClient({
       {scene ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_420px]">
           <SectionCard
-            title="3D Work Map"
-            description="Task boxes are colored by risk. Dark base marks overlapping work that also shares a schedule window."
+            title={visualSurfaceMode === "detailed" ? "Detailed Work Visual" : "3D Work Map"}
+            description={
+              visualSurfaceMode === "detailed"
+                ? "AI-generated operational visual with app-owned clickable task and overlap overlays. Not an engineering drawing."
+                : "Task boxes are colored by risk. Dark base marks overlapping work that also shares a schedule window."
+            }
             actions={
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  className={visualSurfaceMode === "detailed" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                  onClick={() => setVisualSurfaceMode("detailed")}
+                  disabled={!activeRender}
+                >
+                  <FileImage aria-hidden="true" className="h-4 w-4" />
+                  Detailed visual
+                </button>
+                <button
+                  type="button"
+                  className={visualSurfaceMode === "schematic" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                  onClick={() => setVisualSurfaceMode("schematic")}
+                >
+                  <Layers3 aria-hidden="true" className="h-4 w-4" />
+                  Editable schematic
+                </button>
+                <button
+                  type="button"
                   className={viewMode === "isometric" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
                   onClick={() => setViewMode("isometric")}
+                  hidden={visualSurfaceMode === "detailed"}
                 >
                   Isometric
                 </button>
@@ -991,6 +1268,7 @@ export function JobsiteSiteVisualClient({
                   type="button"
                   className={viewMode === "top" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
                   onClick={() => setViewMode("top")}
+                  hidden={visualSurfaceMode === "detailed"}
                 >
                   Top view
                 </button>
@@ -998,6 +1276,7 @@ export function JobsiteSiteVisualClient({
                   type="button"
                   className={showOverlapsOnly ? appButtonPrimaryClassName : appButtonSecondaryClassName}
                   onClick={() => setShowOverlapsOnly((value) => !value)}
+                  hidden={visualSurfaceMode === "detailed"}
                 >
                   <Crosshair aria-hidden="true" className="h-4 w-4" />
                   {showOverlapsOnly ? "Show all zones" : "Show overlaps"}
@@ -1005,14 +1284,23 @@ export function JobsiteSiteVisualClient({
               </div>
             }
           >
-            <SiteVisualRenderer
-              scene={scene}
-              blueprint={activeBlueprint}
-              selectedZoneId={selectedZoneId}
-              showOverlapsOnly={showOverlapsOnly}
-              viewMode={viewMode}
-              onSelectZone={setSelectedZoneId}
-            />
+            {visualSurfaceMode === "detailed" && activeRender ? (
+              <DetailedVisualRenderer
+                render={activeRender}
+                scene={scene}
+                selectedZoneId={selectedZoneId}
+                onSelectZone={setSelectedZoneId}
+              />
+            ) : (
+              <SiteVisualRenderer
+                scene={scene}
+                blueprint={activeBlueprint}
+                selectedZoneId={selectedZoneId}
+                showOverlapsOnly={showOverlapsOnly}
+                viewMode={viewMode}
+                onSelectZone={setSelectedZoneId}
+              />
+            )}
           </SectionCard>
 
           <div className="space-y-6">

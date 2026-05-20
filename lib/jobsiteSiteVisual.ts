@@ -569,7 +569,7 @@ export function validateSiteVisualScene(value: unknown, input: SiteVisualGenerat
 
   const parsedAreas = Array.isArray(value.areas) ? value.areas : [];
   const levelIds = new Set(levels.map((level) => level.id));
-  const areas = parsedAreas.slice(0, 30).map((item, index) => {
+  const areas: SiteVisualScene["areas"] = parsedAreas.slice(0, 30).map((item, index) => {
     const record = isRecord(item) ? item : {};
     const levelIdRaw = slug(cleanText(record.levelId, levels[0].id), levels[0].id);
     const levelId = levelIds.has(levelIdRaw) ? levelIdRaw : levels[0].id;

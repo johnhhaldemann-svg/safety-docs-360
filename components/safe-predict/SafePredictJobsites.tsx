@@ -560,6 +560,21 @@ function jobsiteWeatherFromSite(site: SafePredictJobsiteRecord): JobsiteWeatherO
   };
 }
 
+function mergeJobsiteWeatherOverview(
+  fallbackWeather: JobsiteWeatherOverviewData,
+  payload: JobsiteWeatherOverviewData | null
+): JobsiteWeatherOverviewData {
+  return {
+    ...fallbackWeather,
+    ...(payload ?? {}),
+    jobsite: {
+      ...(fallbackWeather.jobsite ?? {}),
+      ...(payload?.jobsite ?? {}),
+    },
+    alerts: Array.isArray(payload?.alerts) ? payload.alerts : fallbackWeather.alerts ?? [],
+  };
+}
+
 function JobsiteWeatherOverviewCard({
   site,
   weather,
@@ -1603,6 +1618,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [permitMessage, setPermitMessage] = useState("");
   const [editingScheduleTask, setEditingScheduleTask] = useState<ScheduledRiskEvent | null>(null);
   const [weatherOverview, setWeatherOverview] = useState<{ jobsiteId: string; data: JobsiteWeatherOverviewData } | null>(null);
+  const weatherAutoEnableAttemptsRef = useRef<Set<string>>(new Set());
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
     dueDate: "",
@@ -1685,17 +1701,58 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           setWeatherOverview({ jobsiteId: site.id, data: { ...fallbackWeather, error: payload?.error || "Weather settings could not be loaded." } });
           return;
         }
+        const loadedWeather = mergeJobsiteWeatherOverview(fallbackWeather, payload);
+        const loadedJobsiteWeather = loadedWeather.jobsite;
+        const savedZip = String(loadedJobsiteWeather?.zip_code ?? site.zipCode ?? "").trim();
+        const autoEnableKey = `${site.id}:${savedZip}`;
+        if (
+          savedZip &&
+          !loadedJobsiteWeather?.weather_enabled &&
+          !weatherAutoEnableAttemptsRef.current.has(autoEnableKey)
+        ) {
+          weatherAutoEnableAttemptsRef.current.add(autoEnableKey);
+          const activateResponse = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/weather`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              weatherEnabled: true,
+              zipCode: savedZip,
+              addressLine1: site.addressLine1 ?? "",
+              addressLine2: site.addressLine2 ?? "",
+              city: site.city ?? "",
+              state: site.state ?? "",
+              country: site.country ?? "US",
+            }),
+          });
+          const activatePayload = (await activateResponse.json().catch(() => null)) as JobsiteWeatherOverviewData | null;
+          if (cancelled) return;
+          if (activateResponse.ok) {
+            setWeatherOverview({
+              jobsiteId: site.id,
+              data: mergeJobsiteWeatherOverview(loadedWeather, activatePayload),
+            });
+            refreshLiveData();
+            return;
+          }
+          if (activateResponse.status === 401 || activateResponse.status === 403) {
+            setWeatherOverview({ jobsiteId: site.id, data: loadedWeather });
+            return;
+          }
+          setWeatherOverview({
+            jobsiteId: site.id,
+            data: {
+              ...loadedWeather,
+              error: activatePayload?.error || "Weather monitoring could not be turned on for this ZIP.",
+            },
+          });
+          return;
+        }
         setWeatherOverview({
           jobsiteId: site.id,
-          data: {
-            ...fallbackWeather,
-            ...(payload ?? {}),
-            jobsite: {
-              ...(fallbackWeather.jobsite ?? {}),
-              ...(payload?.jobsite ?? {}),
-            },
-            alerts: Array.isArray(payload?.alerts) ? payload.alerts : [],
-          },
+          data: loadedWeather,
         });
       } catch (error) {
         if (!cancelled) {
@@ -1708,7 +1765,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [mode, site]);
+  }, [mode, refreshLiveData, site]);
 
   function openPermitForm(permit: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode) {
     setActivePermit(permit);

@@ -50,6 +50,7 @@ describe("jobsite site visual scene helpers", () => {
     const scene = buildFallbackSiteVisualScene(input);
 
     expect(scene.version).toBe(1);
+    expect(scene.blueprint).toBeNull();
     expect(scene.levels[0]?.label).toBe("Level 3");
     expect(scene.areas[0]?.label).toBe("3rd Floor East");
     expect(scene.zones).toHaveLength(2);
@@ -60,6 +61,69 @@ describe("jobsite site visual scene helpers", () => {
       startsAt: "2026-05-21T07:00:00",
       endsAt: "2026-05-21T12:00:00",
     });
+  });
+
+  it("uses blueprint metadata for fallback placement and clamps AI blueprint bounds", () => {
+    const blueprintInput: SiteVisualGenerationInput = {
+      ...input,
+      blueprint: {
+        id: "blueprint-1",
+        fileName: "Level 3 Plan.pdf",
+        mimeType: "application/pdf",
+        width: 2200,
+        height: 1100,
+        pageNumber: 1,
+        transform: { x: 2, z: -3, scale: 1, rotationY: 0, opacity: 0.7, width: 80, height: 40 },
+      },
+    };
+
+    const fallback = buildFallbackSiteVisualScene(blueprintInput);
+    expect(fallback.blueprint).toMatchObject({ id: "blueprint-1", imageWidth: 2200, imageHeight: 1100 });
+    expect(fallback.areas[0]?.blueprintBounds).toEqual(expect.objectContaining({ width: 0.22, height: 0.16 }));
+    expect(fallback.zones[0]?.blueprintBounds).toEqual(expect.objectContaining({ width: 0.08, height: 0.05 }));
+
+    const scene = validateSiteVisualScene(
+      {
+        levels: [{ id: "l1", label: "Level 1", elevation: 0, height: 0.25 }],
+        areas: [
+          {
+            id: "a1",
+            label: "Area",
+            levelId: "l1",
+            position: { x: 0, y: 0, z: 0 },
+            size: { x: 10, y: 0.25, z: 10 },
+            color: "#dbeafe",
+            blueprintBounds: { x: -1, y: 2, width: 5, height: 0 },
+          },
+        ],
+        zones: [
+          {
+            id: "z1",
+            label: "Zone",
+            sourceType: "schedule",
+            sourceId: "schedule-1",
+            scheduleItemId: "schedule-1",
+            trade: "Drywall",
+            workArea: "3rd Floor East",
+            startsAt: "2026-05-21T07:00:00",
+            endsAt: "2026-05-21T09:00:00",
+            riskLevel: "high",
+            controls: [],
+            position: { x: 0, y: 1, z: 0 },
+            size: { x: 4, y: 1, z: 4 },
+            color: "#f97316",
+            blueprintBounds: { x: 0.4, y: 0.3, width: 0.2, height: 0.1 },
+          },
+        ],
+        camera: { position: { x: 1, y: 20, z: 1 }, target: { x: 0, y: 0, z: 0 } },
+        blueprint: { id: "blueprint-1", imageWidth: 2200, imageHeight: 1100, transform: { x: 200, z: 0, scale: 10, rotationY: 0, opacity: 2, width: 400, height: 1 } },
+      },
+      blueprintInput
+    );
+
+    expect(scene.areas[0]?.blueprintBounds).toMatchObject({ x: 0, y: 1, width: 1, height: 0.01 });
+    expect(scene.zones[0]?.blueprintBounds).toMatchObject({ x: 0.4, y: 0.3, width: 0.2, height: 0.1 });
+    expect(scene.blueprint?.transform).toMatchObject({ x: 80, scale: 4, opacity: 1, width: 120, height: 12 });
   });
 
   it("detects overlaps only when boxes and time windows overlap", () => {

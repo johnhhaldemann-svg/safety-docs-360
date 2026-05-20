@@ -23,17 +23,57 @@ const ZONE_SELECT =
 const BLUEPRINT_SELECT =
   "id, company_id, jobsite_id, source_file_path, preview_image_path, file_name, mime_type, file_size, page_number, processing_status, image_width, image_height, transform_json, ai_meta, processing_error, created_at, updated_at, created_by, updated_by, archived_at";
 
+const RENDER_SELECT =
+  "id, company_id, jobsite_id, site_map_id, blueprint_id, render_status, prompt_hash, image_path, thumbnail_path, image_width, image_height, overlay_json, ai_meta, error_message, created_at, updated_at, created_by, updated_by, archived_at";
+
 function isMissingVisualSchema(message?: string | null) {
   const normalized = (message ?? "").toLowerCase();
   return (
     normalized.includes("company_jobsite_site_maps") ||
     normalized.includes("company_jobsite_visual_zones") ||
     normalized.includes("company_jobsite_site_blueprints") ||
+    normalized.includes("company_jobsite_site_renders") ||
     normalized.includes("blueprint_id") ||
     normalized.includes("schema cache") ||
     normalized.includes("does not exist") ||
     normalized.includes("could not find")
   );
+}
+
+async function dbRenderToPayload(row: Record<string, unknown>) {
+  const imagePath = row.image_path == null ? null : String(row.image_path);
+  const thumbnailPath = row.thumbnail_path == null ? null : String(row.thumbnail_path);
+  let signedImageUrl: string | null = null;
+  let signedThumbnailUrl: string | null = null;
+  const admin = createSupabaseAdminClient();
+  if (admin) {
+    if (imagePath) {
+      const signed = await admin.storage.from("documents").createSignedUrl(imagePath, 10 * 60);
+      signedImageUrl = signed.data?.signedUrl ?? null;
+    }
+    if (thumbnailPath) {
+      const signed = await admin.storage.from("documents").createSignedUrl(thumbnailPath, 10 * 60);
+      signedThumbnailUrl = signed.data?.signedUrl ?? null;
+    }
+  }
+  return {
+    id: String(row.id),
+    siteMapId: row.site_map_id == null ? null : String(row.site_map_id),
+    blueprintId: row.blueprint_id == null ? null : String(row.blueprint_id),
+    renderStatus: String(row.render_status ?? "ready"),
+    promptHash: row.prompt_hash == null ? null : String(row.prompt_hash),
+    imagePath,
+    thumbnailPath,
+    signedImageUrl,
+    signedThumbnailUrl,
+    imageWidth: row.image_width == null ? null : Number(row.image_width),
+    imageHeight: row.image_height == null ? null : Number(row.image_height),
+    overlay: row.overlay_json ?? null,
+    aiMeta: row.ai_meta ?? null,
+    errorMessage: row.error_message == null ? null : String(row.error_message),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function dbBlueprintToPayload(row: Record<string, unknown>) {
@@ -160,6 +200,7 @@ export async function GET(
       scene,
       blueprints: [],
       blueprint: null,
+      render: null,
       canGenerate: true,
       canEditZones: true,
       canUploadBlueprints: true,
@@ -203,6 +244,7 @@ export async function GET(
         zones: [],
         blueprints: [],
         blueprint: null,
+        render: null,
         canGenerate: canGenerateSiteMap(auth.role),
         canEditZones: canEditVisualZones(auth.role),
         canUploadBlueprints: canUploadBlueprints(auth.role),
@@ -229,6 +271,7 @@ export async function GET(
       zones: [],
       blueprints,
       blueprint: blueprints.find((item) => item.processingStatus === "ready") ?? blueprints[0] ?? null,
+      render: null,
       canGenerate: canGenerateSiteMap(auth.role),
       canEditZones: canEditVisualZones(auth.role),
       canUploadBlueprints: canUploadBlueprints(auth.role),
@@ -261,6 +304,19 @@ export async function GET(
   const blueprints = blueprintsResult.error ? [] : await Promise.all(((blueprintsResult.data ?? []) as Record<string, unknown>[]).map(dbBlueprintToPayload));
   const linkedBlueprintId = mapResult.data.blueprint_id == null ? null : String(mapResult.data.blueprint_id);
   const activeBlueprint = blueprints.find((item) => item.id === linkedBlueprintId) ?? blueprints.find((item) => item.processingStatus === "ready") ?? blueprints[0] ?? null;
+  const renderResult = await auth.supabase
+    .from("company_jobsite_site_renders")
+    .select(RENDER_SELECT)
+    .eq("company_id", companyScope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .eq("site_map_id", mapResult.data.id)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const render = renderResult.error || !renderResult.data
+    ? null
+    : await dbRenderToPayload(renderResult.data as Record<string, unknown>);
 
   return NextResponse.json({
     jobsite: jobsiteResult.data,
@@ -277,6 +333,7 @@ export async function GET(
     zones,
     blueprints,
     blueprint: activeBlueprint,
+    render,
     canGenerate: canGenerateSiteMap(auth.role),
     canEditZones: canEditVisualZones(auth.role),
     canUploadBlueprints: canUploadBlueprints(auth.role),
@@ -295,4 +352,4 @@ export function canUploadBlueprints(role: string) {
   return canGenerateSiteMap(role) || ["field_supervisor", "foreman"].includes(role);
 }
 
-export { BLUEPRINT_SELECT, MAP_SELECT, ZONE_SELECT, dbBlueprintToPayload, dbZoneToSceneZone, isMissingVisualSchema };
+export { BLUEPRINT_SELECT, MAP_SELECT, RENDER_SELECT, ZONE_SELECT, dbBlueprintToPayload, dbRenderToPayload, dbZoneToSceneZone, isMissingVisualSchema };
