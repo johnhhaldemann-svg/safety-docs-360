@@ -249,54 +249,60 @@ export function buildSiteVisualFallbackRenderSvg(
   const height = 900;
   const levels = [...input.scene.levels].sort((left, right) => right.elevation - left.elevation);
   const floorCount = Math.min(5, Math.max(3, levels.length || 1));
-  const deckColors = ["#f8fafc", "#eff6ff", "#e0f2fe", "#f1f5f9", "#eef2ff"];
+  const deckColors = ["#f8fafc", "#f1f5f9", "#e2e8f0", "#f8fafc", "#eef2f7"];
+  const plateLayout = Array.from({ length: floorCount }).map((_, floor) => {
+    const left = 330 - floor * 14;
+    const top = 108 + floor * 118;
+    const right = left + 820;
+    const depth = 156;
+    const skew = 190;
+    return { left, top, right, depth, skew };
+  });
   const floorDecks = Array.from({ length: floorCount })
     .map((_, floor) => {
-      const left = 390 - floor * 18;
-      const top = 126 + floor * 118;
-      const right = left + 700;
-      const depth = 154;
-      const skew = 170;
+      const { left, top, right, depth, skew } = plateLayout[floor];
       const color = deckColors[floor % deckColors.length];
       const clipId = `blueprint-plate-${floor}`;
       const platePoints = `${left},${top + 78} ${right},${top + 8} ${right + skew},${top + 76} ${left + skew},${top + depth}`;
       const bluePrintTexture = blueprintDataUrl
-        ? `<image href="${escapeSvgText(blueprintDataUrl)}" x="${left + 64}" y="${top + 28}" width="720" height="126" preserveAspectRatio="xMidYMid meet" opacity="0.48" clip-path="url(#${clipId})"/>`
+        ? `<image href="${escapeSvgText(blueprintDataUrl)}" x="${left + 92}" y="${top + 20}" width="760" height="142" preserveAspectRatio="xMidYMid meet" opacity="0.62" clip-path="url(#${clipId})"/>`
         : "";
       return `
         <g>
           <clipPath id="${clipId}">
             <polygon points="${platePoints}"/>
           </clipPath>
-          <polygon points="${platePoints}" fill="${color}" stroke="#64748b" stroke-width="4"/>
+          <polygon points="${platePoints}" fill="${color}" stroke="#475569" stroke-width="3"/>
           ${bluePrintTexture}
-          <polygon points="${left + skew},${top + depth} ${right + skew},${top + 76} ${right + skew},${top + 104} ${left + skew},${top + depth + 30}" fill="#94a3b8" opacity="0.42"/>
-          <line x1="${left + 52}" y1="${top + 84}" x2="${right + 46}" y2="${top + 24}" stroke="#94a3b8" stroke-width="2" opacity="0.68"/>
-          <line x1="${left + 110}" y1="${top + 129}" x2="${right + 118}" y2="${top + 63}" stroke="#94a3b8" stroke-width="2" opacity="0.56"/>
-          <line x1="${left + 246}" y1="${top + 60}" x2="${left + 416}" y2="${top + 128}" stroke="#bfdbfe" stroke-width="5" opacity="0.7"/>
+          <polygon points="${left + skew},${top + depth} ${right + skew},${top + 76} ${right + skew},${top + 100} ${left + skew},${top + depth + 26}" fill="#cbd5e1" opacity="0.72"/>
+          <line x1="${left + 68}" y1="${top + 88}" x2="${right + 70}" y2="${top + 25}" stroke="#94a3b8" stroke-width="1.5" opacity="0.72"/>
+          <line x1="${left + 132}" y1="${top + 132}" x2="${right + 150}" y2="${top + 64}" stroke="#94a3b8" stroke-width="1.5" opacity="0.58"/>
+          <line x1="${left + 290}" y1="${top + 50}" x2="${left + 486}" y2="${top + 125}" stroke="#64748b" stroke-width="2" opacity="0.35"/>
         </g>
       `;
     })
     .join("");
-  const columns = [438, 612, 794, 986, 1154]
+  const firstPlate = plateLayout[0];
+  const lastPlate = plateLayout[plateLayout.length - 1];
+  const columns = [402, 582, 762, 942, 1122, 1284]
     .map(
       (x, index) => `
-        <rect x="${x}" y="${142 + index * 6}" width="18" height="562" rx="2" fill="#64748b" opacity="0.86"/>
-        <rect x="${x - 5}" y="${136 + index * 6}" width="28" height="12" fill="#475569" opacity="0.9"/>
+        <rect x="${x}" y="${firstPlate.top + 42 + index * 2}" width="12" height="${lastPlate.top + 150 - firstPlate.top}" rx="2" fill="#475569" opacity="0.78"/>
+        <rect x="${x - 5}" y="${firstPlate.top + 36 + index * 2}" width="22" height="8" fill="#334155" opacity="0.82"/>
       `
     )
     .join("");
   const zoneHighlights = overlay.activities
     .map((activity, index) => {
-      const x = 300 + activity.x * 840;
-      const y = 118 + activity.y * 620;
+      const x = 300 + activity.x * 900;
+      const y = 116 + activity.y * 610;
       const color = escapeSvgText(activity.color);
-      const w = 96 + (index % 2) * 34;
-      const h = 42 + (index % 3) * 9;
+      const w = 118 + (index % 2) * 34;
+      const h = 42 + (index % 3) * 8;
       return `
         <g>
-          <polygon points="${x - w},${y + 14} ${x + w},${y - 6} ${x + w + 48},${y + h} ${x - w + 48},${y + h + 24}" fill="${color}" opacity="0.28" stroke="${color}" stroke-width="5"/>
-          <circle cx="${x}" cy="${y + 20}" r="12" fill="#ffffff" stroke="${color}" stroke-width="6"/>
+          <polygon points="${x - w},${y + 14} ${x + w},${y - 8} ${x + w + 56},${y + h} ${x - w + 56},${y + h + 26}" fill="${color}" opacity="0.2" stroke="${color}" stroke-width="4"/>
+          <circle cx="${x}" cy="${y + 20}" r="10" fill="#ffffff" stroke="${color}" stroke-width="5"/>
         </g>
       `;
     })
@@ -304,76 +310,54 @@ export function buildSiteVisualFallbackRenderSvg(
   const verticalOverlapMarkers = overlay.overlaps
     .slice(0, 8)
     .map((overlap, index) => {
-      const x = 300 + overlap.x * 840;
-      const y = 118 + overlap.y * 620;
+      const x = 300 + overlap.x * 900;
+      const y = 116 + overlap.y * 610;
       const color = ["#22d3ee", "#facc15", "#c084fc", "#fb923c", "#ef4444"][index % 5];
       return `
         <g>
-          <line x1="${x}" y1="${Math.max(110, y - 150)}" x2="${x}" y2="${Math.min(780, y + 126)}" stroke="${color}" stroke-width="4" stroke-dasharray="8 12" opacity="0.88"/>
-          <circle cx="${x}" cy="${y}" r="11" fill="${color}" stroke="#ffffff" stroke-width="4"/>
+          <line x1="${x}" y1="${Math.max(98, y - 150)}" x2="${x}" y2="${Math.min(760, y + 126)}" stroke="${color}" stroke-width="3" stroke-dasharray="7 10" opacity="0.82"/>
+          <circle cx="${x}" cy="${y}" r="9" fill="${color}" stroke="#ffffff" stroke-width="3"/>
         </g>
       `;
     })
     .join("");
-  const equipment = `
-    <g opacity="0.92">
-      <rect x="104" y="685" width="246" height="62" rx="7" fill="#f97316"/>
-      <circle cx="148" cy="758" r="22" fill="#1f2937"/>
-      <circle cx="292" cy="758" r="22" fill="#1f2937"/>
-      <rect x="210" y="620" width="120" height="18" rx="6" fill="#facc15"/>
-      <path d="M214 620 L308 560 L327 569 L235 624 Z" fill="#eab308"/>
-      <rect x="1234" y="642" width="190" height="46" rx="6" fill="#38bdf8"/>
-      <path d="M1282 642 L1344 520 L1360 526 L1306 642 Z" fill="#0891b2"/>
-      <circle cx="1270" cy="700" r="19" fill="#1f2937"/>
-      <circle cx="1392" cy="700" r="19" fill="#1f2937"/>
-      <rect x="1210" y="356" width="182" height="14" fill="#f97316"/>
-      <rect x="1218" y="390" width="182" height="14" fill="#f97316"/>
-      <path d="M1222 356 L1368 632 M1368 356 L1222 632" stroke="#9a3412" stroke-width="7"/>
+  const siteContext = `
+    <g opacity="0.82">
+      <path d="M134 770 C416 716, 814 700, 1452 762" fill="none" stroke="#64748b" stroke-width="24" opacity="0.12"/>
+      <path d="M154 782 C438 736, 820 724, 1420 778" fill="none" stroke="#94a3b8" stroke-width="3" stroke-dasharray="18 16" opacity="0.42"/>
+      <rect x="190" y="724" width="238" height="28" rx="5" fill="#475569" opacity="0.42"/>
+      <rect x="996" y="724" width="252" height="26" rx="5" fill="#475569" opacity="0.34"/>
+      <path d="M1300 322 L1438 566 M1438 322 L1300 566" stroke="#64748b" stroke-width="6" opacity="0.46"/>
+      <line x1="1284" y1="322" x2="1452" y2="322" stroke="#64748b" stroke-width="6" opacity="0.42"/>
+      <line x1="1294" y1="354" x2="1444" y2="354" stroke="#64748b" stroke-width="6" opacity="0.36"/>
     </g>
   `;
-  const workerMarkers = overlay.activities
-    .slice(0, 6)
-    .map((activity, index) => {
-      const x = 322 + activity.x * 820 + (index % 2) * 28;
-      const y = 150 + activity.y * 590;
-      return `
-        <g transform="translate(${x} ${y})">
-          <circle cx="0" cy="-15" r="7" fill="#fef3c7" stroke="#111827" stroke-width="2"/>
-          <path d="M-10 -23 H10 L6 -31 H-6 Z" fill="#facc15" stroke="#111827" stroke-width="2"/>
-          <rect x="-6" y="-8" width="12" height="25" rx="4" fill="${escapeSvgText(activity.color)}" stroke="#111827" stroke-width="2"/>
-          <path d="M-6 16 L-17 34 M6 16 L17 34 M-6 0 L-20 9 M6 0 L19 7" stroke="#111827" stroke-width="4" stroke-linecap="round"/>
-        </g>
-      `;
-    })
-    .join("");
 
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
     <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="#eef6ff"/>
-      <stop offset="1" stop-color="#dbeafe"/>
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#e2e8f0"/>
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#0f172a" flood-opacity="0.18"/>
     </filter>
     <radialGradient id="siteGlow" cx="50%" cy="42%" r="58%">
       <stop offset="0" stop-color="#ffffff" stop-opacity="0.8"/>
-      <stop offset="1" stop-color="#93c5fd" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#94a3b8" stop-opacity="0.08"/>
     </radialGradient>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#sky)"/>
   <rect width="${width}" height="${height}" fill="url(#siteGlow)"/>
-  <path d="M124 790 C420 720, 802 710, 1456 774" fill="none" stroke="#64748b" stroke-width="28" opacity="0.16"/>
-  ${equipment}
+  ${siteContext}
   <g filter="url(#shadow)">
     <g>
       ${floorDecks}
       ${columns}
-      <path d="M380 126 L1092 56 L1264 126 L554 200 Z" fill="none" stroke="#0ea5e9" stroke-width="9" opacity="0.78"/>
+      <path d="M330 186 L1150 116 L1340 184 L520 262 Z" fill="none" stroke="#2563eb" stroke-width="6" opacity="0.58"/>
       ${zoneHighlights}
       ${verticalOverlapMarkers}
-      ${workerMarkers}
     </g>
   </g>
 </svg>`;

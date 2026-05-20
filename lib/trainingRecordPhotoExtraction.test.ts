@@ -8,9 +8,12 @@ describe("parseTrainingRecordPhotoExtraction", () => {
         title: " OSHA 10 Construction ",
         completedOn: "6/11/2025",
         expiresOn: "2027-06-11",
+        completedOnLabel: "Completed",
+        expiresOnLabel: "Expires",
         provider: " ABC Safety ",
         notes: " Card #12345 ",
         confidence: 0.82,
+        rawVisibleText: "OSHA 10 Construction",
         warnings: [],
       })
     );
@@ -32,9 +35,12 @@ describe("parseTrainingRecordPhotoExtraction", () => {
         "title": "Respirator Fit Test",
         "completedOn": "not a date",
         "expiresOn": "",
+        "completedOnLabel": "Completed",
+        "expiresOnLabel": "",
         "provider": "HealthCheck Safety",
         "notes": "",
         "confidence": 2,
+        "rawVisibleText": "Respirator Fit Test",
         "warnings": ["Expiration not visible"]
       }
     \`\`\``);
@@ -55,14 +61,61 @@ describe("parseTrainingRecordPhotoExtraction", () => {
         title: "",
         completedOn: "",
         expiresOn: "",
+        completedOnLabel: "",
+        expiresOnLabel: "",
         provider: "",
         notes: "",
         confidence: 0.2,
+        rawVisibleText: "",
         warnings: [],
       })
     );
 
     expect(draft?.title).toBe("");
     expect(draft?.warnings).toContain("Training title was not visible enough to extract.");
+  });
+
+  it("uses visible OSHA course text instead of generic certificate headings", () => {
+    const draft = parseTrainingRecordPhotoExtraction(
+      JSON.stringify({
+        title: "Certificate of Completion",
+        completedOn: "March 24, 2025",
+        expiresOn: "",
+        completedOnLabel: "Date",
+        expiresOnLabel: "",
+        provider: "[Your Company Name]",
+        notes: "Certificate ID: 208485-194-352-23239; Instructor: [Name]",
+        confidence: 0.9,
+        rawVisibleText:
+          "Certificate of Completion OSHA 10-HOUR CONSTRUCTION SAFETY This is to certify that JANE DOE Date: March 24, 2025",
+        warnings: [],
+      })
+    );
+
+    expect(draft?.title).toBe("OSHA 10-Hour Construction Safety");
+    expect(draft?.completedOn).toBe("2025-03-24");
+    expect(draft?.expiresOn).toBe("");
+  });
+
+  it("moves a non-expiration date out of expiresOn when the model used the wrong date field", () => {
+    const draft = parseTrainingRecordPhotoExtraction(
+      JSON.stringify({
+        title: "Certificate of Completion",
+        completedOn: "",
+        expiresOn: "03/24/2025",
+        completedOnLabel: "",
+        expiresOnLabel: "Date",
+        provider: "[Your Company Name]",
+        notes: "Certificate ID: 208485-194-352-23239",
+        confidence: 0.9,
+        rawVisibleText: "OSHA 10-HOUR CONSTRUCTION SAFETY Date: March 24, 2025",
+        warnings: [],
+      })
+    );
+
+    expect(draft?.title).toBe("OSHA 10-Hour Construction Safety");
+    expect(draft?.completedOn).toBe("2025-03-24");
+    expect(draft?.expiresOn).toBe("");
+    expect(draft?.warnings).toContain("A date was visible, but no expiration label was visible; review before saving.");
   });
 });

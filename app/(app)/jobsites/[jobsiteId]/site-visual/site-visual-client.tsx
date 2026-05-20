@@ -204,9 +204,9 @@ function clampVisual(value: number, min: number, max: number) {
 
 function activityCalloutPosition(activity: RenderOverlayActivity, index: number) {
   const rightSide = activity.x < 0.56;
-  const offsetX = 0.14 + (index % 2) * 0.04;
+  const offsetX = 0.1 + (index % 2) * 0.025;
   const labelX = clampVisual(activity.x + (rightSide ? offsetX : -offsetX), 0.16, 0.84);
-  const labelY = clampVisual(activity.y - 0.065 + (index % 3) * 0.032, 0.12, 0.84);
+  const labelY = clampVisual(activity.y - 0.045 + (index % 3) * 0.024, 0.12, 0.84);
   return { labelX, labelY };
 }
 
@@ -617,7 +617,7 @@ function DetailedVisualRenderer({
           })}
         </svg>
 
-        <div className="absolute left-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur md:block">
+        <div className="absolute left-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/88 p-3 text-white shadow-2xl backdrop-blur md:block">
           <div className="text-sm font-black uppercase tracking-[0.08em]">Work Activities</div>
           <div className="mt-3 space-y-2">
             {activities.map((activity) => (
@@ -642,7 +642,7 @@ function DetailedVisualRenderer({
           </div>
         </div>
 
-        <div className="absolute right-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/82 p-4 text-white shadow-2xl backdrop-blur lg:block">
+        <div className="absolute right-3 top-3 hidden w-56 rounded-lg border border-white/20 bg-slate-950/88 p-4 text-white shadow-2xl backdrop-blur lg:block">
           <div className="text-sm font-black uppercase tracking-[0.08em]">Overlapping Work</div>
           <p className="mt-2 text-xs leading-5 text-slate-200">
             Multiple crews working in stacked or intersecting zones are highlighted by the app overlay.
@@ -686,34 +686,32 @@ function DetailedVisualRenderer({
               >
                 {activity.number}
               </button>
-              <button
-                type="button"
-                className={`absolute max-w-[210px] rounded-lg border-2 px-3 py-2 text-left text-white shadow-2xl backdrop-blur transition hover:scale-[1.02] ${
-                  isSelected
-                    ? "bg-slate-950/92 ring-4 ring-white/45"
-                    : isAffected
-                      ? "bg-amber-950/82 ring-4 ring-amber-300/30"
-                      : "bg-slate-950/78"
-                }`}
-                style={{
-                  borderColor: activity.color,
-                  left: `${labelX * 100}%`,
-                  top: `${labelY * 100}%`,
-                  width: `${Math.max(12, activity.width * 100)}%`,
-                  transform: "translate(-50%, -50%)",
-                }}
-                onClick={() => onSelectZone(activity.zoneId)}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm font-black" style={{ backgroundColor: activity.color }}>
-                  {activity.number}
+              {(isSelected || isAffected) && (
+                <button
+                  type="button"
+                  className={`absolute max-w-[220px] rounded-lg border-2 px-3 py-2 text-left text-white shadow-2xl backdrop-blur transition hover:scale-[1.02] ${
+                    isSelected ? "bg-slate-950/92 ring-4 ring-white/45" : "bg-amber-950/86 ring-4 ring-amber-300/30"
+                  }`}
+                  style={{
+                    borderColor: activity.color,
+                    left: `${labelX * 100}%`,
+                    top: `${labelY * 100}%`,
+                    width: `${Math.max(13, activity.width * 100)}%`,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                  onClick={() => onSelectZone(activity.zoneId)}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-sm font-black" style={{ backgroundColor: activity.color }}>
+                      {activity.number}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
+                      <span className="block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
+                    </span>
                   </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-black uppercase">{activity.label}</span>
-                    <span className="block truncate text-[11px] text-slate-200">{activity.subtitle}</span>
-                  </span>
-                </span>
-              </button>
+                </button>
+              )}
             </div>
           );
         })}
@@ -731,7 +729,7 @@ function DetailedVisualRenderer({
           />
         ))}
 
-        <div className="absolute bottom-3 right-3 max-w-sm rounded-lg border border-white/20 bg-slate-950/82 p-3 text-white shadow-2xl backdrop-blur">
+        <div className="absolute bottom-3 right-3 hidden max-w-sm rounded-lg border border-white/20 bg-slate-950/88 p-3 text-white shadow-2xl backdrop-blur md:block">
           <div className="flex items-start gap-2">
             <Layers3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
