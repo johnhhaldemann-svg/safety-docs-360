@@ -2715,15 +2715,18 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       ) : null}
 
       {activeTab === "Workforce" ? (
-        <DataTable
-          title="Workforce"
-          rows={siteEmployees.map((employee) => [employee.name, employee.trade, employee.role, employee.status, `${employee.readinessScore}`])}
-          headers={["Employee", "Trade", "Role", "Status", "Readiness", "Action"]}
-          actions={siteEmployees.map(() => ({ label: "Assign training", href: `/safe-predict/training?jobsiteId=${encodeURIComponent(site.id)}` }))}
-          emptyTitle="No Workforce Assigned Yet"
-          emptyDetail="Assign workers to this jobsite to compare crew readiness against scheduled high-risk work and required training."
-          emptyAction={{ label: "Manage workforce", href: "/safe-predict/team-access" }}
-        />
+        <div className="space-y-5">
+          <JobsiteAssignmentManager site={site} dataset={dataset} mode={mode} onChanged={refreshLiveData} />
+          <DataTable
+            title="Workforce"
+            rows={siteEmployees.map((employee) => [employee.name, employee.trade, employee.role, employee.status, `${employee.readinessScore}`])}
+            headers={["Employee", "Trade", "Role", "Status", "Readiness", "Action"]}
+            actions={siteEmployees.map(() => ({ label: "Assign training", href: `/safe-predict/training?jobsiteId=${encodeURIComponent(site.id)}` }))}
+            emptyTitle="No Workforce Assigned Yet"
+            emptyDetail="Assign workers to this jobsite to compare crew readiness against scheduled high-risk work and required training."
+            emptyAction={{ label: "Manage workforce", href: "/safe-predict/team-access" }}
+          />
+        </div>
       ) : null}
 
       {activeTab === "Permits" ? (
