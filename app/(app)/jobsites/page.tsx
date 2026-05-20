@@ -92,6 +92,19 @@ function getJobsiteTone(
   return "neutral";
 }
 
+function getJobsiteWeatherSummary(jobsite: CompanyJobsite) {
+  if (!jobsite.weatherEnabled) return "Off";
+  const source =
+    jobsite.weatherLocationSource === "address"
+      ? "Address"
+      : jobsite.weatherLocationSource === "zip_centroid"
+        ? "ZIP approximate"
+        : jobsite.weatherLocationSource === "manual"
+          ? "Manual"
+          : "Not resolved";
+  return `${source}${jobsite.zipCode ? ` - ZIP ${jobsite.zipCode}` : ""}`;
+}
+
 function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
   return {
     name: jobsite.name,
@@ -1107,6 +1120,7 @@ export default function JobsitesPage() {
                     ["Project Number", selectedJobsite.projectNumber || "Not assigned"],
                     ["Project Manager", selectedJobsite.projectManager || "Not assigned"],
                     ["Safety Lead", selectedJobsite.safetyLead || "Not assigned"],
+                    ["Weather", getJobsiteWeatherSummary(selectedJobsite)],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{label}</p>
@@ -1119,6 +1133,24 @@ export default function JobsitesPage() {
                   <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
                     {selectedJobsite.notes || "No site notes yet. Edit the jobsite to capture startup conditions, risk notes, and coordination details."}
                   </p>
+                </div>
+                <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">Weather Notifications</p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{getJobsiteWeatherSummary(selectedJobsite)}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">
+                        {selectedJobsite.weatherEnabled
+                          ? `Last checked ${selectedJobsite.weatherLastCheckedAt ? formatRelative(selectedJobsite.weatherLastCheckedAt, referenceTime) : "not yet"}. ZIP-only weather is approximate.`
+                          : "Turn on weather notifications to resolve this jobsite and monitor NWS alerts."}
+                      </p>
+                    </div>
+                    {selectedJobsite.source === "table" ? (
+                      <button type="button" onClick={() => openSelectedJobsiteForm(selectedJobsite)} className={appButtonSecondaryClassName}>
+                        Edit Weather
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 

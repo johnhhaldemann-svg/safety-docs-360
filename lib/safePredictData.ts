@@ -49,6 +49,12 @@ export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   incidentCount: number;
   observationCount: number;
   zipCode?: string | null;
+  weatherEnabled?: boolean | null;
+  weatherLocationSource?: string | null;
+  weatherLocationConfidence?: string | null;
+  weatherLastCheckedAt?: string | null;
+  weatherForecastUrl?: string | null;
+  weatherForecastHourlyUrl?: string | null;
   weatherLatitude?: number | null;
   weatherLongitude?: number | null;
 };
@@ -202,6 +208,18 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   endDate?: string | null;
   zip_code?: string | null;
   zipCode?: string | null;
+  weather_enabled?: boolean | null;
+  weatherEnabled?: boolean | null;
+  weather_location_source?: string | null;
+  weatherLocationSource?: string | null;
+  weather_location_confidence?: string | null;
+  weatherLocationConfidence?: string | null;
+  weather_last_checked_at?: string | null;
+  weatherLastCheckedAt?: string | null;
+  nws_forecast_url?: string | null;
+  nwsForecastUrl?: string | null;
+  nws_forecast_hourly_url?: string | null;
+  nwsForecastHourlyUrl?: string | null;
   weather_latitude?: number | string | null;
   weatherLatitude?: number | string | null;
   weather_longitude?: number | string | null;
@@ -516,6 +534,12 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
         endDate: String(row.end_date ?? row.endDate ?? ""),
         status,
         zipCode: String(row.zip_code ?? row.zipCode ?? "").trim() || null,
+        weatherEnabled: Boolean(row.weather_enabled ?? row.weatherEnabled),
+        weatherLocationSource: String(row.weather_location_source ?? row.weatherLocationSource ?? "").trim() || null,
+        weatherLocationConfidence: String(row.weather_location_confidence ?? row.weatherLocationConfidence ?? "").trim() || null,
+        weatherLastCheckedAt: String(row.weather_last_checked_at ?? row.weatherLastCheckedAt ?? "").trim() || null,
+        weatherForecastUrl: String(row.nws_forecast_url ?? row.nwsForecastUrl ?? "").trim() || null,
+        weatherForecastHourlyUrl: String(row.nws_forecast_hourly_url ?? row.nwsForecastHourlyUrl ?? "").trim() || null,
         inspectionGaps: 0,
         incidentCount: 0,
         observationCount: 0,

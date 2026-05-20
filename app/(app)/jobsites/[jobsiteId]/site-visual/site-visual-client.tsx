@@ -56,8 +56,6 @@ type SiteVisualPayload = {
   error?: string;
 };
 
-const supabase = getSupabaseBrowserClient();
-
 function formatDateTime(value?: string | null) {
   if (!value) return "Not scheduled";
   const parsed = new Date(value);
@@ -263,7 +261,13 @@ function NumberField({
   );
 }
 
-export function JobsiteSiteVisualClient({ jobsiteId }: { jobsiteId: string }) {
+export function JobsiteSiteVisualClient({
+  jobsiteId,
+  embedded = false,
+}: {
+  jobsiteId: string;
+  embedded?: boolean;
+}) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -275,6 +279,7 @@ export function JobsiteSiteVisualClient({ jobsiteId }: { jobsiteId: string }) {
   const [draft, setDraft] = useState<VisualZone | null>(null);
 
   async function getAuthHeaders() {
+    const supabase = getSupabaseBrowserClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -399,27 +404,48 @@ export function JobsiteSiteVisualClient({ jobsiteId }: { jobsiteId: string }) {
     );
   }
 
+  const visualActions = (
+    <>
+      <button type="button" className={appButtonSecondaryClassName} onClick={() => void load()} disabled={loading || generating}>
+        <RefreshCw aria-hidden="true" className="h-4 w-4" />
+        Refresh
+      </button>
+      {payload?.canGenerate ? (
+        <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateMap()} disabled={generating}>
+          <Sparkles aria-hidden="true" className="h-4 w-4" />
+          {generating ? "Generating..." : scene ? "Regenerate map" : "Generate map"}
+        </button>
+      ) : null}
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHero
-        eyebrow="Jobsite Workspace"
-        title="AI 3D Site Visual"
-        description="AI-generated schematic map for seeing work areas, task zones, and overlapping work. This is an operational visual aid, not an engineering or BIM drawing."
-        actions={
-          <>
-            <button type="button" className={appButtonSecondaryClassName} onClick={() => void load()} disabled={loading || generating}>
-              <RefreshCw aria-hidden="true" className="h-4 w-4" />
-              Refresh
-            </button>
-            {payload?.canGenerate ? (
-              <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateMap()} disabled={generating}>
-                <Sparkles aria-hidden="true" className="h-4 w-4" />
-                {generating ? "Generating..." : scene ? "Regenerate map" : "Generate map"}
-              </button>
-            ) : null}
-          </>
-        }
-      />
+      {embedded ? (
+        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--app-muted)]">
+                Jobsite visual
+              </div>
+              <h3 className="mt-1 text-xl font-black tracking-tight text-[var(--app-text-strong)]">
+                AI 3D Site Visual
+              </h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-muted)]">
+                AI-generated schematic map for seeing work areas, task zones, and overlapping work. This is an operational visual aid, not an engineering or BIM drawing.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">{visualActions}</div>
+          </div>
+        </div>
+      ) : (
+        <PageHero
+          eyebrow="Jobsite Workspace"
+          title="AI 3D Site Visual"
+          description="AI-generated schematic map for seeing work areas, task zones, and overlapping work. This is an operational visual aid, not an engineering or BIM drawing."
+          actions={visualActions}
+        />
+      )}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 

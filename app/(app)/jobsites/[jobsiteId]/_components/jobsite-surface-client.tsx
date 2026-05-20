@@ -10,6 +10,7 @@ import {
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
+import { JobsiteSiteVisualClient } from "../site-visual/site-visual-client";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -328,16 +329,19 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <FieldCard label="Location" value={jobsite?.location ?? "No location listed"} />
           <FieldCard label="Jobsite number" value={jobsite?.jobsite_number ?? "Not assigned"} />
           <FieldCard label="Project number" value={jobsite?.project_number ?? "Not assigned"} />
           <FieldCard label="Project manager" value={jobsite?.project_manager ?? "Not assigned"} />
           <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />
+          <FieldCard label="Weather" value={`${weatherOverviewStatus(jobsite, weatherAlerts)} - ${weatherOverviewDetail(jobsite)}`} />
         </div>
       </div>
 
       <WeatherOverviewCard jobsite={jobsite} alerts={weatherAlerts} />
+
+      {jobsiteId ? <JobsiteSiteVisualClient jobsiteId={jobsiteId} embedded /> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
@@ -411,6 +415,19 @@ function weatherLocationLabel(jobsite: JobsiteRow | null) {
   if (source === "zip_centroid") return "ZIP approximate";
   if (source === "manual") return "Manual";
   return "Not resolved";
+}
+
+function weatherOverviewStatus(jobsite: JobsiteRow | null, alerts: Array<Record<string, unknown>>) {
+  if (!jobsite?.weather_enabled) return "Off";
+  if (alerts.length > 0) return `${alerts.length} active alert${alerts.length === 1 ? "" : "s"}`;
+  return "On, no active alerts";
+}
+
+function weatherOverviewDetail(jobsite: JobsiteRow | null) {
+  const parts = [weatherLocationLabel(jobsite)];
+  if (jobsite?.zip_code) parts.push(`ZIP ${jobsite.zip_code}`);
+  if (jobsite?.weather_location_confidence) parts.push(`${labelize(jobsite.weather_location_confidence)} confidence`);
+  return parts.join(" - ");
 }
 
 function WeatherOverviewCard({

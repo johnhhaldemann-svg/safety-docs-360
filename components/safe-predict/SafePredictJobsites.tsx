@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  CloudSun,
   Download,
   Pencil,
   FilterX,
@@ -200,6 +201,29 @@ type SchedulePermitReadiness = {
   status: "ready" | "needs-permit" | "needs-review";
   detail: string;
   permitLabels: string[];
+};
+
+type JobsiteWeatherAlertSummary = {
+  id?: string | null;
+  event_name?: string | null;
+  headline?: string | null;
+  severity?: string | null;
+  expires_at?: string | null;
+};
+
+type JobsiteWeatherSettingsSummary = {
+  weather_enabled?: boolean | null;
+  zip_code?: string | null;
+  weather_location_source?: string | null;
+  weather_location_confidence?: string | null;
+  weather_last_checked_at?: string | null;
+  nws_forecast_url?: string | null;
+};
+
+type JobsiteWeatherOverviewData = {
+  jobsite?: JobsiteWeatherSettingsSummary | null;
+  alerts?: JobsiteWeatherAlertSummary[];
+  error?: string | null;
 };
 
 function statusLabel(status: SafePredictJobsiteStatus) {
@@ -486,6 +510,27 @@ function compactDateLabel(value: string) {
   return value;
 }
 
+function formatWeatherDateTime(value?: string | null) {
+  if (!value) return "Not checked yet";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function weatherLocationSourceLabel(value?: string | null) {
+  if (value === "address") return "Address";
+  if (value === "zip_centroid") return "ZIP approximate";
+  if (value === "manual") return "Manual";
+  return "Not resolved";
+}
+
+function weatherSeverityClasses(severity?: string | null) {
+  const value = String(severity ?? "").toLowerCase();
+  if (value.includes("extreme") || value.includes("severe")) return "border-red-200 bg-red-50 text-red-700";
+  if (value.includes("moderate")) return "border-orange-200 bg-orange-50 text-orange-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
 function controlList(value: string) {
   return value
     .split(",")
@@ -495,6 +540,85 @@ function controlList(value: string) {
 
 function listText(value: string[]) {
   return value.join(", ");
+}
+
+function jobsiteWeatherFromSite(site: SafePredictJobsiteRecord): JobsiteWeatherOverviewData {
+  return {
+    jobsite: {
+      weather_enabled: Boolean(site.weatherEnabled),
+      zip_code: site.zipCode ?? null,
+      weather_location_source: site.weatherLocationSource ?? null,
+      weather_location_confidence: site.weatherLocationConfidence ?? null,
+      weather_last_checked_at: site.weatherLastCheckedAt ?? null,
+      nws_forecast_url: site.weatherForecastUrl ?? null,
+    },
+    alerts: [],
+  };
+}
+
+function JobsiteWeatherOverviewCard({
+  site,
+  weather,
+}: {
+  site: SafePredictJobsiteRecord;
+  weather: JobsiteWeatherOverviewData | null;
+}) {
+  const jobsiteWeather = weather?.jobsite ?? jobsiteWeatherFromSite(site).jobsite;
+  const alerts = weather?.alerts ?? [];
+  const enabled = Boolean(jobsiteWeather?.weather_enabled);
+  const zipCode = jobsiteWeather?.zip_code || site.zipCode || "";
+  const sourceLabel = weatherLocationSourceLabel(jobsiteWeather?.weather_location_source ?? site.weatherLocationSource);
+  const confidence = jobsiteWeather?.weather_location_confidence ?? site.weatherLocationConfidence;
+  const forecastUrl = jobsiteWeather?.nws_forecast_url ?? site.weatherForecastUrl;
+  const title = alerts.length > 0 ? `${alerts.length} active weather alert${alerts.length === 1 ? "" : "s"}` : enabled ? "No active NWS alerts" : "Weather monitoring off";
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-xl border", alerts.length > 0 ? "border-red-200 bg-red-50 text-red-600" : enabled ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-slate-200 bg-slate-50 text-slate-500")}>
+            <CloudSun className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Jobsite Weather</p>
+            <h2 className="mt-1 text-xl font-black leading-tight text-slate-950">{title}</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              {sourceLabel}{zipCode ? ` - ZIP ${zipCode}` : ""}{confidence ? ` - ${formatTitleCase(confidence)} confidence` : ""} - Last checked {formatWeatherDateTime(jobsiteWeather?.weather_last_checked_at ?? site.weatherLastCheckedAt)}
+            </p>
+            {!enabled && !zipCode ? (
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add a ZIP code or full address in jobsite settings before turning on weather notifications.</p>
+            ) : null}
+            {sourceLabel === "ZIP approximate" ? (
+              <p className="mt-2 text-xs font-semibold leading-5 text-amber-700">ZIP-based weather is approximate. A full jobsite address gives crews more accurate NWS alert coverage.</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {forecastUrl ? (
+            <a href={forecastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-100">
+              NWS forecast
+            </a>
+          ) : null}
+        </div>
+      </div>
+      {weather?.error ? (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{weather.error}</p>
+      ) : null}
+      {alerts.length > 0 ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {alerts.slice(0, 4).map((alert, index) => (
+            <div key={alert.id ?? `${alert.event_name ?? "alert"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide", weatherSeverityClasses(alert.severity))}>{alert.severity || "Alert"}</span>
+                <span className="text-xs font-bold text-slate-500">Expires {formatWeatherDateTime(alert.expires_at)}</span>
+              </div>
+              <p className="mt-2 text-sm font-black text-slate-950">{alert.event_name || "Weather alert"}</p>
+              {alert.headline ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{alert.headline}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Card>
+  );
 }
 
 function scheduleTemplateFileName(site: SafePredictJobsiteRecord) {
