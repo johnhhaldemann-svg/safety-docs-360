@@ -59,6 +59,12 @@ function colorForRisk(riskLevel: SiteVisualZone["riskLevel"]) {
   return "#10b981";
 }
 
+function colorForSeverity(severity: SiteVisualOverlap["severity"]) {
+  if (severity === "critical") return "#ef4444";
+  if (severity === "high") return "#f97316";
+  return "#f59e0b";
+}
+
 function zoneCenter(zone: SiteVisualZone, scene: SiteVisualScene) {
   if (zone.blueprintBounds) {
     return {
@@ -225,10 +231,11 @@ export function buildSiteVisualRenderPrompt(input: SiteVisualRenderPromptInput, 
     "Use the attached blueprint preview as the layout reference, but transform it into a polished multi-level construction cutaway scene.",
     "Match this style: realistic active jobsite, exposed floors and framing, roof/work deck, facade/scaffold/lifts, materials, equipment, visible workers in PPE, numbered colored work-activity callouts, left activity legend, right overlap/safety insight panels.",
     "Use a wide 16:9 composition. Make labels readable. Keep the result professional and visually understandable.",
+    "Make overlap clarity the primary goal: draw translucent red/orange hazard footprints where work areas overlap, connect overlapping activities with visible lines, and show an overlap list/matrix with severity labels.",
     "Do not present this as BIM, engineering, or measurement-accurate. It is an operational safety planning visual.",
     `Blueprint: ${input.blueprint.fileName}, page ${input.blueprint.pageNumber}.`,
     `Work activities to depict: ${JSON.stringify(activities)}.`,
-    `Overlapping work insights to depict subtly: ${JSON.stringify(overlaps)}.`,
+    `Overlapping work insights to depict clearly and prominently: ${JSON.stringify(overlaps)}.`,
   ].join("\n");
 }
 
@@ -299,10 +306,56 @@ export function buildSiteVisualFallbackRenderSvg(
       const color = escapeSvgText(activity.color);
       const w = 118 + (index % 2) * 34;
       const h = 42 + (index % 3) * 8;
+      const labelX = Math.min(1330, Math.max(150, x + (activity.x < 0.56 ? 68 : -220)));
+      const labelY = Math.min(760, Math.max(120, y - 26));
       return `
         <g>
           <polygon points="${x - w},${y + 14} ${x + w},${y - 8} ${x + w + 56},${y + h} ${x - w + 56},${y + h + 26}" fill="${color}" opacity="0.2" stroke="${color}" stroke-width="4"/>
           <circle cx="${x}" cy="${y + 20}" r="10" fill="#ffffff" stroke="${color}" stroke-width="5"/>
+          <rect x="${labelX}" y="${labelY}" width="154" height="44" rx="9" fill="#0f172a" opacity="0.9" stroke="${color}" stroke-width="2"/>
+          <rect x="${labelX + 8}" y="${labelY + 8}" width="28" height="28" rx="6" fill="${color}"/>
+          <text x="${labelX + 22}" y="${labelY + 28}" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#ffffff">${activity.number}</text>
+          <text x="${labelX + 44}" y="${labelY + 19}" font-family="Arial, sans-serif" font-size="11" font-weight="900" fill="#ffffff">${escapeSvgText(activity.label).slice(0, 23)}</text>
+          <text x="${labelX + 44}" y="${labelY + 34}" font-family="Arial, sans-serif" font-size="10" font-weight="700" fill="#cbd5e1">${escapeSvgText(activity.subtitle).slice(0, 24)}</text>
+        </g>
+      `;
+    })
+    .join("");
+  const activitiesByZone = new Map(overlay.activities.map((activity) => [activity.zoneId, activity]));
+  const overlapConnectors = overlay.overlaps
+    .slice(0, 8)
+    .map((overlap, index) => {
+      const first = activitiesByZone.get(overlap.zoneIds[0]);
+      const second = activitiesByZone.get(overlap.zoneIds[1]);
+      const firstX = 300 + (first?.x ?? overlap.x) * 900;
+      const firstY = 116 + (first?.y ?? overlap.y) * 610 + 20;
+      const secondX = 300 + (second?.x ?? overlap.x) * 900;
+      const secondY = 116 + (second?.y ?? overlap.y) * 610 + 20;
+      const x = (firstX + secondX) / 2;
+      const y = (firstY + secondY) / 2;
+      const color = colorForSeverity(overlap.severity);
+      return `
+        <g>
+          <line x1="${firstX}" y1="${firstY}" x2="${secondX}" y2="${secondY}" stroke="${color}" stroke-width="${overlap.severity === "medium" ? 5 : 7}" stroke-linecap="round" opacity="0.88"/>
+          <line x1="${firstX}" y1="${firstY}" x2="${secondX}" y2="${secondY}" stroke="#ffffff" stroke-width="2" stroke-dasharray="8 8" stroke-linecap="round" opacity="0.76"/>
+          <ellipse cx="${x}" cy="${y}" rx="${92 + index * 4}" ry="${36 + (index % 3) * 8}" fill="${color}" opacity="0.28" stroke="${color}" stroke-width="5"/>
+          <rect x="${x - 76}" y="${y - 21}" width="152" height="42" rx="10" fill="#111827" opacity="0.92" stroke="${color}" stroke-width="2"/>
+          <text x="${x}" y="${y - 3}" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="900" fill="#ffffff">OVERLAP ${index + 1}</text>
+          <text x="${x}" y="${y + 14}" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="800" fill="${color}">${escapeSvgText(overlap.severity.toUpperCase())}</text>
+        </g>
+      `;
+    })
+    .join("");
+  const overlapMatrixRows = overlay.overlaps
+    .slice(0, 5)
+    .map((overlap, index) => {
+      const color = colorForSeverity(overlap.severity);
+      const y = 668 + index * 34;
+      return `
+        <g>
+          <rect x="1048" y="${y}" width="378" height="27" rx="7" fill="#ffffff" opacity="0.08" stroke="${color}" stroke-width="1.5"/>
+          <circle cx="1064" cy="${y + 13.5}" r="5" fill="${color}"/>
+          <text x="1078" y="${y + 17}" font-family="Arial, sans-serif" font-size="11" font-weight="900" fill="#ffffff">${escapeSvgText(overlap.label).slice(0, 46)}</text>
         </g>
       `;
     })
@@ -356,9 +409,16 @@ export function buildSiteVisualFallbackRenderSvg(
       ${floorDecks}
       ${columns}
       <path d="M330 186 L1150 116 L1340 184 L520 262 Z" fill="none" stroke="#2563eb" stroke-width="6" opacity="0.58"/>
+      ${overlapConnectors}
       ${zoneHighlights}
       ${verticalOverlapMarkers}
     </g>
+  </g>
+  <g>
+    <rect x="1030" y="622" width="420" height="230" rx="14" fill="#111827" opacity="0.9" stroke="#ffffff" stroke-opacity="0.18"/>
+    <text x="1050" y="650" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#ffffff">OVERLAP / HAZARD AREAS</text>
+    <text x="1050" y="874" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#cbd5e1">Colored footprints show app-detected plan or stacked work conflicts.</text>
+    ${overlapMatrixRows}
   </g>
 </svg>`;
 }

@@ -14,6 +14,7 @@ import {
   RotateCw,
   Save,
   Sparkles,
+  Trash2,
   Upload,
   ZoomIn,
   ZoomOut,
@@ -164,6 +165,12 @@ function riskColor(level: RiskLevel) {
   if (level === "high") return "#f97316";
   if (level === "medium") return "#f59e0b";
   return "#10b981";
+}
+
+function severityColor(level: VisualOverlap["severity"]) {
+  if (level === "critical") return "#ef4444";
+  if (level === "high") return "#f97316";
+  return "#f59e0b";
 }
 
 function sourceLabel(sourceType?: string | null) {
@@ -568,12 +575,27 @@ function DetailedVisualRenderer({
   const overlaps = render.overlay?.overlaps ?? [];
   const selectedActivity = activities.find((activity) => activity.zoneId === selectedZoneId) ?? activities[0] ?? null;
   const zoneMap = new Map((scene?.zones ?? []).map((zone) => [zone.id, zone]));
+  const activityByZone = new Map(activities.map((activity) => [activity.zoneId, activity]));
   const selectedOverlapZoneIds = new Set(
     overlaps
       .filter((overlap) => (selectedZoneId ? overlap.zoneIds.includes(selectedZoneId) : false))
       .flatMap((overlap) => overlap.zoneIds)
   );
   const callouts = activities.map((activity, index) => ({ activity, ...activityCalloutPosition(activity, index) }));
+  const overlapPaths = overlaps.map((overlap, index) => {
+    const first = activityByZone.get(overlap.zoneIds[0]);
+    const second = activityByZone.get(overlap.zoneIds[1]);
+    return {
+      overlap,
+      index,
+      first,
+      second,
+      x: overlap.x * 100,
+      y: overlap.y * 56.25,
+      color: severityColor(overlap.severity),
+      selected: selectedZoneId ? overlap.zoneIds.includes(selectedZoneId) : false,
+    };
+  });
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-xl">
@@ -587,6 +609,66 @@ function DetailedVisualRenderer({
         )}
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/24 via-transparent to-slate-950/24" />
         <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 56.25" preserveAspectRatio="none" aria-hidden="true">
+          {overlapPaths.map(({ overlap, index, first, second, x, y, color, selected }) => (
+            <g key={`path-${overlap.id}`}>
+              {first && second ? (
+                <>
+                  <line
+                    x1={first.x * 100}
+                    y1={first.y * 56.25}
+                    x2={second.x * 100}
+                    y2={second.y * 56.25}
+                    stroke={color}
+                    strokeWidth={selected ? 0.95 : 0.6}
+                    strokeLinecap="round"
+                    opacity={selected ? 0.95 : 0.74}
+                  />
+                  <line
+                    x1={first.x * 100}
+                    y1={first.y * 56.25}
+                    x2={second.x * 100}
+                    y2={second.y * 56.25}
+                    stroke="#ffffff"
+                    strokeWidth={0.16}
+                    strokeDasharray="1 1"
+                    strokeLinecap="round"
+                    opacity={0.78}
+                  />
+                </>
+              ) : null}
+              <ellipse
+                cx={x}
+                cy={y}
+                rx={selected ? 5.8 : 4.5}
+                ry={selected ? 2.4 : 1.85}
+                fill={color}
+                fillOpacity={selected ? 0.42 : 0.3}
+                stroke={color}
+                strokeWidth={selected ? 0.55 : 0.36}
+              />
+              <rect
+                x={clampVisual(x - 6.2, 1, 86)}
+                y={clampVisual(y - 2.2, 1, 52)}
+                width="12.4"
+                height="4.4"
+                rx="0.8"
+                fill="#111827"
+                stroke={color}
+                strokeWidth="0.24"
+                opacity="0.94"
+              />
+              <text
+                x={clampVisual(x, 7.2, 92.8)}
+                y={clampVisual(y + 0.25, 3.2, 54)}
+                textAnchor="middle"
+                fontSize="1.25"
+                fontWeight="900"
+                fill="#ffffff"
+              >
+                {`OVERLAP ${index + 1}`}
+              </text>
+            </g>
+          ))}
           {callouts.map(({ activity, labelX, labelY }) => {
             const isSelected = activity.zoneId === selectedZoneId;
             const isAffected = selectedOverlapZoneIds.has(activity.zoneId);
@@ -648,17 +730,27 @@ function DetailedVisualRenderer({
             Multiple crews working in stacked or intersecting zones are highlighted by the app overlay.
           </p>
           <div className="mt-4 border-t border-white/20 pt-4">
-            <div className="text-xs font-black uppercase tracking-[0.08em]">Vertical overlap points</div>
-            <div className="mt-3 flex gap-3">
+            <div className="text-xs font-black uppercase tracking-[0.08em]">Overlap / hazard areas</div>
+            <div className="mt-3 space-y-2">
               {overlaps.slice(0, 5).map((overlap, index) => (
                 <button
                   key={overlap.id}
                   type="button"
-                  className="h-10 w-4 rounded-full border border-white/30"
-                  style={{ backgroundColor: ["#22d3ee", "#facc15", "#c084fc", "#fb923c", "#ef4444"][index % 5] }}
+                  className="flex w-full items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-2 py-2 text-left transition hover:bg-white/14"
+                  style={{ borderColor: selectedZoneId && overlap.zoneIds.includes(selectedZoneId) ? severityColor(overlap.severity) : undefined }}
                   title={overlap.label}
                   onClick={() => onSelectZone(overlap.zoneIds[0])}
-                />
+                >
+                  <span className="mt-0.5 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: severityColor(overlap.severity) }} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[11px] font-black uppercase text-white">
+                      {index + 1}. {overlap.label}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: severityColor(overlap.severity) }}>
+                      {overlap.severity}
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -814,6 +906,7 @@ export function JobsiteSiteVisualClient({
   const [blueprintPage, setBlueprintPage] = useState(1);
   const [uploadingBlueprint, setUploadingBlueprint] = useState(false);
   const [savingBlueprint, setSavingBlueprint] = useState(false);
+  const [deletingBlueprint, setDeletingBlueprint] = useState(false);
 
   async function getAuthHeaders() {
     const supabase = getSupabaseBrowserClient();
@@ -1045,6 +1138,49 @@ export function JobsiteSiteVisualClient({
     setSavingBlueprint(false);
   }
 
+  async function removeBlueprint() {
+    if (!activeBlueprint) return;
+    const confirmed = window.confirm("Remove this blueprint underlay from the jobsite visual?");
+    if (!confirmed) return;
+    setDeletingBlueprint(true);
+    setMessage(null);
+    try {
+      const blueprintId = activeBlueprint.id;
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/blueprints/${blueprintId}`, {
+        method: "DELETE",
+        headers,
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to remove blueprint.");
+      setPayload((current) => {
+        if (!current) return current;
+        const nextBlueprints = (current.blueprints ?? []).filter((item) => item.id !== blueprintId);
+        const nextBlueprint = nextBlueprints.find((item) => item.processingStatus === "ready") ?? nextBlueprints[0] ?? null;
+        const nextScene =
+          current.scene?.blueprint?.id === blueprintId
+            ? { ...current.scene, blueprint: null }
+            : current.scene;
+        return {
+          ...current,
+          blueprint: nextBlueprint,
+          blueprints: nextBlueprints,
+          render: current.render?.blueprintId === blueprintId ? null : current.render,
+          scene: nextScene,
+          siteMap: current.siteMap?.blueprintId === blueprintId ? { ...current.siteMap, blueprintId: null } : current.siteMap,
+        };
+      });
+      setVisualSurfaceMode("schematic");
+      setBlueprintFile(null);
+      setMessage("Blueprint removed from this jobsite visual.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to remove blueprint.");
+      setMessageTone("error");
+    }
+    setDeletingBlueprint(false);
+  }
+
   function adjustBlueprintTransform(patch: Partial<BlueprintTransform>) {
     if (!activeBlueprint) return;
     const current = activeBlueprint.transform;
@@ -1233,6 +1369,15 @@ export function JobsiteSiteVisualClient({
                     tone={activeBlueprint.processingStatus === "ready" ? "success" : activeBlueprint.processingStatus === "failed" ? "warning" : "info"}
                   />
                 </div>
+                <button
+                  type="button"
+                  className={`${appButtonSecondaryClassName} w-full border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
+                  disabled={!payload?.canUploadBlueprints || deletingBlueprint}
+                  onClick={() => void removeBlueprint()}
+                >
+                  <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  {deletingBlueprint ? "Removing..." : "Remove blueprint"}
+                </button>
                 {activeBlueprint.processingError ? <InlineMessage tone="warning">{activeBlueprint.processingError}</InlineMessage> : null}
                 {activeBlueprint.signedPreviewUrl ? (
                   <div className="overflow-hidden rounded-xl border border-[var(--app-border)] bg-slate-50">
@@ -1249,34 +1394,34 @@ export function JobsiteSiteVisualClient({
                         max={1}
                         step={0.02}
                         value={activeBlueprint.transform.opacity}
-                        disabled={savingBlueprint}
+                        disabled={savingBlueprint || deletingBlueprint}
                         onChange={(event) => adjustBlueprintTransform({ opacity: Number(event.target.value) })}
                         className="mt-2 w-full"
                       />
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 1.1 })}>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 1.1 })}>
                         <ZoomIn aria-hidden="true" className="h-4 w-4" />
                         Scale up
                       </button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 0.9 })}>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 0.9 })}>
                         <ZoomOut aria-hidden="true" className="h-4 w-4" />
                         Scale down
                       </button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ rotationY: activeBlueprint.transform.rotationY + Math.PI / 2 })}>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ rotationY: activeBlueprint.transform.rotationY + Math.PI / 2 })}>
                         <RotateCw aria-hidden="true" className="h-4 w-4" />
                         Rotate 90
                       </button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: 0, z: 0, scale: 1, rotationY: 0 })}>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ x: 0, z: 0, scale: 1, rotationY: 0 })}>
                         <Move aria-hidden="true" className="h-4 w-4" />
                         Fit center
                       </button>
                     </div>
                     <div className="grid grid-cols-4 gap-2">
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z - 3 })}>Up</button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z + 3 })}>Down</button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x - 3 })}>Left</button>
-                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x + 3 })}>Right</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z - 3 })}>Up</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z + 3 })}>Down</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x - 3 })}>Left</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint || deletingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x + 3 })}>Right</button>
                     </div>
                   </div>
                 ) : null}

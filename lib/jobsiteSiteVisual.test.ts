@@ -167,6 +167,51 @@ describe("jobsite site visual scene helpers", () => {
     expect(detectSiteVisualOverlaps([base, later])).toEqual([]);
   });
 
+  it("detects blueprint-footprint and stacked vertical work overlaps", () => {
+    const base: SiteVisualZone = {
+      id: "zone-1",
+      label: "Suite 101 demo",
+      sourceType: "schedule",
+      sourceId: "one",
+      scheduleItemId: "one",
+      trade: null,
+      workArea: null,
+      startsAt: "2026-05-21T07:00:00",
+      endsAt: "2026-05-21T12:00:00",
+      riskLevel: "medium",
+      controls: [],
+      position: { x: 0, y: 1, z: 0 },
+      size: { x: 4, y: 1, z: 4 },
+      color: "#2563eb",
+      blueprintBounds: { x: 0.2, y: 0.2, width: 0.2, height: 0.18 },
+    };
+    const blueprintOverlap: SiteVisualZone = {
+      ...base,
+      id: "zone-2",
+      label: "Suite 101 overhead work",
+      riskLevel: "high",
+      position: { x: 20, y: 1, z: 20 },
+      blueprintBounds: { x: 0.32, y: 0.28, width: 0.18, height: 0.16 },
+    };
+    const verticalStack: SiteVisualZone = {
+      ...base,
+      id: "zone-3",
+      label: "Level 2 lift work",
+      riskLevel: "critical",
+      position: { x: 0.5, y: 8, z: 0.5 },
+      blueprintBounds: null,
+    };
+
+    expect(detectSiteVisualOverlaps([base, blueprintOverlap])[0]).toMatchObject({
+      severity: "high",
+      reason: "Work footprints overlap on the uploaded blueprint and their scheduled windows overlap.",
+    });
+    expect(detectSiteVisualOverlaps([base, verticalStack])[0]).toMatchObject({
+      severity: "critical",
+      reason: "Work footprints stack above or below each other during the same scheduled window.",
+    });
+  });
+
   it("clamps and validates AI scene geometry before saving", () => {
     const scene = validateSiteVisualScene(
       {

@@ -202,3 +202,71 @@ export async function PATCH(
   }
   return NextResponse.json({ blueprint: await dbBlueprintToPayload(update.data as Record<string, unknown>) });
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ jobsiteId: string; blueprintId: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requireAnyPermission: [
+      "can_view_all_company_data",
+      "can_view_analytics",
+      "can_view_dashboards",
+      "can_access_field_work",
+    ],
+  });
+  if ("error" in auth) return auth.error;
+  if (!canUploadBlueprints(auth.role)) {
+    return NextResponse.json({ error: "You do not have permission to remove jobsite blueprints." }, { status: 403 });
+  }
+
+  const { jobsiteId, blueprintId } = await params;
+  const companyScope = await resolveCompanyScope(auth);
+  if (!companyScope.companyId) {
+    return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
+  }
+
+  const existing = await loadBlueprint({ supabase: auth.supabase, companyId: companyScope.companyId, jobsiteId, blueprintId });
+  if (existing.error) return NextResponse.json({ error: existing.error.message || "Failed to load blueprint." }, { status: 500 });
+  if (!existing.data) return NextResponse.json({ error: "Blueprint not found." }, { status: 404 });
+
+  const archivedAt = new Date().toISOString();
+  const archive = await auth.supabase
+    .from("company_jobsite_site_blueprints")
+    .update({
+      archived_at: archivedAt,
+      processing_status: "archived",
+      updated_by: auth.user.id,
+    })
+    .eq("id", blueprintId)
+    .eq("company_id", companyScope.companyId)
+    .eq("jobsite_id", jobsiteId);
+  if (archive.error) {
+    return NextResponse.json({ error: archive.error.message || "Failed to remove blueprint." }, { status: 500 });
+  }
+
+  await auth.supabase
+    .from("company_jobsite_site_maps")
+    .update({ blueprint_id: null, updated_by: auth.user.id })
+    .eq("company_id", companyScope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .eq("blueprint_id", blueprintId);
+
+  await auth.supabase
+    .from("company_jobsite_site_renders")
+    .update({ archived_at: archivedAt, render_status: "archived", updated_by: auth.user.id })
+    .eq("company_id", companyScope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .eq("blueprint_id", blueprintId)
+    .is("archived_at", null);
+
+  const admin = createSupabaseAdminClient();
+  const paths = [existing.data.source_file_path, existing.data.preview_image_path]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+  if (admin && paths.length > 0) {
+    await admin.storage.from(SITE_VISUAL_BLUEPRINT_BUCKET).remove(paths);
+  }
+
+  return NextResponse.json({ success: true });
+}

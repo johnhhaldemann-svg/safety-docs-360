@@ -78,6 +78,7 @@ describe("jobsite site visual render helpers", () => {
     const prompt = buildSiteVisualRenderPrompt(promptInput);
 
     expect(prompt).toContain("multi-level construction cutaway");
+    expect(prompt).toContain("Make overlap clarity the primary goal");
     expect(siteVisualRenderPromptHash(promptInput)).toBe(siteVisualRenderPromptHash(promptInput));
     expect(
       extractResponsesImageBase64({
@@ -95,6 +96,7 @@ describe("jobsite site visual render helpers", () => {
     expect(svg).toContain("<svg");
     expect(svg).toContain("blueprint-plate-0");
     expect(svg).toContain("data:image/png;base64,abc123");
+    expect(svg).toContain("OVERLAP / HAZARD AREAS");
     expect(svg).not.toContain("WORK ACTIVITIES");
     expect(svg).not.toContain("SAFETY INSIGHT");
   });

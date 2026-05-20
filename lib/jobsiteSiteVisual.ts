@@ -642,10 +642,54 @@ function timeWindowsOverlap(left: SiteVisualZone, right: SiteVisualZone) {
 
 export function boxesIntersect(left: Pick<SiteVisualZone, "position" | "size">, right: Pick<SiteVisualZone, "position" | "size">) {
   return (
-    Math.abs(left.position.x - right.position.x) * 2 < left.size.x + right.size.x &&
-    Math.abs(left.position.y - right.position.y) * 2 < left.size.y + right.size.y &&
-    Math.abs(left.position.z - right.position.z) * 2 < left.size.z + right.size.z
+    axisRangesIntersect(left.position.x, left.size.x, right.position.x, right.size.x) &&
+    axisRangesIntersect(left.position.y, left.size.y, right.position.y, right.size.y) &&
+    axisRangesIntersect(left.position.z, left.size.z, right.position.z, right.size.z)
   );
+}
+
+function axisRangesIntersect(leftCenter: number, leftSize: number, rightCenter: number, rightSize: number) {
+  return Math.abs(leftCenter - rightCenter) * 2 < leftSize + rightSize;
+}
+
+function horizontalFootprintsIntersect(left: Pick<SiteVisualZone, "position" | "size">, right: Pick<SiteVisualZone, "position" | "size">) {
+  return (
+    axisRangesIntersect(left.position.x, left.size.x, right.position.x, right.size.x) &&
+    axisRangesIntersect(left.position.z, left.size.z, right.position.z, right.size.z)
+  );
+}
+
+function blueprintBoundsIntersect(left: SiteVisualZone, right: SiteVisualZone) {
+  if (!left.blueprintBounds || !right.blueprintBounds) return false;
+  const leftBounds = left.blueprintBounds;
+  const rightBounds = right.blueprintBounds;
+  return (
+    leftBounds.x < rightBounds.x + rightBounds.width &&
+    leftBounds.x + leftBounds.width > rightBounds.x &&
+    leftBounds.y < rightBounds.y + rightBounds.height &&
+    leftBounds.y + leftBounds.height > rightBounds.y
+  );
+}
+
+function overlapReason({
+  blueprintOverlap,
+  schematicOverlap,
+  verticalStack,
+}: {
+  blueprintOverlap: boolean;
+  schematicOverlap: boolean;
+  verticalStack: boolean;
+}) {
+  if (blueprintOverlap) {
+    return "Work footprints overlap on the uploaded blueprint and their scheduled windows overlap.";
+  }
+  if (verticalStack) {
+    return "Work footprints stack above or below each other during the same scheduled window.";
+  }
+  if (schematicOverlap) {
+    return "Work zones intersect in the schematic map and their scheduled windows overlap.";
+  }
+  return "Work areas overlap during the same scheduled window.";
 }
 
 export function detectSiteVisualOverlaps(zones: SiteVisualZone[]): SiteVisualOverlap[] {
@@ -654,7 +698,11 @@ export function detectSiteVisualOverlaps(zones: SiteVisualZone[]): SiteVisualOve
     for (let j = i + 1; j < zones.length; j += 1) {
       const left = zones[i];
       const right = zones[j];
-      if (!boxesIntersect(left, right) || !timeWindowsOverlap(left, right)) continue;
+      if (!timeWindowsOverlap(left, right)) continue;
+      const schematicOverlap = boxesIntersect(left, right);
+      const blueprintOverlap = blueprintBoundsIntersect(left, right);
+      const verticalStack = !schematicOverlap && horizontalFootprintsIntersect(left, right);
+      if (!schematicOverlap && !blueprintOverlap && !verticalStack) continue;
       const severity =
         left.riskLevel === "critical" || right.riskLevel === "critical"
           ? "critical"
@@ -666,7 +714,7 @@ export function detectSiteVisualOverlaps(zones: SiteVisualZone[]): SiteVisualOve
         zoneIds: [left.id, right.id],
         severity,
         label: `${left.label} / ${right.label}`,
-        reason: "Work zones intersect in the schematic map and their scheduled windows overlap.",
+        reason: overlapReason({ blueprintOverlap, schematicOverlap, verticalStack }),
       });
     }
   }
