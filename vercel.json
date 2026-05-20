@@ -4,27 +4,27 @@
   "crons": [
     {
       "path": "/api/cron/injury-weather-refresh",
-      "schedule": "15 5 * * *"
+      "schedule": "5 4 * * *"
     },
     {
       "path": "/api/cron/jobsite-weather-alerts",
-      "schedule": "10 6 * * *"
+      "schedule": "25 6 * * *"
     },
     {
       "path": "/api/cron/company-billing-invoices",
-      "schedule": "30 5 * * *"
+      "schedule": "35 4 * * *"
     },
     {
       "path": "/api/cron/risk-memory-rollup",
-      "schedule": "45 5 * * *"
+      "schedule": "10 5 * * *"
     },
     {
       "path": "/api/cron/microsoft-project-sync",
-      "schedule": "0 6 * * *"
+      "schedule": "50 5 * * *"
     },
     {
       "path": "/api/cron/ai-engine-permit-auto-assign",
-      "schedule": "25 6 * * *"
+      "schedule": "15 7 * * *"
     }
   ]
 }

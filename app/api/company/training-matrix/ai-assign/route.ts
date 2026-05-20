@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
+import { createCompanyNotification } from "@/lib/companyNotifications";
 import { canMutateCompanyTrainingRequirements } from "@/lib/companyTrainingAccess";
 import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
 import { normalizeEmail } from "@/lib/companyTrackedEmployees";
@@ -420,6 +421,26 @@ export async function POST(request: Request) {
       }
 
       if (plan.action === "assign_training" && plan.createdActionId) {
+        await createCompanyNotification({
+          supabase: auth.supabase,
+          companyId: companyScope.companyId,
+          recipientUserId: assignableUserId(worker.id ?? "") ?? auth.user.id,
+          actorUserId: auth.user.id,
+          eventType: "training_gap",
+          title: plan.title,
+          body: plan.detail,
+          priority: plan.riskLevel === "critical" ? "critical" : "high",
+          href: `/training-matrix?action=${encodeURIComponent(plan.createdActionId)}`,
+          sourceTable: "company_corrective_actions",
+          sourceId: plan.createdActionId,
+          metadata: {
+            workerId: worker.id ?? null,
+            requirementTitle: plan.requirementTitle,
+          },
+        }).catch((error) => {
+          console.warn("training_gap_notification_failed", error);
+        });
+
         const recipientEmail = await resolveWorkerEmail({
           worker,
           companyId: companyScope.companyId,

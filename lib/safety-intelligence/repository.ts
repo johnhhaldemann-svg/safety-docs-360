@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  downloadDocumentsBucketObject,
+  uploadDocumentsBucketObject,
+} from "@/lib/supabaseStorageServer";
 import type {
   AiReviewContext,
   BucketedWorkItem,
@@ -13,8 +17,84 @@ import type {
 
 type LiteClient = SupabaseClient<any, "public", any>;
 
+const HOT_PAYLOAD_RETENTION_DAYS = 30;
+const STORAGE_PAYLOAD_THRESHOLD_BYTES = 32 * 1024;
+
+function payloadHotUntil() {
+  return new Date(
+    Date.now() + HOT_PAYLOAD_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+}
+
+function safePathPart(value: string | null | undefined) {
+  return (value ?? "unknown").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+}
+
+async function storeLargePayload(params: {
+  companyId: string;
+  entity: string;
+  entityId: string;
+  name: string;
+  value: unknown;
+  contentType?: string;
+}) {
+  const serialized =
+    typeof params.value === "string"
+      ? params.value
+      : JSON.stringify(params.value);
+  if (!serialized || Buffer.byteLength(serialized, "utf8") < STORAGE_PAYLOAD_THRESHOLD_BYTES) {
+    return null;
+  }
+
+  const key = [
+    "system",
+    "safety-intelligence",
+    safePathPart(params.companyId),
+    params.entity,
+    safePathPart(params.entityId),
+    `${safePathPart(params.name)}.${params.contentType === "text/html" ? "html" : "json"}`,
+  ].join("/");
+
+  const upload = await uploadDocumentsBucketObject(
+    key,
+    Buffer.from(serialized, "utf8"),
+    params.contentType ?? "application/json",
+    { upsert: true }
+  );
+
+  return upload.ok ? upload.key : null;
+}
+
+function hasUsefulDraftPayload(value: unknown): value is GeneratedSafetyPlanDraft {
+  if (!value || typeof value !== "object") return false;
+  return Object.keys(value as Record<string, unknown>).length > 0;
+}
+
+async function loadDraftPayloadFromStorage(path: string) {
+  const download = await downloadDocumentsBucketObject(path);
+  if (!download.ok) {
+    throw new Error(download.error || "Generated document not found.");
+  }
+
+  try {
+    return JSON.parse(download.buffer.toString("utf8")) as GeneratedSafetyPlanDraft;
+  } catch {
+    throw new Error("Generated document payload could not be read.");
+  }
+}
+
 function isMissingRelation(message?: string | null) {
   return (message ?? "").toLowerCase().includes("does not exist");
+}
+
+function isMissingPerformancePayloadColumn(message?: string | null) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    (normalized.includes("storage_path") || normalized.includes("payload_hot_until")) &&
+    (normalized.includes("column") ||
+      normalized.includes("schema cache") ||
+      normalized.includes("could not find"))
+  );
 }
 
 function isUuid(value: string | null | undefined) {
@@ -107,26 +187,61 @@ export async function persistAiReview(
   model?: string | null,
   promptHash?: string | null
 ) {
-  const result = await supabase
+  const storageId = `${context.bucketRunId}-${reviewType}-${Date.now()}`;
+  const [inputSnapshotStoragePath, aiSummaryStoragePath] = await Promise.all([
+    storeLargePayload({
+      companyId: context.companyId,
+      entity: "ai-reviews",
+      entityId: storageId,
+      name: "input-snapshot",
+      value: context.buckets,
+    }),
+    storeLargePayload({
+      companyId: context.companyId,
+      entity: "ai-reviews",
+      entityId: storageId,
+      name: "ai-summary",
+      value: aiSummary,
+    }),
+  ]);
+
+  const row = {
+    company_id: context.companyId,
+    jobsite_id: context.jobsiteId ?? null,
+    bucket_run_id: context.bucketRunId,
+    review_type: reviewType,
+    status: "reviewed",
+    input_snapshot: context.buckets,
+    input_snapshot_storage_path: inputSnapshotStoragePath,
+    rules_snapshot: context.rulesEvaluations,
+    conflicts_snapshot: context.conflictEvaluations,
+    ai_summary: aiSummary,
+    ai_summary_storage_path: aiSummaryStoragePath,
+    model: model ?? null,
+    prompt_hash: promptHash ?? null,
+    reviewed_at: new Date().toISOString(),
+    created_by: actorUserId,
+    updated_by: actorUserId,
+  };
+
+  let result = await supabase
     .from("company_ai_reviews")
-    .insert({
-      company_id: context.companyId,
-      jobsite_id: context.jobsiteId ?? null,
-      bucket_run_id: context.bucketRunId,
-      review_type: reviewType,
-      status: "reviewed",
-      input_snapshot: context.buckets,
-      rules_snapshot: context.rulesEvaluations,
-      conflicts_snapshot: context.conflictEvaluations,
-      ai_summary: aiSummary,
-      model: model ?? null,
-      prompt_hash: promptHash ?? null,
-      reviewed_at: new Date().toISOString(),
-      created_by: actorUserId,
-      updated_by: actorUserId,
-    })
+    .insert(row)
     .select("id")
     .single();
+
+  if (result.error && isMissingPerformancePayloadColumn(result.error.message)) {
+    const {
+      input_snapshot_storage_path: _inputSnapshotStoragePath,
+      ai_summary_storage_path: _aiSummaryStoragePath,
+      ...legacyRow
+    } = row;
+    result = await supabase
+      .from("company_ai_reviews")
+      .insert(legacyRow)
+      .select("id")
+      .single();
+  }
 
   if (result.error) {
     throw new Error(result.error.message || "Failed to persist AI review.");
@@ -148,26 +263,64 @@ export async function persistGeneratedDocument(
     sourceDocumentId?: string | null;
   }
 ) {
-  const result = await supabase
+  const storageId = `${params.bucketRunId ?? "manual"}-${Date.now()}`;
+  const [htmlPreviewStoragePath, draftJsonStoragePath] = await Promise.all([
+    storeLargePayload({
+      companyId: params.companyId,
+      entity: "generated-documents",
+      entityId: storageId,
+      name: "html-preview",
+      value: params.record.htmlPreview,
+      contentType: "text/html",
+    }),
+    storeLargePayload({
+      companyId: params.companyId,
+      entity: "generated-documents",
+      entityId: storageId,
+      name: "draft-json",
+      value: params.record.draftJson,
+    }),
+  ]);
+
+  const row = {
+    company_id: params.companyId,
+    jobsite_id: params.jobsiteId ?? null,
+    bucket_run_id: params.bucketRunId ?? null,
+    ai_review_id: params.aiReviewId ?? null,
+    document_type: params.record.documentType,
+    source_document_id: params.sourceDocumentId ?? null,
+    title: params.record.title,
+    status: "in_review",
+    html_preview: params.record.htmlPreview,
+    html_preview_storage_path: htmlPreviewStoragePath,
+    draft_json: params.record.draftJson,
+    draft_json_storage_path: draftJsonStoragePath,
+    payload_hot_until: payloadHotUntil(),
+    risk_outputs: params.riskOutputs,
+    provenance: params.record.provenance,
+    created_by: params.actorUserId,
+    updated_by: params.actorUserId,
+  };
+
+  let result = await supabase
     .from("company_generated_documents")
-    .insert({
-      company_id: params.companyId,
-      jobsite_id: params.jobsiteId ?? null,
-      bucket_run_id: params.bucketRunId ?? null,
-      ai_review_id: params.aiReviewId ?? null,
-      document_type: params.record.documentType,
-      source_document_id: params.sourceDocumentId ?? null,
-      title: params.record.title,
-      status: "in_review",
-      html_preview: params.record.htmlPreview,
-      draft_json: params.record.draftJson,
-      risk_outputs: params.riskOutputs,
-      provenance: params.record.provenance,
-      created_by: params.actorUserId,
-      updated_by: params.actorUserId,
-    })
+    .insert(row)
     .select("id")
     .single();
+
+  if (result.error && isMissingPerformancePayloadColumn(result.error.message)) {
+    const {
+      html_preview_storage_path: _htmlPreviewStoragePath,
+      draft_json_storage_path: _draftJsonStoragePath,
+      payload_hot_until: _payloadHotUntil,
+      ...legacyRow
+    } = row;
+    result = await supabase
+      .from("company_generated_documents")
+      .insert(legacyRow)
+      .select("id")
+      .single();
+  }
 
   if (result.error) {
     throw new Error(result.error.message || "Failed to persist generated document.");
@@ -310,12 +463,21 @@ export async function loadGeneratedDocumentDraft(
     throw new Error("Generated document not found.");
   }
 
-  const result = await supabase
+  let result = await supabase
     .from("company_generated_documents")
-    .select("id, document_type, title, draft_json, company_id")
+    .select("id, document_type, title, draft_json, draft_json_storage_path, company_id")
     .eq("id", generatedDocumentId)
     .eq("company_id", companyId)
     .maybeSingle();
+
+  if (result.error && isMissingPerformancePayloadColumn(result.error.message)) {
+    result = await supabase
+      .from("company_generated_documents")
+      .select("id, document_type, title, draft_json, company_id")
+      .eq("id", generatedDocumentId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+  }
 
   if (result.error) {
     throw new Error(result.error.message || "Generated document not found.");
@@ -325,5 +487,17 @@ export async function loadGeneratedDocumentDraft(
     throw new Error("Generated document not found.");
   }
 
-  return result.data.draft_json as GeneratedSafetyPlanDraft;
+  if (hasUsefulDraftPayload(result.data.draft_json)) {
+    return result.data.draft_json;
+  }
+
+  const storagePath =
+    typeof result.data.draft_json_storage_path === "string"
+      ? result.data.draft_json_storage_path.trim()
+      : "";
+  if (!storagePath) {
+    throw new Error("Generated document not found.");
+  }
+
+  return loadDraftPayloadFromStorage(storagePath);
 }

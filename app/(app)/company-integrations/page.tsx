@@ -10,6 +10,8 @@ import {
   Cloud,
   ExternalLink,
   FolderSync,
+  KeyRound,
+  ListChecks,
   PlugZap,
   RefreshCw,
   Settings2,
@@ -33,8 +35,25 @@ type Webhook = {
   name: string;
   target_url: string;
   active: boolean;
+  event_types?: string[];
   secretPreview?: string;
 };
+
+type WebhookDelivery = {
+  id: string;
+  event_type?: string | null;
+  response_status?: number | null;
+  delivered_at?: string | null;
+};
+
+const WEBHOOK_EVENT_OPTIONS = [
+  { value: "ping", label: "Test ping" },
+  { value: "safety_forms.submitted", label: "Safety forms" },
+  { value: "training.gap", label: "Training gaps" },
+  { value: "permits.auto_assigned", label: "Permit auto-assignments" },
+  { value: "risk.recommendation", label: "Risk recommendations" },
+  { value: "billing.invoice", label: "Billing invoices" },
+];
 
 type MicrosoftProjectStatus = {
   configured: {
@@ -113,6 +132,9 @@ export default function CompanyIntegrationsPage() {
   const [tone, setTone] = useState<"neutral" | "success" | "error" | "warning">("neutral");
   const [name, setName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(["ping", "safety_forms.submitted"]);
+  const [deliveriesByWebhook, setDeliveriesByWebhook] = useState<Record<string, WebhookDelivery[]>>({});
+  const [updatingWebhookId, setUpdatingWebhookId] = useState<string | null>(null);
   const [lastSecret, setLastSecret] = useState("");
   const [dataverseEnvironmentUrl, setDataverseEnvironmentUrl] = useState("");
   const [microsoftStatus, setMicrosoftStatus] = useState<MicrosoftProjectStatus | null>(null);
@@ -297,7 +319,7 @@ export default function CompanyIntegrationsPage() {
         body: JSON.stringify({
           name: name.trim(),
           targetUrl: targetUrl.trim(),
-          eventTypes: ["ping", "safety_forms.submitted"],
+          eventTypes: selectedEvents,
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -308,6 +330,7 @@ export default function CompanyIntegrationsPage() {
       if (!res.ok) throw new Error(data?.error || "Create failed.");
       setName("");
       setTargetUrl("");
+      setSelectedEvents(["ping", "safety_forms.submitted"]);
       setLastSecret(data?.secret ?? "");
       setTone("success");
       setMessage(data?.note || "Webhook created.");
@@ -316,6 +339,70 @@ export default function CompanyIntegrationsPage() {
       setTone("error");
       setMessage(e instanceof Error ? e.message : "Create failed.");
     }
+  }
+
+  async function patchWebhook(
+    id: string,
+    patch: { active?: boolean; eventTypes?: string[]; rotateSecret?: boolean }
+  ) {
+    setUpdatingWebhookId(id);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/company/integrations/webhooks/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patch),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        secret?: string;
+        note?: string;
+      } | null;
+      if (!res.ok) throw new Error(data?.error || "Webhook update failed.");
+      if (data?.secret) {
+        setLastSecret(data.secret);
+        setMessage(data.note || "Signing secret rotated.");
+        setTone("warning");
+      } else {
+        setMessage("Webhook updated.");
+        setTone("success");
+      }
+      await load();
+    } catch (e) {
+      setTone("error");
+      setMessage(e instanceof Error ? e.message : "Webhook update failed.");
+    }
+    setUpdatingWebhookId(null);
+  }
+
+  async function toggleWebhookEvent(webhook: Webhook, eventType: string) {
+    const current = new Set(webhook.event_types ?? []);
+    if (current.has(eventType)) current.delete(eventType);
+    else current.add(eventType);
+    await patchWebhook(webhook.id, { eventTypes: [...current] });
+  }
+
+  async function loadDeliveries(id: string) {
+    setUpdatingWebhookId(id);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/company/integrations/webhooks/${encodeURIComponent(id)}/deliveries`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => null)) as {
+        deliveries?: WebhookDelivery[];
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(data?.error || "Failed to load deliveries.");
+      setDeliveriesByWebhook((prev) => ({ ...prev, [id]: data?.deliveries ?? [] }));
+    } catch (e) {
+      setTone("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load deliveries.");
+    }
+    setUpdatingWebhookId(null);
   }
 
   async function testPing(id: string) {
@@ -333,6 +420,7 @@ export default function CompanyIntegrationsPage() {
       if (!res.ok) throw new Error(data?.error || "Test failed.");
       setTone("success");
       setMessage(`Test sent. HTTP status: ${data?.responseStatus ?? "n/a"}`);
+      await loadDeliveries(id);
     } catch (e) {
       setTone("error");
       setMessage(e instanceof Error ? e.message : "Test failed.");
@@ -652,23 +740,103 @@ export default function CompanyIntegrationsPage() {
 
       <SectionCard title="Webhooks" description="Receivers should verify X-Safety360-Signature (HMAC-SHA256 of raw body).">
         {loading ? (
-          <InlineMessage>Loading…</InlineMessage>
+          <InlineMessage>Loading...</InlineMessage>
         ) : webhooks.length === 0 ? (
           <EmptyState title="No webhooks" description="Create one below for a test receiver (e.g. webhook.site)." />
         ) : (
-          <ul className="space-y-3 text-sm text-slate-300">
+          <ul className="space-y-4 text-sm text-slate-300">
             {webhooks.map((w) => (
-              <li key={w.id} className="rounded-lg border border-slate-800 px-3 py-2">
-                <div className="font-medium text-slate-100">{w.name}</div>
-                <div className="text-xs text-slate-500 break-all">{w.target_url}</div>
-                <div className="mt-1 text-xs text-slate-500">Secret preview: {w.secretPreview ?? "—"}</div>
-                <button
-                  type="button"
-                  onClick={() => void testPing(w.id)}
-                  className={`mt-2 ${appButtonSecondaryClassName}`}
-                >
-                  Send test
-                </button>
+              <li key={w.id} className="rounded-lg border border-slate-800 px-3 py-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-100">{w.name}</div>
+                    <div className="break-all text-xs text-slate-500">{w.target_url}</div>
+                    <div className="mt-1 text-xs text-slate-500">Secret preview: {w.secretPreview ?? "-"}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void patchWebhook(w.id, { active: !w.active })}
+                      disabled={updatingWebhookId === w.id}
+                      className={appButtonSecondaryClassName}
+                    >
+                      {w.active ? "Pause" : "Activate"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void patchWebhook(w.id, { rotateSecret: true })}
+                      disabled={updatingWebhookId === w.id}
+                      className={appButtonSecondaryClassName}
+                    >
+                      <KeyRound className="h-4 w-4" aria-hidden="true" />
+                      Rotate secret
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void testPing(w.id)}
+                      disabled={updatingWebhookId === w.id}
+                      className={appButtonSecondaryClassName}
+                    >
+                      Send test
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void loadDeliveries(w.id)}
+                      disabled={updatingWebhookId === w.id}
+                      className={appButtonSecondaryClassName}
+                    >
+                      <ListChecks className="h-4 w-4" aria-hidden="true" />
+                      Deliveries
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {WEBHOOK_EVENT_OPTIONS.map((option) => {
+                    const checked = (w.event_types ?? []).includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className={cx(
+                          "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+                          checked
+                            ? "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+                            : "border-slate-800 bg-slate-950 text-slate-400"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => void toggleWebhookEvent(w, option.value)}
+                          className="h-3.5 w-3.5"
+                        />
+                        {option.label}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {deliveriesByWebhook[w.id]?.length ? (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-slate-800">
+                    <div className="grid grid-cols-[1fr_80px_150px] bg-slate-950 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      <span>Event</span>
+                      <span>Status</span>
+                      <span>Delivered</span>
+                    </div>
+                    {deliveriesByWebhook[w.id].slice(0, 5).map((delivery) => (
+                      <div
+                        key={delivery.id}
+                        className="grid grid-cols-[1fr_80px_150px] border-t border-slate-800 px-3 py-2 text-xs text-slate-400"
+                      >
+                        <span className="truncate">{delivery.event_type ?? "event"}</span>
+                        <span>{delivery.response_status ?? "n/a"}</span>
+                        <span>
+                          {delivery.delivered_at ? new Date(delivery.delivered_at).toLocaleString() : "Queued"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -686,9 +854,39 @@ export default function CompanyIntegrationsPage() {
           <input
             value={targetUrl}
             onChange={(e) => setTargetUrl(e.target.value)}
-            placeholder="https://…"
+            placeholder="https://..."
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
           />
+          <div className="flex flex-wrap gap-2 py-2">
+            {WEBHOOK_EVENT_OPTIONS.map((option) => {
+              const checked = selectedEvents.includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cx(
+                    "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
+                    checked
+                      ? "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+                      : "border-slate-800 bg-slate-950 text-slate-400"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setSelectedEvents((prev) =>
+                        prev.includes(option.value)
+                          ? prev.filter((value) => value !== option.value)
+                          : [...prev, option.value]
+                      )
+                    }
+                    className="h-3.5 w-3.5"
+                  />
+                  {option.label}
+                </label>
+              );
+            })}
+          </div>
           <button type="button" onClick={() => void createWebhook()} className={appButtonPrimaryClassName}>
             Create
           </button>

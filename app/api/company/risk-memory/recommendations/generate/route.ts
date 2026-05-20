@@ -6,6 +6,10 @@ import { buildLlmRiskRecommendations } from "@/lib/riskMemory/llmRecommendations
 import { buildRuleBasedRiskRecommendations, type RiskRecommendationDraft } from "@/lib/riskMemory/recommendations";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { buildSalesDemoRiskRecommendations } from "@/lib/demoWorkspace";
+import {
+  createCompanyNotification,
+  listCompanyNotificationRecipients,
+} from "@/lib/companyNotifications";
 
 export const runtime = "nodejs";
 
@@ -118,9 +122,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: ins.error.message || "Failed to save recommendations." }, { status: 500 });
   }
 
+  const recommendations = ins.data ?? [];
+  if (recommendations.length > 0) {
+    const recipients = await listCompanyNotificationRecipients({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+      roles: ["company_admin", "manager", "safety_manager"],
+      includeUserIds: [auth.user.id],
+    });
+    await Promise.all(
+      recipients.userIds.map((recipientUserId) =>
+        createCompanyNotification({
+          supabase: auth.supabase,
+          companyId: companyScope.companyId!,
+          recipientUserId,
+          actorUserId: auth.user.id,
+          eventType: "risk_recommendation",
+          title: `${recommendations.length} risk recommendation${recommendations.length === 1 ? "" : "s"} ready`,
+          body: recommendations[0]?.title ?? "New predictive risk guidance is ready for triage.",
+          priority: "high",
+          href: "/settings/risk-memory",
+          sourceTable: "company_risk_ai_recommendations",
+          sourceId: recommendations[0]?.id ?? null,
+          metadata: {
+            mode,
+            created: recommendations.length,
+            jobsiteId,
+            recipientLookupError: recipients.error,
+          },
+        })
+      )
+    );
+  }
+
   return NextResponse.json({
-    created: ins.data?.length ?? 0,
-    recommendations: ins.data ?? [],
+    created: recommendations.length,
+    recommendations,
     mode,
   });
 }

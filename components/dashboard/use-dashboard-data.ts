@@ -5,7 +5,7 @@ import { fetchWithTimeout, fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
 import { buildSalesDemoDashboardData } from "@/lib/demoWorkspace";
 import { emptyOnboardingState, type OnboardingState } from "@/lib/onboardingState";
 import { getPermissionMap, type PermissionMap } from "@/lib/rbac";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import type {
   DashboardAnalyticsSummary,
@@ -19,8 +19,6 @@ import type {
   DashboardWorkspaceSummary,
 } from "@/components/dashboard/types";
 import type { DashboardHomeMetrics } from "@/lib/dashboardAnalytics";
-
-const supabase = getSupabaseBrowserClient();
 
 function emptyWorkspaceSummary(): DashboardWorkspaceSummary {
   return {
@@ -92,8 +90,7 @@ export function useDashboardData(): DashboardDataState {
   const [onboardingState, setOnboardingState] = useState<OnboardingState>(emptyOnboardingState());
 
   const refreshCompanyWorkspace = useCallback(async () => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
+    const token = await getSupabaseAccessToken();
 
     if (!token) {
       setCompanyUsers([]);
@@ -199,8 +196,7 @@ export function useDashboardData(): DashboardDataState {
   }, []);
 
   const reload = useCallback(async () => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
+    const token = await getSupabaseAccessToken();
 
     if (!token) {
       setLoading(false);

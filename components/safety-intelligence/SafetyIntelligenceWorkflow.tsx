@@ -29,18 +29,14 @@ import {
   WorkflowPath,
 } from "@/components/WorkspacePrimitives";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-
-const supabase = getSupabaseBrowserClient();
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 
 async function authHeaders() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) {
+  const token = await getSupabaseAccessToken();
+  if (!token) {
     throw new Error("Sign in to use Safety Intelligence.");
   }
-  return { Authorization: `Bearer ${session.access_token}` };
+  return { Authorization: `Bearer ${token}` };
 }
 
 export function SafetyIntelligenceWorkflow({

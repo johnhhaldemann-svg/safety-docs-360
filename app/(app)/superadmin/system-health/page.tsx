@@ -21,6 +21,10 @@ import {
 } from "lucide-react";
 import { PageHero, appButtonPrimaryClassName, appButtonSecondaryClassName } from "@/components/WorkspacePrimitives";
 import type {
+  PlatformCronRunSummary,
+  PlatformPerformanceSnapshot,
+} from "@/lib/superadmin/platformPerformanceHealth";
+import type {
   SystemHealthCheck,
   SystemHealthConnection,
   SystemHealthResponse,
@@ -71,6 +75,156 @@ function StatusIcon({ status }: { status: SystemHealthStatus }) {
 
 function formatStatusLabel(s: SystemHealthStatus) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size >= 10 || unit === 0 ? Math.round(size) : size.toFixed(1)} ${units[unit]}`;
+}
+
+function formatDuration(ms: number | null) {
+  if (ms == null || !Number.isFinite(ms)) return " - ";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
+}
+
+function PerformanceAndCronCard({
+  performance,
+  cronRuns,
+}: {
+  performance?: PlatformPerformanceSnapshot;
+  cronRuns?: PlatformCronRunSummary;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-[var(--app-text-strong)]">Performance and cron telemetry</h2>
+          <p className="mt-1 text-sm text-[var(--app-text)]">
+            Database advisor hygiene, top table sizes, slow query samples, and latest platform job runs.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {performance ? (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClasses(performance.status)}`}>
+              <StatusIcon status={performance.status} />
+              DB {formatStatusLabel(performance.status)}
+            </span>
+          ) : null}
+          {cronRuns ? (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClasses(cronRuns.status)}`}>
+              <StatusIcon status={cronRuns.status} />
+              Cron {formatStatusLabel(cronRuns.status)}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Advisor clean</p>
+          <dl className="mt-3 grid gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <dt>Missing FK indexes</dt>
+              <dd className="font-mono font-bold">{performance?.advisorSummary.missingForeignKeyIndexes ?? " - "}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>Duplicate RLS groups</dt>
+              <dd className="font-mono font-bold">{performance?.advisorSummary.duplicatePolicyGroups ?? " - "}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt>RLS without policies</dt>
+              <dd className="font-mono font-bold">{performance?.advisorSummary.rlsEnabledNoPolicyTables ?? " - "}</dd>
+            </div>
+          </dl>
+          {performance?.message ? <p className="mt-3 text-xs leading-5 text-[var(--app-text)]">{performance.message}</p> : null}
+        </div>
+
+        <div className="rounded-xl border border-[var(--app-border)] bg-white p-4 lg:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Largest hot tables</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-left text-xs">
+              <thead className="text-[var(--app-muted)]">
+                <tr>
+                  <th className="py-1 pr-3 font-semibold">Table</th>
+                  <th className="py-1 pr-3 font-semibold">Rows</th>
+                  <th className="py-1 pr-3 font-semibold">Size</th>
+                  <th className="py-1 pr-3 font-semibold">Seq / idx</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--app-border)]">
+                {(performance?.topTables ?? []).slice(0, 5).map((table) => (
+                  <tr key={table.tableName}>
+                    <td className="py-2 pr-3 font-mono text-[var(--app-text-strong)]">{table.tableName}</td>
+                    <td className="py-2 pr-3">{table.liveRows.toLocaleString()}</td>
+                    <td className="py-2 pr-3">{formatBytes(table.totalBytes)}</td>
+                    <td className="py-2 pr-3">{table.seqScan.toLocaleString()} / {table.idxScan.toLocaleString()}</td>
+                  </tr>
+                ))}
+                {performance && performance.topTables.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-[var(--app-muted)]" colSpan={4}>No table-size samples returned.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-[var(--app-border)] bg-white p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Slow query samples</p>
+          <ul className="mt-3 space-y-2">
+            {(performance?.slowQueries ?? []).slice(0, 3).map((query, index) => (
+              <li key={`${query.calls}-${index}`} className="rounded-lg bg-[var(--app-panel-soft)] px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--app-text)]">
+                  <span>{query.calls.toLocaleString()} calls</span>
+                  <span>{query.meanExecMs.toFixed(1)} ms avg</span>
+                </div>
+                <p className="mt-1 line-clamp-2 font-mono text-[11px] leading-5 text-[var(--app-muted)]">{query.querySample}</p>
+              </li>
+            ))}
+            {performance && performance.slowQueries.length === 0 ? (
+              <li className="text-sm text-[var(--app-muted)]">No pg_stat_statements samples returned.</li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-[var(--app-border)] bg-white p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Recent cron runs</p>
+          {cronRuns?.message ? <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{cronRuns.message}</p> : null}
+          <ul className="mt-3 space-y-2">
+            {(cronRuns?.jobs ?? []).slice(0, 5).map((job) => (
+              <li key={`${job.jobName}-${job.startedAt}`} className="rounded-lg bg-[var(--app-panel-soft)] px-3 py-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono font-semibold text-[var(--app-text-strong)]">{job.jobName}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${job.status === "failed" ? "bg-red-100 text-red-800" : "bg-emerald-100 text-emerald-800"}`}>
+                    {job.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-[var(--app-muted)]">
+                  {new Date(job.startedAt).toLocaleString()} - {formatDuration(job.durationMs)}
+                  {job.processedCount == null ? "" : ` - ${job.processedCount.toLocaleString()} processed`}
+                </p>
+                {job.errorMessage ? <p className="mt-1 text-red-700">{job.errorMessage}</p> : null}
+              </li>
+            ))}
+            {cronRuns && cronRuns.jobs.length === 0 ? (
+              <li className="text-sm text-[var(--app-muted)]">No cron telemetry has been recorded yet.</li>
+            ) : null}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function PlatformInfrastructureCard({ check, scanTime }: { check: SystemHealthCheck; scanTime: string }) {
@@ -500,6 +654,11 @@ export default function SuperadminSystemHealthPage() {
               ))}
             </div>
           </section>
+
+          <PerformanceAndCronCard
+            performance={data.performance as PlatformPerformanceSnapshot | undefined}
+            cronRuns={data.cronRuns as PlatformCronRunSummary | undefined}
+          />
 
           <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
             <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--app-muted)]">Summary</h2>

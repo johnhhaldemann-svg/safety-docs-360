@@ -1,1 +1,0 @@
-grant select, insert, update on public.injury_forecast_audit_log to authenticated;

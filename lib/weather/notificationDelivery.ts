@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createCompanyNotification } from "@/lib/companyNotifications";
 import type { WeatherAlert } from "@/lib/weather/alertFiltering";
 
 export type WeatherNotificationChannel = "in_app" | "email" | "sms" | "push";
@@ -165,6 +166,24 @@ export async function deliverWeatherNotification(params: {
       .from("weather_notification_deliveries")
       .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
       .eq("id", deliveryId);
+    const content = buildWeatherNotificationText(params.context);
+    await createCompanyNotification({
+      supabase: params.supabase,
+      companyId: params.context.companyId,
+      recipientUserId: params.recipient.userId,
+      eventType: "weather_alert",
+      title: content.subject,
+      body: content.text,
+      priority: "critical",
+      href: `/jobsites/${encodeURIComponent(params.context.jobsiteId)}/overview`,
+      sourceTable: "weather_alert_events",
+      sourceId: params.context.alertEventId,
+      metadata: {
+        jobsiteId: params.context.jobsiteId,
+        jobsiteName: params.context.jobsiteName,
+        nwsAlertId: params.context.alert.id,
+      },
+    });
     return { delivered: true, duplicate: false, error: null };
   }
 

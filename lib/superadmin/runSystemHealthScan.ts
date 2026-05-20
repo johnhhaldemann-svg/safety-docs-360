@@ -3,6 +3,10 @@ import {
   buildPlatformInfrastructureChecks,
   buildPlatformInfrastructureChecksWhenAdminMissing,
 } from "@/lib/superadmin/platformInfrastructureHealth";
+import {
+  buildPlatformCronRunSummary,
+  buildPlatformPerformanceSnapshot,
+} from "@/lib/superadmin/platformPerformanceHealth";
 import { getSupabaseServerEnvStatus } from "@/lib/supabaseAdmin";
 import type {
   SystemHealthCheck,
@@ -236,6 +240,8 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
       lastCheckedAt,
       "Supabase admin client is not configured."
     );
+    const performance = await buildPlatformPerformanceSnapshot(null);
+    const cronRuns = await buildPlatformCronRunSummary(null);
     const mergedChecks = [...skippedSections.flatMap((s) => s.checks), ...platformInfrastructure];
     const summary = {
       totalChecks: mergedChecks.length,
@@ -253,6 +259,8 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
       lastCheckedAt,
       summary,
       platformInfrastructure,
+      performance,
+      cronRuns,
       sections: skippedSections,
       connections: buildConnections(skippedSections),
     };
@@ -825,7 +833,11 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
     buildSection("field_feedback_loop", "Field Feedback Loop", checksFeedback, recordsFeedback),
   ];
 
-  const platformInfrastructure = await buildPlatformInfrastructureChecks(admin, lastCheckedAt);
+  const [platformInfrastructure, performance, cronRuns] = await Promise.all([
+    buildPlatformInfrastructureChecks(admin, lastCheckedAt),
+    buildPlatformPerformanceSnapshot(admin),
+    buildPlatformCronRunSummary(admin),
+  ]);
   const sectionChecks = sections.flatMap((s) => s.checks);
   const allChecks = [...sectionChecks, ...platformInfrastructure];
   const summary = {
@@ -849,6 +861,8 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
     lastCheckedAt,
     summary,
     platformInfrastructure,
+    performance,
+    cronRuns,
     sections,
     connections: buildConnections(sections),
   };

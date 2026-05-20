@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 import { PageHero, SectionCard, StatusBadge } from "@/components/WorkspacePrimitives";
-
-const supabase = getSupabaseBrowserClient();
 
 type InvoiceSummary = {
   id: string;
@@ -50,10 +48,7 @@ export default function BillingHubPage() {
       setLoading(true);
       setMessage("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await getSupabaseAccessToken();
       if (!token) {
         setMessage("Sign in required.");
         setLoading(false);

@@ -2,6 +2,31 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 
+const PUBLIC_PREFIXES = [
+  "/api/auth",
+  "/api/cron",
+  "/api/contractor-training-intake",
+  "/contractor-training-intake",
+  "/company-signup",
+  "/login",
+  "/privacy",
+  "/terms",
+];
+
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
+}
+
+function shouldRefreshSupabaseSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return false;
+  }
+  return hasSupabaseAuthCookie(request);
+}
+
 export async function proxy(request: NextRequest) {
   const mappedWorkspacePath = mapSafePredictOperationHref(
     `${request.nextUrl.pathname}${request.nextUrl.search}`
@@ -20,6 +45,10 @@ export async function proxy(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
+
+  if (!shouldRefreshSupabaseSession(request)) {
     return response;
   }
 

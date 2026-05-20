@@ -6,6 +6,7 @@ import { getWorkspaceNavItemMeta } from "@/lib/workspaceNavigationModel";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import { MobileMenuIcon } from "./shellIcons";
 import type { KeyedNavSection } from "./AppShellSidebar";
+import { NotificationCenter } from "./NotificationCenter";
 
 type CurrentNav = {
   href: string;
@@ -120,6 +121,7 @@ export function AppShellHeader({
                   <Command aria-hidden="true" className="h-4 w-4" />
                   Menu
                 </button>
+                {isCompanyScopedUser ? <NotificationCenter /> : null}
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
                 {showPlatformAdminShell ? workspaceLabel : currentNavSection?.title || workspaceLabel}

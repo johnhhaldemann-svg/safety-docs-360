@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isCronRequestAuthorized } from "@/lib/cronAuth";
+import { withCronTelemetry } from "@/lib/cronTelemetry";
 import { runRiskMemoryCronJob } from "@/lib/riskMemory/cronRollup";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  return withCronTelemetry("risk-memory-rollup", async () => {
   const url = new URL(request.url);
   const includeRecommendations = url.searchParams.get("recommendations") === "1";
   const includeLlmRecommendations = url.searchParams.get("llm") === "1";
@@ -32,10 +34,18 @@ export async function GET(request: Request) {
   });
 
   if (result.error && !result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    return {
+      response: NextResponse.json({ error: result.error }, { status: 500 }),
+      processedCount: result.companiesSeen,
+      metadata: {
+        companiesFailed: result.companiesFailed,
+        companiesSkipped: result.companiesSkipped,
+      },
+    };
   }
 
-  return NextResponse.json({
+  return {
+    response: NextResponse.json({
     ok: true,
     snapshotDate: result.snapshotDate,
     snapshotUpserts: result.snapshotUpserts,
@@ -51,5 +61,17 @@ export async function GET(request: Request) {
     companiesSeen: result.companiesSeen,
     includeRecommendations,
     includeLlmRecommendations,
+    }),
+    processedCount: result.companiesSeen,
+    metadata: {
+      snapshotUpserts: result.snapshotUpserts,
+      riskScoreUpserts: result.riskScoreUpserts,
+      riskScoreFailed: result.riskScoreFailed,
+      companiesFailed: result.companiesFailed,
+      companiesSkipped: result.companiesSkipped,
+      recommendationsInserted: result.recommendationsInserted,
+      llmRecommendationsInserted: result.llmRecommendationsInserted,
+    },
+  };
   });
 }

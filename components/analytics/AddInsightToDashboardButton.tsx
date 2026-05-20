@@ -3,9 +3,7 @@
 import { useCallback, useState } from "react";
 import type { DashboardBlockId } from "@/components/dashboard/types";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-
-const supabase = getSupabaseBrowserClient();
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 
 type PinResponse = {
   error?: string;
@@ -26,8 +24,7 @@ export function AddInsightToDashboardButton({
     setStatus("working");
     setDetail(null);
     try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
+      const token = await getSupabaseAccessToken();
       if (!token) {
         setStatus("error");
         setDetail("Sign in to customize your dashboard.");

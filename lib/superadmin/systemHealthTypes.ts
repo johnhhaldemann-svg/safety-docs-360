@@ -42,6 +42,8 @@ export type SystemHealthResponse = {
   };
   /** Canonical infrastructure + core table probes (flat list for the Superadmin grid). */
   platformInfrastructure: SystemHealthCheck[];
+  performance?: unknown;
+  cronRuns?: unknown;
   sections: SystemHealthSection[];
   connections: SystemHealthConnection[];
 };

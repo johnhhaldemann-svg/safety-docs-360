@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { isCronRequestAuthorized } from "@/lib/cronAuth";
+import { withCronTelemetry } from "@/lib/cronTelemetry";
 import {
   createRecurringCompanyInvoice,
   resolveRecurringBillingActorId,
 } from "@/lib/billing/recurringCompanyBilling";
+import {
+  createCompanyNotification,
+  listCompanyNotificationRecipients,
+} from "@/lib/companyNotifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,17 +19,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  return withCronTelemetry("company-billing-invoices", async () => {
   const adminClient = createSupabaseAdminClient();
   if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role key for recurring billing." },
-      { status: 500 }
-    );
+    return {
+      response: NextResponse.json(
+        { error: "Missing Supabase service role key for recurring billing." },
+        { status: 500 }
+      ),
+    };
   }
 
   const actor = await resolveRecurringBillingActorId(adminClient);
   if (!actor.userId) {
-    return NextResponse.json({ error: actor.error || "No billing actor available." }, { status: 500 });
+    return {
+      response: NextResponse.json({ error: actor.error || "No billing actor available." }, { status: 500 }),
+    };
   }
 
   const { data: subscriptions, error } = await adminClient
@@ -33,7 +43,9 @@ export async function GET(request: Request) {
     .eq("status", "active");
 
   if (error) {
-    return NextResponse.json({ error: error.message || "Failed to list active subscriptions." }, { status: 500 });
+    return {
+      response: NextResponse.json({ error: error.message || "Failed to list active subscriptions." }, { status: 500 }),
+    };
   }
 
   const companyIds = Array.from(
@@ -71,6 +83,32 @@ export async function GET(request: Request) {
         invoiceId: result.invoiceId,
         invoiceNumber: result.invoiceNumber,
       });
+      const recipients = await listCompanyNotificationRecipients({
+        supabase: adminClient,
+        companyId,
+        roles: ["company_admin", "manager"],
+      });
+      await Promise.all(
+        recipients.userIds.map((recipientUserId) =>
+          createCompanyNotification({
+            supabase: adminClient,
+            companyId,
+            recipientUserId,
+            actorUserId: actor.userId,
+            eventType: "billing_invoice",
+            title: "New billing invoice",
+            body: `Invoice ${result.invoiceNumber} is ready for review.`,
+            priority: "normal",
+            href: `/billing?invoice=${encodeURIComponent(result.invoiceId)}`,
+            sourceTable: "company_billing_invoices",
+            sourceId: result.invoiceId,
+            metadata: {
+              invoiceNumber: result.invoiceNumber,
+              recipientLookupError: recipients.error,
+            },
+          })
+        )
+      );
       continue;
     }
 
@@ -92,9 +130,18 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({
-    ok: true,
-    summary,
+  return {
+    response: NextResponse.json({
+      ok: true,
+      summary,
+    }),
+    processedCount: companyIds.length,
+    metadata: {
+      created: summary.created,
+      skipped: summary.skipped,
+      errors: summary.errors,
+    },
+  };
   });
 }
 

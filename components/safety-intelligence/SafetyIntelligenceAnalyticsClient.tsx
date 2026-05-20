@@ -5,9 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { InlineMessage, PageHero, ProvenanceBadge, SectionCard } from "@/components/WorkspacePrimitives";
 import type { SafetyDashboardPayload } from "@/components/safety-intelligence/types";
 import { fetchWithTimeoutSafe } from "@/lib/fetchWithTimeout";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-
-const supabase = getSupabaseBrowserClient();
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 
 export function SafetyIntelligenceAnalyticsClient() {
   const [summary, setSummary] = useState<SafetyDashboardPayload["summary"] | null>(null);
@@ -15,10 +13,7 @@ export function SafetyIntelligenceAnalyticsClient() {
 
   const load = useCallback(async () => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await getSupabaseAccessToken();
       if (!token) {
         throw new Error("Sign in to load analytics.");
       }

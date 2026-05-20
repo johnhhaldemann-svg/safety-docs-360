@@ -32,11 +32,11 @@
 /build
 
 # misc
-.cursor/
-.codex_tmp/
+/.cursor/
+/.codex_tmp/
 .DS_Store
 *.pem
-.npm-cache/
+/.npm-cache/
 
 # Python (Streamlit local runs)
 **/__pycache__/
@@ -53,11 +53,21 @@ yarn-error.log*
 .codex-demo-mode-dev*.log
 .codex-*-dev*.log
 .codex-*-dev.*.log
+.codex-*.log
+.codex-*.out.log
+.codex-*.err.log
+.codex-*.combined.log
 .next-dev.log
 
 # local Codex worktrees and generated scratch output
 /.codex_worktrees/
+/.codex-docx-review/
+/.codex-prod-deploy/
+/.codex-reference-render/
+/annotated_pictures/
+/docx_work/
 /output/
+/repaired-docs/
 /tmp/
 
 # env files (can opt-in for committing if needed)

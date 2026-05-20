@@ -11,9 +11,8 @@ import {
 } from "@/lib/dashboardLayout";
 import type { DashboardRole } from "@/lib/dashboardRole";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
-import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 
-const supabase = getSupabaseBrowserClient();
 const isOfflineDesktop = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
 const DASHBOARD_LAYOUT_UPDATED_EVENT = "safety360:dashboard-layout-updated";
 
@@ -51,11 +50,6 @@ function getLocalLayoutFallback(role: DashboardRole) {
   };
 }
 
-async function getAccessToken() {
-  const session = await supabase.auth.getSession();
-  return session.data.session?.access_token ?? null;
-}
-
 function notifyDashboardLayoutUpdated() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(DASHBOARD_LAYOUT_UPDATED_EVENT));
@@ -84,7 +78,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const token = await getAccessToken();
+    const token = await getSupabaseAccessToken();
     if (!token) {
       setLoading(false);
       setEditing(false);
@@ -174,7 +168,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
   }, [effectiveLayout]);
 
   const save = useCallback(async () => {
-    const token = await getAccessToken();
+    const token = await getSupabaseAccessToken();
     if (!token) {
       setMessage({
         tone: "error",
@@ -238,7 +232,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
   }, [applyPayload, availableBlocks, draftLayout]);
 
   const reset = useCallback(async () => {
-    const token = await getAccessToken();
+    const token = await getSupabaseAccessToken();
     if (!token) {
       setMessage({
         tone: "error",
@@ -288,7 +282,7 @@ export function useDashboardLayout({ role }: { role: DashboardRole }) {
 
   const pin = useCallback(
     async (blockId: DashboardBlockId) => {
-      const token = await getAccessToken();
+      const token = await getSupabaseAccessToken();
       if (!token) {
         setMessage({
           tone: "error",

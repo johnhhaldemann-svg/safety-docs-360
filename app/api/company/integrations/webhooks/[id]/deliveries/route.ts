@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import {
+  createCompanyNotification,
+  listCompanyNotificationRecipients,
+} from "@/lib/companyNotifications";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
 
@@ -158,6 +162,37 @@ export async function POST(
     payload: payload as Record<string, unknown>,
     response_status: responseStatus,
   });
+
+  if (responseStatus === 0 || (responseStatus !== null && responseStatus >= 400)) {
+    const recipients = await listCompanyNotificationRecipients({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+      roles: ["company_admin", "manager", "safety_manager"],
+      includeUserIds: [auth.user.id],
+    });
+    await Promise.all(
+      recipients.userIds.map((recipientUserId) =>
+        createCompanyNotification({
+          supabase: auth.supabase,
+          companyId: companyScope.companyId!,
+          recipientUserId,
+          actorUserId: auth.user.id,
+          eventType: "webhook_delivery_failed",
+          title: "Webhook delivery failed",
+          body: `${eventType} returned ${responseStatus ?? "no response"}.`,
+          priority: "high",
+          href: "/company-integrations",
+          sourceTable: "company_integration_webhooks",
+          sourceId: webhookId,
+          metadata: {
+            responseStatus,
+            eventType,
+            recipientLookupError: recipients.error,
+          },
+        })
+      )
+    );
+  }
 
   return NextResponse.json({ ok: true, responseStatus });
 }

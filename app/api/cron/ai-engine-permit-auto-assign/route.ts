@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isCronRequestAuthorized } from "@/lib/cronAuth";
+import { withCronTelemetry } from "@/lib/cronTelemetry";
 import { autoAssignSchedulePermits } from "@/lib/schedulePermitAutoAssignment";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -38,12 +39,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  return withCronTelemetry("ai-engine-permit-auto-assign", async () => {
   const adminClient = createSupabaseAdminClient();
   if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role key for AI permit auto-assignment." },
-      { status: 500 }
-    );
+    return {
+      response: NextResponse.json(
+        { error: "Missing Supabase service role key for AI permit auto-assignment." },
+        { status: 500 }
+      ),
+    };
   }
 
   const jobsiteResult = await adminClient
@@ -53,10 +57,12 @@ export async function GET(request: Request) {
     .limit(500);
 
   if (jobsiteResult.error) {
-    return NextResponse.json(
-      { error: jobsiteResult.error.message || "Failed to load jobsites." },
-      { status: 500 }
-    );
+    return {
+      response: NextResponse.json(
+        { error: jobsiteResult.error.message || "Failed to load jobsites." },
+        { status: 500 }
+      ),
+    };
   }
 
   const jobsites = ((jobsiteResult.data ?? []) as JobsiteRow[]).filter(isActiveJobsite);
@@ -93,8 +99,9 @@ export async function GET(request: Request) {
   }
 
   const failed = results.filter((result) => result.status === "failed").length;
-  return NextResponse.json(
-    {
+  return {
+    response: NextResponse.json(
+      {
       ok: failed === 0,
       scope: "weekly",
       attempted: results.length,
@@ -104,7 +111,15 @@ export async function GET(request: Request) {
       skippedPermits: results.reduce((sum, result) => sum + (result.status === "processed" ? result.skippedPermits : 0), 0),
       unassignedPermits: results.reduce((sum, result) => sum + (result.status === "processed" ? result.unassignedPermits : 0), 0),
       results,
+      },
+      { status: failed > 0 ? 500 : 200 }
+    ),
+    processedCount: results.length,
+    metadata: {
+      succeeded: results.length - failed,
+      failed,
+      createdPermits: results.reduce((sum, result) => sum + (result.status === "processed" ? result.createdPermits : 0), 0),
     },
-    { status: failed > 0 ? 500 : 200 }
-  );
+  };
+  });
 }

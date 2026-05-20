@@ -1,1 +1,0 @@
-drop policy if exists "injury_forecast_audit_log_insert_admin_scope" on public.injury_forecast_audit_log;
