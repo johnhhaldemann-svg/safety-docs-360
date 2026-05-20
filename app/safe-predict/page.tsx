@@ -209,6 +209,7 @@ type MapPanOffset = {
 const TILE_SIZE = 256;
 const REAL_MAP_WIDTH = 820;
 const REAL_MAP_HEIGHT = 500;
+const REAL_MAP_FIT_PADDING = 96;
 const MIN_REAL_MAP_ZOOM = 4;
 const MAX_REAL_MAP_ZOOM = 14;
 
@@ -378,19 +379,21 @@ function latitudeToTileY(latitude: number, zoom: number) {
 }
 
 function chooseMapZoom(points: JobsiteMapPoint[]) {
-  const latitudes = points.map((point) => point.latitude as number);
-  const longitudes = points.map((point) => point.longitude as number);
-  const latitudeSpan = Math.max(...latitudes) - Math.min(...latitudes);
-  const longitudeSpan = Math.max(...longitudes) - Math.min(...longitudes);
-  const span = Math.max(latitudeSpan, longitudeSpan);
+  if (points.length <= 1) return 11;
 
-  if (span > 18) return 5;
-  if (span > 8) return 6;
-  if (span > 3) return 7;
-  if (span > 1.2) return 8;
-  if (span > 0.45) return 9;
-  if (span > 0.18) return 10;
-  return 11;
+  const fitWidth = REAL_MAP_WIDTH - REAL_MAP_FIT_PADDING * 2;
+  const fitHeight = REAL_MAP_HEIGHT - REAL_MAP_FIT_PADDING * 2;
+
+  for (let zoom = MAX_REAL_MAP_ZOOM; zoom >= MIN_REAL_MAP_ZOOM; zoom -= 1) {
+    const xs = points.map((point) => longitudeToTileX(point.longitude as number, zoom) * TILE_SIZE);
+    const ys = points.map((point) => latitudeToTileY(point.latitude as number, zoom) * TILE_SIZE);
+    const pointWidth = Math.max(...xs) - Math.min(...xs);
+    const pointHeight = Math.max(...ys) - Math.min(...ys);
+
+    if (pointWidth <= fitWidth && pointHeight <= fitHeight) return zoom;
+  }
+
+  return MIN_REAL_MAP_ZOOM;
 }
 
 function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number, panOffset: MapPanOffset): RealMapViewport | null {
@@ -700,11 +703,12 @@ function JobsiteRiskMap({
                       setMapPanOffset({ x: 0, y: 0 });
                     }}
                     disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0}
-                    className="grid h-10 w-10 place-items-center border-l border-slate-200 text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                    aria-label="Reset map zoom"
-                    title="Reset map view"
+                    className="inline-flex h-10 items-center gap-2 border-l border-slate-200 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    aria-label="Center map between all jobsites"
+                    title="Center between all jobsites"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden />
+                    Center
                   </button>
                 </div>
               ) : null}

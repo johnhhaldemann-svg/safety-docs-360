@@ -235,6 +235,7 @@ export async function GET(
       documents: docsRows.length,
       users: usersRows.length,
     },
+    users: usersRows,
     widgets: {
       workPlannedToday,
       activePermits,

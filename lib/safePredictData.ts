@@ -163,6 +163,61 @@ export type SafePredictReportRecord = {
   updatedAt: string;
 };
 
+export type SafePredictTrainingRequirement = {
+  id: string;
+  title: string;
+  sortOrder?: number;
+  matchKeywords?: string[];
+  matchFields?: string[];
+  applyTrades?: string[];
+  applyPositions?: string[];
+  applySubTrades?: string[];
+  applyTaskCodes?: string[];
+  renewalMonths?: number | null;
+  isGenerated?: boolean;
+};
+
+export type SafePredictTrainingCellState = "match" | "gap" | "na";
+
+export type SafePredictTrainingCellDetail = {
+  state?: SafePredictTrainingCellState | string;
+  matchSource?: string;
+  matchedLabel?: string | null;
+  expiresOn?: string | null;
+  daysUntilExpiry?: number | null;
+  expiryStatus?: "none" | "ok" | "soon" | "expired" | string | null;
+  gapKeywords?: string[];
+};
+
+export type SafePredictTrainingMatrixRow = SafePredictLiveRecordRow & {
+  userId?: string;
+  trackedEmployeeId?: string;
+  personType?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  status?: string;
+  cells?: Record<string, SafePredictTrainingCellState | string>;
+  cellDetails?: Record<string, SafePredictTrainingCellDetail>;
+  profileFields?: {
+    tradeSpecialty?: string | null;
+    jobTitle?: string | null;
+    readinessStatus?: string | null;
+    yearsExperience?: number | null;
+  };
+  certificationInventory?: Array<{
+    name?: string;
+    expiresOn?: string | null;
+    expiryStatus?: string | null;
+  }>;
+};
+
+export type SafePredictTrainingMatrix = {
+  requirements: SafePredictTrainingRequirement[];
+  rows: SafePredictTrainingMatrixRow[];
+  schemaWarning?: string | null;
+};
+
 export type SafePredictDataset = {
   mode: SafePredictDataMode;
   company: SafePredictDemoCompany;
@@ -183,6 +238,7 @@ export type SafePredictDataset = {
   events: SafePredictEvent[];
   documents: SafePredictDocumentRecord[];
   reports: SafePredictReportRecord[];
+  trainingMatrix: SafePredictTrainingMatrix;
 };
 
 export type SafePredictForecastConfidence = {
@@ -314,6 +370,11 @@ function textValue(row: SafePredictLiveRecordRow, keys: string[], fallback = "")
     if (typeof value === "number" && Number.isFinite(value)) return String(value);
   }
   return fallback;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim()).filter(Boolean);
 }
 
 function liveTextValue(value: string | null | undefined, fallback: string) {
@@ -680,6 +741,92 @@ export function normalizeLivePermits(rows: SafePredictLiveRecordRow[], jobsites:
     });
 }
 
+function normalizeTrainingRequirement(row: SafePredictLiveRecordRow, index: number): SafePredictTrainingRequirement {
+  return {
+    id: textValue(row, ["id"], `training-req-${index}`),
+    title: textValue(row, ["title"], "Untitled training requirement"),
+    sortOrder: Number(row.sortOrder ?? row.sort_order ?? index),
+    matchKeywords: stringArrayValue(row.matchKeywords ?? row.match_keywords),
+    matchFields: stringArrayValue(row.matchFields ?? row.match_fields),
+    applyTrades: stringArrayValue(row.applyTrades ?? row.apply_trades),
+    applyPositions: stringArrayValue(row.applyPositions ?? row.apply_positions),
+    applySubTrades: stringArrayValue(row.applySubTrades ?? row.apply_sub_trades),
+    applyTaskCodes: stringArrayValue(row.applyTaskCodes ?? row.apply_task_codes),
+    renewalMonths:
+      typeof row.renewalMonths === "number"
+        ? row.renewalMonths
+        : typeof row.renewal_months === "number"
+          ? row.renewal_months
+          : null,
+    isGenerated: Boolean(row.isGenerated ?? row.is_generated),
+  };
+}
+
+function normalizeTrainingProfileFields(value: unknown): SafePredictTrainingMatrixRow["profileFields"] {
+  if (!value || typeof value !== "object") return {};
+  const record = value as SafePredictLiveRecordRow;
+  return {
+    tradeSpecialty: textValue(record, ["tradeSpecialty", "trade_specialty"]) || null,
+    jobTitle: textValue(record, ["jobTitle", "job_title"]) || null,
+    readinessStatus: textValue(record, ["readinessStatus", "readiness_status"]) || null,
+    yearsExperience:
+      typeof record.yearsExperience === "number"
+        ? record.yearsExperience
+        : typeof record.years_experience === "number"
+          ? record.years_experience
+          : null,
+  };
+}
+
+function normalizeTrainingMatrixRow(row: SafePredictLiveRecordRow, index: number): SafePredictTrainingMatrixRow {
+  const cells =
+    row.cells && typeof row.cells === "object" && !Array.isArray(row.cells)
+      ? (row.cells as Record<string, SafePredictTrainingCellState | string>)
+      : {};
+  const cellDetails =
+    row.cellDetails && typeof row.cellDetails === "object" && !Array.isArray(row.cellDetails)
+      ? (row.cellDetails as Record<string, SafePredictTrainingCellDetail>)
+      : {};
+
+  return {
+    ...row,
+    userId: textValue(row, ["userId", "user_id", "id"], `training-row-${index}`),
+    trackedEmployeeId: textValue(row, ["trackedEmployeeId", "tracked_employee_id"]) || undefined,
+    personType: textValue(row, ["personType", "person_type"]) || undefined,
+    name: textValue(row, ["name", "email"], "Unnamed worker"),
+    email: textValue(row, ["email"]),
+    role: textValue(row, ["role"], "Worker"),
+    status: textValue(row, ["status"], "Active"),
+    cells,
+    cellDetails,
+    profileFields: normalizeTrainingProfileFields(row.profileFields ?? row.profile_fields),
+    certificationInventory: Array.isArray(row.certificationInventory)
+      ? (row.certificationInventory as SafePredictTrainingMatrixRow["certificationInventory"])
+      : [],
+  };
+}
+
+function normalizeLiveTrainingMatrix(payload?: SafePredictLiveRecordRow | null): SafePredictTrainingMatrix {
+  const requirements = Array.isArray(payload?.requirements)
+    ? payload.requirements
+        .filter((row): row is SafePredictLiveRecordRow => Boolean(row) && typeof row === "object")
+        .map(normalizeTrainingRequirement)
+    : [];
+  const rows = Array.isArray(payload?.rows)
+    ? payload.rows
+        .filter((row): row is SafePredictLiveRecordRow => Boolean(row) && typeof row === "object")
+        .map(normalizeTrainingMatrixRow)
+    : [];
+  const schemaWarning =
+    typeof payload?.schemaWarning === "string"
+      ? payload.schemaWarning
+      : typeof payload?.warning === "string"
+        ? payload.warning
+        : null;
+
+  return { requirements, rows, schemaWarning };
+}
+
 export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsites: SafePredictJobsiteRecord[]) {
   return rows
     .filter((row) => textValue(row, ["userId", "user_id", "id"]) && textValue(row, ["name", "email"]))
@@ -1030,6 +1177,7 @@ export function buildSafePredictDataset({
   liveReports = [],
   liveDocuments = [],
   liveUsers = [],
+  liveTrainingMatrix = null,
 }: {
   mode?: SafePredictDataMode;
   liveCompany?: SafePredictLiveCompanyInput | null;
@@ -1043,6 +1191,7 @@ export function buildSafePredictDataset({
   liveReports?: SafePredictLiveRecordRow[];
   liveDocuments?: SafePredictLiveRecordRow[];
   liveUsers?: SafePredictLiveRecordRow[];
+  liveTrainingMatrix?: SafePredictLiveRecordRow | null;
 } = {}): SafePredictDataset {
   if (mode !== "live") {
     const demoJobsites = safePredictDemoJobsites.map(withSiteMetrics);
@@ -1074,6 +1223,7 @@ export function buildSafePredictDataset({
       events: safePredictEvents,
       documents: buildDocumentRecords(),
       reports: buildReportRecords(),
+      trainingMatrix: { requirements: [], rows: [], schemaWarning: null },
     };
   }
 
@@ -1114,7 +1264,11 @@ export function buildSafePredictDataset({
   const incidents = normalizeLiveIncidents(liveIncidents, jobsitesWithLiveMetrics);
   const observations = normalizeLiveObservations(liveObservations, jobsitesWithLiveMetrics);
   const permits = normalizeLivePermits(livePermits, jobsitesWithLiveMetrics);
-  const trainingEmployees = normalizeLiveEmployees(liveEmployees, jobsitesWithLiveMetrics);
+  const trainingMatrix =
+    liveTrainingMatrix && (Array.isArray(liveTrainingMatrix.requirements) || Array.isArray(liveTrainingMatrix.rows))
+      ? normalizeLiveTrainingMatrix(liveTrainingMatrix)
+      : normalizeLiveTrainingMatrix({ requirements: [], rows: liveEmployees });
+  const trainingEmployees = normalizeLiveEmployees(trainingMatrix.rows, jobsitesWithLiveMetrics);
   const userEmployees = normalizeLiveUsers(liveUsers, jobsitesWithLiveMetrics);
   const employees = mergeEmployees(trainingEmployees, userEmployees);
   const inspections = normalizeLiveInspections(liveInspections, jobsitesWithLiveMetrics);
@@ -1140,6 +1294,7 @@ export function buildSafePredictDataset({
     events: [],
     documents,
     reports,
+    trainingMatrix,
   };
 }
 

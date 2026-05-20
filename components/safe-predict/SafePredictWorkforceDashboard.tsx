@@ -39,6 +39,13 @@ import {
   type SafePredictTradeReadiness,
 } from "@/lib/safePredictMockData";
 import type { SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
+import type { SafePredictTrainingMatrix } from "@/lib/safePredictData";
+import {
+  buildSafePredictTrainingTradeGroups,
+  type SafePredictTrainingRequirementGroup,
+  type SafePredictTrainingTradeGroup,
+  type SafePredictTrainingWorkerSummary,
+} from "@/lib/safePredictTrainingMatrix";
 
 const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
   compliant: "Compliant",
@@ -739,7 +746,9 @@ export function SafePredictWorkforceDashboard() {
               onOpenEmployee={setSelectedEmployeeId}
             />
           ) : null}
-          {activeTab === "training" ? <TrainingMatrixTab groups={trainingGroups} /> : null}
+          {activeTab === "training" ? (
+            <TrainingMatrixTab groups={trainingGroups} trainingMatrix={dataset.trainingMatrix} />
+          ) : null}
           {activeTab === "permits" ? <PermitsTab groups={permitGroups} permits={permits} /> : null}
           {activeTab === "jobsites" ? (
             <JobsiteAssignmentsTab
@@ -994,13 +1003,150 @@ function WorkforceDataGrid({
   );
 }
 
-function TrainingMatrixTab({ groups }: { groups: TrainingGroup[] }) {
+function TrainingWorkerList({
+  label,
+  workers,
+  tone,
+}: {
+  label: string;
+  workers: SafePredictTrainingWorkerSummary[];
+  tone: "red" | "amber" | "green";
+}) {
+  const toneClass =
+    tone === "red"
+      ? "border-red-100 bg-red-50 text-red-700"
+      : tone === "amber"
+        ? "border-amber-100 bg-amber-50 text-amber-700"
+        : "border-emerald-100 bg-emerald-50 text-emerald-700";
+  const visibleWorkers = workers.slice(0, 5);
+  const remaining = workers.length - visibleWorkers.length;
+
+  if (workers.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {visibleWorkers.map((worker) => (
+          <span key={`${worker.id}-${label}`} title={worker.detail} className={cx("rounded-full border px-2.5 py-1 text-xs font-black", toneClass)}>
+            {worker.name}
+          </span>
+        ))}
+        {remaining > 0 ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-black text-slate-600">
+            +{remaining} more
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RequirementScope({
+  requirement,
+}: {
+  requirement: SafePredictTrainingRequirementGroup;
+}) {
+  const scopes = [
+    ...requirement.positions.map((value) => `Position: ${value}`),
+    ...requirement.trades.map((value) => `Trade: ${value}`),
+    ...requirement.subTrades.map((value) => `Subtrade: ${value}`),
+    ...requirement.taskCodes.map((value) => `Task: ${value.replace(/_/g, " ")}`),
+  ];
+
+  if (scopes.length === 0) {
+    return <p className="mt-2 text-xs font-semibold text-slate-500">Applies to all in-scope workers.</p>;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {scopes.slice(0, 6).map((scope) => (
+        <span key={scope} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">
+          {scope}
+        </span>
+      ))}
+      {scopes.length > 6 ? (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">
+          +{scopes.length - 6} more
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function DynamicRequirementCard({
+  requirement,
+  trade,
+}: {
+  requirement: SafePredictTrainingRequirementGroup;
+  trade: string;
+}) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-black leading-5 text-slate-950">{requirement.title}</p>
+          <RequirementScope requirement={requirement} />
+        </div>
+        <span className={cx("shrink-0 rounded-full px-2.5 py-1 text-xs font-black", employeeStatusClass(requirement.overallStatus))}>
+          {statusLabels[requirement.overallStatus]}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-black">
+        <span className="rounded-lg bg-red-50 p-2 text-red-600">{requirement.overdueCount}<span className="block text-[10px] uppercase">Need it</span></span>
+        <span className="rounded-lg bg-amber-50 p-2 text-amber-600">{requirement.expiringCount}<span className="block text-[10px] uppercase">Expiring</span></span>
+        <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">{requirement.compliantCount}<span className="block text-[10px] uppercase">Have it</span></span>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <TrainingWorkerList label={`Who needs it in ${trade}`} workers={requirement.overdueWorkers} tone="red" />
+        <TrainingWorkerList label="Expiring soon" workers={requirement.expiringWorkers} tone="amber" />
+        <TrainingWorkerList label="Has it" workers={requirement.compliantWorkers} tone="green" />
+      </div>
+    </article>
+  );
+}
+
+function DynamicTrainingTradeSection({
+  group,
+  isOpen,
+  onToggle,
+}: {
+  group: SafePredictTrainingTradeGroup;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section>
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
+        <div className="min-w-0">
+          <p className="text-base font-black text-slate-950">{group.trade}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{group.workers} workers - {group.overdueCount} need it - {group.expiringCount} expiring</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{group.overdueCount}</span>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-600">{group.expiringCount}</span>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.compliantCount}</span>
+          <ChevronDown className={cx("h-4 w-4 text-slate-400 transition", isOpen ? "rotate-180" : undefined)} />
+        </div>
+      </button>
+      {isOpen ? (
+        <div className="grid gap-3 bg-slate-50 p-4 lg:grid-cols-2">
+          {group.requirements.map((requirement) => (
+            <DynamicRequirementCard key={`${group.trade}-${requirement.id}`} trade={group.trade} requirement={requirement} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function StaticTrainingFallback({
+  groups,
+}: {
+  groups: TrainingGroup[];
+}) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-slate-200 p-5">
-        <SectionTitle title="Training Matrix" hint="Trades are collapsed by default and sorted by exception count before compliant groups." />
-      </div>
       <div className="divide-y divide-slate-100">
         {groups.map((group) => {
           const isOpen = expanded[group.trade] ?? group.overdueCount > 0;
@@ -1042,6 +1188,53 @@ function TrainingMatrixTab({ groups }: { groups: TrainingGroup[] }) {
         })}
         {groups.length === 0 ? <div className="p-5"><EmptyPanel>No training matrix rows yet.</EmptyPanel></div> : null}
       </div>
+  );
+}
+
+function TrainingMatrixTab({ groups, trainingMatrix }: { groups: TrainingGroup[]; trainingMatrix: SafePredictTrainingMatrix }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const dynamicGroups = useMemo(() => buildSafePredictTrainingTradeGroups(trainingMatrix), [trainingMatrix]);
+  const hasDynamicMatrix = dynamicGroups.length > 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <SectionTitle
+          title="Training Matrix"
+          hint={
+            hasDynamicMatrix
+              ? "Live company training requirements grouped by trade, with in-scope workers and exception counts."
+              : "Fallback training tiles are shown until company training requirements and worker records are available."
+          }
+        />
+        {!hasDynamicMatrix ? (
+          <p className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+            Configure company training requirements in Training Tracker to make this view authoritative by trade, position, and worker.
+          </p>
+        ) : null}
+        {trainingMatrix.schemaWarning ? (
+          <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+            {trainingMatrix.schemaWarning}
+          </p>
+        ) : null}
+      </div>
+      {hasDynamicMatrix ? (
+        <div className="divide-y divide-slate-100">
+          {dynamicGroups.map((group) => {
+            const isOpen = expanded[group.trade] ?? group.overdueCount > 0;
+            return (
+              <DynamicTrainingTradeSection
+                key={group.trade}
+                group={group}
+                isOpen={isOpen}
+                onToggle={() => setExpanded((current) => ({ ...current, [group.trade]: !isOpen }))}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <StaticTrainingFallback groups={groups} />
+      )}
     </Card>
   );
 }

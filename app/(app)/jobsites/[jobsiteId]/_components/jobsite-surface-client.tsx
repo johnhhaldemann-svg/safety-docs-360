@@ -72,6 +72,13 @@ type JobsiteAssignmentRow = {
   role?: string | null;
 };
 
+type EmployeeOption = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
 type SurfaceRow = Record<string, unknown> & { id?: string | null };
 
 function labelize(value: string | null | undefined) {
@@ -122,6 +129,27 @@ function roleNeedsJobsiteAssignment(role?: string | null) {
     "read_only",
     "company_user",
   ]).has(normalized);
+}
+
+function buildEmployeeOptions(users: TeamUserRow[]) {
+  const options = users
+    .filter((user) => String(user.status ?? "").trim().toLowerCase() !== "suspended")
+    .map((user, index) => {
+      const email = String(user.email ?? "").trim();
+      const name = String(user.name ?? "").trim() || email;
+      if (!name) return null;
+      return {
+        id: String(user.id ?? email || `employee-${index}`),
+        name,
+        email,
+        role: String(user.role ?? "").trim(),
+      } satisfies EmployeeOption;
+    })
+    .filter((option): option is EmployeeOption => Boolean(option));
+
+  return Array.from(new Map(options.map((option) => [option.name.toLowerCase(), option])).values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 }
 
 function getAuthHeaders(accessToken?: string | null): Record<string, string> {
@@ -254,6 +282,8 @@ function OverviewWidgets({
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
+  const users = ((payload?.users as TeamUserRow[] | undefined) ?? []) as TeamUserRow[];
+  const employeeOptions = useMemo(() => buildEmployeeOptions(users), [users]);
   const jobsiteId = String(jobsite?.id ?? "");
   const [editing, setEditing] = useState(false);
   const cards = [
@@ -396,6 +426,7 @@ function OverviewWidgets({
       {editing && jobsite ? (
         <JobsiteInfoEditor
           jobsite={jobsite}
+          employeeOptions={employeeOptions}
           onCancel={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);
@@ -474,10 +505,12 @@ function OverviewWidgets({
 
 function JobsiteInfoEditor({
   jobsite,
+  employeeOptions,
   onCancel,
   onSaved,
 }: {
   jobsite: JobsiteRow;
+  employeeOptions: EmployeeOption[];
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -548,7 +581,10 @@ function JobsiteInfoEditor({
 
   const inputClassName =
     "mt-2 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3.5 py-2.5 text-sm font-medium text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20";
+  const selectClassName = `${appNativeSelectClassName} mt-2 w-full border-slate-700 bg-slate-950/60 text-slate-100`;
   const labelClassName = "text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500";
+  const currentProjectManagerMissing = form.projectManager && !employeeOptions.some((employee) => employee.name === form.projectManager);
+  const currentSafetyLeadMissing = form.safetyLead && !employeeOptions.some((employee) => employee.name === form.safetyLead);
 
   return (
     <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
@@ -579,11 +615,27 @@ function JobsiteInfoEditor({
         </label>
         <label className={labelClassName}>
           Project Manager
-          <input value={form.projectManager} onChange={(event) => updateForm("projectManager", event.target.value)} className={inputClassName} />
+          <select value={form.projectManager} onChange={(event) => updateForm("projectManager", event.target.value)} className={selectClassName}>
+            <option value="">{employeeOptions.length ? "Select employee" : "No employees available"}</option>
+            {currentProjectManagerMissing ? <option value={form.projectManager}>{form.projectManager}</option> : null}
+            {employeeOptions.map((employee) => (
+              <option key={`project-manager-${employee.id}`} value={employee.name}>
+                {[employee.name, employee.role].filter(Boolean).join(" - ")}
+              </option>
+            ))}
+          </select>
         </label>
         <label className={labelClassName}>
           Safety Lead
-          <input value={form.safetyLead} onChange={(event) => updateForm("safetyLead", event.target.value)} className={inputClassName} />
+          <select value={form.safetyLead} onChange={(event) => updateForm("safetyLead", event.target.value)} className={selectClassName}>
+            <option value="">{employeeOptions.length ? "Select employee" : "No employees available"}</option>
+            {currentSafetyLeadMissing ? <option value={form.safetyLead}>{form.safetyLead}</option> : null}
+            {employeeOptions.map((employee) => (
+              <option key={`safety-lead-${employee.id}`} value={employee.name}>
+                {[employee.name, employee.role].filter(Boolean).join(" - ")}
+              </option>
+            ))}
+          </select>
         </label>
         <label className={labelClassName}>
           Street Address
@@ -607,7 +659,7 @@ function JobsiteInfoEditor({
         </label>
         <label className={labelClassName}>
           Status
-          <select value={form.status} onChange={(event) => updateForm("status", event.target.value)} className={`${appNativeSelectClassName} mt-2 w-full bg-slate-950/60 text-slate-100`}>
+          <select value={form.status} onChange={(event) => updateForm("status", event.target.value)} className={selectClassName}>
             <option value="planned">Planned</option>
             <option value="active">Active</option>
             <option value="completed">Completed</option>

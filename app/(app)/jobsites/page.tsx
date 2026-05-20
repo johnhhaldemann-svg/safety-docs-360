@@ -100,6 +100,12 @@ type AuditCustomer = {
   status?: string | null;
 };
 
+type EmployeeOption = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 function getAuthHeaders(accessToken?: string | null): Record<string, string> {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
@@ -279,6 +285,23 @@ export default function JobsitesPage() {
     return counts;
   }, [jobsites]);
   const unlinkedJobsitesCount = jobsites.filter((jobsite) => !jobsite.auditCustomerId).length;
+  const employeeOptions = useMemo<EmployeeOption[]>(() => {
+    const options = activeUsers
+      .map((user) => {
+        const name = user.name.trim() || user.email.trim();
+        if (!name) return null;
+        return { id: user.id || user.email || name, name, role: user.role };
+      })
+      .filter((option): option is EmployeeOption => Boolean(option));
+
+    return Array.from(new Map(options.map((option) => [option.name.toLowerCase(), option])).values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [activeUsers]);
+  const currentProjectManagerMissing =
+    composer.projectManager && !employeeOptions.some((employee) => employee.name === composer.projectManager);
+  const currentSafetyLeadMissing =
+    composer.safetyLead && !employeeOptions.some((employee) => employee.name === composer.safetyLead);
 
   function updateComposer<K extends keyof ComposerState>(key: K, value: ComposerState[K]) {
     setComposer((current) => ({ ...current, [key]: value }));
@@ -722,8 +745,6 @@ export default function JobsitesPage() {
                   ["jobsite-project-number", "Project Number", composer.projectNumber, "PRJ-2026-014", "projectNumber"],
                   ["jobsite-location", "Location", composer.location, companyLocation, "location"],
                   ["jobsite-zip", "Jobsite ZIP", composer.zipCode, "10001", "zipCode"],
-                  ["jobsite-project-manager", "Project Manager", composer.projectManager, "Project lead", "projectManager"],
-                  ["jobsite-safety-lead", "Safety Lead", composer.safetyLead, "Safety lead", "safetyLead"],
                 ].map(([id, label, value, placeholder, key]) => (
                   <label key={id} htmlFor={id} className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
                     {label}
@@ -737,6 +758,40 @@ export default function JobsitesPage() {
                     />
                   </label>
                 ))}
+                <label htmlFor="jobsite-project-manager" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Project Manager
+                  <select
+                    id="jobsite-project-manager"
+                    value={composer.projectManager}
+                    onChange={(event) => updateComposer("projectManager", event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  >
+                    <option value="">{employeeOptions.length ? "Select employee" : "No employees available"}</option>
+                    {currentProjectManagerMissing ? <option value={composer.projectManager}>{composer.projectManager}</option> : null}
+                    {employeeOptions.map((employee) => (
+                      <option key={`project-manager-${employee.id}`} value={employee.name}>
+                        {[employee.name, employee.role].filter(Boolean).join(" - ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label htmlFor="jobsite-safety-lead" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Safety Lead
+                  <select
+                    id="jobsite-safety-lead"
+                    value={composer.safetyLead}
+                    onChange={(event) => updateComposer("safetyLead", event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                  >
+                    <option value="">{employeeOptions.length ? "Select employee" : "No employees available"}</option>
+                    {currentSafetyLeadMissing ? <option value={composer.safetyLead}>{composer.safetyLead}</option> : null}
+                    {employeeOptions.map((employee) => (
+                      <option key={`safety-lead-${employee.id}`} value={employee.name}>
+                        {[employee.name, employee.role].filter(Boolean).join(" - ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label htmlFor="jobsite-status" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
                   Status
                   <select

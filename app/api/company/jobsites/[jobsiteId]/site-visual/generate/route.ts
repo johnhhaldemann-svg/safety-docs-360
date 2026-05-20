@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { runStructuredAiJsonTask } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  cleanBlueprintTransform,
+  defaultBlueprintTransform,
+  type SiteVisualBlueprintInput,
+} from "@/lib/jobsiteSiteBlueprint";
 import {
   SITE_VISUAL_SCENE_JSON_SCHEMA,
   buildFallbackSiteVisualScene,
@@ -18,6 +25,7 @@ import {
   type SiteVisualZone,
 } from "@/lib/jobsiteSiteVisual";
 import {
+  BLUEPRINT_SELECT,
   MAP_SELECT,
   ZONE_SELECT,
   canGenerateSiteMap,
@@ -160,10 +168,51 @@ function zoneInsertRows(params: {
     size_x: zone.size.x,
     size_y: zone.size.y,
     size_z: zone.size.z,
-    metadata: {},
+    metadata: { blueprintBounds: zone.blueprintBounds ?? null },
     created_by: params.userId,
     updated_by: params.userId,
   }));
+}
+
+async function loadReadyBlueprint(params: {
+  supabase: SupabaseClient;
+  companyId: string;
+  jobsiteId: string;
+  blueprintId?: string | null;
+}): Promise<{ blueprint: SiteVisualBlueprintInput | null; signedPreviewUrl: string | null; error?: string }> {
+  let query = params.supabase
+    .from("company_jobsite_site_blueprints")
+    .select(BLUEPRINT_SELECT)
+    .eq("company_id", params.companyId)
+    .eq("jobsite_id", params.jobsiteId)
+    .eq("processing_status", "ready")
+    .is("archived_at", null);
+  if (params.blueprintId) query = query.eq("id", params.blueprintId);
+  const result = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (result.error) return { blueprint: null, signedPreviewUrl: null, error: result.error.message };
+  if (!result.data) return { blueprint: null, signedPreviewUrl: null };
+
+  const width = Number(result.data.image_width ?? 1600);
+  const height = Number(result.data.image_height ?? 1000);
+  const blueprint: SiteVisualBlueprintInput = {
+    id: String(result.data.id),
+    fileName: String(result.data.file_name ?? "Blueprint"),
+    mimeType: String(result.data.mime_type ?? ""),
+    width: Number.isFinite(width) ? width : 1600,
+    height: Number.isFinite(height) ? height : 1000,
+    pageNumber: Number(result.data.page_number ?? 1),
+    transform: cleanBlueprintTransform(result.data.transform_json, defaultBlueprintTransform(width, height)),
+  };
+  const previewPath = result.data.preview_image_path == null ? null : String(result.data.preview_image_path);
+  let signedPreviewUrl: string | null = null;
+  if (previewPath) {
+    const admin = createSupabaseAdminClient();
+    if (admin) {
+      const signed = await admin.storage.from("documents").createSignedUrl(previewPath, 10 * 60);
+      signedPreviewUrl = signed.data?.signedUrl ?? null;
+    }
+  }
+  return { blueprint, signedPreviewUrl };
 }
 
 export async function POST(
@@ -192,6 +241,7 @@ export async function POST(
   }
 
   const { jobsiteId } = await params;
+  const body = (await request.json().catch(() => null)) as { blueprintId?: string | null } | null;
   const companyScope = await resolveCompanyScope(auth);
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
@@ -252,6 +302,20 @@ export async function POST(
     ...(((observations.data ?? []) as Record<string, unknown>[]).map(observationRowToWorkItem)),
   ].slice(0, 160);
 
+  const requestedBlueprintId = typeof body?.blueprintId === "string" && body.blueprintId.trim() ? body.blueprintId.trim() : null;
+  const blueprintResult = await loadReadyBlueprint({
+    supabase: auth.supabase,
+    companyId: companyScope.companyId,
+    jobsiteId,
+    blueprintId: requestedBlueprintId,
+  });
+  if (blueprintResult.error && !isMissingVisualSchema(blueprintResult.error)) {
+    return NextResponse.json({ error: blueprintResult.error || "Failed to load blueprint." }, { status: 500 });
+  }
+  if (requestedBlueprintId && !blueprintResult.blueprint) {
+    return NextResponse.json({ error: "Ready blueprint not found. Process the blueprint before generating the map." }, { status: 404 });
+  }
+
   const input: SiteVisualGenerationInput = {
     jobsite: {
       id: String(jobsiteResult.data.id),
@@ -261,15 +325,38 @@ export async function POST(
       jobsiteNumber: jobsiteResult.data.jobsite_number ?? null,
     },
     items,
+    blueprint: blueprintResult.blueprint,
   };
 
   const fallback = buildFallbackSiteVisualScene(input);
+  const userPrompt = buildSiteVisualAiPrompt(input);
+  const inputOverride = blueprintResult.signedPreviewUrl
+    ? [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: "You create structured schematic 3D site maps for construction safety planning. Return strict JSON only and do not claim engineering or BIM accuracy.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: userPrompt },
+            { type: "input_image", image_url: blueprintResult.signedPreviewUrl },
+          ],
+        },
+      ]
+    : undefined;
   const ai = await runStructuredAiJsonTask<Partial<SiteVisualScene>>({
     modelEnv: process.env.JOBSITE_VISUAL_AI_MODEL?.trim() || process.env.COMPANY_AI_MODEL?.trim(),
     fallbackModel: resolveCompanyAiDefaultModel("gpt-4o-mini"),
     system:
       "You create structured schematic 3D site maps for construction safety planning. Return strict JSON only and do not claim engineering or BIM accuracy.",
-    user: buildSiteVisualAiPrompt(input),
+    user: userPrompt,
+    inputOverride,
     fallback,
     surface: "jobsite.site-visual.generate",
     maxAttempts: 2,
@@ -308,6 +395,7 @@ export async function POST(
       prompt_hash: siteVisualPromptHash(input),
       ai_meta: aiMeta,
       scene_json: scene,
+      blueprint_id: blueprintResult.blueprint?.id ?? null,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     })
@@ -355,6 +443,7 @@ export async function POST(
     jobsite: jobsiteResult.data,
     siteMap: {
       id: insertMap.data.id,
+      blueprintId: insertMap.data.blueprint_id ?? null,
       generationStatus: insertMap.data.generation_status,
       promptHash: insertMap.data.prompt_hash,
       aiMeta,

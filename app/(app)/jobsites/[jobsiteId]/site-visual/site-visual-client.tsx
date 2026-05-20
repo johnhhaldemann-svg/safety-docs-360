@@ -2,7 +2,22 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Clock, Crosshair, Layers3, MapPin, RefreshCw, Save, Sparkles } from "lucide-react";
+import {
+  Box,
+  Clock,
+  Crosshair,
+  FileImage,
+  Layers3,
+  MapPin,
+  Move,
+  RefreshCw,
+  RotateCw,
+  Save,
+  Sparkles,
+  Upload,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
@@ -20,6 +35,25 @@ type Vector3 = { x: number; y: number; z: number };
 type RiskLevel = "low" | "medium" | "high" | "critical";
 type ViewMode = "isometric" | "top";
 type VisualOverlap = { id: string; zoneIds: [string, string]; severity: "medium" | "high" | "critical"; label: string; reason: string };
+type BlueprintBounds = { x: number; y: number; width: number; height: number };
+type BlueprintTransform = { x: number; z: number; scale: number; rotationY: number; opacity: number; width: number; height: number };
+
+type SiteVisualBlueprint = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  pageNumber: number;
+  processingStatus: "pending" | "uploaded" | "processing" | "ready" | "failed" | "archived" | string;
+  previewImagePath: string | null;
+  signedPreviewUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  transform: BlueprintTransform;
+  processingError: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
 
 type VisualZone = {
   id: string;
@@ -36,24 +70,29 @@ type VisualZone = {
   position: Vector3;
   size: Vector3;
   color: string;
+  blueprintBounds?: BlueprintBounds | null;
 };
 
 type VisualScene = {
   version: 1;
   levels: Array<{ id: string; label: string; elevation: number; height: number }>;
-  areas: Array<{ id: string; label: string; levelId: string; position: Vector3; size: Vector3; color: string }>;
+  areas: Array<{ id: string; label: string; levelId: string; position: Vector3; size: Vector3; color: string; blueprintBounds?: BlueprintBounds | null }>;
   zones: VisualZone[];
   overlaps: VisualOverlap[];
   camera: { position: Vector3; target: Vector3 };
+  blueprint: { id: string | null; imageWidth: number; imageHeight: number; transform: BlueprintTransform } | null;
 };
 
 type SiteVisualPayload = {
   jobsite?: { name?: string | null; location?: string | null; project_number?: string | null; jobsite_number?: string | null };
-  siteMap?: { id: string; generationStatus?: string | null; aiMeta?: Record<string, unknown> | null; updatedAt?: string | null } | null;
+  siteMap?: { id: string; blueprintId?: string | null; generationStatus?: string | null; aiMeta?: Record<string, unknown> | null; updatedAt?: string | null } | null;
   scene?: VisualScene | null;
   zones?: VisualZone[];
+  blueprint?: SiteVisualBlueprint | null;
+  blueprints?: SiteVisualBlueprint[];
   canGenerate?: boolean;
   canEditZones?: boolean;
+  canUploadBlueprints?: boolean;
   warning?: string;
   error?: string;
 };
@@ -153,7 +192,11 @@ function makeLabelSprite(text: string) {
   return sprite;
 }
 
-function sceneBounds(scene: VisualScene) {
+function activeBlueprintTransform(scene: VisualScene, blueprint?: SiteVisualBlueprint | null) {
+  return blueprint?.transform ?? scene.blueprint?.transform ?? null;
+}
+
+function sceneBounds(scene: VisualScene, blueprint?: SiteVisualBlueprint | null) {
   const points = [...scene.areas, ...scene.zones].flatMap((item) => {
     const halfX = Math.max(1, item.size.x / 2);
     const halfZ = Math.max(1, item.size.z / 2);
@@ -162,6 +205,15 @@ function sceneBounds(scene: VisualScene) {
       { x: item.position.x + halfX, z: item.position.z + halfZ },
     ];
   });
+  const transform = activeBlueprintTransform(scene, blueprint);
+  if (transform) {
+    const halfX = Math.max(6, (transform.width * transform.scale) / 2);
+    const halfZ = Math.max(6, (transform.height * transform.scale) / 2);
+    points.push(
+      { x: transform.x - halfX, z: transform.z - halfZ },
+      { x: transform.x + halfX, z: transform.z + halfZ }
+    );
+  }
   if (!points.length) {
     const center = new THREE.Vector3(scene.camera.target.x, 0, scene.camera.target.z);
     return { center, span: 48, minX: -24, maxX: 24, minZ: -24, maxZ: 24 };
@@ -177,12 +229,14 @@ function sceneBounds(scene: VisualScene) {
 
 function SiteVisualRenderer({
   scene,
+  blueprint,
   selectedZoneId,
   showOverlapsOnly,
   viewMode,
   onSelectZone,
 }: {
   scene: VisualScene;
+  blueprint?: SiteVisualBlueprint | null;
   selectedZoneId: string | null;
   showOverlapsOnly: boolean;
   viewMode: ViewMode;
@@ -205,7 +259,7 @@ function SiteVisualRenderer({
     const threeScene = new THREE.Scene();
     threeScene.background = new THREE.Color(0xf8fbff);
     threeScene.fog = new THREE.Fog(0xf8fbff, 95, 180);
-    const bounds = sceneBounds(scene);
+    const bounds = sceneBounds(scene, blueprint);
     const aspect = width / height;
     const camera = new THREE.OrthographicCamera(
       (-bounds.span * aspect) / 2,
@@ -234,12 +288,48 @@ function SiteVisualRenderer({
     keyLight.position.set(20, 36, 18);
     threeScene.add(keyLight);
     const grid = new THREE.GridHelper(bounds.span + 14, Math.max(18, Math.round(bounds.span / 3)), 0x93a4ba, 0xdbe3ef);
-    grid.position.set(bounds.center.x, 0, bounds.center.z);
+    grid.position.set(bounds.center.x, blueprint?.signedPreviewUrl ? 0.08 : 0, bounds.center.z);
     threeScene.add(grid);
 
     const overlapIds = overlapZoneIds(scene);
     const zoneMeshes = new Map<string, THREE.Mesh>();
     const clickable: THREE.Mesh[] = [];
+    const loadedTextures: THREE.Texture[] = [];
+
+    if (blueprint?.signedPreviewUrl) {
+      const transform = activeBlueprintTransform(scene, blueprint) ?? blueprint.transform;
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin("anonymous");
+      loader.load(blueprint.signedPreviewUrl, (texture) => {
+        loadedTextures.push(texture);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+        const planeWidth = Math.max(6, transform.width * transform.scale);
+        const planeHeight = Math.max(6, transform.height * transform.scale);
+        const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: transform.opacity,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.rotation.z = transform.rotationY;
+        mesh.position.set(transform.x, 0.025, transform.z);
+        mesh.renderOrder = -2;
+        threeScene.add(mesh);
+
+        const outline = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(planeWidth, 0.05, planeHeight)),
+          new THREE.LineBasicMaterial({ color: 0x0f172a, transparent: true, opacity: 0.5 })
+        );
+        outline.position.set(transform.x, 0.09, transform.z);
+        outline.rotation.y = transform.rotationY;
+        threeScene.add(outline);
+      });
+    }
 
     for (const area of scene.areas) {
       const geometry = new THREE.BoxGeometry(area.size.x, 0.18, area.size.z);
@@ -372,10 +462,11 @@ function SiteVisualRenderer({
       window.removeEventListener("resize", handleResize);
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
       controls.dispose();
+      loadedTextures.forEach((texture) => texture.dispose());
       renderer.dispose();
       mount.replaceChildren();
     };
-  }, [scene, selectedZoneId, showOverlapsOnly, viewMode, onSelectZone]);
+  }, [scene, blueprint, selectedZoneId, showOverlapsOnly, viewMode, onSelectZone]);
 
   return (
     <div className="relative h-[640px] min-h-[460px] w-full overflow-hidden rounded-xl border border-[var(--app-border)] bg-[#f8fbff]">
@@ -385,6 +476,12 @@ function SiteVisualRenderer({
           <span className="h-3 w-6 rounded-sm border border-slate-300 bg-sky-100" />
           Work area plate
         </div>
+        {blueprint?.signedPreviewUrl ? (
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-6 rounded-sm border border-slate-400 bg-slate-100" />
+            Blueprint underlay
+          </div>
+        ) : null}
         <div className="flex items-center gap-2">
           <span className="h-3 w-6 rounded-sm bg-red-500" />
           Critical task zone
@@ -444,6 +541,10 @@ export function JobsiteSiteVisualClient({
   const [showOverlapsOnly, setShowOverlapsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("isometric");
   const [draft, setDraft] = useState<VisualZone | null>(null);
+  const [blueprintFile, setBlueprintFile] = useState<File | null>(null);
+  const [blueprintPage, setBlueprintPage] = useState(1);
+  const [uploadingBlueprint, setUploadingBlueprint] = useState(false);
+  const [savingBlueprint, setSavingBlueprint] = useState(false);
 
   async function getAuthHeaders() {
     const supabase = getSupabaseBrowserClient();
@@ -486,6 +587,7 @@ export function JobsiteSiteVisualClient({
   const scene = payload?.scene ?? null;
   const zones = scene?.zones ?? [];
   const overlaps = scene?.overlaps ?? [];
+  const activeBlueprint = payload?.blueprint ?? payload?.blueprints?.find((item) => item.processingStatus === "ready") ?? payload?.blueprints?.[0] ?? null;
   const selectedZone = useMemo(
     () => zones.find((zone) => zone.id === selectedZoneId) ?? null,
     [selectedZoneId, zones]
@@ -499,6 +601,77 @@ export function JobsiteSiteVisualClient({
     setDraft(selectedZone ? structuredClone(selectedZone) : null);
   }, [selectedZone]);
 
+  useEffect(() => {
+    if (activeBlueprint?.processingStatus === "ready") setViewMode("top");
+  }, [activeBlueprint?.id, activeBlueprint?.processingStatus]);
+
+  function updatePayloadBlueprint(blueprint: SiteVisualBlueprint) {
+    setPayload((current) => {
+      if (!current) return current;
+      const blueprints = current.blueprints ?? [];
+      const nextBlueprints = blueprints.some((item) => item.id === blueprint.id)
+        ? blueprints.map((item) => (item.id === blueprint.id ? blueprint : item))
+        : [blueprint, ...blueprints];
+      return { ...current, blueprint, blueprints: nextBlueprints };
+    });
+  }
+
+  async function uploadBlueprint() {
+    if (!blueprintFile) {
+      setMessage("Choose a PDF or image blueprint first.");
+      setMessageTone("warning");
+      return;
+    }
+    setUploadingBlueprint(true);
+    setMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const uploadResponse = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/blueprints/upload-url`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          fileName: blueprintFile.name,
+          mimeType: blueprintFile.type,
+          fileSize: blueprintFile.size,
+          pageNumber: blueprintPage,
+        }),
+      });
+      const uploadData = (await uploadResponse.json().catch(() => null)) as
+        | { error?: string; bucket?: string; path?: string; token?: string; blueprint?: SiteVisualBlueprint }
+        | null;
+      if (!uploadResponse.ok || !uploadData?.bucket || !uploadData.path || !uploadData.token) {
+        throw new Error(uploadData?.error || "Failed to create blueprint upload URL.");
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const upload = await supabase.storage
+        .from(uploadData.bucket)
+        .uploadToSignedUrl(uploadData.path, uploadData.token, blueprintFile, {
+          contentType: blueprintFile.type,
+        });
+      if (upload.error) throw new Error(upload.error.message);
+
+      const blueprintId = uploadData.blueprint?.id;
+      if (!blueprintId) throw new Error("Blueprint record was not returned.");
+      const processResponse = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/blueprints/${blueprintId}`, {
+        method: "POST",
+        headers,
+      });
+      const processData = (await processResponse.json().catch(() => null)) as { error?: string; blueprint?: SiteVisualBlueprint } | null;
+      if (!processResponse.ok || !processData?.blueprint) {
+        throw new Error(processData?.error || "Blueprint uploaded, but processing failed.");
+      }
+      updatePayloadBlueprint(processData.blueprint);
+      setBlueprintFile(null);
+      setMessage("Blueprint processed. Generate the 3D map from the plan to align work zones visually.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Blueprint upload failed.");
+      setMessageTone("error");
+    }
+    setUploadingBlueprint(false);
+  }
+
   async function generateMap() {
     setGenerating(true);
     setMessage(null);
@@ -507,19 +680,59 @@ export function JobsiteSiteVisualClient({
       const response = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/generate`, {
         method: "POST",
         headers,
-        body: JSON.stringify({}),
+        body: JSON.stringify({ blueprintId: activeBlueprint?.processingStatus === "ready" ? activeBlueprint.id : null }),
       });
       const data = (await response.json().catch(() => null)) as SiteVisualPayload | null;
       if (!response.ok) throw new Error(data?.error || "Failed to generate site visual.");
       setPayload(data ?? {});
       setSelectedZoneId(data?.scene?.zones?.[0]?.id ?? null);
-      setMessage(data?.siteMap?.generationStatus === "fallback" ? "Generated a deterministic fallback map." : "AI site visual generated.");
+      setMessage(
+        data?.siteMap?.generationStatus === "fallback"
+          ? "Generated a deterministic fallback map."
+          : data?.siteMap?.blueprintId
+            ? "AI site visual generated from the blueprint."
+            : "AI site visual generated."
+      );
       setMessageTone(data?.siteMap?.generationStatus === "fallback" ? "warning" : "success");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to generate site visual.");
       setMessageTone("error");
     }
     setGenerating(false);
+  }
+
+  async function saveBlueprintTransform(transform: BlueprintTransform) {
+    if (!activeBlueprint) return;
+    setSavingBlueprint(true);
+    setMessage(null);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/company/jobsites/${jobsiteId}/site-visual/blueprints/${activeBlueprint.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ transform }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string; blueprint?: SiteVisualBlueprint } | null;
+      if (!response.ok || !data?.blueprint) throw new Error(data?.error || "Failed to update blueprint alignment.");
+      updatePayloadBlueprint(data.blueprint);
+      setMessage("Blueprint alignment updated.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to update blueprint alignment.");
+      setMessageTone("error");
+    }
+    setSavingBlueprint(false);
+  }
+
+  function adjustBlueprintTransform(patch: Partial<BlueprintTransform>) {
+    if (!activeBlueprint) return;
+    const current = activeBlueprint.transform;
+    void saveBlueprintTransform({
+      ...current,
+      ...patch,
+      scale: Math.min(4, Math.max(0.2, patch.scale ?? current.scale)),
+      opacity: Math.min(1, Math.max(0.08, patch.opacity ?? current.opacity)),
+    });
   }
 
   async function saveZone() {
@@ -620,12 +833,140 @@ export function JobsiteSiteVisualClient({
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
+      <SectionCard
+        title="Blueprint Underlay"
+        description="Attach a PDF or image plan so the 3D work zones can sit over the actual jobsite layout."
+        actions={
+          activeBlueprint?.processingStatus === "ready" && payload?.canGenerate ? (
+            <button type="button" className={appButtonPrimaryClassName} onClick={() => void generateMap()} disabled={generating}>
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              {generating ? "Generating..." : "Generate from blueprint"}
+            </button>
+          ) : null
+        }
+      >
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end">
+              <label className="flex-1 space-y-2">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Blueprint file</span>
+                <input
+                  type="file"
+                  accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
+                  disabled={!payload?.canUploadBlueprints || uploadingBlueprint}
+                  onChange={(event) => setBlueprintFile(event.target.files?.[0] ?? null)}
+                  className="block w-full rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--app-accent-primary-soft)] file:px-3 file:py-2 file:text-sm file:font-bold file:text-[var(--app-accent-primary)]"
+                />
+              </label>
+              <label className="w-full space-y-2 md:w-28">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">PDF page</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={blueprintPage}
+                  disabled={!payload?.canUploadBlueprints || uploadingBlueprint}
+                  onChange={(event) => setBlueprintPage(Math.max(1, Math.min(200, Math.trunc(Number(event.target.value) || 1))))}
+                  className="w-full rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                />
+              </label>
+              <button
+                type="button"
+                className={appButtonSecondaryClassName}
+                disabled={!payload?.canUploadBlueprints || uploadingBlueprint || !blueprintFile}
+                onClick={() => void uploadBlueprint()}
+              >
+                <Upload aria-hidden="true" className="h-4 w-4" />
+                {uploadingBlueprint ? "Processing..." : "Upload plan"}
+              </button>
+            </div>
+            {blueprintFile ? (
+              <div className="mt-3 text-xs font-semibold text-[var(--app-muted)]">
+                Selected: {blueprintFile.name} ({Math.ceil(blueprintFile.size / 1024)} KB)
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+            {activeBlueprint ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                    <FileImage aria-hidden="true" className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-black text-[var(--app-text-strong)]">{activeBlueprint.fileName}</div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-[var(--app-muted)]">
+                      <span>Page {activeBlueprint.pageNumber}</span>
+                      <span>{activeBlueprint.imageWidth && activeBlueprint.imageHeight ? `${activeBlueprint.imageWidth} x ${activeBlueprint.imageHeight}` : "Awaiting preview"}</span>
+                    </div>
+                  </div>
+                  <StatusBadge
+                    label={activeBlueprint.processingStatus}
+                    tone={activeBlueprint.processingStatus === "ready" ? "success" : activeBlueprint.processingStatus === "failed" ? "warning" : "info"}
+                  />
+                </div>
+                {activeBlueprint.processingError ? <InlineMessage tone="warning">{activeBlueprint.processingError}</InlineMessage> : null}
+                {activeBlueprint.signedPreviewUrl ? (
+                  <div className="overflow-hidden rounded-xl border border-[var(--app-border)] bg-slate-50">
+                    <img src={activeBlueprint.signedPreviewUrl} alt="" className="h-40 w-full object-contain" />
+                  </div>
+                ) : null}
+                {activeBlueprint.processingStatus === "ready" ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                      Opacity
+                      <input
+                        type="range"
+                        min={0.08}
+                        max={1}
+                        step={0.02}
+                        value={activeBlueprint.transform.opacity}
+                        disabled={savingBlueprint}
+                        onChange={(event) => adjustBlueprintTransform({ opacity: Number(event.target.value) })}
+                        className="mt-2 w-full"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 1.1 })}>
+                        <ZoomIn aria-hidden="true" className="h-4 w-4" />
+                        Scale up
+                      </button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ scale: activeBlueprint.transform.scale * 0.9 })}>
+                        <ZoomOut aria-hidden="true" className="h-4 w-4" />
+                        Scale down
+                      </button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ rotationY: activeBlueprint.transform.rotationY + Math.PI / 2 })}>
+                        <RotateCw aria-hidden="true" className="h-4 w-4" />
+                        Rotate 90
+                      </button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: 0, z: 0, scale: 1, rotationY: 0 })}>
+                        <Move aria-hidden="true" className="h-4 w-4" />
+                        Fit center
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z - 3 })}>Up</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ z: activeBlueprint.transform.z + 3 })}>Down</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x - 3 })}>Left</button>
+                      <button type="button" className={appButtonSecondaryClassName} disabled={savingBlueprint} onClick={() => adjustBlueprintTransform({ x: activeBlueprint.transform.x + 3 })}>Right</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <InlineMessage>Upload a blueprint to create a plan-based floor underlay for this jobsite.</InlineMessage>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+
       {!loading && !scene ? (
         <EmptyState
           icon={Layers3}
           eyebrow="Site Visual"
           title="No schematic map generated yet"
-          description="Generate a 3D map from this jobsite's work areas, tasks, permits, and observations."
+          description="Generate a 3D map from this jobsite's work areas, tasks, permits, observations, and optional blueprint underlay."
           primaryAction={payload?.canGenerate ? { label: generating ? "Generating..." : "Generate AI map", onClick: () => void generateMap() } : undefined}
         />
       ) : null}
@@ -666,6 +1007,7 @@ export function JobsiteSiteVisualClient({
           >
             <SiteVisualRenderer
               scene={scene}
+              blueprint={activeBlueprint}
               selectedZoneId={selectedZoneId}
               showOverlapsOnly={showOverlapsOnly}
               viewMode={viewMode}
@@ -681,6 +1023,11 @@ export function JobsiteSiteVisualClient({
                 <Metric label="Overlaps" value={overlaps.length} tone={overlaps.length ? "warning" : "success"} />
                 <Metric label="Levels" value={scene.levels.length} />
               </div>
+              {activeBlueprint?.processingStatus === "ready" ? (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs font-semibold leading-5 text-blue-900">
+                  Blueprint underlay active: {activeBlueprint.fileName}
+                </div>
+              ) : null}
               <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4 text-xs leading-5 text-[var(--app-muted)]">
                 AI suggests the layout. Safety teams should adjust zones to match the actual site plan before relying on the overlap view.
               </div>

@@ -1,9 +1,24 @@
 import { createHash } from "node:crypto";
+import {
+  blueprintPromptSummary,
+  cleanBlueprintTransform,
+  defaultBlueprintTransform,
+  type SiteVisualBlueprintInput,
+  type SiteVisualBlueprintTransform,
+} from "@/lib/jobsiteSiteBlueprint";
 
 export type SiteVisualRiskLevel = "low" | "medium" | "high" | "critical";
 export type SiteVisualSourceType = "schedule" | "jsa_activity" | "permit" | "observation" | "manual";
 
 export type SiteVisualVector = { x: number; y: number; z: number };
+export type SiteVisualBlueprintBounds = { x: number; y: number; width: number; height: number };
+
+export type SiteVisualBlueprintPlacement = {
+  id: string | null;
+  imageWidth: number;
+  imageHeight: number;
+  transform: SiteVisualBlueprintTransform;
+};
 
 export type SiteVisualWorkItem = {
   id: string;
@@ -31,10 +46,12 @@ export type SiteVisualScene = {
     position: SiteVisualVector;
     size: SiteVisualVector;
     color: string;
+    blueprintBounds?: SiteVisualBlueprintBounds | null;
   }>;
   zones: SiteVisualZone[];
   overlaps: SiteVisualOverlap[];
   camera: { position: SiteVisualVector; target: SiteVisualVector };
+  blueprint: SiteVisualBlueprintPlacement | null;
 };
 
 export type SiteVisualZone = {
@@ -52,6 +69,7 @@ export type SiteVisualZone = {
   position: SiteVisualVector;
   size: SiteVisualVector;
   color: string;
+  blueprintBounds?: SiteVisualBlueprintBounds | null;
 };
 
 export type SiteVisualOverlap = {
@@ -71,6 +89,7 @@ export type SiteVisualGenerationInput = {
     jobsiteNumber?: string | null;
   };
   items: SiteVisualWorkItem[];
+  blueprint?: SiteVisualBlueprintInput | null;
 };
 
 const RISK_COLORS: Record<SiteVisualRiskLevel, string> = {
@@ -115,8 +134,9 @@ export const SITE_VISUAL_SCENE_JSON_SCHEMA = {
           position: vectorSchema(),
           size: vectorSchema(),
           color: { type: "string" },
+          blueprintBounds: blueprintBoundsSchema(),
         },
-        required: ["id", "label", "levelId", "position", "size", "color"],
+        required: ["id", "label", "levelId", "position", "size", "color", "blueprintBounds"],
       },
     },
     zones: {
@@ -140,6 +160,7 @@ export const SITE_VISUAL_SCENE_JSON_SCHEMA = {
           position: vectorSchema(),
           size: vectorSchema(),
           color: { type: "string" },
+          blueprintBounds: blueprintBoundsSchema(),
         },
         required: [
           "id",
@@ -156,6 +177,7 @@ export const SITE_VISUAL_SCENE_JSON_SCHEMA = {
           "position",
           "size",
           "color",
+          "blueprintBounds",
         ],
       },
     },
@@ -168,8 +190,24 @@ export const SITE_VISUAL_SCENE_JSON_SCHEMA = {
       },
       required: ["position", "target"],
     },
+    blueprint: {
+      anyOf: [
+        { type: "null" },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            id: { type: ["string", "null"] },
+            imageWidth: { type: "number" },
+            imageHeight: { type: "number" },
+            transform: blueprintTransformSchema(),
+          },
+          required: ["id", "imageWidth", "imageHeight", "transform"],
+        },
+      ],
+    },
   },
-  required: ["levels", "areas", "zones", "camera"],
+  required: ["levels", "areas", "zones", "camera", "blueprint"],
 } as const;
 
 function vectorSchema() {
@@ -182,6 +220,42 @@ function vectorSchema() {
       z: { type: "number" },
     },
     required: ["x", "y", "z"],
+  } as const;
+}
+
+function blueprintBoundsSchema() {
+  return {
+    anyOf: [
+      { type: "null" },
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          x: { type: "number" },
+          y: { type: "number" },
+          width: { type: "number" },
+          height: { type: "number" },
+        },
+        required: ["x", "y", "width", "height"],
+      },
+    ],
+  } as const;
+}
+
+function blueprintTransformSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      x: { type: "number" },
+      z: { type: "number" },
+      scale: { type: "number" },
+      rotationY: { type: "number" },
+      opacity: { type: "number" },
+      width: { type: "number" },
+      height: { type: "number" },
+    },
+    required: ["x", "z", "scale", "rotationY", "opacity", "width", "height"],
   } as const;
 }
 
@@ -248,6 +322,38 @@ function cleanSize(value: unknown, fallback: SiteVisualVector): SiteVisualVector
   };
 }
 
+function cleanBlueprintBounds(value: unknown): SiteVisualBlueprintBounds | null {
+  if (!isRecord(value)) return null;
+  return {
+    x: clamp(value.x, 0, 1, 0),
+    y: clamp(value.y, 0, 1, 0),
+    width: clamp(value.width, 0.01, 1, 0.1),
+    height: clamp(value.height, 0.01, 1, 0.1),
+  };
+}
+
+function blueprintPlacementFromInput(blueprint?: SiteVisualBlueprintInput | null): SiteVisualBlueprintPlacement | null {
+  if (!blueprint) return null;
+  return {
+    id: blueprint.id,
+    imageWidth: Math.max(1, Math.round(blueprint.width)),
+    imageHeight: Math.max(1, Math.round(blueprint.height)),
+    transform: cleanBlueprintTransform(blueprint.transform, defaultBlueprintTransform(blueprint.width, blueprint.height)),
+  };
+}
+
+function cleanBlueprintPlacement(value: unknown, fallback: SiteVisualBlueprintPlacement | null): SiteVisualBlueprintPlacement | null {
+  if (!isRecord(value)) return fallback;
+  const imageWidth = clamp(value.imageWidth, 1, 12000, fallback?.imageWidth ?? 1600);
+  const imageHeight = clamp(value.imageHeight, 1, 12000, fallback?.imageHeight ?? 1000);
+  return {
+    id: cleanNullableText(value.id, 80),
+    imageWidth: Math.round(imageWidth),
+    imageHeight: Math.round(imageHeight),
+    transform: cleanBlueprintTransform(value.transform, fallback?.transform ?? defaultBlueprintTransform(imageWidth, imageHeight)),
+  };
+}
+
 function cleanList(value: unknown, maxItems = 10) {
   if (!Array.isArray(value)) return [];
   const out: string[] = [];
@@ -297,6 +403,7 @@ function normalizeInput(input: SiteVisualGenerationInput) {
       projectNumber: input.jobsite.projectNumber ?? null,
       jobsiteNumber: input.jobsite.jobsiteNumber ?? null,
     },
+    blueprint: blueprintPromptSummary(input.blueprint),
     items: input.items
       .map((item) => ({
         id: item.id,
@@ -333,6 +440,8 @@ export function buildSiteVisualAiPrompt(input: SiteVisualGenerationInput) {
         "Use simple schematic coordinates in feet-like units.",
         "Group similarly named work areas together.",
         "Place zones inside or near their work area.",
+        "If a blueprint preview is supplied, align areas and zones to visible plan labels, rooms, corridors, and site boundaries.",
+        "Use normalized blueprintBounds from 0 to 1 when blueprint placement is visually inferable; otherwise use null.",
         "Use risk colors: low green, medium blue, high orange, critical red.",
         "Keep all geometry compact and readable.",
         "Do not calculate overlaps; the app will recompute overlaps deterministically.",
@@ -346,6 +455,7 @@ export function buildSiteVisualAiPrompt(input: SiteVisualGenerationInput) {
 
 export function buildFallbackSiteVisualScene(input: SiteVisualGenerationInput): SiteVisualScene {
   const items = normalizeInput(input).items;
+  const blueprint = blueprintPlacementFromInput(input.blueprint);
   const levelLabels = Array.from(new Set(items.map((item) => inferLevelLabel(item.workArea))));
   const levels = (levelLabels.length ? levelLabels : ["Ground / General"]).slice(0, 8).map((label, index) => ({
     id: slug(label, `level-${index + 1}`),
@@ -377,6 +487,14 @@ export function buildFallbackSiteVisualScene(input: SiteVisualGenerationInput): 
       position: { x: col * 18 - 18, y: level.elevation, z: row * 14 - 8 },
       size: { x: 14, y: 0.25, z: 10 },
       color: "#dbeafe",
+      blueprintBounds: blueprint
+        ? {
+            x: Math.min(0.85, Math.max(0.05, 0.08 + col * 0.28)),
+            y: Math.min(0.85, Math.max(0.05, 0.08 + row * 0.22)),
+            width: 0.22,
+            height: 0.16,
+          }
+        : null,
     };
   });
 
@@ -410,6 +528,14 @@ export function buildFallbackSiteVisualScene(input: SiteVisualGenerationInput): 
       },
       size: { x: 5.4, y: 1.35, z: 3.8 },
       color: RISK_COLORS[levelRisk],
+      blueprintBounds: area.blueprintBounds
+        ? {
+            x: Math.min(0.96, area.blueprintBounds.x + 0.03 + col * 0.08),
+            y: Math.min(0.96, area.blueprintBounds.y + 0.03 + row * 0.06),
+            width: 0.08,
+            height: 0.05,
+          }
+        : null,
     };
   });
 
@@ -420,6 +546,7 @@ export function buildFallbackSiteVisualScene(input: SiteVisualGenerationInput): 
     zones,
     overlaps: detectSiteVisualOverlaps(zones),
     camera: { position: { x: 24, y: 24, z: 32 }, target: { x: 0, y: 0, z: 0 } },
+    blueprint,
   };
 }
 
@@ -454,6 +581,7 @@ export function validateSiteVisualScene(value: unknown, input: SiteVisualGenerat
       position: cleanVector(record.position, { x: index * 8, y: level.elevation, z: 0 }),
       size: cleanSize(record.size, { x: 12, y: 0.25, z: 8 }),
       color: cleanColor(record.color, "#dbeafe"),
+      blueprintBounds: cleanBlueprintBounds(record.blueprintBounds),
     };
   });
   if (areas.length === 0) areas.push(...fallback.areas);
@@ -477,6 +605,7 @@ export function validateSiteVisualScene(value: unknown, input: SiteVisualGenerat
       position: cleanVector(record.position, fallback.zones[index]?.position ?? { x: 0, y: 1, z: 0 }),
       size: cleanSize(record.size, fallback.zones[index]?.size ?? { x: 5, y: 1.25, z: 4 }),
       color: cleanColor(record.color, RISK_COLORS[nextRisk]),
+      blueprintBounds: cleanBlueprintBounds(record.blueprintBounds),
     };
   });
   if (zones.length === 0) zones.push(...fallback.zones);
@@ -492,6 +621,7 @@ export function validateSiteVisualScene(value: unknown, input: SiteVisualGenerat
       position: cleanVector(cameraRecord.position, fallback.camera.position, 120),
       target: cleanVector(cameraRecord.target, fallback.camera.target, 120),
     },
+    blueprint: cleanBlueprintPlacement(value.blueprint, fallback.blueprint),
   };
 }
 

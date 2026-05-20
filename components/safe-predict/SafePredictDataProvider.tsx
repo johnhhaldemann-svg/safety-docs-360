@@ -465,6 +465,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
             liveReports,
             liveDocuments,
             liveUsers,
+            liveTrainingMatrix: trainingPayload,
           }));
         }
       } catch {

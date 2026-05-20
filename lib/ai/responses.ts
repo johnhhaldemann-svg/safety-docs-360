@@ -71,7 +71,7 @@ function sleep(ms: number): Promise<void> {
 export async function requestAiResponsesText(params: {
   apiKey?: string | null;
   model: string;
-  input: string;
+  input: string | unknown[];
   body?: Record<string, unknown>;
   /** Logical AI surface (e.g. "risk-memory.llm", "permit.copilot") for telemetry. */
   surface?: string;
@@ -117,7 +117,7 @@ export async function requestAiResponsesText(params: {
 
   const model = resolveAiModelId(params.model);
   const provider = resolveAiProvider(model);
-  const promptHash = buildAiPromptHash(params.input);
+  const promptHash = buildAiPromptHash(typeof params.input === "string" ? params.input : JSON.stringify(params.input));
   const maxAttempts = Math.max(1, params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
 
   let attempt = 0;
@@ -266,6 +266,7 @@ export async function runStructuredAiJsonTask<T>(params: {
   fallbackModel: string;
   system: string;
   user: string;
+  inputOverride?: string | unknown[];
   fallback: T;
   body?: Record<string, unknown>;
   /** Logical AI surface (e.g. "safety-intelligence.review") for telemetry. */
@@ -277,7 +278,7 @@ export async function runStructuredAiJsonTask<T>(params: {
   json: unknown | null;
   meta: AiExecutionMeta;
 }> {
-  const input = `${params.system}\n\n---\n\n${params.user}`;
+  const input = params.inputOverride ?? `${params.system}\n\n---\n\n${params.user}`;
   const response = await requestAiResponsesText({
     apiKey: params.apiKey,
     model: params.modelEnv?.trim() || params.fallbackModel,

@@ -8,28 +8,68 @@ import {
   type SiteVisualScene,
   type SiteVisualZone,
 } from "@/lib/jobsiteSiteVisual";
+import { cleanBlueprintTransform, defaultBlueprintTransform } from "@/lib/jobsiteSiteBlueprint";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
 const MAP_SELECT =
-  "id, company_id, jobsite_id, generation_status, prompt_hash, ai_meta, scene_json, created_at, updated_at, created_by, updated_by";
+  "id, company_id, jobsite_id, blueprint_id, generation_status, prompt_hash, ai_meta, scene_json, created_at, updated_at, created_by, updated_by";
 
 const ZONE_SELECT =
   "id, company_id, jobsite_id, site_map_id, schedule_item_id, source_type, source_id, label, trade, work_area, starts_at, ends_at, risk_level, controls, color, position_x, position_y, position_z, size_x, size_y, size_z, metadata, created_at, updated_at";
+
+const BLUEPRINT_SELECT =
+  "id, company_id, jobsite_id, source_file_path, preview_image_path, file_name, mime_type, file_size, page_number, processing_status, image_width, image_height, transform_json, ai_meta, processing_error, created_at, updated_at, created_by, updated_by, archived_at";
 
 function isMissingVisualSchema(message?: string | null) {
   const normalized = (message ?? "").toLowerCase();
   return (
     normalized.includes("company_jobsite_site_maps") ||
     normalized.includes("company_jobsite_visual_zones") ||
+    normalized.includes("company_jobsite_site_blueprints") ||
+    normalized.includes("blueprint_id") ||
     normalized.includes("schema cache") ||
     normalized.includes("does not exist") ||
     normalized.includes("could not find")
   );
 }
 
+async function dbBlueprintToPayload(row: Record<string, unknown>) {
+  const width = Number(row.image_width ?? 1600);
+  const height = Number(row.image_height ?? 1000);
+  const previewPath = row.preview_image_path == null ? null : String(row.preview_image_path);
+  let signedPreviewUrl: string | null = null;
+  if (previewPath) {
+    const admin = createSupabaseAdminClient();
+    if (admin) {
+      const signed = await admin.storage.from("documents").createSignedUrl(previewPath, 10 * 60);
+      signedPreviewUrl = signed.data?.signedUrl ?? null;
+    }
+  }
+  return {
+    id: String(row.id),
+    fileName: String(row.file_name ?? "Blueprint"),
+    mimeType: String(row.mime_type ?? ""),
+    fileSize: Number(row.file_size ?? 0),
+    pageNumber: Number(row.page_number ?? 1),
+    processingStatus: String(row.processing_status ?? "pending"),
+    sourceFilePath: String(row.source_file_path ?? ""),
+    previewImagePath: previewPath,
+    signedPreviewUrl,
+    imageWidth: Number.isFinite(width) ? width : null,
+    imageHeight: Number.isFinite(height) ? height : null,
+    transform: cleanBlueprintTransform(row.transform_json, defaultBlueprintTransform(width, height)),
+    aiMeta: row.ai_meta ?? null,
+    processingError: row.processing_error == null ? null : String(row.processing_error),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function dbZoneToSceneZone(row: Record<string, unknown>): SiteVisualZone {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? (row.metadata as Record<string, unknown>) : {};
   return {
     id: String(row.id),
     label: String(row.label ?? "Work zone"),
@@ -53,6 +93,15 @@ function dbZoneToSceneZone(row: Record<string, unknown>): SiteVisualZone {
       y: Number(row.size_y ?? 1),
       z: Number(row.size_z ?? 4),
     },
+    blueprintBounds:
+      metadata.blueprintBounds && typeof metadata.blueprintBounds === "object" && !Array.isArray(metadata.blueprintBounds)
+        ? {
+            x: Number((metadata.blueprintBounds as Record<string, unknown>).x ?? 0),
+            y: Number((metadata.blueprintBounds as Record<string, unknown>).y ?? 0),
+            width: Number((metadata.blueprintBounds as Record<string, unknown>).width ?? 0.1),
+            height: Number((metadata.blueprintBounds as Record<string, unknown>).height ?? 0.1),
+          }
+        : null,
   };
 }
 
@@ -109,8 +158,11 @@ export async function GET(
         updatedAt: new Date().toISOString(),
       },
       scene,
+      blueprints: [],
+      blueprint: null,
       canGenerate: true,
       canEditZones: true,
+      canUploadBlueprints: true,
       warning: "Demo mode is showing a schematic fallback map.",
     });
   }
@@ -149,8 +201,11 @@ export async function GET(
         siteMap: null,
         scene: null,
         zones: [],
+        blueprints: [],
+        blueprint: null,
         canGenerate: canGenerateSiteMap(auth.role),
         canEditZones: canEditVisualZones(auth.role),
+        canUploadBlueprints: canUploadBlueprints(auth.role),
         warning: "Jobsite site visual tables are not available yet. Run the latest Supabase migration.",
       });
     }
@@ -158,13 +213,25 @@ export async function GET(
   }
 
   if (!mapResult.data) {
+    const blueprintsResult = await auth.supabase
+      .from("company_jobsite_site_blueprints")
+      .select(BLUEPRINT_SELECT)
+      .eq("company_id", companyScope.companyId)
+      .eq("jobsite_id", jobsiteId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    const blueprints = blueprintsResult.error ? [] : await Promise.all(((blueprintsResult.data ?? []) as Record<string, unknown>[]).map(dbBlueprintToPayload));
     return NextResponse.json({
       jobsite: jobsiteResult.data,
       siteMap: null,
       scene: null,
       zones: [],
+      blueprints,
+      blueprint: blueprints.find((item) => item.processingStatus === "ready") ?? blueprints[0] ?? null,
       canGenerate: canGenerateSiteMap(auth.role),
       canEditZones: canEditVisualZones(auth.role),
+      canUploadBlueprints: canUploadBlueprints(auth.role),
     });
   }
 
@@ -183,11 +250,23 @@ export async function GET(
   const zones = ((zonesResult.data ?? []) as Record<string, unknown>[]).map(dbZoneToSceneZone);
   const baseScene = (mapResult.data.scene_json ?? null) as SiteVisualScene | null;
   const scene = baseScene ? sceneWithZones(baseScene, zones) : null;
+  const blueprintsResult = await auth.supabase
+    .from("company_jobsite_site_blueprints")
+    .select(BLUEPRINT_SELECT)
+    .eq("company_id", companyScope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const blueprints = blueprintsResult.error ? [] : await Promise.all(((blueprintsResult.data ?? []) as Record<string, unknown>[]).map(dbBlueprintToPayload));
+  const linkedBlueprintId = mapResult.data.blueprint_id == null ? null : String(mapResult.data.blueprint_id);
+  const activeBlueprint = blueprints.find((item) => item.id === linkedBlueprintId) ?? blueprints.find((item) => item.processingStatus === "ready") ?? blueprints[0] ?? null;
 
   return NextResponse.json({
     jobsite: jobsiteResult.data,
     siteMap: {
       id: mapResult.data.id,
+      blueprintId: linkedBlueprintId,
       generationStatus: mapResult.data.generation_status,
       promptHash: mapResult.data.prompt_hash,
       aiMeta: mapResult.data.ai_meta ?? null,
@@ -196,8 +275,11 @@ export async function GET(
     },
     scene: scene ? { ...scene, overlaps: detectSiteVisualOverlaps(zones) } : null,
     zones,
+    blueprints,
+    blueprint: activeBlueprint,
     canGenerate: canGenerateSiteMap(auth.role),
     canEditZones: canEditVisualZones(auth.role),
+    canUploadBlueprints: canUploadBlueprints(auth.role),
   });
 }
 
@@ -209,4 +291,8 @@ export function canEditVisualZones(role: string) {
   return canGenerateSiteMap(role) || ["field_supervisor", "foreman"].includes(role);
 }
 
-export { MAP_SELECT, ZONE_SELECT, dbZoneToSceneZone, isMissingVisualSchema };
+export function canUploadBlueprints(role: string) {
+  return canGenerateSiteMap(role) || ["field_supervisor", "foreman"].includes(role);
+}
+
+export { BLUEPRINT_SELECT, MAP_SELECT, ZONE_SELECT, dbBlueprintToPayload, dbZoneToSceneZone, isMissingVisualSchema };
