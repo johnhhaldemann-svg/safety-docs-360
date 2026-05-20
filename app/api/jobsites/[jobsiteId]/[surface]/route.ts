@@ -21,15 +21,6 @@ type SupabaseLike = {
             location: string | null;
             project_manager?: string | null;
             safety_lead?: string | null;
-            zip_code?: string | null;
-            weather_location_source?: string | null;
-            weather_location_confidence?: string | null;
-            weather_latitude?: number | string | null;
-            weather_longitude?: number | string | null;
-            weather_enabled?: boolean | null;
-            weather_last_checked_at?: string | null;
-            nws_forecast_url?: string | null;
-            nws_forecast_hourly_url?: string | null;
           } | null;
           error: { message?: string | null } | null;
         }>;
@@ -42,7 +33,7 @@ type SupabaseLike = {
 async function resolveJobsiteById(supabase: SupabaseLike, jobsiteId: string) {
   return supabase
     .from("company_jobsites")
-    .select("id, company_id, name, status, jobsite_number, project_number, location, project_manager, safety_lead, zip_code, weather_location_source, weather_location_confidence, weather_latitude, weather_longitude, weather_enabled, weather_last_checked_at, nws_forecast_url, nws_forecast_hourly_url")
+    .select("id, company_id, name, status, jobsite_number, project_number, location, project_manager, safety_lead")
     .eq("id", jobsiteId)
     .maybeSingle();
 }
@@ -222,14 +213,6 @@ export async function GET(
       (typeof analytics.json?.warning === "string" ? analytics.json.warning.trim() : "") ||
       "Analytics summary could not be loaded.";
 
-  const weatherAlertsResult = await auth.supabase
-    .from("weather_alert_events")
-    .select("id, nws_alert_id, event_name, severity, urgency, certainty, headline, effective_at, expires_at, status, last_seen_at")
-    .eq("jobsite_id", jobsiteId)
-    .gte("expires_at", new Date().toISOString())
-    .order("expires_at", { ascending: true })
-    .limit(5);
-
   return NextResponse.json({
     jobsite,
     overview: {
@@ -250,10 +233,6 @@ export async function GET(
       positiveObservations,
       closedToday,
       recentIncidents,
-    },
-    weather: {
-      alerts: weatherAlertsResult.error ? [] : weatherAlertsResult.data ?? [],
-      error: weatherAlertsResult.error?.message ?? null,
     },
     links: {
       liveView: `/jobsites/${jobsiteId}/live-view`,

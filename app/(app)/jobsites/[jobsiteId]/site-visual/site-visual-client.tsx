@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Crosshair, Layers3, RefreshCw, Save, Sparkles } from "lucide-react";
+import { Box, Clock, Crosshair, Layers3, MapPin, RefreshCw, Save, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
@@ -18,6 +18,8 @@ import {
 
 type Vector3 = { x: number; y: number; z: number };
 type RiskLevel = "low" | "medium" | "high" | "critical";
+type ViewMode = "isometric" | "top";
+type VisualOverlap = { id: string; zoneIds: [string, string]; severity: "medium" | "high" | "critical"; label: string; reason: string };
 
 type VisualZone = {
   id: string;
@@ -41,7 +43,7 @@ type VisualScene = {
   levels: Array<{ id: string; label: string; elevation: number; height: number }>;
   areas: Array<{ id: string; label: string; levelId: string; position: Vector3; size: Vector3; color: string }>;
   zones: VisualZone[];
-  overlaps: Array<{ id: string; zoneIds: [string, string]; severity: "medium" | "high" | "critical"; label: string; reason: string }>;
+  overlaps: VisualOverlap[];
   camera: { position: Vector3; target: Vector3 };
 };
 
@@ -69,15 +71,57 @@ function riskTone(level: RiskLevel): "neutral" | "success" | "warning" | "info" 
   return "info";
 }
 
+function severityTone(level: VisualOverlap["severity"]): "neutral" | "success" | "warning" | "info" {
+  return level === "medium" ? "info" : "warning";
+}
+
 function overlapZoneIds(scene: VisualScene | null) {
   return new Set((scene?.overlaps ?? []).flatMap((overlap) => overlap.zoneIds));
+}
+
+function riskColor(level: RiskLevel) {
+  if (level === "critical") return "#ef4444";
+  if (level === "high") return "#f97316";
+  if (level === "medium") return "#f59e0b";
+  return "#10b981";
+}
+
+function sourceLabel(sourceType?: string | null) {
+  if (!sourceType) return "Task";
+  return sourceType
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function zoneImpactText(zone: VisualZone, impactCount: number) {
+  const area = zone.workArea ?? "the mapped work area";
+  const trade = zone.trade ?? sourceLabel(zone.sourceType).toLowerCase();
+  if (impactCount > 0) {
+    return `${zone.label} places ${trade} work in ${area} during the same window as ${impactCount} nearby zone${impactCount === 1 ? "" : "s"}. Review sequencing, access routes, barricades, and crew separation before work starts.`;
+  }
+  return `${zone.label} is mapped in ${area}. No current geometry-and-schedule overlap is flagged, but the zone should still be checked against access paths, permits, and daily field conditions.`;
+}
+
+function zoneImpacts(scene: VisualScene | null, zoneId: string | null) {
+  if (!scene || !zoneId) return [];
+  return scene.overlaps
+    .filter((overlap) => overlap.zoneIds.includes(zoneId))
+    .map((overlap) => {
+      const otherZoneId = overlap.zoneIds.find((id) => id !== zoneId) ?? overlap.zoneIds[0];
+      return {
+        overlap,
+        otherZone: scene.zones.find((zone) => zone.id === otherZoneId) ?? null,
+      };
+    });
 }
 
 function getMeshMaterial(color: string, selected: boolean, overlapped: boolean) {
   return new THREE.MeshStandardMaterial({
     color,
     transparent: true,
-    opacity: selected ? 0.86 : overlapped ? 0.72 : 0.58,
+    opacity: selected ? 0.94 : overlapped ? 0.88 : 0.82,
     roughness: 0.55,
     metalness: 0.02,
     emissive: selected ? new THREE.Color("#dbeafe") : overlapped ? new THREE.Color("#451a03") : new THREE.Color("#000000"),
@@ -87,35 +131,61 @@ function getMeshMaterial(color: string, selected: boolean, overlapped: boolean) 
 
 function makeLabelSprite(text: string) {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 128;
+  canvas.width = 640;
+  canvas.height = 144;
   const ctx = canvas.getContext("2d");
   if (ctx) {
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "rgba(37,99,235,0.25)";
-    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(15,23,42,0.32)";
+    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
     ctx.fillStyle = "#0f172a";
-    ctx.font = "700 38px Arial";
+    ctx.font = "800 34px Arial";
     ctx.textBaseline = "middle";
-    ctx.fillText(text.slice(0, 28), 26, 66);
+    ctx.fillText(text.slice(0, 34), 28, 73);
   }
   const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(5.6, 1.4, 1);
+  sprite.scale.set(7.8, 1.75, 1);
+  sprite.renderOrder = 20;
   return sprite;
+}
+
+function sceneBounds(scene: VisualScene) {
+  const points = [...scene.areas, ...scene.zones].flatMap((item) => {
+    const halfX = Math.max(1, item.size.x / 2);
+    const halfZ = Math.max(1, item.size.z / 2);
+    return [
+      { x: item.position.x - halfX, z: item.position.z - halfZ },
+      { x: item.position.x + halfX, z: item.position.z + halfZ },
+    ];
+  });
+  if (!points.length) {
+    const center = new THREE.Vector3(scene.camera.target.x, 0, scene.camera.target.z);
+    return { center, span: 48, minX: -24, maxX: 24, minZ: -24, maxZ: 24 };
+  }
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minZ = Math.min(...points.map((point) => point.z));
+  const maxZ = Math.max(...points.map((point) => point.z));
+  const span = Math.max(34, maxX - minX, maxZ - minZ) + 18;
+  const center = new THREE.Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
+  return { center, span, minX, maxX, minZ, maxZ };
 }
 
 function SiteVisualRenderer({
   scene,
   selectedZoneId,
   showOverlapsOnly,
+  viewMode,
   onSelectZone,
 }: {
   scene: VisualScene;
   selectedZoneId: string | null;
   showOverlapsOnly: boolean;
+  viewMode: ViewMode;
   onSelectZone: (zoneId: string) => void;
 }) {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -129,26 +199,42 @@ function SiteVisualRenderer({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(width, height);
     renderer.setClearColor(0xf8fbff, 1);
+    renderer.domElement.style.cursor = "pointer";
     mount.appendChild(renderer.domElement);
 
     const threeScene = new THREE.Scene();
-    threeScene.fog = new THREE.Fog(0xf8fbff, 70, 145);
-    const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 500);
-    camera.position.set(scene.camera.position.x, scene.camera.position.y, scene.camera.position.z);
-    camera.lookAt(scene.camera.target.x, scene.camera.target.y, scene.camera.target.z);
+    threeScene.background = new THREE.Color(0xf8fbff);
+    threeScene.fog = new THREE.Fog(0xf8fbff, 95, 180);
+    const bounds = sceneBounds(scene);
+    const aspect = width / height;
+    const camera = new THREE.OrthographicCamera(
+      (-bounds.span * aspect) / 2,
+      (bounds.span * aspect) / 2,
+      bounds.span / 2,
+      -bounds.span / 2,
+      0.1,
+      500
+    );
+    const cameraOffset =
+      viewMode === "top" ? new THREE.Vector3(0, 96, 0.1) : new THREE.Vector3(42, 56, 42);
+    camera.position.copy(bounds.center).add(cameraOffset);
+    camera.lookAt(bounds.center.x, 0, bounds.center.z);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(scene.camera.target.x, scene.camera.target.y, scene.camera.target.z);
+    controls.target.copy(bounds.center);
     controls.enableDamping = true;
+    controls.enableRotate = viewMode !== "top";
+    controls.enablePan = true;
     controls.maxPolarAngle = Math.PI * 0.48;
-    controls.minDistance = 12;
-    controls.maxDistance = 120;
+    controls.minZoom = 0.55;
+    controls.maxZoom = 2.9;
 
     threeScene.add(new THREE.HemisphereLight(0xffffff, 0x8ea0b8, 2.2));
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
     keyLight.position.set(20, 36, 18);
     threeScene.add(keyLight);
-    const grid = new THREE.GridHelper(90, 30, 0xb7c4d8, 0xe2e8f0);
+    const grid = new THREE.GridHelper(bounds.span + 14, Math.max(18, Math.round(bounds.span / 3)), 0x93a4ba, 0xdbe3ef);
+    grid.position.set(bounds.center.x, 0, bounds.center.z);
     threeScene.add(grid);
 
     const overlapIds = overlapZoneIds(scene);
@@ -156,31 +242,58 @@ function SiteVisualRenderer({
     const clickable: THREE.Mesh[] = [];
 
     for (const area of scene.areas) {
-      const geometry = new THREE.BoxGeometry(area.size.x, Math.max(0.12, area.size.y), area.size.z);
-      const material = new THREE.MeshStandardMaterial({ color: area.color, transparent: true, opacity: 0.72, roughness: 0.9 });
+      const geometry = new THREE.BoxGeometry(area.size.x, 0.18, area.size.z);
+      const material = new THREE.MeshStandardMaterial({ color: area.color, transparent: true, opacity: 0.38, roughness: 0.9 });
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(area.position.x, area.position.y, area.position.z);
+      mesh.position.set(area.position.x, 0.08, area.position.z);
       threeScene.add(mesh);
+      const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry),
+        new THREE.LineBasicMaterial({ color: 0x94a3b8 })
+      );
+      outline.position.copy(mesh.position);
+      threeScene.add(outline);
       const label = makeLabelSprite(area.label);
-      label.position.set(area.position.x, area.position.y + 1.1, area.position.z - area.size.z / 2 - 1.1);
+      label.position.set(area.position.x, 1.4, area.position.z - area.size.z / 2 - 1.35);
       threeScene.add(label);
     }
 
     for (const zone of scene.zones) {
       const isOverlapped = overlapIds.has(zone.id);
       if (showOverlapsOnly && !isOverlapped) continue;
+      const zoneColor = riskColor(zone.riskLevel);
       const geometry = new THREE.BoxGeometry(zone.size.x, zone.size.y, zone.size.z);
-      const mesh = new THREE.Mesh(geometry, getMeshMaterial(zone.color, zone.id === selectedZoneId, isOverlapped));
+      const mesh = new THREE.Mesh(geometry, getMeshMaterial(zoneColor, zone.id === selectedZoneId, isOverlapped));
       mesh.position.set(zone.position.x, zone.position.y, zone.position.z);
       mesh.userData.zoneId = zone.id;
       threeScene.add(mesh);
       zoneMeshes.set(zone.id, mesh);
       clickable.push(mesh);
 
+      if (zone.id === selectedZoneId) {
+        const shellGeometry = new THREE.BoxGeometry(zone.size.x + 0.9, zone.size.y + 0.9, zone.size.z + 0.9);
+        const shell = new THREE.Mesh(
+          shellGeometry,
+          new THREE.MeshBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.16, depthWrite: false })
+        );
+        shell.position.copy(mesh.position);
+        threeScene.add(shell);
+      }
+
+      if (isOverlapped) {
+        const baseGeometry = new THREE.BoxGeometry(zone.size.x + 0.35, 0.24, zone.size.z + 0.35);
+        const base = new THREE.Mesh(
+          baseGeometry,
+          new THREE.MeshBasicMaterial({ color: 0x111827, transparent: true, opacity: 0.86 })
+        );
+        base.position.set(zone.position.x, 0.14, zone.position.z);
+        threeScene.add(base);
+      }
+
       const edges = new THREE.EdgesGeometry(geometry);
       const line = new THREE.LineSegments(
         edges,
-        new THREE.LineBasicMaterial({ color: zone.id === selectedZoneId ? 0x0f172a : isOverlapped ? 0x7c2d12 : 0xffffff })
+        new THREE.LineBasicMaterial({ color: zone.id === selectedZoneId ? 0x0f172a : isOverlapped ? 0x111827 : 0xffffff })
       );
       line.position.copy(mesh.position);
       threeScene.add(line);
@@ -188,6 +301,33 @@ function SiteVisualRenderer({
       const label = makeLabelSprite(zone.label);
       label.position.set(zone.position.x, zone.position.y + zone.size.y / 2 + 1.1, zone.position.z);
       threeScene.add(label);
+    }
+
+    for (const overlap of scene.overlaps) {
+      const [firstZoneId, secondZoneId] = overlap.zoneIds;
+      const firstZone = scene.zones.find((zone) => zone.id === firstZoneId);
+      const secondZone = scene.zones.find((zone) => zone.id === secondZoneId);
+      if (!firstZone || !secondZone || !zoneMeshes.has(firstZone.id) || !zoneMeshes.has(secondZone.id)) continue;
+      const isSelectedImpact = selectedZoneId ? overlap.zoneIds.includes(selectedZoneId) : false;
+      const points = [
+        new THREE.Vector3(firstZone.position.x, firstZone.position.y + firstZone.size.y / 2 + 0.7, firstZone.position.z),
+        new THREE.Vector3(secondZone.position.x, secondZone.position.y + secondZone.size.y / 2 + 0.7, secondZone.position.z),
+      ];
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({
+          color: isSelectedImpact ? 0x111827 : 0xf59e0b,
+          transparent: true,
+          opacity: isSelectedImpact ? 0.95 : 0.42,
+        })
+      );
+      threeScene.add(line);
+      if (isSelectedImpact) {
+        const midpoint = new THREE.Vector3().addVectors(points[0], points[1]).multiplyScalar(0.5);
+        const label = makeLabelSprite(`${overlap.severity.toUpperCase()} overlap`);
+        label.position.set(midpoint.x, midpoint.y + 1.05, midpoint.z);
+        threeScene.add(label);
+      }
     }
 
     const raycaster = new THREE.Raycaster();
@@ -218,7 +358,11 @@ function SiteVisualRenderer({
       const nextWidth = mount.clientWidth || width;
       const nextHeight = mount.clientHeight || height;
       renderer.setSize(nextWidth, nextHeight);
-      camera.aspect = nextWidth / nextHeight;
+      const nextAspect = nextWidth / nextHeight;
+      camera.left = (-bounds.span * nextAspect) / 2;
+      camera.right = (bounds.span * nextAspect) / 2;
+      camera.top = bounds.span / 2;
+      camera.bottom = -bounds.span / 2;
       camera.updateProjectionMatrix();
     };
     window.addEventListener("resize", handleResize);
@@ -231,9 +375,31 @@ function SiteVisualRenderer({
       renderer.dispose();
       mount.replaceChildren();
     };
-  }, [scene, selectedZoneId, showOverlapsOnly, onSelectZone]);
+  }, [scene, selectedZoneId, showOverlapsOnly, viewMode, onSelectZone]);
 
-  return <div ref={mountRef} className="h-[560px] min-h-[420px] w-full overflow-hidden rounded-xl border border-[var(--app-border)] bg-[#f8fbff]" />;
+  return (
+    <div className="relative h-[640px] min-h-[460px] w-full overflow-hidden rounded-xl border border-[var(--app-border)] bg-[#f8fbff]">
+      <div ref={mountRef} className="h-full w-full" />
+      <div className="pointer-events-none absolute left-4 top-4 grid gap-2 rounded-xl border border-white/80 bg-white/95 p-3 text-xs font-bold text-slate-700 shadow-lg backdrop-blur">
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-6 rounded-sm border border-slate-300 bg-sky-100" />
+          Work area plate
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-6 rounded-sm bg-red-500" />
+          Critical task zone
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-6 rounded-sm bg-orange-500" />
+          High-risk task zone
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-3 w-6 rounded-sm bg-slate-950" />
+          Overlap flagged
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function NumberField({
@@ -276,6 +442,7 @@ export function JobsiteSiteVisualClient({
   const [payload, setPayload] = useState<SiteVisualPayload | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showOverlapsOnly, setShowOverlapsOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("isometric");
   const [draft, setDraft] = useState<VisualZone | null>(null);
 
   async function getAuthHeaders() {
@@ -322,6 +489,10 @@ export function JobsiteSiteVisualClient({
   const selectedZone = useMemo(
     () => zones.find((zone) => zone.id === selectedZoneId) ?? null,
     [selectedZoneId, zones]
+  );
+  const selectedImpacts = useMemo(
+    () => zoneImpacts(scene, selectedZoneId),
+    [scene, selectedZoneId]
   );
 
   useEffect(() => {
@@ -465,22 +636,39 @@ export function JobsiteSiteVisualClient({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_420px]">
           <SectionCard
             title="3D Work Map"
-            description="Orbit, zoom, and select a work zone. Overlapping zones rotate slightly and appear with stronger contrast."
+            description="Task boxes are colored by risk. Dark base marks overlapping work that also shares a schedule window."
             actions={
-              <button
-                type="button"
-                className={showOverlapsOnly ? appButtonPrimaryClassName : appButtonSecondaryClassName}
-                onClick={() => setShowOverlapsOnly((value) => !value)}
-              >
-                <Crosshair aria-hidden="true" className="h-4 w-4" />
-                {showOverlapsOnly ? "Show all zones" : "Show overlaps"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={viewMode === "isometric" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                  onClick={() => setViewMode("isometric")}
+                >
+                  Isometric
+                </button>
+                <button
+                  type="button"
+                  className={viewMode === "top" ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                  onClick={() => setViewMode("top")}
+                >
+                  Top view
+                </button>
+                <button
+                  type="button"
+                  className={showOverlapsOnly ? appButtonPrimaryClassName : appButtonSecondaryClassName}
+                  onClick={() => setShowOverlapsOnly((value) => !value)}
+                >
+                  <Crosshair aria-hidden="true" className="h-4 w-4" />
+                  {showOverlapsOnly ? "Show all zones" : "Show overlaps"}
+                </button>
+              </div>
             }
           >
             <SiteVisualRenderer
               scene={scene}
               selectedZoneId={selectedZoneId}
               showOverlapsOnly={showOverlapsOnly}
+              viewMode={viewMode}
               onSelectZone={setSelectedZoneId}
             />
           </SectionCard>
@@ -498,42 +686,134 @@ export function JobsiteSiteVisualClient({
               </div>
             </SectionCard>
 
-            <SectionCard title="Selected Zone" description={draft ? "Fine-tune the schematic position and size." : "Select a work zone in the map or list."}>
+            <SectionCard title="Task Impact" description={draft ? "Click any work zone to understand its task, timing, and surrounding conflicts." : "Select a work zone in the map or list."}>
               {draft ? (
                 <div className="space-y-4">
-                  <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-muted)]">
-                    <span>Label</span>
-                    <input
-                      value={draft.label}
-                      onChange={(event) => setDraft((current) => (current ? { ...current, label: event.target.value } : current))}
-                      className="w-full rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
-                    />
-                  </label>
-                  <select
-                    className={appNativeSelectClassName}
-                    value={draft.riskLevel}
-                    onChange={(event) => setDraft((current) => (current ? { ...current, riskLevel: event.target.value as RiskLevel } : current))}
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                  </select>
-                  <div className="grid grid-cols-3 gap-2">
-                    <NumberField label="X" value={draft.position.x} onChange={(value) => updateDraftVector("position", "x", value)} />
-                    <NumberField label="Y" value={draft.position.y} onChange={(value) => updateDraftVector("position", "y", value)} />
-                    <NumberField label="Z" value={draft.position.z} onChange={(value) => updateDraftVector("position", "z", value)} />
-                    <NumberField label="Wide" value={draft.size.x} onChange={(value) => updateDraftVector("size", "x", value)} />
-                    <NumberField label="Tall" value={draft.size.y} onChange={(value) => updateDraftVector("size", "y", value)} />
-                    <NumberField label="Deep" value={draft.size.z} onChange={(value) => updateDraftVector("size", "z", value)} />
+                  <div className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="h-3 w-3 shrink-0 rounded-full"
+                            style={{ backgroundColor: riskColor(draft.riskLevel) }}
+                          />
+                          <div className="truncate text-base font-black text-[var(--app-text-strong)]">{draft.label}</div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-[var(--app-muted)]">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--app-panel-soft)] px-2 py-1">
+                            <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+                            {draft.workArea ?? "General area"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--app-panel-soft)] px-2 py-1">
+                            <Clock aria-hidden="true" className="h-3.5 w-3.5" />
+                            {formatDateTime(draft.startsAt)}
+                          </span>
+                        </div>
+                      </div>
+                      <StatusBadge label={draft.riskLevel} tone={riskTone(draft.riskLevel)} />
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-[var(--app-muted)]">
+                      {zoneImpactText(draft, selectedImpacts.length)}
+                    </p>
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                      <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                        <div className="font-bold uppercase tracking-[0.12em] text-[var(--app-muted)]">Trade / source</div>
+                        <div className="mt-1 font-semibold text-[var(--app-text-strong)]">{draft.trade ?? sourceLabel(draft.sourceType)}</div>
+                      </div>
+                      <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                        <div className="font-bold uppercase tracking-[0.12em] text-[var(--app-muted)]">Schedule window</div>
+                        <div className="mt-1 font-semibold text-[var(--app-text-strong)]">{formatDateTime(draft.startsAt)} to {formatDateTime(draft.endsAt)}</div>
+                      </div>
+                    </div>
                   </div>
-                  <button type="button" className={appButtonPrimaryClassName} onClick={() => void saveZone()} disabled={!payload?.canEditZones || saving}>
-                    <Save aria-hidden="true" className="h-4 w-4" />
-                    {saving ? "Saving..." : "Save zone"}
-                  </button>
+
+                  <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+                    <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">How this affects nearby work</div>
+                    {selectedImpacts.length === 0 ? (
+                      <InlineMessage tone="success">No active overlap is flagged for this selected task.</InlineMessage>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        {selectedImpacts.map(({ overlap, otherZone }) => (
+                          <button
+                            key={overlap.id}
+                            type="button"
+                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-3 text-left transition hover:border-amber-300 hover:bg-amber-50"
+                            onClick={() => otherZone?.id && setSelectedZoneId(otherZone.id)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-bold text-amber-950">{otherZone?.label ?? overlap.label}</div>
+                                <div className="mt-1 text-xs leading-5 text-amber-800">{overlap.reason}</div>
+                              </div>
+                              <StatusBadge label={overlap.severity} tone={severityTone(overlap.severity)} />
+                            </div>
+                            {otherZone ? (
+                              <div className="mt-2 text-xs font-semibold text-[var(--app-muted)]">
+                                {otherZone.workArea ?? "General area"} / {formatDateTime(otherZone.startsAt)}
+                              </div>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+                    <div className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Controls / notes</div>
+                    {draft.controls.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {draft.controls.map((control) => (
+                          <span key={control} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
+                            {control}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-[var(--app-muted)]">No controls are attached to this schematic zone yet.</p>
+                    )}
+                  </div>
+
+                  <details className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+                    <summary className="cursor-pointer text-sm font-bold text-[var(--app-text-strong)]">
+                      Adjust schematic placement
+                    </summary>
+                    <div className="mt-4 space-y-4">
+                      <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--app-muted)]">
+                        <span>Label</span>
+                        <input
+                          value={draft.label}
+                          onChange={(event) => setDraft((current) => (current ? { ...current, label: event.target.value } : current))}
+                          className="w-full rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+                        />
+                      </label>
+                      <select
+                        className={appNativeSelectClassName}
+                        value={draft.riskLevel}
+                        onChange={(event) => setDraft((current) => (current ? { ...current, riskLevel: event.target.value as RiskLevel } : current))}
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                      <div className="grid grid-cols-3 gap-2">
+                        <NumberField label="X" value={draft.position.x} onChange={(value) => updateDraftVector("position", "x", value)} />
+                        <NumberField label="Y" value={draft.position.y} onChange={(value) => updateDraftVector("position", "y", value)} />
+                        <NumberField label="Z" value={draft.position.z} onChange={(value) => updateDraftVector("position", "z", value)} />
+                        <NumberField label="Wide" value={draft.size.x} onChange={(value) => updateDraftVector("size", "x", value)} />
+                        <NumberField label="Tall" value={draft.size.y} onChange={(value) => updateDraftVector("size", "y", value)} />
+                        <NumberField label="Deep" value={draft.size.z} onChange={(value) => updateDraftVector("size", "z", value)} />
+                      </div>
+                      <button type="button" className={appButtonPrimaryClassName} onClick={() => void saveZone()} disabled={!payload?.canEditZones || saving}>
+                        <Save aria-hidden="true" className="h-4 w-4" />
+                        {saving ? "Saving..." : "Save zone"}
+                      </button>
+                    </div>
+                  </details>
                 </div>
               ) : (
-                <InlineMessage>Select a zone to edit its schematic placement.</InlineMessage>
+                <InlineMessage>Select a zone to see the task, schedule, controls, and overlap impact.</InlineMessage>
               )}
             </SectionCard>
 

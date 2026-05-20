@@ -1260,6 +1260,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [permitSaving, setPermitSaving] = useState(false);
   const [permitMessage, setPermitMessage] = useState("");
   const [editingScheduleTask, setEditingScheduleTask] = useState<ScheduledRiskEvent | null>(null);
+  const [weatherOverview, setWeatherOverview] = useState<{ jobsiteId: string; data: JobsiteWeatherOverviewData } | null>(null);
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
     dueDate: "",
@@ -1316,6 +1317,56 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const scheduleJobsiteId = site.id;
   const scheduleFallbackOwner = site.siteLead;
   const scheduleFallbackLocation = site.phase;
+  const fallbackWeatherOverview = jobsiteWeatherFromSite(site);
+  const displayedWeatherOverview = mode === "live" && weatherOverview?.jobsiteId === site.id ? weatherOverview.data : fallbackWeatherOverview;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (mode !== "live") {
+      return;
+    }
+
+    async function loadWeatherOverview() {
+      const fallbackWeather = jobsiteWeatherFromSite(site);
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token ?? null;
+        const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/weather`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const payload = (await response.json().catch(() => null)) as JobsiteWeatherOverviewData | null;
+        if (cancelled) return;
+        if (!response.ok) {
+          setWeatherOverview({ jobsiteId: site.id, data: { ...fallbackWeather, error: payload?.error || "Weather settings could not be loaded." } });
+          return;
+        }
+        setWeatherOverview({
+          jobsiteId: site.id,
+          data: {
+            ...fallbackWeather,
+            ...(payload ?? {}),
+            jobsite: {
+              ...(fallbackWeather.jobsite ?? {}),
+              ...(payload?.jobsite ?? {}),
+            },
+            alerts: Array.isArray(payload?.alerts) ? payload.alerts : [],
+          },
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setWeatherOverview({ jobsiteId: site.id, data: { ...fallbackWeather, error: error instanceof Error ? error.message : "Weather settings could not be loaded." } });
+        }
+      }
+    }
+
+    void loadWeatherOverview();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, site]);
 
   function openPermitForm(permit: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode) {
     setActivePermit(permit);
@@ -2007,9 +2058,6 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <button type="button" onClick={() => setActiveTab("Documents & Reports")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               Files & reports
             </button>
-            <Link href={`/jobsites/${encodeURIComponent(site.id)}/overview`} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
-              Ops workspace
-            </Link>
             {mode === "live" ? (
               <AiEngineRefreshButton
                 days={30}
@@ -2125,8 +2173,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       </div>
 
       {activeTab === "Overview" ? (
-        <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
-          <Card className="p-5">
+        <div className="space-y-5">
+          <JobsiteWeatherOverviewCard site={site} weather={displayedWeatherOverview} />
+          <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
+            <Card className="p-5">
             <SectionTitle title="Today On This Site" hint="A daily shift board that turns jobsite records into decisions before work starts." />
             <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4">
               <p className="text-xs font-black uppercase tracking-wide text-blue-700">Priority focus</p>
@@ -2194,9 +2244,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 </div>
               </div>
             ) : null}
-          </Card>
-          <div className="space-y-5">
-            <Card className="p-5">
+            </Card>
+            <div className="space-y-5">
+              <Card className="p-5">
               <SectionTitle title="Risk Map" />
               <div className="mt-4">
                 {mode === "live" ? (
@@ -2209,8 +2259,8 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                   <RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} />
                 )}
               </div>
-            </Card>
-            <Card className="p-5">
+              </Card>
+              <Card className="p-5">
               <SectionTitle title="Top Site Signals" />
               <div className="mt-4 space-y-3">
                 {[...siteAlerts, ...siteHazards].slice(0, 5).map((item) => (
@@ -2226,7 +2276,8 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                   <EmptyTabPanel title="No Site Signals Yet" detail="Risk signals will appear after observations, hazards, inspections, schedules, or AI recommendations are recorded." actionLabel="Create site action" onAction={createSiteAction} />
                 ) : null}
               </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         </div>
       ) : null}

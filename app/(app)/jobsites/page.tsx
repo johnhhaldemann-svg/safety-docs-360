@@ -36,15 +36,6 @@ type ComposerState = {
   projectManager: string;
   safetyLead: string;
   zipCode: string;
-  weatherEnabled: boolean;
-  weatherAddressLine1: string;
-  weatherAddressLine2: string;
-  weatherCity: string;
-  weatherState: string;
-  weatherCountry: string;
-  weatherMinSeverity: "advisory" | "watch" | "warning";
-  weatherChannels: string[];
-  weatherRecipientIds: string[];
   auditCustomerId: string;
   customerCompanyName: string;
   customerReportEmail: string;
@@ -62,15 +53,6 @@ const EMPTY_COMPOSER: ComposerState = {
   projectManager: "",
   safetyLead: "",
   zipCode: "",
-  weatherEnabled: false,
-  weatherAddressLine1: "",
-  weatherAddressLine2: "",
-  weatherCity: "",
-  weatherState: "",
-  weatherCountry: "US",
-  weatherMinSeverity: "watch",
-  weatherChannels: ["in_app", "email"],
-  weatherRecipientIds: [],
   auditCustomerId: "",
   customerCompanyName: "",
   customerReportEmail: "",
@@ -92,19 +74,6 @@ function getJobsiteTone(
   return "neutral";
 }
 
-function getJobsiteWeatherSummary(jobsite: CompanyJobsite) {
-  if (!jobsite.weatherEnabled) return "Off";
-  const source =
-    jobsite.weatherLocationSource === "address"
-      ? "Address"
-      : jobsite.weatherLocationSource === "zip_centroid"
-        ? "ZIP approximate"
-        : jobsite.weatherLocationSource === "manual"
-          ? "Manual"
-          : "Not resolved";
-  return `${source}${jobsite.zipCode ? ` - ZIP ${jobsite.zipCode}` : ""}`;
-}
-
 function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
   return {
     name: jobsite.name,
@@ -115,15 +84,6 @@ function createComposerFromJobsite(jobsite: CompanyJobsite): ComposerState {
     projectManager: jobsite.projectManager || "",
     safetyLead: jobsite.safetyLead || "",
     zipCode: jobsite.zipCode || "",
-    weatherEnabled: Boolean(jobsite.weatherEnabled),
-    weatherAddressLine1: jobsite.weatherAddressLine1 || "",
-    weatherAddressLine2: jobsite.weatherAddressLine2 || "",
-    weatherCity: jobsite.weatherCity || "",
-    weatherState: jobsite.weatherState || "",
-    weatherCountry: jobsite.weatherCountry || "US",
-    weatherMinSeverity: "watch",
-    weatherChannels: ["in_app", "email"],
-    weatherRecipientIds: [],
     auditCustomerId: jobsite.auditCustomerId || "",
     customerCompanyName: jobsite.customerCompanyName || "",
     customerReportEmail: jobsite.customerReportEmail || "",
@@ -324,63 +284,8 @@ export default function JobsitesPage() {
     setComposer((current) => ({ ...current, [key]: value }));
   }
 
-  function toggleComposerArray(key: "weatherChannels" | "weatherRecipientIds", value: string) {
-    setComposer((current) => {
-      const values = new Set(current[key]);
-      if (values.has(value)) values.delete(value);
-      else values.add(value);
-      return { ...current, [key]: [...values] };
-    });
-  }
-
   function resetComposer(jobsite?: CompanyJobsite | null) {
     setComposer(jobsite ? createComposerFromJobsite(jobsite) : EMPTY_COMPOSER);
-  }
-
-  async function loadWeatherSettingsIntoComposer(jobsite: CompanyJobsite) {
-    if (jobsite.source !== "table") return;
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      const response = await fetchWithTimeout(`/api/company/jobsites/${encodeURIComponent(jobsite.id)}/weather`, {
-        headers: getAuthHeaders(accessToken),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            jobsite?: Record<string, unknown>;
-            subscriptions?: Array<{
-              user_id?: string | null;
-              enabled?: boolean | null;
-              channels?: string[] | null;
-              min_severity?: string | null;
-            }>;
-          }
-        | null;
-      if (!response.ok) return;
-      const firstEnabled = (payload?.subscriptions ?? []).find((subscription) => subscription.enabled !== false);
-      setComposer((current) => ({
-        ...current,
-        zipCode: String(payload?.jobsite?.zip_code ?? current.zipCode ?? ""),
-        weatherEnabled: Boolean(payload?.jobsite?.weather_enabled ?? current.weatherEnabled),
-        weatherAddressLine1: String(payload?.jobsite?.weather_address_line_1 ?? current.weatherAddressLine1 ?? ""),
-        weatherAddressLine2: String(payload?.jobsite?.weather_address_line_2 ?? current.weatherAddressLine2 ?? ""),
-        weatherCity: String(payload?.jobsite?.weather_city ?? current.weatherCity ?? ""),
-        weatherState: String(payload?.jobsite?.weather_state ?? current.weatherState ?? ""),
-        weatherCountry: String(payload?.jobsite?.weather_country ?? current.weatherCountry ?? "US"),
-        weatherMinSeverity:
-          firstEnabled?.min_severity === "advisory" || firstEnabled?.min_severity === "warning"
-            ? firstEnabled.min_severity
-            : "watch",
-        weatherChannels: firstEnabled?.channels?.length ? firstEnabled.channels : current.weatherChannels,
-        weatherRecipientIds: (payload?.subscriptions ?? [])
-          .filter((subscription) => subscription.enabled !== false && subscription.user_id)
-          .map((subscription) => String(subscription.user_id)),
-      }));
-    } catch {
-      // Weather settings are optional; leave the form editable if the read fails.
-    }
   }
 
   function openNewJobsiteForm() {
@@ -400,7 +305,6 @@ export default function JobsitesPage() {
     );
     setMessageTone(jobsite.source === "document_fallback" ? "warning" : "neutral");
     setPanelMode("form");
-    void loadWeatherSettingsIntoComposer(jobsite);
   }
 
   function openJobsiteDetail(jobsite: CompanyJobsite) {
@@ -500,44 +404,6 @@ export default function JobsitesPage() {
       setMessage(payload?.message || "Jobsite saved.");
       setMessageTone("success");
       const nextSelectedId = payload?.jobsite?.id ?? selectedJobsiteId;
-      if (nextSelectedId && nextSelectedId !== "all" && composer.weatherEnabled) {
-        const weatherResponse = await fetchWithTimeout(`/api/company/jobsites/${encodeURIComponent(nextSelectedId)}/weather`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(accessToken),
-          },
-          body: JSON.stringify({
-            weatherEnabled: composer.weatherEnabled,
-            zipCode: composer.zipCode,
-            addressLine1: composer.weatherAddressLine1,
-            addressLine2: composer.weatherAddressLine2,
-            city: composer.weatherCity,
-            state: composer.weatherState,
-            country: composer.weatherCountry || "US",
-            subscriptions: activeUsers.map((user) => ({
-              userId: user.id,
-              enabled: composer.weatherRecipientIds.includes(user.id),
-              channels: composer.weatherChannels.length > 0 ? composer.weatherChannels : ["in_app"],
-              minSeverity: composer.weatherMinSeverity,
-            })),
-          }),
-        }, 20000);
-        const weatherPayload = (await weatherResponse.json().catch(() => null)) as { error?: string } | null;
-        if (!weatherResponse.ok) {
-          setMessage(weatherPayload?.error || "Jobsite saved, but weather settings could not be saved.");
-          setMessageTone("warning");
-        }
-      } else if (nextSelectedId && nextSelectedId !== "all" && selectedJobsite?.weatherEnabled && !composer.weatherEnabled) {
-        await fetchWithTimeout(`/api/company/jobsites/${encodeURIComponent(nextSelectedId)}/weather`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(accessToken),
-          },
-          body: JSON.stringify({ weatherEnabled: false }),
-        }, 15000).catch(() => null);
-      }
       resetComposer();
       await reload();
       setSelectedJobsiteId(nextSelectedId);
@@ -871,107 +737,6 @@ export default function JobsitesPage() {
                     />
                   </label>
                 ))}
-                <div className="md:col-span-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Weather Notifications</p>
-                      <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">
-                        ZIP-based weather is approximate. Add a full jobsite address for more accurate alerts.
-                      </p>
-                    </div>
-                    <label className="flex items-center gap-2 text-sm font-bold text-[var(--app-text-strong)]">
-                      <input
-                        type="checkbox"
-                        checked={composer.weatherEnabled}
-                        onChange={(event) => updateComposer("weatherEnabled", event.target.checked)}
-                        className="h-4 w-4 rounded border-[var(--app-border)]"
-                      />
-                      Enabled
-                    </label>
-                  </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <label htmlFor="weather-address-1" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      Full Address
-                      <input
-                        id="weather-address-1"
-                        type="text"
-                        value={composer.weatherAddressLine1}
-                        onChange={(event) => updateComposer("weatherAddressLine1", event.target.value)}
-                        placeholder="123 Main St"
-                        className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
-                      />
-                    </label>
-                    <label htmlFor="weather-address-2" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      Suite / Unit
-                      <input
-                        id="weather-address-2"
-                        type="text"
-                        value={composer.weatherAddressLine2}
-                        onChange={(event) => updateComposer("weatherAddressLine2", event.target.value)}
-                        placeholder="Optional"
-                        className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
-                      />
-                    </label>
-                    <label htmlFor="weather-city" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      City
-                      <input id="weather-city" type="text" value={composer.weatherCity} onChange={(event) => updateComposer("weatherCity", event.target.value)} placeholder="City" className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]" />
-                    </label>
-                    <label htmlFor="weather-state" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      State
-                      <input id="weather-state" type="text" value={composer.weatherState} onChange={(event) => updateComposer("weatherState", event.target.value.toUpperCase())} placeholder="NY" maxLength={2} className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium normal-case tracking-normal text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]" />
-                    </label>
-                    <label htmlFor="weather-min-severity" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      Minimum Severity
-                      <select
-                        id="weather-min-severity"
-                        value={composer.weatherMinSeverity}
-                        onChange={(event) => updateComposer("weatherMinSeverity", event.target.value as ComposerState["weatherMinSeverity"])}
-                        className="mt-2 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-semibold normal-case tracking-normal text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
-                      >
-                        <option value="advisory">Advisory</option>
-                        <option value="watch">Watch</option>
-                        <option value="warning">Warning</option>
-                      </select>
-                    </label>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
-                      Channels
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {[
-                          ["in_app", "In-app"],
-                          ["email", "Email"],
-                        ].map(([value, label]) => (
-                          <label key={value} className="flex items-center gap-2 rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-bold normal-case tracking-normal text-[var(--app-text-strong)]">
-                            <input type="checkbox" checked={composer.weatherChannels.includes(value)} onChange={() => toggleComposerArray("weatherChannels", value)} />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Notification Recipients</p>
-                    {activeUsers.length === 0 ? (
-                      <p className="mt-2 text-sm text-[var(--app-muted)]">Add active company users before assigning weather recipients.</p>
-                    ) : (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {activeUsers.map((user) => (
-                          <label key={user.id} className="flex items-start gap-2 rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-sm text-[var(--app-text)]">
-                            <input
-                              type="checkbox"
-                              checked={composer.weatherRecipientIds.includes(user.id)}
-                              onChange={() => toggleComposerArray("weatherRecipientIds", user.id)}
-                              className="mt-1"
-                            />
-                            <span>
-                              <span className="block font-bold text-[var(--app-text-strong)]">{user.name || user.email}</span>
-                              <span className="block text-xs text-[var(--app-muted)]">{user.email}</span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
                 <label htmlFor="jobsite-status" className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
                   Status
                   <select
@@ -1120,7 +885,6 @@ export default function JobsitesPage() {
                     ["Project Number", selectedJobsite.projectNumber || "Not assigned"],
                     ["Project Manager", selectedJobsite.projectManager || "Not assigned"],
                     ["Safety Lead", selectedJobsite.safetyLead || "Not assigned"],
-                    ["Weather", getJobsiteWeatherSummary(selectedJobsite)],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">{label}</p>
@@ -1133,24 +897,6 @@ export default function JobsitesPage() {
                   <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">
                     {selectedJobsite.notes || "No site notes yet. Edit the jobsite to capture startup conditions, risk notes, and coordination details."}
                   </p>
-                </div>
-                <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--app-muted)]">Weather Notifications</p>
-                      <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{getJobsiteWeatherSummary(selectedJobsite)}</p>
-                      <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">
-                        {selectedJobsite.weatherEnabled
-                          ? `Last checked ${selectedJobsite.weatherLastCheckedAt ? formatRelative(selectedJobsite.weatherLastCheckedAt, referenceTime) : "not yet"}. ZIP-only weather is approximate.`
-                          : "Turn on weather notifications to resolve this jobsite and monitor NWS alerts."}
-                      </p>
-                    </div>
-                    {selectedJobsite.source === "table" ? (
-                      <button type="button" onClick={() => openSelectedJobsiteForm(selectedJobsite)} className={appButtonSecondaryClassName}>
-                        Edit Weather
-                      </button>
-                    ) : null}
-                  </div>
                 </div>
               </div>
 
