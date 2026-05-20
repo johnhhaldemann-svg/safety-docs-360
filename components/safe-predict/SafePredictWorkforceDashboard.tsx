@@ -39,7 +39,7 @@ import {
   type SafePredictPermitSummary,
   type SafePredictTradeReadiness,
 } from "@/lib/safePredictMockData";
-import type { SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
+import type { SafePredictDataset, SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
 
 const statusLabels: Record<SafePredictDemoEmployeeStatus, string> = {
   compliant: "Compliant",
@@ -776,6 +776,195 @@ export function SafePredictWorkforceDashboard() {
 
       <EmployeeProfileDrawer employee={selectedEmployee} jobsites={jobsites} onClose={() => setSelectedEmployeeId(null)} />
       <p className="mt-5 text-center text-xs font-semibold text-slate-500">Data is refreshed every 15 minutes</p>
+    </div>
+  );
+}
+
+function OverviewTab({
+  employees,
+  hasEmployees,
+  highRiskActivityCount,
+  incidentLikelihood,
+  jobsites,
+  permitExposure,
+  permitRows,
+  predictedRiskImpact,
+  workforce,
+}: {
+  employees: SafePredictDemoEmployee[];
+  hasEmployees: boolean;
+  highRiskActivityCount: number;
+  incidentLikelihood: string;
+  jobsites: SafePredictJobsiteRecord[];
+  permitExposure: number;
+  permitRows: SafePredictPermitSummary[];
+  predictedRiskImpact: string;
+  workflowItems: WorkforceWorkflowItem[];
+  workflowStatuses: Record<string, WorkflowStatus>;
+  workforce: ReturnType<typeof workforceTotalsFromEmployees>;
+  onCreateAction: (item: WorkforceWorkflowItem) => void;
+}) {
+  const permits = permitTotals(permitRows);
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <ReadinessStatusCard hasEmployees={hasEmployees} workforce={workforce} />
+        <PreventionInsightsCard
+          hasEmployees={hasEmployees}
+          highRiskActivityCount={highRiskActivityCount}
+          incidentLikelihood={incidentLikelihood}
+          permitExposure={permitExposure}
+          predictedRiskImpact={predictedRiskImpact}
+          workforce={workforce}
+        />
+      </div>
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <PermitRegister permitRows={permitRows} permits={permits} />
+        <JobsiteSnapshot jobsites={jobsites} siteFilter="all" onFilter={() => undefined} />
+      </div>
+      {employees.length === 0 ? <EmptyPanel>No workforce records are available yet. Add workers or invite users to populate this dashboard.</EmptyPanel> : null}
+    </div>
+  );
+}
+
+function WorkforceDataGrid({
+  activeFilterText,
+  employees,
+  isLiveEmpty,
+  jobsites,
+  selectedEmployeeId,
+  visibleEmployees,
+  onOpenEmployee,
+}: {
+  activeFilterText: string;
+  employees: SafePredictDemoEmployee[];
+  isLiveEmpty: boolean;
+  jobsites: SafePredictJobsiteRecord[];
+  selectedEmployeeId: string | null;
+  visibleEmployees: SafePredictDemoEmployee[];
+  onOpenEmployee: (id: string) => void;
+}) {
+  return (
+    <RosterCard
+      activeFilterText={activeFilterText}
+      datasetCompanyName="Company"
+      employees={employees}
+      isLiveEmpty={isLiveEmpty}
+      jobsites={jobsites}
+      mode="live"
+      selectedEmployeeId={selectedEmployeeId}
+      visibleEmployees={visibleEmployees}
+      onOpenEmployee={onOpenEmployee}
+    />
+  );
+}
+
+function TrainingMatrixTab({ groups }: { groups: TrainingGroup[] }) {
+  return <TrainingMatrix trades={groups} />;
+}
+
+function PermitsTab({ groups, permits }: { groups: PermitCategoryGroup[]; permits: { active: number; expiringSoon: number; expired: number } }) {
+  const rows = groups.flatMap((group) => group.rows);
+  return <PermitRegister permitRows={rows} permits={permits} />;
+}
+
+function JobsiteAssignmentsTab({
+  employees,
+  jobsites,
+  siteFilter,
+  onFilter,
+}: {
+  employees: SafePredictDemoEmployee[];
+  jobsites: SafePredictJobsiteRecord[];
+  permits: SafePredictPermitRecord[];
+  siteFilter: string;
+  onFilter: (siteId: string) => void;
+}) {
+  return (
+    <div className="grid gap-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
+      <JobsiteSnapshot jobsites={jobsites} siteFilter={siteFilter} onFilter={onFilter} />
+      <Card className="overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
+          <SectionTitle title="Assigned Workforce" />
+        </div>
+        <div className="space-y-3 p-4">
+          {jobsites.map((jobsite) => {
+            const assigned = employees.filter((employee) => employee.assignedSiteId === jobsite.id);
+            return (
+              <button key={jobsite.id} type="button" onClick={() => onFilter(jobsite.id)} className="w-full rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-white">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-black text-slate-950">{jobsite.name}</span>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{assigned.length} assigned</span>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-slate-600">{assigned.slice(0, 4).map((employee) => employee.name).join(", ") || "No workers assigned."}</p>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ForecastActionsTab({
+  items,
+  statuses,
+  onCreate,
+}: {
+  items: WorkforceWorkflowItem[];
+  statuses: Record<string, WorkflowStatus>;
+  onCreate: (item: WorkforceWorkflowItem) => void;
+}) {
+  return <WorkflowActionRail items={items} statuses={statuses} topCount={items.filter((item) => item.canCreate).length} onCreate={onCreate} onCreateTop={() => items.filter((item) => item.canCreate).slice(0, 3).forEach(onCreate)} />;
+}
+
+function ReportsTab({
+  employees,
+  jobsites,
+  permitGroups,
+  permits,
+  trades,
+  workflowItems,
+  workforce,
+}: {
+  dataset: SafePredictDataset;
+  employees: SafePredictDemoEmployee[];
+  jobsites: SafePredictJobsiteRecord[];
+  permitGroups: PermitCategoryGroup[];
+  permits: { active: number; expiringSoon: number; expired: number };
+  trades: TrainingGroup[];
+  workflowItems: WorkforceWorkflowItem[];
+  workforce: ReturnType<typeof workforceTotalsFromEmployees>;
+}) {
+  return (
+    <div className="grid gap-5 2xl:grid-cols-2">
+      <Card className="p-5">
+        <SectionTitle title="Workforce Report Summary" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ReportMetric label="Workers" value={employees.length} />
+          <ReportMetric label="Jobsites" value={jobsites.length} />
+          <ReportMetric label="Open workflow items" value={workflowItems.length} />
+          <ReportMetric label="Readiness issues" value={workforce.expiringSoon + workforce.overdue} />
+        </div>
+      </Card>
+      <Card className="p-5">
+        <SectionTitle title="Compliance Snapshot" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ReportMetric label="Training groups" value={trades.length} />
+          <ReportMetric label="Permit categories" value={permitGroups.length} />
+          <ReportMetric label="Active permits" value={permits.active} />
+          <ReportMetric label="Permit exposure" value={permits.expiringSoon + permits.expired} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
     </div>
   );
 }
