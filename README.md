@@ -44,7 +44,11 @@ Always do **step 1 before step 2** when migrations changed, so production code m
 | `SUPABASE_SERVICE_ROLE_KEY` | Server / scripts | Service role for admin API routes and seed scripts (never expose to the client) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Optional | Server-side fallbacks read by [`lib/supabaseAdmin.ts`](lib/supabaseAdmin.ts) |
 | `OPENAI_API_KEY` | For AI features | Document / GC program AI review, injury-weather insights |
-| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts), [`company-billing-invoices`](app/api/cron/company-billing-invoices/route.ts), [`risk-memory-rollup`](app/api/cron/risk-memory-rollup/route.ts) |
+| `CRON_SECRET` | Production cron | Bearer or `?secret=` for [`injury-weather-refresh`](app/api/cron/injury-weather-refresh/route.ts), [`jobsite-weather-alerts`](app/api/cron/jobsite-weather-alerts/route.ts), [`company-billing-invoices`](app/api/cron/company-billing-invoices/route.ts), [`risk-memory-rollup`](app/api/cron/risk-memory-rollup/route.ts) |
+| `FEATURE_JOBSITE_WEATHER_NOTIFICATIONS` | Jobsite weather MVP | Set `true` to enable NWS alert polling and delivery |
+| `NWS_USER_AGENT` | Jobsite weather MVP | Required by NWS API; include app name/version and support email |
+| `GEOCODIO_API_KEY` | ZIP-only weather fallback | Used when a jobsite has ZIP but no full address; ZIP weather is approximate |
+| `WEATHER_ALERT_FROM_EMAIL` + `RESEND_API_KEY` | Weather email alerts | Sends weather alert emails; in-app delivery records still work without email config |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional | Comma-separated admin emails ([`lib/rbac.ts`](lib/rbac.ts), [`lib/admin.ts`](lib/admin.ts)) |
 | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Optional | Absolute URLs for redirects (e.g. invite links) |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Optional | Shown on `/privacy` for data and privacy inquiries |
@@ -113,7 +117,7 @@ RLS policies are defined in migrations. API routes should align with [`docs/api-
 
 ## Scheduled jobs (Vercel)
 
-[`vercel.json`](vercel.json) defines daily crons: `/api/cron/injury-weather-refresh`, `/api/cron/company-billing-invoices`, and `/api/cron/risk-memory-rollup`. Set `CRON_SECRET` in Vercel (Vercel sends `Authorization: Bearer …` when configured). See [`docs/production-deployment.md`](docs/production-deployment.md).
+[`vercel.json`](vercel.json) defines scheduled jobs including `/api/cron/jobsite-weather-alerts` every 5 minutes for NWS jobsite alerts. That interval requires Vercel Pro/Enterprise cron limits. Set `CRON_SECRET` in Vercel (Vercel sends `Authorization: Bearer ...` when configured). See [`docs/production-deployment.md`](docs/production-deployment.md).
 
 ## License
 

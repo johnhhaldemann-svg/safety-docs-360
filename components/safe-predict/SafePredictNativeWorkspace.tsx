@@ -24,6 +24,11 @@ import {
   Users,
 } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import {
+  SafePredictPermitFormDialog,
+  type SafePredictPermitFormMode,
+  type SafePredictPermitFormSaveInput,
+} from "@/components/safe-predict/SafePredictPermitFormDialog";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   Card,
@@ -44,6 +49,7 @@ import {
   riskForecastForSite,
   siteScoped,
   summarizeSafePredictDataset,
+  summarizeSafePredictScope,
   type SafePredictDataset,
   type SafePredictJobsiteRecord,
 } from "@/lib/safePredictData";
@@ -61,11 +67,14 @@ import {
   type PredictabilitySettings,
 } from "@/lib/predictability/settings";
 import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
+import { permitReadinessLabel } from "@/lib/safePredictPermitForms";
 
 type RowAction = {
   label: string;
   href?: string;
   onClick?: () => void;
+  secondaryLabel?: string;
+  secondaryOnClick?: () => void;
 };
 
 type ScopedRows = {
@@ -117,43 +126,6 @@ type CorrectiveActionDraft = {
   sifPotential: "yes" | "no";
   sifCategory: string;
 };
-
-type PermitDraft = {
-  title: string;
-  siteId: string;
-  type: string;
-  status: SafePredictDataset["permits"][number]["status"];
-  owner: string;
-  expiresAt: string;
-  riskLevel: SafePredictRiskLevel;
-};
-
-const permitTypeOptions = [
-  { label: "Hot Work", value: "Hot Work" },
-  { label: "Confined Space", value: "Confined Space" },
-  { label: "Electrical", value: "Electrical" },
-  { label: "Excavation", value: "Excavation" },
-  { label: "Work at Heights", value: "Work at Heights" },
-  { label: "Lockout / Tagout", value: "Lockout / Tagout" },
-];
-
-const permitStatusOptions: Array<{ label: string; value: SafePredictDataset["permits"][number]["status"] }> = [
-  { label: "Active", value: "Active" },
-  { label: "Expiring Soon", value: "Expiring Soon" },
-  { label: "Expired", value: "Expired" },
-];
-
-function buildEmptyPermitDraft(siteId: string): PermitDraft {
-  return {
-    title: "",
-    siteId,
-    type: "Hot Work",
-    status: "Active",
-    owner: "",
-    expiresAt: "",
-    riskLevel: "medium",
-  };
-}
 
 function permitTypeApiValue(type: string) {
   return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -279,6 +251,159 @@ function LiveRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
   );
 }
 
+function statusMatchesFilter(status: string, statusFilter: string) {
+  if (statusFilter === "all") return true;
+  const normalized = status.trim().toLowerCase();
+  const filter = statusFilter.trim().toLowerCase();
+  if (filter === "open") {
+    return !["closed", "completed", "controlled", "approved", "ready"].some((closed) => normalized.includes(closed));
+  }
+  return normalized === filter || normalized.includes(filter);
+}
+
+function queryMatches(values: Array<string | number | null | undefined>, query: string) {
+  return !query || values.filter((value) => value != null).join(" ").toLowerCase().includes(query);
+}
+
+function analyticsRiskMatches(level: SafePredictRiskLevel | undefined, riskFilter: SafePredictRiskLevel | "all") {
+  return riskFilter === "all" || level === riskFilter;
+}
+
+function buildAnalyticsScope({
+  dataset,
+  siteFilter,
+  riskFilter,
+  statusFilter,
+  query,
+}: {
+  dataset: SafePredictDataset;
+  siteFilter: string;
+  riskFilter: SafePredictRiskLevel | "all";
+  statusFilter: string;
+  query: string;
+}) {
+  const initialSites = dataset.jobsites.filter((site) => (siteFilter === "all" ? true : site.id === siteFilter));
+  const sitesWithRisk = initialSites.filter((site) => analyticsRiskMatches(site.riskLevel, riskFilter));
+
+  const siteMatchesQuery = (site: SafePredictJobsiteRecord) =>
+    queryMatches([site.name, site.code, site.address, site.cityState, site.projectManager, site.siteLead, site.customerName], query);
+
+  const relatedRowsForSite = (siteId: string) => [
+    ...dataset.actions.filter((row) => row.siteId === siteId),
+    ...dataset.alerts.filter((row) => row.siteId === siteId),
+    ...dataset.inspections.filter((row) => row.siteId === siteId),
+    ...dataset.incidents.filter((row) => row.siteId === siteId),
+    ...dataset.observations.filter((row) => row.siteId === siteId),
+    ...dataset.hazards.filter((row) => row.siteId === siteId),
+    ...dataset.permits.filter((row) => row.siteId === siteId),
+    ...dataset.documents.filter((row) => row.siteId === siteId),
+    ...dataset.reports.filter((row) => row.siteId === siteId),
+  ];
+
+  const visibleJobsites = sitesWithRisk.filter((site) => {
+    const siteQueryMatch = siteMatchesQuery(site);
+    const related = relatedRowsForSite(site.id);
+    const relatedQueryMatch = related.some((row) => queryMatches(Object.values(row).map(String), query));
+    const relatedStatusMatch = related.some((row) => "status" in row && statusMatchesFilter(String(row.status), statusFilter));
+    const siteStatusMatch = statusMatchesFilter(site.status, statusFilter);
+    return (siteQueryMatch || relatedQueryMatch || !query) && (statusFilter === "all" || siteStatusMatch || relatedStatusMatch);
+  });
+  const visibleSiteIds = new Set(visibleJobsites.map((site) => site.id));
+  const includeSiteRows = new Set(visibleJobsites.filter(siteMatchesQuery).map((site) => site.id));
+  const rowQueryMatches = (siteId: string, values: Array<string | number | null | undefined>) =>
+    includeSiteRows.has(siteId) || queryMatches(values, query);
+
+  const scoped: ScopedRows = {
+    actions: dataset.actions.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.priority, riskFilter) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.linkedRisk, row.assignee, row.status])
+    ),
+    alerts: dataset.alerts.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.riskLevel, riskFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.detail, row.source, row.area, row.site])
+    ),
+    inspections: dataset.inspections.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.riskLevel, riskFilter) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.checklist, row.inspector, row.status])
+    ),
+    incidents: dataset.incidents.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.severity, riskFilter) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.detail, row.type, row.status, row.reportedBy])
+    ),
+    observations: dataset.observations.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.riskLevel, riskFilter) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.detail, row.category, row.status, row.submittedBy])
+    ),
+    hazards: dataset.hazards.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.riskLevel, riskFilter) &&
+        statusMatchesFilter(row.controlStatus, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.controlStatus, row.owner, row.driverId])
+    ),
+    permits: dataset.permits.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        analyticsRiskMatches(row.riskLevel, riskFilter) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.type, row.status, row.owner, row.readiness])
+    ),
+    employees: dataset.employees.filter(
+      (row) =>
+        visibleSiteIds.has(row.assignedSiteId) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.assignedSiteId, [row.name, row.trade, row.role, row.status, row.supervisor])
+    ),
+    documents: dataset.documents.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.type, row.status])
+    ),
+    reports: dataset.reports.filter(
+      (row) =>
+        visibleSiteIds.has(row.siteId) &&
+        statusMatchesFilter(row.status, statusFilter) &&
+        rowQueryMatches(row.siteId, [row.title, row.audience, row.status])
+    ),
+  };
+  const scopedDataset: SafePredictDataset = {
+    ...dataset,
+    jobsites: visibleJobsites,
+    actions: scoped.actions,
+    alerts: scoped.alerts,
+    inspections: scoped.inspections,
+    incidents: scoped.incidents,
+    observations: scoped.observations,
+    hazards: scoped.hazards,
+    permits: scoped.permits,
+    employees: scoped.employees,
+    documents: scoped.documents,
+    reports: scoped.reports,
+  };
+
+  return {
+    jobsites: visibleJobsites,
+    scoped,
+    dataset: scopedDataset,
+    summary: summarizeSafePredictScope(scopedDataset, visibleSiteIds),
+  };
+}
+
 function inferLocalTrainingTitle(employee: SafePredictDemoEmployee) {
   const haystack = [employee.trade, employee.role, ...(employee.credentials ?? [])].join(" ").toLowerCase();
   if (/\belectrical|electrician|loto|lockout|energy/.test(haystack)) return "LOTO Authorized Worker";
@@ -391,7 +516,7 @@ function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): Tr
 }
 
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
-  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftPermit } = useSafePredictData();
+  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, refreshLiveData, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftPermit, updatePermit } = useSafePredictData();
   const router = useRouter();
   const config = safePredictWorkspaceConfigs[workspace];
   const [query, setQuery] = useState("");
@@ -401,15 +526,14 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [showHazardComposer, setShowHazardComposer] = useState(false);
   const [showCorrectiveComposer, setShowCorrectiveComposer] = useState(false);
   const [showPermitComposer, setShowPermitComposer] = useState(false);
+  const [permitFormMode, setPermitFormMode] = useState<SafePredictPermitFormMode>("create");
+  const [activePermit, setActivePermit] = useState<SafePredictDataset["permits"][number] | null>(null);
   const [correctiveMessage, setCorrectiveMessage] = useState("");
   const [correctiveSubmitting, setCorrectiveSubmitting] = useState(false);
   const [permitMessage, setPermitMessage] = useState("");
   const [permitSubmitting, setPermitSubmitting] = useState(false);
   const [correctiveDraft, setCorrectiveDraft] = useState(() =>
     buildEmptyCorrectiveActionDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
-  );
-  const [permitDraft, setPermitDraft] = useState(() =>
-    buildEmptyPermitDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
   );
   const [hazardDraft, setHazardDraft] = useState({
     title: "",
@@ -473,6 +597,14 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       reports: siteScoped(dataset.reports, siteFilter),
     };
   }, [dataset, siteFilter]);
+  const analyticsScope = useMemo(
+    () => buildAnalyticsScope({ dataset, siteFilter, riskFilter, statusFilter, query: normalizedQuery }),
+    [dataset, normalizedQuery, riskFilter, siteFilter, statusFilter]
+  );
+  const activeScoped = workspace === "analytics" ? analyticsScope.scoped : scoped;
+  const activeSummary = workspace === "analytics" ? analyticsScope.summary : summary;
+  const activeJobsites = workspace === "analytics" ? analyticsScope.jobsites : dataset.jobsites;
+  const activeDataset = workspace === "analytics" ? analyticsScope.dataset : dataset;
 
   function clearFilters() {
     setQuery("");
@@ -560,25 +692,43 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     }, 50);
   }
 
-  function openPermitComposer(siteId?: string) {
+  function openPermitComposer(siteId?: string, permit?: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode = "create") {
     const nextSiteId = siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
-    setPermitDraft((current) => ({ ...current, siteId: nextSiteId || current.siteId }));
+    setActivePermit(permit ?? null);
+    setPermitFormMode(permit ? nextMode : "create");
     setPermitMessage("");
     setShowPermitComposer(true);
     window.setTimeout(() => {
       document.getElementById("safe-predict-permit-composer")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
+    if (nextSiteId) {
+      setSiteFilter(nextSiteId);
+      setSelectedJobsiteId(nextSiteId);
+    }
   }
 
-  async function createPermit() {
-    const title = permitDraft.title.trim();
-    const siteId = permitDraft.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
+  function permitStatusApiValue(status: SafePredictDataset["permits"][number]["status"]) {
+    if (status === "Active") return "active";
+    if (status === "Expired") return "expired";
+    return "draft";
+  }
+
+  function permitDueAtValue(expiresAt: string) {
+    const trimmed = expiresAt.trim();
+    if (!trimmed) return null;
+    const parsed = Date.parse(trimmed);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  }
+
+  async function savePermit(input: SafePredictPermitFormSaveInput) {
+    const title = input.title.trim();
+    const siteId = input.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
     if (!title) {
-      setPermitMessage("Add a permit title before creating the permit.");
+      setPermitMessage("Add a permit title before saving the permit.");
       return;
     }
     if (!siteId) {
-      setPermitMessage("Choose an active jobsite before creating the permit.");
+      setPermitMessage("Choose an active jobsite before saving the permit.");
       return;
     }
 
@@ -592,60 +742,71 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       const token = session?.access_token ?? null;
 
       if (mode === "live" && token) {
-        const dueAt = permitDraft.expiresAt ? new Date(`${permitDraft.expiresAt}T17:00:00`).toISOString() : null;
         const response = await fetch("/api/company/permits", {
-          method: "POST",
+          method: input.id ? "PATCH" : "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
+            id: input.id,
             title,
-            permitType: permitTypeApiValue(permitDraft.type),
-            severity: permitDraft.riskLevel,
+            permitType: permitTypeApiValue(input.type),
+            severity: input.riskLevel,
             category: "safety",
             jobsiteId: siteId,
             ownerUserId: null,
-            dueAt,
-            sifFlag: permitDraft.riskLevel === "critical" || permitDraft.riskLevel === "high",
-            escalationLevel: permitDraft.riskLevel === "critical" ? "urgent" : "none",
+            dueAt: permitDueAtValue(input.expiresAt),
+            sifFlag: input.riskLevel === "critical" || input.riskLevel === "high",
+            escalationLevel: input.riskLevel === "critical" ? "urgent" : "none",
             escalationReason: "",
-            stopWorkStatus: permitDraft.status === "Expired" ? "stop_work_requested" : "normal",
-            stopWorkReason: permitDraft.status === "Expired" ? "Expired permit requires hold before work proceeds." : "",
+            stopWorkStatus: input.status === "Expired" ? "stop_work_requested" : "normal",
+            stopWorkReason: input.status === "Expired" ? "Expired permit requires hold before work proceeds." : "",
             jsaActivityId: null,
             observationId: null,
-            status: "draft",
+            status: permitStatusApiValue(input.status),
+            permitForm: input.permitForm,
           }),
         });
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
         if (!response.ok) {
-          setPermitMessage(data?.error || "Could not create the permit.");
+          setPermitMessage(data?.error || "Could not save the permit.");
           return;
         }
       }
 
-      const draft = addDraftPermit({
+      const nextPermit = {
+        ...(activePermit ?? {}),
+        id: input.id || activePermit?.id || `draft-permit-${Date.now()}`,
         title,
         siteId,
-        type: permitDraft.type,
-        status: permitDraft.status,
-        owner: permitDraft.owner.trim() || "Unassigned",
-        expiresAt: permitDraft.expiresAt || "No expiration set",
-        riskLevel: permitDraft.riskLevel,
-      });
+        type: input.type,
+        status: input.status,
+        owner: input.owner.trim() || "Unassigned",
+        expiresAt: input.expiresAt || "No expiration set",
+        riskLevel: input.riskLevel,
+        permitForm: input.permitForm,
+        readiness: permitReadinessLabel(input.permitForm),
+      };
+      if (input.id || activePermit) {
+        updatePermit(nextPermit);
+      } else {
+        addDraftPermit(nextPermit);
+      }
       setSiteFilter(siteId);
       setSelectedJobsiteId(siteId);
       setStatusFilter("all");
       setRiskFilter("all");
       setQuery("");
-      setPermitDraft(buildEmptyPermitDraft(siteId));
       setShowPermitComposer(false);
-      setPermitMessage(mode === "live" && token ? "Permit created and saved to the company permit register." : "Permit queued locally in SafePredict sample data.");
+      setActivePermit(null);
+      refreshLiveData();
+      setPermitMessage(mode === "live" && token ? "Permit saved to the company permit register." : "Permit saved locally in SafePredict.");
       window.setTimeout(() => {
-        document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.getElementById(nextPermit.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 50);
     } catch (error) {
-      setPermitMessage(error instanceof Error ? error.message : "Could not create the permit.");
+      setPermitMessage(error instanceof Error ? error.message : "Could not save the permit.");
     } finally {
       setPermitSubmitting(false);
     }
@@ -667,8 +828,8 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       setCorrectiveMessage("Choose a SIF category when SIF potential is yes.");
       return;
     }
-    if (assignedUserId && !isUuid(assignedUserId)) {
-      setCorrectiveMessage("Leave assignee blank or enter a valid user ID.");
+    if (assignedUserId && !dataset.assignableUsers.some((user) => user.id === assignedUserId) && !isUuid(assignedUserId)) {
+      setCorrectiveMessage("Choose an active company user or leave assignee blank.");
       return;
     }
 
@@ -828,8 +989,8 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     query: normalizedQuery,
     riskFilter,
     statusFilter,
-    scoped,
-    jobsites: dataset.jobsites,
+    scoped: activeScoped,
+    jobsites: activeJobsites,
     updateActionStatus,
     closeActionWithPhoto,
     createActionFromSignal,
@@ -837,7 +998,8 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     assignTrainingWithAi,
   });
 
-  const selectedForecastSite = siteFilter === "all" ? dataset.jobsites[0]?.id ?? "riverside" : siteFilter;
+  const selectedForecastSite = workspace === "analytics" ? (siteFilter === "all" ? "all" : siteFilter) : siteFilter === "all" ? dataset.jobsites[0]?.id ?? "riverside" : siteFilter;
+  const selectedForecastTitle = selectedForecastSite === "all" ? (activeJobsites.length === dataset.jobsites.length ? "All Sites" : "Filtered Sites") : siteName(selectedForecastSite, dataset.jobsites);
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -931,20 +1093,23 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       {workspace === "permits" && (showPermitComposer || permitMessage) ? (
         <Card id="safe-predict-permit-composer" className="mb-5 p-5">
           <SectionTitle
-            title="Create Permit"
+            title={permitFormMode === "view" ? "View Permit" : activePermit ? "Edit Permit" : "Create Permit"}
             action={
               <button
                 type="button"
                 onClick={() => {
                   setShowPermitComposer((current) => !current);
-                  if (showPermitComposer) setPermitMessage("");
+                  if (showPermitComposer) {
+                    setActivePermit(null);
+                    setPermitMessage("");
+                  }
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700 shadow-sm"
               >
                 {showPermitComposer ? "Close" : "Open form"}
               </button>
             }
-            hint="Creates a permit directly in the SafePredict permit register without leaving the native workspace."
+            hint="Complete the permit checklist and acknowledgement without leaving the register."
           />
           {permitMessage ? (
             <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
@@ -952,74 +1117,23 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             </p>
           ) : null}
           {showPermitComposer ? (
-            <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr_180px_180px_180px]">
-              <label className="block xl:col-span-2">
-                <span className="mb-1 block text-xs font-bold text-slate-600">Permit title</span>
-                <input
-                  value={permitDraft.title}
-                  onChange={(event) => setPermitDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Level 3 hot work permit"
-                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
-                />
-              </label>
-              <SelectShell
-                label="Jobsite"
-                value={permitDraft.siteId || (siteFilter === "all" ? dataset.jobsites[0]?.id ?? "" : siteFilter)}
-                onChange={(value) => setPermitDraft((current) => ({ ...current, siteId: value }))}
-                options={dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))}
+            <div className="mt-4">
+              <SafePredictPermitFormDialog
+                key={activePermit?.id ?? `create-${siteFilter}`}
+                mode={permitFormMode}
+                permit={activePermit}
+                jobsites={dataset.jobsites}
+                fallbackSiteId={siteFilter === "all" ? dataset.jobsites[0]?.id ?? "" : siteFilter}
+                saving={permitSubmitting}
+                message=""
+                onClose={() => {
+                  setShowPermitComposer(false);
+                  setActivePermit(null);
+                  setPermitMessage("");
+                }}
+                onModeChange={setPermitFormMode}
+                onSave={(input) => void savePermit(input)}
               />
-              <SelectShell
-                label="Permit type"
-                value={permitDraft.type}
-                onChange={(value) => setPermitDraft((current) => ({ ...current, type: value }))}
-                options={permitTypeOptions}
-              />
-              <SelectShell
-                label="Status"
-                value={permitDraft.status}
-                onChange={(value) => setPermitDraft((current) => ({ ...current, status: value as PermitDraft["status"] }))}
-                options={permitStatusOptions}
-              />
-              <SelectShell
-                label="Risk"
-                value={permitDraft.riskLevel}
-                onChange={(value) => setPermitDraft((current) => ({ ...current, riskLevel: value as SafePredictRiskLevel }))}
-                options={[
-                  { label: "Low", value: "low" },
-                  { label: "Medium", value: "medium" },
-                  { label: "High", value: "high" },
-                  { label: "Critical", value: "critical" },
-                ]}
-              />
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-600">Owner</span>
-                <input
-                  value={permitDraft.owner}
-                  onChange={(event) => setPermitDraft((current) => ({ ...current, owner: event.target.value }))}
-                  placeholder="Safety lead"
-                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-bold text-slate-600">Expiration</span>
-                <input
-                  type="date"
-                  value={permitDraft.expiresAt}
-                  onChange={(event) => setPermitDraft((current) => ({ ...current, expiresAt: event.target.value }))}
-                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
-                />
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => void createPermit()}
-                  disabled={permitSubmitting || !permitDraft.title.trim()}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <Plus className="h-4 w-4" />
-                  {permitSubmitting ? "Creating..." : "Create Permit"}
-                </button>
-              </div>
             </div>
           ) : null}
         </Card>
@@ -1210,15 +1324,15 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
                 />
               </div>
               <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-600">Assignee user ID optional</span>
-                  <input
-                    value={correctiveDraft.assignedUserId}
-                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, assignedUserId: event.target.value }))}
-                    placeholder="Leave blank to assign later"
-                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
-                  />
-                </label>
+                <SelectShell
+                  label="Assignee"
+                  value={correctiveDraft.assignedUserId}
+                  onChange={(value) => setCorrectiveDraft((current) => ({ ...current, assignedUserId: value }))}
+                  options={[
+                    { label: "Assign later", value: "" },
+                    ...dataset.assignableUsers.map((user) => ({ label: `${user.name} - ${user.role}`, value: user.id })),
+                  ]}
+                />
                 {correctiveDraft.observationType === "negative" && correctiveDraft.sifPotential === "yes" ? (
                   <SelectShell
                     label="SIF category"
@@ -1280,7 +1394,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {moduleMetrics(workspace, summary, scoped).map((metric) => (
+        {moduleMetrics(workspace, activeSummary, activeScoped).map((metric) => (
           <MetricCard key={metric.title} {...metric} />
         ))}
       </div>
@@ -1343,16 +1457,25 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       {workspace === "analytics" ? (
         <div className="mt-5 grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="p-5">
-            <SectionTitle title={`Risk Forecast - ${siteName(selectedForecastSite, dataset.jobsites)}`} />
-            <ForecastTrendChart data={riskForecastForSite(dataset, selectedForecastSite)} />
+            <SectionTitle title={`Risk Forecast - ${selectedForecastTitle}`} />
+            <ForecastTrendChart data={riskForecastForSite(activeDataset, selectedForecastSite)} />
           </Card>
           <Card className="p-5">
             <SectionTitle title="Risk Heat Map" />
             <div className="mt-4">
-              {dataset.mode === "live" ? <LiveRiskMap jobsites={dataset.jobsites} /> : <RiskHeatMap variant="dashboard" />}
+              {dataset.mode === "live" || workspace === "analytics" ? <LiveRiskMap jobsites={activeJobsites} /> : <RiskHeatMap variant="dashboard" />}
             </div>
           </Card>
         </div>
+      ) : null}
+
+      {workspace === "analytics" ? (
+        <Card className="mt-5 overflow-hidden">
+          <div className="p-5 pb-3">
+            <SectionTitle title={pageRows.title} action={<span className="text-sm font-black text-slate-500">{pageRows.rows.length} jobsites</span>} />
+          </div>
+          <DataTable headers={pageRows.headers} rows={pageRows.rows} actions={pageRows.actions} rowIds={pageRows.rowIds} />
+        </Card>
       ) : null}
 
       {workspace === "reports" ? (
@@ -1361,8 +1484,8 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             <SectionTitle title="Launch Readiness Snapshot" />
             <div className="mt-4 space-y-3">
               <NextStepRow title="Jobsite records connected" detail={`${dataset.jobsites.length} jobsites are available in SafetyDoc360.`} tone="blue" icon={<MapPin className="h-5 w-5" />} href="/safe-predict/jobsites" />
-              <NextStepRow title="Open work remains" detail={`${summary.openActions} actions are still open across the platform.`} tone="high" icon={<ClipboardCheck className="h-5 w-5" />} href="/safe-predict/corrective-actions" />
-              <NextStepRow title="Training risk visible" detail={`${summary.workforce.overdue} workers have overdue readiness items.`} tone="medium" icon={<Users className="h-5 w-5" />} href="/safe-predict/training" />
+              <NextStepRow title="Open work remains" detail={`${activeSummary.openActions} actions are still open across the platform.`} tone="high" icon={<ClipboardCheck className="h-5 w-5" />} href="/safe-predict/corrective-actions" />
+              <NextStepRow title="Training risk visible" detail={`${activeSummary.workforce.overdue} workers have overdue readiness items.`} tone="medium" icon={<Users className="h-5 w-5" />} href="/safe-predict/training" />
             </div>
           </Card>
           <Card className="p-5">
@@ -1466,7 +1589,7 @@ function moduleMetrics(
     return Number.isFinite(parsed) && parsed < Date.now();
   });
   const shared = [
-    { title: "Sites In Scope", value: scoped.actions.length || summary.jobsites, detail: "Connected records", tone: "blue" as const, icon: <MapPin className="h-7 w-7" /> },
+    { title: "Sites In Scope", value: summary.jobsites, detail: "Connected records", tone: "blue" as const, icon: <MapPin className="h-7 w-7" /> },
     { title: "Open Actions", value: scopedOpenActions.length, detail: `${scopedOverdueActions.length} overdue`, tone: "orange" as const, icon: <ClipboardCheck className="h-7 w-7" /> },
   ];
   if (workspace === "incidents") return [{ title: "Incident Reviews", value: scoped.incidents.length, detail: "Open and closed", tone: "red" as const, icon: <AlertTriangle className="h-7 w-7" /> }, ...shared, { title: "Near Miss Signals", value: scoped.incidents.filter((row) => row.type === "Near Miss").length, detail: "Last 30 days", tone: "amber" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
@@ -1476,7 +1599,16 @@ function moduleMetrics(
   if (workspace === "hazards") return [{ title: "Hazards", value: scoped.hazards.length, detail: "Active drivers", tone: "red" as const, icon: <TriangleAlert className="h-7 w-7" /> }, ...shared, { title: "Needs Control", value: scoped.hazards.filter((row) => row.controlStatus !== "Controlled").length, detail: "Open controls", tone: "orange" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
   if (workspace === "training") return [{ title: "Training Compliance", value: `${summary.workforce.compliantPercent}%`, detail: `${summary.workforce.overdue} overdue`, tone: "green" as const, icon: <GraduationCap className="h-7 w-7" /> }, ...shared, { title: "Workers In Scope", value: scoped.employees.length, detail: "Roster rows", tone: "blue" as const, icon: <Users className="h-7 w-7" /> }];
   if (workspace === "permits") return [{ title: "Permit Records", value: scoped.permits.length, detail: `${summary.permits.expired} expired`, tone: "blue" as const, icon: <FileText className="h-7 w-7" /> }, ...shared, { title: "Expiring Soon", value: scoped.permits.filter((row) => row.status === "Expiring Soon").length, detail: "Renewal needed", tone: "amber" as const, icon: <CalendarCheck className="h-7 w-7" /> }];
-  if (workspace === "analytics") return [{ title: "Risk Trend", value: "Elevated", detail: "Next 30 days", tone: "red" as const, icon: <BarChart3 className="h-7 w-7" /> }, ...shared, { title: "Risk Score", value: summary.riskScore, detail: "All jobsites", tone: "orange" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
+  if (workspace === "analytics") {
+    const signalCount = summary.openActions + summary.inspectionGaps + summary.incidents + summary.observations + summary.hazards + summary.permits.expiringSoon + summary.permits.expired;
+    const trendLabel = signalCount === 0 ? "No Data" : summary.riskScore >= 70 ? "High" : summary.riskScore >= 40 ? "Elevated" : "Moderate";
+    const trendTone = signalCount === 0 ? "blue" : summary.riskScore >= 70 ? "red" : summary.riskScore >= 40 ? "orange" : "green";
+    return [
+      { title: "Risk Trend", value: trendLabel, detail: signalCount === 0 ? "No matching signals" : `${signalCount} filtered signals`, tone: trendTone as "red" | "orange" | "green" | "blue", icon: <BarChart3 className="h-7 w-7" /> },
+      ...shared,
+      { title: "Risk Score", value: summary.riskScore, detail: summary.jobsites === 1 ? "Selected jobsite" : "Filtered jobsites", tone: summary.riskScore >= 70 ? "red" as const : summary.riskScore >= 40 ? "orange" as const : "green" as const, icon: <ShieldAlert className="h-7 w-7" /> },
+    ];
+  }
   if (workspace === "reports") return [{ title: "Reports", value: scoped.reports.length, detail: "Ready or draft", tone: "blue" as const, icon: <Download className="h-7 w-7" /> }, ...shared, { title: "Documents", value: scoped.documents.length, detail: "In evidence pack", tone: "green" as const, icon: <FileText className="h-7 w-7" /> }];
   return [{ title: "Mode", value: "Local", detail: "Live data capable", tone: "blue" as const, icon: <Settings className="h-7 w-7" /> }, ...shared, { title: "Jobsites", value: summary.jobsites, detail: "Available", tone: "green" as const, icon: <MapPin className="h-7 w-7" /> }];
 }
@@ -1499,11 +1631,11 @@ function buildRows({
   riskFilter: SafePredictRiskLevel | "all";
   statusFilter: string;
   scoped: ScopedRows;
-  jobsites: Array<{ id: string; name: string }>;
+  jobsites: SafePredictJobsiteRecord[];
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
   closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   createActionFromSignal: (signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel; detail?: string; category?: string }) => void;
-  openPermitComposer: (siteId?: string) => void;
+  openPermitComposer: (siteId?: string, permit?: SafePredictDataset["permits"][number], mode?: SafePredictPermitFormMode) => void;
   assignTrainingWithAi: (worker?: SafePredictDemoEmployee) => void;
 }): WorkspaceRows {
   function textMatches(values: string[]) {
@@ -1564,12 +1696,36 @@ function buildRows({
   }
 
   if (workspace === "permits") {
-    const rows = scoped.permits.filter((row) => textMatches([row.type, row.status, row.owner]) && statusMatches(row.status) && riskMatches(row.riskLevel));
-    return table("Permit Register", ["Permit", "Jobsite", "Status", "Owner", "Expires", "Risk"], rows.map((row) => [row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.riskLevel]), rows.map((row) => ({ label: "Renew", onClick: () => openPermitComposer(row.siteId) })), rows, rows.map((row) => row.id));
+    const rows = scoped.permits.filter((row) => textMatches([row.title || row.type, row.status, row.owner, row.readiness]) && statusMatches(row.status) && riskMatches(row.riskLevel));
+    return table(
+      "Permit Register",
+      ["Permit", "Jobsite", "Status", "Owner", "Expires", "Readiness", "Risk"],
+      rows.map((row) => [row.title || row.type, siteName(row.siteId, jobsites), row.status, row.owner, row.expiresAt, row.readiness, row.riskLevel]),
+      rows.map((row) => ({
+        label: "View",
+        onClick: () => openPermitComposer(row.siteId, row, "view"),
+        secondaryLabel: "Edit",
+        secondaryOnClick: () => openPermitComposer(row.siteId, row, "edit"),
+      })),
+      rows,
+      rows.map((row) => row.id)
+    );
   }
 
   if (workspace === "analytics") {
-    return table("Risk Analytics By Jobsite", ["Jobsite", "Risk", "Open Actions", "Inspection Gaps", "Incidents"], jobsites.map((site) => [site.name, "Open", "", "", ""]), [], jobsites);
+    return table(
+      "Risk Analytics By Jobsite",
+      ["Jobsite", "Score", "Open Actions", "Inspection Gaps", "Incidents", "Risk"],
+      jobsites.map((site) => {
+        const siteActions = scoped.actions.filter((row) => row.siteId === site.id && row.status !== "Closed");
+        const inspectionGaps = scoped.inspections.filter((row) => row.siteId === site.id).reduce((sum, row) => sum + row.failedItems, 0);
+        const incidents = scoped.incidents.filter((row) => row.siteId === site.id).length;
+        return [site.name, `${site.riskScore}`, `${siteActions.length}`, `${inspectionGaps}`, `${incidents}`, site.riskLevel];
+      }),
+      [],
+      jobsites,
+      jobsites.map((site) => site.id)
+    );
   }
 
   if (workspace === "reports") {
@@ -1603,12 +1759,15 @@ function DataTable({ headers, rows, actions, rowIds }: { headers: string[]; rows
             ))}
           </dl>
           {actions[rowIndex] ? (
-            <div className="mt-4">
+            <div className="mt-4 flex gap-2">
               {actions[rowIndex].href ? (
                 <Link href={actions[rowIndex].href} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</Link>
               ) : (
                 <button type="button" onClick={actions[rowIndex].onClick} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</button>
               )}
+              {actions[rowIndex].secondaryLabel ? (
+                <button type="button" onClick={actions[rowIndex].secondaryOnClick} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">{actions[rowIndex].secondaryLabel}</button>
+              ) : null}
             </div>
           ) : null}
         </article>
@@ -1634,11 +1793,16 @@ function DataTable({ headers, rows, actions, rowIds }: { headers: string[]; rows
               ))}
               {actions[rowIndex] ? (
                 <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-2">
                   {actions[rowIndex].href ? (
                     <Link href={actions[rowIndex].href} className="inline-flex rounded-md border border-blue-200 px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</Link>
                   ) : (
                     <button type="button" onClick={actions[rowIndex].onClick} className="inline-flex rounded-md border border-blue-200 px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</button>
                   )}
+                  {actions[rowIndex].secondaryLabel ? (
+                    <button type="button" onClick={actions[rowIndex].secondaryOnClick} className="inline-flex rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">{actions[rowIndex].secondaryLabel}</button>
+                  ) : null}
+                  </div>
                 </td>
               ) : null}
             </tr>

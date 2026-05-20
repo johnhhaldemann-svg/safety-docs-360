@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Download, FilterX, MapPin, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Download, FilterX, Loader2, MapPin, Plus, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 import {
   Card,
   CorrectiveActionCard,
@@ -25,9 +25,24 @@ import {
 } from "@/lib/safePredictMockData";
 import { SafePredictOriginalSystemLinks } from "@/components/safe-predict/SafePredictOriginalSystemLinks";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
-import type { SafePredictJobsiteRecord } from "@/lib/safePredictData";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import type { SafePredictAssignableUser, SafePredictJobsiteRecord } from "@/lib/safePredictData";
+import type { SafePredictAiActionSuggestion } from "@/lib/correctiveActionAi";
 
 const statuses: SafePredictActionStatus[] = ["New", "In Progress", "Awaiting Verification", "Closed"];
+const suggestionCategories = [
+  { label: "Corrective action", value: "corrective_action" },
+  { label: "Hazard", value: "hazard" },
+  { label: "Near miss", value: "near_miss" },
+  { label: "Incident", value: "incident" },
+  { label: "PPE violation", value: "ppe_violation" },
+  { label: "Housekeeping", value: "housekeeping" },
+  { label: "Equipment issue", value: "equipment_issue" },
+  { label: "Fall hazard", value: "fall_hazard" },
+  { label: "Electrical hazard", value: "electrical_hazard" },
+  { label: "Excavation/trench concern", value: "excavation_trench_concern" },
+  { label: "Fire/hot work concern", value: "fire_hot_work_concern" },
+];
 const hashAliases: Record<string, string> = {
   "fall-compliance": "machine-guarding",
   "housekeeping-control": "housekeeping",
@@ -79,6 +94,17 @@ function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
   return "bg-emerald-500";
 }
 
+function dateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function priorityFromSeverity(level: SafePredictAiActionSuggestion["severity"]): SafePredictCorrectiveAction["priority"] {
+  return level === "critical" || level === "high" ? "high" : "medium";
+}
+
 function LiveRiskMapPanel({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
   if (jobsites.length === 0) {
     return (
@@ -114,7 +140,7 @@ function LiveRiskMapPanel({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }
 }
 
 export default function SafePredictRiskMitigationPage() {
-  const { dataset, loading, updateActionStatus, addDraftAction } = useSafePredictData();
+  const { dataset, loading, updateActionStatus, addDraftAction, createCorrectiveAction } = useSafePredictData();
   const providerActions = dataset.actions;
   const providerAlerts = dataset.alerts;
   const [timeFilter, setTimeFilter] = useState("all-time");
@@ -128,6 +154,11 @@ export default function SafePredictRiskMitigationPage() {
   const [selectedRiskId, setSelectedRiskId] = useState(providerAlerts[0]?.id ?? "");
   const [newActionId, setNewActionId] = useState("");
   const [actions, setActions] = useState<SafePredictCorrectiveAction[]>(providerActions);
+  const [aiSuggestion, setAiSuggestion] = useState<SafePredictAiActionSuggestion | null>(null);
+  const [aiAssignableUsers, setAiAssignableUsers] = useState<SafePredictAssignableUser[]>(dataset.assignableUsers);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
 
   useEffect(() => {
     function syncSelectedRiskFromHash() {
@@ -150,6 +181,10 @@ export default function SafePredictRiskMitigationPage() {
   useEffect(() => {
     setActions(providerActions);
   }, [providerActions]);
+
+  useEffect(() => {
+    setAiAssignableUsers(dataset.assignableUsers);
+  }, [dataset.assignableUsers]);
 
   const visibleAlerts = useMemo(() => {
     const byRisk = filterAlertsByRisk(providerAlerts, riskLevel)
@@ -244,6 +279,120 @@ export default function SafePredictRiskMitigationPage() {
     setTimeFilter("all-time");
     setAlertsOpen(false);
     setActions((current) => [{ ...sharedAction, status: sharedAction.status }, ...current.filter((action) => action.id !== sharedAction.id)]);
+    window.setTimeout(() => {
+      document.getElementById("corrective-action-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  async function generateAiAction() {
+    const riskForAction = selectedRisk ?? visibleAlerts[0] ?? providerAlerts[0];
+    if (!riskForAction) {
+      setAiMessage("Select a risk signal before asking AI to prepare an action.");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      if (!token) {
+        setAiMessage("Sign in to generate AI mitigation actions for this workspace.");
+        return;
+      }
+
+      const response = await fetch("/api/company/corrective-actions/ai-suggest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          risk: {
+            id: riskForAction.id,
+            title: riskForAction.title,
+            detail: riskForAction.detail,
+            riskLevel: riskForAction.riskLevel,
+            source: riskForAction.source,
+            site: riskForAction.site,
+            siteId: "siteId" in riskForAction && typeof riskForAction.siteId === "string" ? riskForAction.siteId : undefined,
+            area: riskForAction.area,
+            score: riskForAction.score,
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            suggestion?: SafePredictAiActionSuggestion;
+            assignableUsers?: SafePredictAssignableUser[];
+          }
+        | null;
+
+      if (!response.ok || !payload?.suggestion) {
+        setAiSuggestion(null);
+        setAiMessage(payload?.error || "AI could not prepare a mitigation action.");
+        return;
+      }
+
+      setAiSuggestion(payload.suggestion);
+      setAiAssignableUsers(payload.assignableUsers?.length ? payload.assignableUsers : dataset.assignableUsers);
+      setSelectedRiskId(riskForAction.id);
+      setAiMessage(payload.suggestion.warning || "AI prepared a mitigation action for review.");
+      window.setTimeout(() => {
+        document.getElementById("ai-mitigation-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+    } catch (error) {
+      setAiSuggestion(null);
+      setAiMessage(error instanceof Error ? error.message : "AI could not prepare a mitigation action.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function saveAiAction() {
+    if (!aiSuggestion) return;
+    if (!aiSuggestion.assignedUserId) {
+      setAiMessage("Choose an active company user before saving this AI action.");
+      return;
+    }
+    const riskForAction = selectedRisk ?? visibleAlerts.find((alert) => alert.id === aiSuggestion.riskId) ?? providerAlerts.find((alert) => alert.id === aiSuggestion.riskId);
+    const fallbackSiteId = dataset.jobsites[0]?.id ?? "workspace";
+    const siteId =
+      riskForAction && "siteId" in riskForAction && typeof riskForAction.siteId === "string"
+        ? riskForAction.siteId
+        : fallbackSiteId;
+    setAiSaving(true);
+    setAiMessage("");
+    const result = await createCorrectiveAction({
+      title: aiSuggestion.title,
+      linkedRiskId: aiSuggestion.riskId,
+      linkedRisk: aiSuggestion.riskTitle,
+      siteId,
+      priority: priorityFromSeverity(aiSuggestion.severity),
+      createdFrom: riskForAction?.source === "Observation" ? "Observation" : riskForAction?.source === "Inspection" ? "Inspection" : "Predictive Alert",
+      description: `${aiSuggestion.description}\n\nAI rationale: ${aiSuggestion.rationale}\nRisk signal: ${aiSuggestion.riskId}.`,
+      category: aiSuggestion.category,
+      assignedUserId: aiSuggestion.assignedUserId,
+      dueAt: aiSuggestion.dueAt,
+      observationType: "negative",
+      sifPotential: false,
+      status: "New",
+    });
+    setAiSaving(false);
+    if (!result.success || !result.action) {
+      setAiMessage(result.error || "Could not save the AI action.");
+      return;
+    }
+    setNewActionId(result.action.id);
+    setActions((current) => [result.action!, ...current.filter((action) => action.id !== result.action!.id)]);
+    setStatusFilter("New");
+    setSearchTerm("");
+    setAiSuggestion(null);
+    setAiMessage("AI action saved to the corrective action tracker.");
     window.setTimeout(() => {
       document.getElementById("corrective-action-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
@@ -404,6 +553,15 @@ export default function SafePredictRiskMitigationPage() {
         </ExportButton>
         <button
           type="button"
+          onClick={() => void generateAiAction()}
+          disabled={aiLoading || !selectedRisk}
+          className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+        >
+          {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          AI Action
+        </button>
+        <button
+          type="button"
           onClick={() => addCorrectiveAction("New")}
           className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
         >
@@ -411,6 +569,95 @@ export default function SafePredictRiskMitigationPage() {
           New Corrective Action
         </button>
       </div>
+
+      {aiMessage ? (
+        <p className={cx("mb-5 rounded-lg px-4 py-3 text-sm font-bold", aiMessage.includes("saved") || aiMessage.includes("prepared") ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+          {aiMessage}
+        </p>
+      ) : null}
+
+      {aiSuggestion ? (
+        <Card id="ai-mitigation-review" className="mb-5 scroll-mt-24 p-5">
+          <SectionTitle
+            title="Review AI Mitigation Action"
+            action={
+              <button type="button" onClick={() => setAiSuggestion(null)} className="text-sm font-black text-slate-500">
+                Dismiss
+              </button>
+            }
+          />
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_160px_180px_240px]">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Action</span>
+              <input
+                value={aiSuggestion.title}
+                onChange={(event) => setAiSuggestion((current) => current ? { ...current, title: event.target.value } : current)}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+            <SelectShell
+              label="Severity"
+              value={aiSuggestion.severity}
+              onChange={(value) => setAiSuggestion((current) => current ? { ...current, severity: value as SafePredictAiActionSuggestion["severity"] } : current)}
+              options={[
+                { label: "Critical", value: "critical" },
+                { label: "High", value: "high" },
+                { label: "Medium", value: "medium" },
+                { label: "Low", value: "low" },
+              ]}
+            />
+            <SelectShell
+              label="Category"
+              value={aiSuggestion.category}
+              onChange={(value) => setAiSuggestion((current) => current ? { ...current, category: value } : current)}
+              options={suggestionCategories}
+            />
+            <SelectShell
+              label="Assignee"
+              value={aiSuggestion.assignedUserId ?? ""}
+              onChange={(value) => {
+                const user = aiAssignableUsers.find((candidate) => candidate.id === value);
+                setAiSuggestion((current) => current ? { ...current, assignedUserId: value || null, assignedUserName: user?.name ?? null } : current);
+              }}
+              options={[
+                { label: "Choose active user", value: "" },
+                ...aiAssignableUsers.map((user) => ({ label: `${user.name} - ${user.role}`, value: user.id })),
+              ]}
+            />
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_180px] xl:items-end">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Mitigation details</span>
+              <textarea
+                value={aiSuggestion.description}
+                onChange={(event) => setAiSuggestion((current) => current ? { ...current, description: event.target.value } : current)}
+                className="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold leading-5 text-slate-800 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Due date</span>
+              <input
+                type="date"
+                value={dateInputValue(aiSuggestion.dueAt)}
+                onChange={(event) => setAiSuggestion((current) => current ? { ...current, dueAt: event.target.value ? new Date(`${event.target.value}T17:00:00`).toISOString() : "" } : current)}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:border-blue-500"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="text-sm font-semibold leading-5 text-slate-600">{aiSuggestion.rationale}</p>
+            <button
+              type="button"
+              onClick={() => void saveAiAction()}
+              disabled={aiSaving || !aiSuggestion.title.trim() || !aiSuggestion.assignedUserId}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {aiSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {aiSaving ? "Saving..." : "Save AI Action"}
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <MetricCard title="Total Open Actions" value={summary.open} detail={summary.open === 0 ? "No actions yet" : "Filtered action board"} tone="blue" icon={<ShieldCheck className="h-7 w-7" />} href="#corrective-action-tracker" sourceLabel="View board" />

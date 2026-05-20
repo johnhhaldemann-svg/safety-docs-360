@@ -6,6 +6,7 @@ import {
   buildSafePredictDataset,
   demoSafePredictDataset,
   nextActionStatus,
+  normalizeLiveActions,
   safePredictStatusToApi,
   type SafePredictActionRecord,
   type SafePredictDataMode,
@@ -17,6 +18,12 @@ import {
   type SafePredictJobsiteRecord,
 } from "@/lib/safePredictData";
 import type { SafePredictActionStatus, SafePredictCorrectiveAction } from "@/lib/safePredictMockData";
+import {
+  SAFE_PREDICT_PERMIT_ACK_STATEMENT,
+  defaultPermitChecklistItems,
+  permitReadinessLabel,
+  type SafePredictPermitForm,
+} from "@/lib/safePredictPermitForms";
 
 type SafePredictDataContextValue = {
   dataset: SafePredictDataset;
@@ -25,6 +32,7 @@ type SafePredictDataContextValue = {
   selectedJobsiteId: string;
   setSelectedJobsiteId: (siteId: string) => void;
   setMode: (mode: SafePredictDataMode) => void;
+  refreshLiveData: () => void;
   updateActionStatus: (id: string, status: SafePredictActionStatus) => void;
   closeActionWithPhoto: (id: string, file: File) => Promise<{ success: boolean; error?: string }>;
   advanceActionStatus: (id: string) => void;
@@ -46,6 +54,22 @@ type SafePredictDataContextValue = {
     persistLocal?: boolean;
     status?: SafePredictActionStatus;
   }) => SafePredictActionRecord;
+  createCorrectiveAction: (input: {
+    title: string;
+    linkedRiskId: string;
+    linkedRisk: string;
+    siteId: string;
+    priority: SafePredictCorrectiveAction["priority"];
+    createdFrom: SafePredictActionRecord["createdFrom"];
+    description?: string;
+    category?: string;
+    assignedUserId?: string;
+    dueAt?: string;
+    observationType?: "positive" | "negative" | "near_miss";
+    sifPotential?: boolean;
+    sifCategory?: string;
+    status?: SafePredictActionStatus;
+  }) => Promise<{ success: boolean; action?: SafePredictActionRecord; error?: string }>;
   addDraftHazard: (input: {
     title: string;
     siteId: string;
@@ -63,7 +87,9 @@ type SafePredictDataContextValue = {
     owner: string;
     expiresAt: string;
     riskLevel: SafePredictPermitRecord["riskLevel"];
+    permitForm?: SafePredictPermitForm;
   }) => SafePredictPermitRecord;
+  updatePermit: (permit: SafePredictPermitRecord) => void;
   addDraftJobsite: (input: {
     name: string;
     code: string;
@@ -117,8 +143,41 @@ function normalizePermitRows(value: unknown): SafePredictPermitRecord[] | null {
   const rows = value.filter((row): row is SafePredictPermitRecord => {
     if (!isRecord(row)) return false;
     return typeof row.id === "string" && typeof row.type === "string" && typeof row.siteId === "string";
-  });
+  }).map(normalizePermitRecord);
   return rows.length > 0 ? rows : null;
+}
+
+function defaultPermitForm(type: string): SafePredictPermitForm {
+  return {
+    checklistItems: defaultPermitChecklistItems(type),
+    acknowledgement: {
+      acknowledged: false,
+      name: "",
+      acknowledgedAt: null,
+      statement: SAFE_PREDICT_PERMIT_ACK_STATEMENT,
+    },
+    notes: "",
+  };
+}
+
+function normalizePermitRecord(permit: SafePredictPermitRecord): SafePredictPermitRecord {
+  const type = permit.type || permit.title || "Work Permit";
+  const permitForm = permit.permitForm ?? defaultPermitForm(type);
+  return {
+    ...permit,
+    type,
+    title: permit.title || type,
+    permitForm,
+    readiness: permitReadinessLabel(permitForm),
+  };
+}
+
+function mergePermitRecords(basePermits: SafePredictPermitRecord[], localPermits: SafePredictPermitRecord[]) {
+  const localById = new Map(localPermits.map((permit) => [permit.id, normalizePermitRecord(permit)]));
+  const mergedBase = basePermits.map((permit) => localById.get(permit.id) ?? normalizePermitRecord(permit));
+  const baseIds = new Set(basePermits.map((permit) => permit.id));
+  const localOnly = localPermits.filter((permit) => !baseIds.has(permit.id)).map(normalizePermitRecord);
+  return [...localOnly, ...mergedBase];
 }
 
 function normalizeStatusOverrides(value: unknown): Record<string, SafePredictActionStatus> {
@@ -141,11 +200,15 @@ function normalizeJobsiteRows(value: unknown): SafePredictJobsiteRecord[] | null
 }
 
 async function fetchJsonWithToken(path: string, token?: string | null) {
-  const response = await fetch(path, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
-  if (!response.ok) return null;
-  return (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  try {
+    const response = await fetch(path, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!response.ok) return null;
+    return (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  } catch {
+    return null;
+  }
 }
 
 function extractRows(payload: Record<string, unknown> | null, keys: string[]) {
@@ -197,7 +260,7 @@ function loadInitialHazards(scope: string) {
 
 function loadInitialPermits(scope: string) {
   try {
-    return normalizePermitRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(permitStorageKey, scope)) || "null"))?.filter((permit) => permit.id.startsWith("draft-permit-")) ?? [];
+    return normalizePermitRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(permitStorageKey, scope)) || "null")) ?? [];
   } catch {
     return [];
   }
@@ -241,6 +304,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [storageScope, setStorageScope] = useState(anonymousStorageScope);
   const [storageReady, setStorageReady] = useState(false);
   const [demoModeAllowed, setDemoModeAllowed] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -394,14 +458,14 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     return () => {
       cancelled = true;
     };
-  }, [mode, storageReady]);
+  }, [mode, refreshNonce, storageReady]);
 
   const dataset = useMemo<SafePredictDataset>(
     () => ({
       ...baseDataset,
       jobsites: [...draftJobsites, ...baseDataset.jobsites],
       hazards: [...draftHazards, ...baseDataset.hazards],
-      permits: [...draftPermits, ...baseDataset.permits],
+      permits: mergePermitRecords(baseDataset.permits, draftPermits),
       actions: [
         ...draftActions,
         ...baseDataset.actions.map((action) => {
@@ -416,6 +480,10 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     }),
     [actionStatuses, baseDataset, draftActions, draftHazards, draftJobsites, draftPermits]
   );
+
+  const refreshLiveData = useCallback(() => {
+    setRefreshNonce((current) => current + 1);
+  }, []);
 
   const setMode = useCallback((nextMode: SafePredictDataMode) => {
     if (nextMode === "demo" && !demoModeAllowed) {
@@ -630,12 +698,15 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       status?: SafePredictActionStatus;
     }) => {
       const status = input.status ?? "New";
+      const assignedUser = input.assignedUserId
+        ? dataset.assignableUsers.find((user) => user.id === input.assignedUserId)
+        : null;
       const draft: SafePredictActionRecord = {
         id: `draft-${Date.now()}`,
         title: input.title,
         linkedRiskId: input.linkedRiskId,
         linkedRisk: input.linkedRisk,
-        assignee: input.assignedUserId || "Unassigned",
+        assignee: assignedUser?.name ?? input.assignedUserId ?? "Unassigned",
         dueDate: input.dueAt ? new Date(input.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "May 30",
         status,
         priority: input.priority,
@@ -674,7 +745,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       }
       return draft;
     },
-    [draftActions, liveToken, mode, persistDraftActions]
+    [dataset.assignableUsers, draftActions, liveToken, mode, persistDraftActions]
   );
 
   const addDraftHazard = useCallback(
@@ -728,18 +799,104 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       owner: string;
       expiresAt: string;
       riskLevel: SafePredictPermitRecord["riskLevel"];
+      permitForm?: SafePredictPermitForm;
     }) => {
+      const type = input.type || input.title || "Work Permit";
+      const permitForm = input.permitForm ?? defaultPermitForm(type);
       const draft: SafePredictPermitRecord = {
         id: `draft-permit-${Date.now()}`,
         siteId: input.siteId,
-        type: input.type || input.title,
+        type,
+        title: input.title || type,
         status: input.status,
         owner: input.owner || "Unassigned",
         expiresAt: input.expiresAt || "No expiration set",
         riskLevel: input.riskLevel,
+        permitForm,
+        readiness: permitReadinessLabel(permitForm),
       };
       persistDraftPermits([draft, ...draftPermits]);
       return draft;
+    },
+    [draftPermits, persistDraftPermits]
+  );
+
+  const createCorrectiveAction = useCallback(
+    async (input: {
+      title: string;
+      linkedRiskId: string;
+      linkedRisk: string;
+      siteId: string;
+      priority: SafePredictCorrectiveAction["priority"];
+      createdFrom: SafePredictActionRecord["createdFrom"];
+      description?: string;
+      category?: string;
+      assignedUserId?: string;
+      dueAt?: string;
+      observationType?: "positive" | "negative" | "near_miss";
+      sifPotential?: boolean;
+      sifCategory?: string;
+      status?: SafePredictActionStatus;
+    }) => {
+      const status = input.status ?? "New";
+      if (mode === "live" && liveToken) {
+        try {
+          const response = await fetch("/api/company/corrective-actions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${liveToken}`,
+            },
+            body: JSON.stringify({
+              title: input.title,
+              description: input.description || `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
+              severity: input.priority,
+              category: input.category || "corrective_action",
+              status: safePredictStatusToApi(status),
+              jobsiteId: input.siteId,
+              assignedUserId: input.assignedUserId || null,
+              dueAt: input.dueAt || null,
+              observationType: input.observationType || "negative",
+              sifPotential: input.sifPotential ?? false,
+              sifCategory: input.sifCategory || null,
+            }),
+          });
+          const payload = (await response.json().catch(() => null)) as
+            | { action?: SafePredictLiveRecordRow; error?: string }
+            | null;
+          if (!response.ok || !payload?.action) {
+            return { success: false, error: payload?.error || "Could not create the corrective action." };
+          }
+          const savedAction = normalizeLiveActions([payload.action], baseDataset.jobsites, baseDataset.assignableUsers)[0];
+          if (!savedAction) {
+            return { success: false, error: "Corrective action was saved, but could not be added to this board." };
+          }
+          setBaseDataset((current) => ({
+            ...current,
+            actions: [savedAction, ...current.actions.filter((action) => action.id !== savedAction.id)],
+          }));
+          return { success: true, action: savedAction };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Could not create the corrective action.",
+          };
+        }
+      }
+
+      const action = addDraftAction({ ...input, status, persistLive: false });
+      return { success: true, action };
+    },
+    [addDraftAction, baseDataset.assignableUsers, baseDataset.jobsites, liveToken, mode]
+  );
+
+  const updatePermit = useCallback(
+    (permit: SafePredictPermitRecord) => {
+      const nextPermit = normalizePermitRecord(permit);
+      const nextPermits = draftPermits.some((candidate) => candidate.id === nextPermit.id)
+        ? draftPermits.map((candidate) => (candidate.id === nextPermit.id ? nextPermit : candidate))
+        : [nextPermit, ...draftPermits];
+      persistDraftPermits(nextPermits);
     },
     [draftPermits, persistDraftPermits]
   );
@@ -813,12 +970,15 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         selectedJobsiteId,
         setSelectedJobsiteId,
         setMode,
+        refreshLiveData,
         updateActionStatus,
         closeActionWithPhoto,
         advanceActionStatus,
         addDraftAction,
+        createCorrectiveAction,
         addDraftHazard,
         addDraftPermit,
+        updatePermit,
         addDraftJobsite,
       }}
     >

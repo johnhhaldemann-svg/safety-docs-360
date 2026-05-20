@@ -281,7 +281,7 @@ export function SafePredictJobsiteAudits() {
     setPhotoCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
   }, []);
 
-  function clearDraft() {
+  function resetAuditDraft() {
     const draft = emptyDraft();
     setJobsiteId("");
     setAuditDate(draft.auditDate);
@@ -292,6 +292,11 @@ export function SafePredictJobsiteAudits() {
     setStatusMap({});
     setNotesMap({});
     setPhotoCounts({});
+  }
+
+  function clearDraft() {
+    window.localStorage.removeItem(DRAFT_KEY);
+    resetAuditDraft();
     setMessageTone("neutral");
     setMessage("Audit draft cleared.");
   }
@@ -335,11 +340,9 @@ export function SafePredictJobsiteAudits() {
         `Audit submitted with ${data?.observationCount ?? 0} observations, ${data?.correctiveActionsCreated ?? 0} corrective actions, ${data?.aiRecordsCreated ?? 0} AI records, and ${formatStatus(data?.aiReviewStatus)} AI review.`
       );
       window.localStorage.removeItem(DRAFT_KEY);
-      setStatusMap({});
-      setNotesMap({});
-      setPhotoCounts({});
-      setNotes("");
       await loadData();
+      resetAuditDraft();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Submit failed.");

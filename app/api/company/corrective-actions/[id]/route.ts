@@ -12,6 +12,7 @@ import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
+import { validateCompanyAssignableUserId } from "@/lib/companyAssignableUsers";
 
 export const runtime = "nodejs";
 
@@ -273,6 +274,18 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as ActionUpdatePayload | null;
+  let normalizedAssignedUserId: string | null | undefined;
+  if (typeof body?.assignedUserId === "string") {
+    const assigneeValidation = await validateCompanyAssignableUserId({
+      supabase: auth.supabase,
+      companyId: companyScope.companyId,
+      assignedUserId: body.assignedUserId,
+    });
+    if (assigneeValidation.error) {
+      return NextResponse.json({ error: assigneeValidation.error }, { status: 400 });
+    }
+    normalizedAssignedUserId = assigneeValidation.assignedUserId;
+  }
   const nextJobsiteId =
     typeof body?.jobsiteId === "string"
       ? body.jobsiteId.trim() || null
@@ -404,8 +417,8 @@ export async function PATCH(
       ? { dap_activity_id: body.dapActivityId.trim() || null }
       : {}),
     ...(typeof derivedWorkflowStatus === "string" ? { workflow_status: derivedWorkflowStatus } : {}),
-    ...(typeof body?.assignedUserId === "string"
-      ? { assigned_user_id: body.assignedUserId.trim() || null }
+    ...(typeof normalizedAssignedUserId !== "undefined"
+      ? { assigned_user_id: normalizedAssignedUserId }
       : {}),
     ...(typeof dueAtIso !== "undefined" ? { due_at: dueAtIso } : {}),
     ...(nextStatus
@@ -453,7 +466,7 @@ export async function PATCH(
     event_payload: {
       status: nextStatus,
       category: body?.category,
-      assignedUserId: body?.assignedUserId,
+      assignedUserId: normalizedAssignedUserId,
       dapId: body?.dapId,
       dapActivityId: body?.dapActivityId,
       workflowStatus: body?.workflowStatus,

@@ -41,6 +41,10 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
    | `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_APP_URL` | Canonical URL for invites and redirects |
    | `NEXT_PUBLIC_ADMIN_EMAILS` | Optional; platform admin list |
    | `CRON_SECRET` | Long random string; required for scheduled cron (see below) |
+   | `FEATURE_JOBSITE_WEATHER_NOTIFICATIONS` | Set `true` to enable U.S. jobsite NWS weather alerts |
+   | `NWS_USER_AGENT` | Required by the National Weather Service API; include app name/version and support email |
+   | `GEOCODIO_API_KEY` | ZIP-only weather geocoding fallback; ZIP weather is approximate |
+   | `WEATHER_ALERT_FROM_EMAIL` | Sender for weather alert emails through Resend |
    | `OPENAI_API_KEY` | If AI features are enabled in prod |
    | `OPENAI_BASE_URL` | Optional; use `https://ai-gateway.vercel.sh/v1` with a Vercel AI Gateway key (`vck_…`) |
    | `RESEND_FROM_EMAIL` | If sending invite email from your domain |
@@ -67,12 +71,13 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 
 ## 3. Scheduled crons
 
-[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh`, `GET /api/cron/company-billing-invoices`, and `GET /api/cron/risk-memory-rollup` daily.
+[`vercel.json`](../vercel.json) schedules `GET /api/cron/injury-weather-refresh`, `GET /api/cron/jobsite-weather-alerts`, `GET /api/cron/company-billing-invoices`, and `GET /api/cron/risk-memory-rollup`.
 
 1. Set **`CRON_SECRET`** in Vercel **Production** (and Preview if crons run there).
 2. Vercel injects `Authorization: Bearer <CRON_SECRET>` on cron invocations when `CRON_SECRET` is defined. The handler also accepts `?secret=<CRON_SECRET>` for **manual** runs (do not share or log URLs containing the secret).
 3. If cron returns **401**: confirm `CRON_SECRET` has no accidental newlines; redeploy after changing env vars. See [lib/cronAuth.ts](../lib/cronAuth.ts).
 4. **Risk Memory rollup** needs **`SUPABASE_SERVICE_ROLE_KEY`** on Vercel (same as other admin jobs). It upserts `company_risk_memory_snapshots` for each company (skips CSEP-only plans). Optional second scheduled job or manual URL: same path with `&recommendations=1` to append deduped rule-based rows to `company_risk_ai_recommendations`. Optional env: **`RISK_MEMORY_CRON_MAX_COMPANIES`** (default 300, cap 2000).
+5. **Jobsite weather alerts** run every 5 minutes, which requires Vercel Pro/Enterprise cron limits. Enable only after migrations are applied and `FEATURE_JOBSITE_WEATHER_NOTIFICATIONS=true`, `NWS_USER_AGENT`, `GEOCODIO_API_KEY`, `RESEND_API_KEY`, and `WEATHER_ALERT_FROM_EMAIL` are configured. Use mocked NWS/geocoder responses in CI; do not call live NWS from tests.
 
 ## 4. GitHub Actions — Supabase migrations
 

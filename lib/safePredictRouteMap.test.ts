@@ -18,6 +18,9 @@ describe("safePredictRouteMap", () => {
 
   it("preserves jobsite identity and leaves SafePredict routes alone", () => {
     expect(mapSafePredictOperationHref("/jobsites/riverside/permits")).toBe("/safe-predict/jobsites/riverside");
+    expect(mapSafePredictOperationHref("/jobsites/riverside/site-visual?tab=overlaps#zone-1")).toBe(
+      "/jobsites/riverside/site-visual?tab=overlaps#zone-1"
+    );
     expect(mapSafePredictOperationHref("/incidents")).toBe("/safe-predict/incidents");
     expect(mapSafePredictOperationHref("/profile")).toBe("/profile");
     expect(mapSafePredictOperationHref("/safe-predict/jobsites")).toBe("/safe-predict/jobsites");

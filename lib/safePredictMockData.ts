@@ -1,5 +1,8 @@
 export type SafePredictRiskLevel = "critical" | "high" | "medium" | "low";
 
+export const SAFE_PREDICT_RISK_INDEX_HELPER =
+  "This is a 0-100 leading-indicator risk index, not a probability percentage.";
+
 export type SafePredictSite = {
   id: string;
   name: string;

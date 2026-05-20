@@ -86,6 +86,20 @@ export type CompanyJobsite = {
   rawStatus: "planned" | "active" | "completed" | "archived";
   projectManager?: string | null;
   safetyLead?: string | null;
+  zipCode?: string | null;
+  weatherAddressLine1?: string | null;
+  weatherAddressLine2?: string | null;
+  weatherCity?: string | null;
+  weatherState?: string | null;
+  weatherCountry?: string | null;
+  weatherLatitude?: number | string | null;
+  weatherLongitude?: number | string | null;
+  weatherLocationSource?: string | null;
+  weatherLocationConfidence?: string | null;
+  nwsForecastUrl?: string | null;
+  nwsForecastHourlyUrl?: string | null;
+  weatherEnabled?: boolean | null;
+  weatherLastCheckedAt?: string | null;
   auditCustomerId?: string | null;
   customerCompanyName?: string | null;
   customerReportEmail?: string | null;
@@ -124,6 +138,20 @@ type CompanyJobsiteRow = {
   status: string | null;
   project_manager: string | null;
   safety_lead: string | null;
+  zip_code?: string | null;
+  weather_address_line_1?: string | null;
+  weather_address_line_2?: string | null;
+  weather_city?: string | null;
+  weather_state?: string | null;
+  weather_country?: string | null;
+  weather_latitude?: number | string | null;
+  weather_longitude?: number | string | null;
+  weather_location_source?: string | null;
+  weather_location_confidence?: string | null;
+  nws_forecast_url?: string | null;
+  nws_forecast_hourly_url?: string | null;
+  weather_enabled?: boolean | null;
+  weather_last_checked_at?: string | null;
   audit_customer_id?: string | null;
   customer_company_name?: string | null;
   customer_report_email?: string | null;
@@ -504,6 +532,20 @@ export function useCompanyWorkspaceData() {
       source: "document_fallback" as const,
       projectManager: null,
       safetyLead: null,
+      zipCode: null,
+      weatherAddressLine1: null,
+      weatherAddressLine2: null,
+      weatherCity: null,
+      weatherState: null,
+      weatherCountry: null,
+      weatherLatitude: null,
+      weatherLongitude: null,
+      weatherLocationSource: null,
+      weatherLocationConfidence: null,
+      nwsForecastUrl: null,
+      nwsForecastHourlyUrl: null,
+      weatherEnabled: false,
+      weatherLastCheckedAt: null,
       auditCustomerId: null,
       customerCompanyName: null,
       customerReportEmail: null,
@@ -546,6 +588,20 @@ export function useCompanyWorkspaceData() {
         rawStatus,
         projectManager: row.project_manager,
         safetyLead: row.safety_lead,
+        zipCode: row.zip_code ?? null,
+        weatherAddressLine1: row.weather_address_line_1 ?? null,
+        weatherAddressLine2: row.weather_address_line_2 ?? null,
+        weatherCity: row.weather_city ?? null,
+        weatherState: row.weather_state ?? null,
+        weatherCountry: row.weather_country ?? null,
+        weatherLatitude: row.weather_latitude ?? null,
+        weatherLongitude: row.weather_longitude ?? null,
+        weatherLocationSource: row.weather_location_source ?? null,
+        weatherLocationConfidence: row.weather_location_confidence ?? null,
+        nwsForecastUrl: row.nws_forecast_url ?? null,
+        nwsForecastHourlyUrl: row.nws_forecast_hourly_url ?? null,
+        weatherEnabled: Boolean(row.weather_enabled),
+        weatherLastCheckedAt: row.weather_last_checked_at ?? null,
         auditCustomerId: row.audit_customer_id ?? null,
         customerCompanyName: row.customer_company_name ?? null,
         customerReportEmail: row.customer_report_email ?? null,

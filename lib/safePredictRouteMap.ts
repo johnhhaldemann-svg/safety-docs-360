@@ -32,6 +32,8 @@ const nativeSurfaceRouteMap: Record<string, string> = {
   "/permits": "/safe-predict/permit-center",
 };
 
+const nativeJobsiteWorkspaceSegments = new Set(["site-visual"]);
+
 function splitHref(href: string) {
   const [pathAndQuery, hash = ""] = href.split("#");
   const [path, query = ""] = pathAndQuery.split("?");
@@ -62,6 +64,11 @@ export function mapSafePredictOperationHref(href: string) {
   const direct = nativeOperationRouteMap[path];
   if (direct) {
     return appendContext(direct, query, hash);
+  }
+
+  const nativeJobsiteWorkspaceMatch = path.match(/^\/jobsites\/[^/]+\/([^/]+)/);
+  if (nativeJobsiteWorkspaceMatch?.[1] && nativeJobsiteWorkspaceSegments.has(nativeJobsiteWorkspaceMatch[1])) {
+    return href;
   }
 
   const jobsiteMatch = path.match(/^\/jobsites\/([^/]+)/);

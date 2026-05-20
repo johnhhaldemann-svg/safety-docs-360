@@ -12,6 +12,7 @@ type JobsiteUpdatePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  zipCode?: string;
   auditCustomerId?: string | null;
   customerCompanyName?: string;
   customerReportEmail?: string;
@@ -49,7 +50,14 @@ function normalizeEmail(value?: string | null) {
 }
 
 const JOBSITE_SELECT =
-  "id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+  "id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, zip_code, weather_address_line_1, weather_address_line_2, weather_city, weather_state, weather_country, weather_latitude, weather_longitude, weather_location_source, weather_location_confidence, nws_grid_id, nws_grid_x, nws_grid_y, nws_forecast_url, nws_forecast_hourly_url, weather_enabled, weather_last_checked_at, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+
+function normalizeZipCode(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{5})(?:-?(\d{4}))?$/);
+  return match ? (match[2] ? `${match[1]}-${match[2]}` : match[1]) : "invalid";
+}
 
 export async function PATCH(
   request: Request,
@@ -124,8 +132,13 @@ export async function PATCH(
   }
   const customerReportEmail =
     typeof body?.customerReportEmail === "string" ? normalizeEmail(body.customerReportEmail) : undefined;
+  const zipCode =
+    typeof body?.zipCode === "string" ? normalizeZipCode(body.zipCode) : undefined;
   if (customerReportEmail === "invalid") {
     return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
+  }
+  if (zipCode === "invalid") {
+    return NextResponse.json({ error: "Enter a valid 5-digit ZIP code or ZIP+4." }, { status: 400 });
   }
   const auditCustomerId =
     typeof body?.auditCustomerId === "string" ? body.auditCustomerId.trim() : body?.auditCustomerId === null ? null : undefined;
@@ -235,6 +248,7 @@ export async function PATCH(
     ...(typeof body?.safetyLead === "string"
       ? { safety_lead: body.safetyLead.trim() || null }
       : {}),
+    ...(typeof zipCode !== "undefined" ? { zip_code: zipCode } : {}),
     ...(typeof auditCustomerId !== "undefined" ? { audit_customer_id: auditCustomerId || null } : {}),
     ...(typeof body?.customerCompanyName === "string"
       ? { customer_company_name: body.customerCompanyName.trim() || null }

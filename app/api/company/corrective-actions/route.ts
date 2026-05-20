@@ -6,6 +6,7 @@ import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 import { demoWorkspaceSummary } from "@/lib/demoWorkspace";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
+import { validateCompanyAssignableUserId } from "@/lib/companyAssignableUsers";
 
 export const runtime = "nodejs";
 
@@ -509,6 +510,14 @@ export async function POST(request: Request) {
   }
 
   const assignedUserId = body?.assignedUserId?.trim() ?? "";
+  const assigneeValidation = await validateCompanyAssignableUserId({
+    supabase: auth.supabase,
+    companyId: companyScope.companyId,
+    assignedUserId,
+  });
+  if (assigneeValidation.error) {
+    return NextResponse.json({ error: assigneeValidation.error }, { status: 400 });
+  }
   const dapId = body?.dapId?.trim() ?? "";
   const dapActivityId = body?.dapActivityId?.trim() ?? "";
   const requestedWorkflowStatus = body?.workflowStatus?.trim().toLowerCase() ?? "open";
@@ -561,7 +570,7 @@ export async function POST(request: Request) {
         body?.status ??
           (workflowStatus === "immediate_action_required" ? "open" : "open")
       ),
-      assigned_user_id: assignedUserId || null,
+      assigned_user_id: assigneeValidation.assignedUserId,
       dap_id: dapId || null,
       dap_activity_id: dapActivityId || null,
       workflow_status: workflowStatus,
@@ -602,7 +611,7 @@ export async function POST(request: Request) {
     event_payload: {
       severity,
       category,
-      assignedUserId: assignedUserId || null,
+      assignedUserId: assigneeValidation.assignedUserId,
       dapId: dapId || null,
       dapActivityId: dapActivityId || null,
       workflowStatus,

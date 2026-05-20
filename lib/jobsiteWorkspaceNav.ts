@@ -6,7 +6,7 @@ export type JobsiteNavPhase = {
 };
 
 export const JOBSITE_NAV_PHASES: readonly JobsiteNavPhase[] = [
-  { id: "overview", label: "Overview", segments: ["overview", "live-view", "team", "contractor-training"] },
+  { id: "overview", label: "Overview", segments: ["overview", "live-view", "site-visual", "team", "contractor-training"] },
   { id: "field_work", label: "Field work", segments: ["schedule", "jsa", "toolbox", "permits", "inductions"] },
   { id: "compliance", label: "Compliance", segments: ["safety-forms", "incidents", "chemicals"] },
   { id: "documents", label: "Documents", segments: ["documents", "reports"] },
@@ -47,6 +47,7 @@ function segmentLabel(segment: string) {
   const map: Record<string, string> = {
     overview: "Overview",
     "live-view": "Live view",
+    "site-visual": "Site visual",
     team: "Team",
     "contractor-training": "Contractor Training",
     schedule: "Work Schedule",

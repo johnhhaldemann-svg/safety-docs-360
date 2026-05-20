@@ -43,6 +43,15 @@ type JobsiteRow = {
   status?: string;
   project_manager?: string | null;
   safety_lead?: string | null;
+  zip_code?: string | null;
+  weather_location_source?: string | null;
+  weather_location_confidence?: string | null;
+  weather_latitude?: number | string | null;
+  weather_longitude?: number | string | null;
+  weather_enabled?: boolean | null;
+  weather_last_checked_at?: string | null;
+  nws_forecast_url?: string | null;
+  nws_forecast_hourly_url?: string | null;
 };
 
 type SurfaceRow = Record<string, unknown> & { id?: string | null };
@@ -189,6 +198,8 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
   const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
   const overview = (payload?.overview as Record<string, unknown> | undefined) ?? {};
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
+  const weather = (payload?.weather as Record<string, unknown> | undefined) ?? {};
+  const weatherAlerts = ((weather.alerts as Array<Record<string, unknown>> | undefined) ?? []) as Array<Record<string, unknown>>;
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
   const jobsiteId = String(jobsite?.id ?? "");
@@ -244,6 +255,12 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
       title: "Live View",
       detail: `${Number(overview.observations ?? 0)} observation${Number(overview.observations ?? 0) === 1 ? "" : "s"} and live field signals`,
       action: "Open live view",
+    },
+    {
+      href: `/jobsites/${encodeURIComponent(jobsiteId)}/site-visual`,
+      title: "Site Visual",
+      detail: "Generate a schematic 3D map of work areas, tasks, and overlapping work",
+      action: "Open site visual",
     },
     {
       href: links.incidents ?? `/jobsites/${encodeURIComponent(jobsiteId)}/incidents`,
@@ -320,6 +337,8 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
         </div>
       </div>
 
+      <WeatherOverviewCard jobsite={jobsite} alerts={weatherAlerts} />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <div key={card.label} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
@@ -382,6 +401,60 @@ function OverviewWidgets({ payload }: { payload: Record<string, unknown> | null 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function weatherLocationLabel(jobsite: JobsiteRow | null) {
+  const source = String(jobsite?.weather_location_source ?? "").trim();
+  if (source === "address") return "Address";
+  if (source === "zip_centroid") return "ZIP approximate";
+  if (source === "manual") return "Manual";
+  return "Not resolved";
+}
+
+function WeatherOverviewCard({
+  jobsite,
+  alerts,
+}: {
+  jobsite: JobsiteRow | null;
+  alerts: Array<Record<string, unknown>>;
+}) {
+  const enabled = Boolean(jobsite?.weather_enabled);
+  const lastChecked = formatDateTime(jobsite?.weather_last_checked_at);
+  return (
+    <div className="rounded-xl border border-slate-700/80 bg-slate-900/90 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs uppercase tracking-[0.25em] text-slate-500">Weather</div>
+          <h3 className="mt-1 text-lg font-bold text-slate-100">
+            {alerts.length > 0 ? `${alerts.length} active alert${alerts.length === 1 ? "" : "s"}` : enabled ? "No active alerts" : "Weather notifications off"}
+          </h3>
+          <p className="mt-1 text-sm text-slate-400">
+            {weatherLocationLabel(jobsite)}{jobsite?.zip_code ? ` · ZIP ${jobsite.zip_code}` : ""} · Last checked {lastChecked}
+          </p>
+        </div>
+        {jobsite?.nws_forecast_url ? (
+          <a href={jobsite.nws_forecast_url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-sky-300 hover:text-sky-200">
+            Forecast
+          </a>
+        ) : null}
+      </div>
+      {alerts.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {alerts.map((alert, index) => (
+            <div key={String(alert.id ?? index)} className="rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-2 text-sm">
+              <div className="font-semibold text-red-100">{String(alert.event_name ?? "Weather alert")}</div>
+              <div className="mt-1 text-xs text-red-200/80">
+                Expires {formatDateTime(typeof alert.expires_at === "string" ? alert.expires_at : null)}
+              </div>
+              {typeof alert.headline === "string" && alert.headline.trim() ? (
+                <p className="mt-2 text-xs leading-5 text-slate-300">{alert.headline}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

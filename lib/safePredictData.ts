@@ -25,6 +25,14 @@ import {
   type SafePredictForecastPoint,
   type SafePredictRiskLevel,
 } from "@/lib/safePredictMockData";
+import { demoCompanyUsers } from "@/lib/demoWorkspace";
+import {
+  SAFE_PREDICT_PERMIT_ACK_STATEMENT,
+  defaultPermitChecklistItems,
+  permitFormFromMetadata,
+  permitReadinessLabel,
+  type SafePredictPermitForm,
+} from "@/lib/safePredictPermitForms";
 
 export type SafePredictDataMode = "demo" | "live";
 
@@ -40,12 +48,22 @@ export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   inspectionGaps: number;
   incidentCount: number;
   observationCount: number;
+  weatherLatitude?: number | null;
+  weatherLongitude?: number | null;
 };
 
 export type SafePredictActionRecord = SafePredictCorrectiveAction & {
   siteId: string;
   createdFrom: "Predictive Alert" | "Observation" | "Inspection" | "Hazard" | "Manual";
   sourceHref: string;
+};
+
+export type SafePredictAssignableUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
 };
 
 export type SafePredictAlertRecord = SafePredictAlert & {
@@ -103,10 +121,13 @@ export type SafePredictPermitRecord = {
   id: string;
   siteId: string;
   type: string;
+  title: string;
   status: "Active" | "Expiring Soon" | "Expired";
   owner: string;
   expiresAt: string;
   riskLevel: SafePredictRiskLevel;
+  permitForm: SafePredictPermitForm;
+  readiness: "Ready" | "Needs acknowledgement" | "Checklist incomplete";
 };
 
 export type SafePredictDocumentRecord = {
@@ -132,6 +153,7 @@ export type SafePredictDataset = {
   company: SafePredictDemoCompany;
   jobsites: SafePredictJobsiteRecord[];
   employees: SafePredictDemoEmployee[];
+  assignableUsers: SafePredictAssignableUser[];
   alerts: SafePredictAlertRecord[];
   actions: SafePredictActionRecord[];
   inspections: SafePredictInspectionRecord[];
@@ -148,9 +170,19 @@ export type SafePredictDataset = {
   reports: SafePredictReportRecord[];
 };
 
+export type SafePredictForecastConfidence = {
+  percent: number;
+  label: "High" | "Medium" | "Low";
+  sourceCount: number;
+  signalCount: number;
+  detail: string;
+};
+
 export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   id?: string;
   name?: string;
+  jobsite_number?: string | null;
+  jobsiteNumber?: string | null;
   project_number?: string | null;
   projectNumber?: string | null;
   location?: string | null;
@@ -167,6 +199,10 @@ export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
   startDate?: string | null;
   end_date?: string | null;
   endDate?: string | null;
+  weather_latitude?: number | string | null;
+  weatherLatitude?: number | string | null;
+  weather_longitude?: number | string | null;
+  weatherLongitude?: number | string | null;
 };
 
 export type SafePredictLiveRecordRow = Record<string, unknown>;
@@ -327,15 +363,124 @@ function withSiteMetrics(site: SafePredictDemoJobsite, index: number): SafePredi
   };
 }
 
-function riskScoreFromLiveRows(related: SafePredictLiveRecordRow[]) {
-  const score = related.reduce((total, row) => {
-    const severity = normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), "medium");
-    const status = textValue(row, ["status"]).toLowerCase();
-    const severityPoints = severity === "critical" ? 18 : severity === "high" ? 12 : severity === "medium" ? 6 : 2;
-    const statusPoints = status.includes("closed") || status.includes("verified") ? -4 : 0;
-    return total + severityPoints + statusPoints;
-  }, 0);
-  return Math.max(0, Math.min(100, score));
+function coordinateValue(value: unknown) {
+  const coordinate = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
+function severityPressure(
+  level: SafePredictRiskLevel,
+  weights: Record<SafePredictRiskLevel, number>
+) {
+  return weights[level];
+}
+
+function saturatedRiskScore(rawPressure: number) {
+  if (rawPressure <= 0) return 0;
+  return clampRiskScore(100 * (1 - Math.exp(-rawPressure / 90)));
+}
+
+function failedItemsFromRow(row: SafePredictLiveRecordRow) {
+  return Math.max(0, Number(row.failed_items ?? row.failedItems ?? row.deficiency_count ?? 0) || 0);
+}
+
+function liveRowsForSite(rows: SafePredictLiveRecordRow[], jobsites: SafePredictJobsiteRecord[], siteId: string) {
+  return rows.filter((row, index) => liveSiteId(row, jobsites, index) === siteId);
+}
+
+function liveActionPressure(row: SafePredictLiveRecordRow) {
+  const status = normalizeActionStatus(textValue(row, ["status"]));
+  if (status === "Closed") return 0;
+
+  const priority = normalizeRiskLevel(textValue(row, ["priority", "severity", "risk_level", "riskLevel"]), "medium");
+  const base = severityPressure(priority, { critical: 30, high: 22, medium: 12, low: 4 });
+  const statusMultiplier = status === "Awaiting Verification" ? 0.45 : 1;
+  const escalation = boolValue(row, ["ai_recommended", "aiRecommended", "sif_potential", "immediate_action_required"]) ? 4 : 0;
+  return base * statusMultiplier + escalation;
+}
+
+function liveIncidentPressure(row: SafePredictLiveRecordRow) {
+  const severity = normalizeRiskLevel(textValue(row, ["severity", "risk_level", "riskLevel"]), "medium");
+  const status = textValue(row, ["status"], "open").toLowerCase();
+  const base = severityPressure(severity, { critical: 35, high: 28, medium: 14, low: 5 });
+  if (status.includes("closed") || status.includes("verified")) return Math.max(1, base * 0.2);
+  if (status.includes("correct") || status.includes("progress") || status.includes("investigat")) return base * 0.65;
+  return base;
+}
+
+function liveObservationPressure(row: SafePredictLiveRecordRow) {
+  const riskLevel = normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), "medium");
+  const status = textValue(row, ["status"], "open").toLowerCase();
+  if (status.includes("closed") || status.includes("verified")) return 0;
+
+  const base = severityPressure(riskLevel, { critical: 18, high: 12, medium: 6, low: 2 });
+  if (status.includes("corrected") || status.includes("converted") || status.includes("progress")) return base * 0.35;
+  return base;
+}
+
+function livePermitPressure(row: SafePredictLiveRecordRow) {
+  const status = textValue(row, ["status"], "active").toLowerCase();
+  const permitType = textValue(row, ["permit_type", "permitType", "type", "title"], "Work Permit");
+  const readiness = permitReadinessLabel(permitFormFromMetadata(row.source_metadata ?? row.sourceMetadata, permitType));
+  const riskLevel = normalizeRiskLevel(textValue(row, ["severity", "risk_level", "riskLevel"]), status.includes("expired") ? "critical" : "low");
+  const exposure = severityPressure(riskLevel, { critical: 8, high: 6, medium: 4, low: 1 });
+
+  if (status.includes("expired")) return 22 + exposure;
+  if (status.includes("draft") || status.includes("pending") || status.includes("expiring")) return 12 + exposure;
+  if (readiness !== "Ready") return 7 + exposure;
+  return 1;
+}
+
+function liveInspectionPressure(row: SafePredictLiveRecordRow) {
+  const failedItems = failedItemsFromRow(row);
+  const status = textValue(row, ["status"], failedItems > 0 ? "failed" : "completed").toLowerCase();
+  const failed = status.includes("fail") || failedItems > 0;
+  if (!failed) return 0;
+
+  const fallbackSeverity: SafePredictRiskLevel = failedItems > 0 ? "high" : "medium";
+  const riskLevel = normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), fallbackSeverity);
+  const base = severityPressure(riskLevel, { critical: 30, high: 22, medium: 12, low: 4 });
+  return base + Math.min(18, failedItems * 4);
+}
+
+function riskScoreFromLiveSignals({
+  actions,
+  incidents,
+  observations,
+  permits,
+  inspections,
+}: {
+  actions: SafePredictLiveRecordRow[];
+  incidents: SafePredictLiveRecordRow[];
+  observations: SafePredictLiveRecordRow[];
+  permits: SafePredictLiveRecordRow[];
+  inspections: SafePredictLiveRecordRow[];
+}) {
+  const rawPressure =
+    actions.reduce((total, row) => total + liveActionPressure(row), 0) +
+    incidents.reduce((total, row) => total + liveIncidentPressure(row), 0) +
+    observations.reduce((total, row) => total + liveObservationPressure(row), 0) +
+    permits.reduce((total, row) => total + livePermitPressure(row), 0) +
+    inspections.reduce((total, row) => total + liveInspectionPressure(row), 0);
+
+  return saturatedRiskScore(rawPressure);
+}
+
+function emptyPermitForm(permitType: string): SafePredictPermitForm {
+  return {
+    checklistItems: defaultPermitChecklistItems(permitType),
+    acknowledgement: {
+      acknowledged: false,
+      name: "",
+      acknowledgedAt: null,
+      statement: SAFE_PREDICT_PERMIT_ACK_STATEMENT,
+    },
+    notes: "",
+  };
+}
+
+export function clampRiskScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
@@ -343,13 +488,14 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
     .filter((row) => typeof row.id === "string" && typeof row.name === "string" && row.name.trim())
     .map((row): SafePredictJobsiteRecord => {
       const rawStatus = String(row.status ?? "active");
-      const status = normalizeStatus(rawStatus);
-      const location = String(row.location ?? "").trim();
-      const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
-      return {
-        id: String(row.id),
-        code: projectNumber || "Not set",
-        name: String(row.name),
+        const status = normalizeStatus(rawStatus);
+        const location = String(row.location ?? "").trim();
+        const jobsiteNumber = String(row.jobsite_number ?? row.jobsiteNumber ?? "").trim();
+        const projectNumber = String(row.project_number ?? row.projectNumber ?? "").trim();
+        return {
+          id: String(row.id),
+          code: jobsiteNumber || projectNumber || "Not set",
+          name: String(row.name),
         address: location || "Not set",
         cityState: location || "Not set",
         projectType: "Construction",
@@ -366,14 +512,21 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
         startDate: String(row.start_date ?? row.startDate ?? ""),
         endDate: String(row.end_date ?? row.endDate ?? ""),
         status,
-        inspectionGaps: 0,
-        incidentCount: 0,
-        observationCount: 0,
-      };
-    });
+          inspectionGaps: 0,
+          incidentCount: 0,
+          observationCount: 0,
+          weatherLatitude: coordinateValue(row.weather_latitude ?? row.weatherLatitude),
+          weatherLongitude: coordinateValue(row.weather_longitude ?? row.weatherLongitude),
+        };
+      });
 }
 
-export function normalizeLiveActions(rows: SafePredictLiveRecordRow[], jobsites: SafePredictJobsiteRecord[]) {
+export function normalizeLiveActions(
+  rows: SafePredictLiveRecordRow[],
+  jobsites: SafePredictJobsiteRecord[],
+  assignableUsers: SafePredictAssignableUser[] = []
+) {
+  const assignableById = new Map(assignableUsers.map((user) => [user.id, user] as const));
   return rows
     .filter((row) => textValue(row, ["id"]) && textValue(row, ["title", "description"]))
     .map((row, index): SafePredictActionRecord => {
@@ -381,12 +534,14 @@ export function normalizeLiveActions(rows: SafePredictLiveRecordRow[], jobsites:
       const status = normalizeActionStatus(textValue(row, ["status"]));
       const priority = normalizeRiskLevel(textValue(row, ["priority", "severity", "risk_level", "riskLevel"]), "medium");
       const linkedRisk = textValue(row, ["category", "observation_type", "source_type"], "Corrective Action");
+      const assignedUserId = textValue(row, ["assigned_user_id", "assignedUserId"]);
+      const assignedUser = assignedUserId ? assignableById.get(assignedUserId) : null;
       return {
         id: textValue(row, ["id"], `live-action-${index}`),
         title: textValue(row, ["title"], "Untitled corrective action"),
         linkedRiskId: textValue(row, ["observation_id", "source_record_id", "category"], linkedRisk).toLowerCase().replace(/\s+/g, "-"),
         linkedRisk,
-        assignee: textValue(row, ["assigned_user_name", "assignedUserName", "assignee", "assigned_user_id", "assignedUserId"], "Unassigned"),
+        assignee: assignedUser?.name ?? textValue(row, ["assigned_user_name", "assignedUserName", "assignee"], assignedUserId || "Unassigned"),
         dueDate: dateLabel(row.due_at ?? row.dueAt ?? row.due_date ?? row.dueDate, "No due date"),
         status,
         priority: priority === "low" ? "medium" : priority,
@@ -447,14 +602,19 @@ export function normalizeLivePermits(rows: SafePredictLiveRecordRow[], jobsites:
     .map((row, index): SafePredictPermitRecord => {
       const statusText = textValue(row, ["status"], "active").toLowerCase();
       const status: SafePredictPermitRecord["status"] = statusText.includes("expired") ? "Expired" : statusText.includes("active") || statusText.includes("closed") ? "Active" : "Expiring Soon";
+      const type = textValue(row, ["permit_type", "permitType", "type", "title"], "Work Permit");
+      const permitForm = permitFormFromMetadata(row.source_metadata ?? row.sourceMetadata, type);
       return {
         id: textValue(row, ["id"], `live-permit-${index}`),
         siteId: liveSiteId(row, jobsites, index),
-        type: textValue(row, ["permit_type", "permitType", "type", "title"], "Work Permit"),
+        type,
+        title: textValue(row, ["title"], type),
         status,
         owner: textValue(row, ["owner_name", "ownerUserName", "owner_user_id", "owner"], "Site Team"),
         expiresAt: dateLabel(row.expires_at ?? row.expiration_date ?? row.due_at ?? row.updated_at, "No expiration"),
         riskLevel: status === "Expired" ? "critical" : normalizeRiskLevel(textValue(row, ["severity", "risk_level", "riskLevel"]), status === "Expiring Soon" ? "medium" : "low"),
+        permitForm,
+        readiness: permitReadinessLabel(permitForm),
       };
     });
 }
@@ -744,17 +904,38 @@ function buildPermitRecords(): SafePredictPermitRecord[] {
     safePredictPermits.slice(0, 3).map((permit, permitIndex) => {
       const status: SafePredictPermitRecord["status"] =
         permitIndex === 0 && site.riskLevel === "high" ? "Expiring Soon" : permit.expired > 0 && siteIndex % 2 === 0 ? "Expired" : "Active";
+      const permitForm = emptyPermitForm(permit.type);
       return {
         id: `permit-${site.id}-${permitIndex}`,
         siteId: site.id,
         type: permit.type,
+        title: `${permit.type} permit`,
         status,
         owner: site.siteLead,
         expiresAt: `May ${21 + siteIndex + permitIndex}`,
         riskLevel: status === "Expired" ? "critical" : status === "Expiring Soon" ? "medium" : "low",
+        permitForm,
+        readiness: permitReadinessLabel(permitForm),
       };
     })
   );
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+}
+
+export function normalizeAssignableUsers(rows: SafePredictLiveRecordRow[]): SafePredictAssignableUser[] {
+  return rows
+    .map((row) => ({
+      id: textValue(row, ["id", "user_id", "userId"]),
+      name: textValue(row, ["name", "email"], "Unnamed user"),
+      email: textValue(row, ["email"]),
+      role: textValue(row, ["role"], "Company User"),
+      status: textValue(row, ["status", "account_status"], "Active"),
+    }))
+    .filter((user) => user.id && isUuid(user.id) && user.status.trim().toLowerCase() === "active")
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function buildDocumentRecords(): SafePredictDocumentRecord[] {
@@ -809,6 +990,15 @@ export function buildSafePredictDataset({
       company: safePredictDemoCompany,
       jobsites: demoJobsites,
       employees: safePredictDemoEmployees,
+      assignableUsers: demoCompanyUsers
+        .filter((user) => user.status.toLowerCase() === "active")
+        .map((user) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+        })),
       alerts: buildAlerts(),
       actions: buildActions(),
       inspections: buildInspectionRecords(),
@@ -828,16 +1018,25 @@ export function buildSafePredictDataset({
 
   const normalizedLiveJobsites = normalizeLiveJobsites(liveJobsites);
   const jobsites = normalizedLiveJobsites;
-  const liveRecordRows = [...liveActions, ...liveIncidents, ...liveObservations, ...livePermits, ...liveInspections];
   const jobsitesWithLiveMetrics =
     jobsites.map((site) => {
-        const relatedRows = liveRecordRows.filter((row) => liveSiteId(row, jobsites, 0) === site.id);
-        const openActions = liveActions.filter((row) => liveSiteId(row, jobsites, 0) === site.id && normalizeActionStatus(textValue(row, ["status"])) !== "Closed").length;
-        const activePermits = livePermits.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
-        const incidentCount = liveIncidents.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
-        const observationCount = liveObservations.filter((row) => liveSiteId(row, jobsites, 0) === site.id).length;
-        const inspectionGaps = liveInspections.filter((row) => liveSiteId(row, jobsites, 0) === site.id && textValue(row, ["status"]).toLowerCase().includes("fail")).length;
-        const riskScore = Math.max(riskScoreFromLiveRows(relatedRows), openActions * 4 + activePermits * 2 + incidentCount * 8 + observationCount * 3 + inspectionGaps * 5);
+        const siteActions = liveRowsForSite(liveActions, jobsites, site.id);
+        const siteIncidents = liveRowsForSite(liveIncidents, jobsites, site.id);
+        const siteObservations = liveRowsForSite(liveObservations, jobsites, site.id);
+        const sitePermits = liveRowsForSite(livePermits, jobsites, site.id);
+        const siteInspections = liveRowsForSite(liveInspections, jobsites, site.id);
+        const openActions = siteActions.filter((row) => normalizeActionStatus(textValue(row, ["status"])) !== "Closed").length;
+        const activePermits = sitePermits.filter((row) => textValue(row, ["status"], "active").toLowerCase().includes("active")).length;
+        const incidentCount = siteIncidents.length;
+        const observationCount = siteObservations.length;
+        const inspectionGaps = siteInspections.filter((row) => textValue(row, ["status"], failedItemsFromRow(row) > 0 ? "failed" : "").toLowerCase().includes("fail") || failedItemsFromRow(row) > 0).length;
+        const riskScore = riskScoreFromLiveSignals({
+          actions: siteActions,
+          incidents: siteIncidents,
+          observations: siteObservations,
+          permits: sitePermits,
+          inspections: siteInspections,
+        });
         return {
           ...site,
           riskScore,
@@ -849,7 +1048,8 @@ export function buildSafePredictDataset({
           inspectionGaps,
         };
       });
-  const actions = normalizeLiveActions(liveActions, jobsitesWithLiveMetrics);
+  const assignableUsers = normalizeAssignableUsers(liveUsers);
+  const actions = normalizeLiveActions(liveActions, jobsitesWithLiveMetrics, assignableUsers);
   const incidents = normalizeLiveIncidents(liveIncidents, jobsitesWithLiveMetrics);
   const observations = normalizeLiveObservations(liveObservations, jobsitesWithLiveMetrics);
   const permits = normalizeLivePermits(livePermits, jobsitesWithLiveMetrics);
@@ -864,6 +1064,7 @@ export function buildSafePredictDataset({
     company: normalizeLiveCompany(liveCompany),
     jobsites: jobsitesWithLiveMetrics,
     employees,
+    assignableUsers,
     alerts: [],
     actions,
     inspections,
@@ -897,6 +1098,62 @@ function safePredictScopeSiteIds(dataset: SafePredictDataset, siteId: string) {
   return new Set(dataset.jobsites.some((site) => site.id === siteId) ? [siteId] : []);
 }
 
+export function safePredictVisibleSiteIds(dataset: SafePredictDataset, siteIds: Iterable<string>) {
+  const requested = new Set(siteIds);
+  if (requested.size === 0) return new Set<string>();
+  return new Set(dataset.jobsites.filter((site) => requested.has(site.id)).map((site) => site.id));
+}
+
+export function summarizeSafePredictScope(dataset: SafePredictDataset, siteIds: Iterable<string>) {
+  const scope = safePredictVisibleSiteIds(dataset, siteIds);
+  const jobsites = dataset.jobsites.filter((site) => scope.has(site.id));
+  const actions = dataset.actions.filter((action) => scope.has(action.siteId));
+  const permits = dataset.permits.filter((permit) => scope.has(permit.siteId));
+  const employees = dataset.employees.filter((employee) => scope.has(employee.assignedSiteId));
+  const inspections = dataset.inspections.filter((inspection) => scope.has(inspection.siteId));
+  const incidents = dataset.incidents.filter((incident) => scope.has(incident.siteId));
+  const observations = dataset.observations.filter((observation) => scope.has(observation.siteId));
+  const hazards = dataset.hazards.filter((hazard) => scope.has(hazard.siteId));
+  const overdueEmployees = employees.filter((employee) => employee.status === "overdue").length;
+  const expiringEmployees = employees.filter((employee) => employee.status === "expiring").length;
+  const compliantEmployees = employees.length - overdueEmployees - expiringEmployees;
+  const overdueActions = actions.filter((action) => {
+    if (action.status === "Closed") return false;
+    const parsed = Date.parse(action.dueDate);
+    return Number.isFinite(parsed) && parsed < Date.now();
+  }).length;
+
+  return {
+    jobsites: jobsites.length,
+    employees: employees.length,
+    openActions: actions.filter((action) => action.status !== "Closed").length,
+    activePermits: permits.filter((permit) => permit.status === "Active").length,
+    riskScore: jobsites.length ? Math.round(jobsites.reduce((sum, jobsite) => sum + jobsite.riskScore, 0) / jobsites.length) : 0,
+    overdueEmployees,
+    expiringEmployees,
+    overdueActions,
+    closedActions: actions.filter((action) => action.status === "Closed").length,
+    workforce: {
+      workers: employees.length,
+      compliant: compliantEmployees,
+      expiringSoon: expiringEmployees,
+      overdue: overdueEmployees,
+      compliantPercent: employees.length ? Math.round((compliantEmployees / employees.length) * 100) : 0,
+      expiringSoonPercent: employees.length ? Math.round((expiringEmployees / employees.length) * 100) : 0,
+      overduePercent: employees.length ? Math.round((overdueEmployees / employees.length) * 100) : 0,
+    },
+    permits: {
+      active: permits.filter((permit) => permit.status === "Active").length,
+      expiringSoon: permits.filter((permit) => permit.status === "Expiring Soon").length,
+      expired: permits.filter((permit) => permit.status === "Expired").length,
+    },
+    inspectionGaps: inspections.reduce((sum, inspection) => sum + inspection.failedItems, 0),
+    incidents: incidents.length,
+    observations: observations.length,
+    hazards: hazards.length,
+  };
+}
+
 export function hasSafePredictForecastInputs(dataset: SafePredictDataset, siteId = "all") {
   if (dataset.mode !== "live") return dataset.forecasts.length > 0;
 
@@ -915,16 +1172,110 @@ export function hasSafePredictForecastInputs(dataset: SafePredictDataset, siteId
   );
 }
 
+function scoreForForecastScope(dataset: SafePredictDataset, siteId: string) {
+  const siteIds = safePredictScopeSiteIds(dataset, siteId);
+  const sites = dataset.jobsites.filter((site) => siteIds.has(site.id));
+  if (sites.length === 0) return 0;
+  return Math.round(sites.reduce((sum, site) => sum + site.riskScore, 0) / sites.length);
+}
+
+function generatedLiveForecast(dataset: SafePredictDataset, siteId: string) {
+  const siteIds = safePredictScopeSiteIds(dataset, siteId);
+  const score = scoreForForecastScope(dataset, siteId);
+  const openActions = dataset.actions.filter((action) => siteIds.has(action.siteId) && action.status !== "Closed").length;
+  const closedActions = dataset.actions.filter((action) => siteIds.has(action.siteId) && action.status === "Closed").length;
+  const unresolvedSignals =
+    dataset.incidents.filter((row) => siteIds.has(row.siteId) && row.status !== "Closed").length +
+    dataset.observations.filter((row) => siteIds.has(row.siteId) && row.status !== "Closed").length +
+    dataset.inspections.filter((row) => siteIds.has(row.siteId) && row.status !== "Completed").length +
+    dataset.permits.filter((row) => siteIds.has(row.siteId) && row.status !== "Active").length +
+    dataset.hazards.filter((row) => siteIds.has(row.siteId) && row.controlStatus !== "Controlled").length;
+  const pressure = Math.min(10, openActions * 1.2 + unresolvedSignals * 1.4);
+  const mitigation = Math.min(8, closedActions * 1.5);
+  const anchors = [-6, -3, 0, 3, 5, 7, 5, 2, -1, -4];
+  const forecastBase = score > 90 ? 90 + (score - 90) * 0.45 : score;
+
+  return anchors.map((offset, index): SafePredictForecastPoint => {
+    const projected = clampRiskScore(forecastBase + pressure - mitigation + offset);
+    return {
+      date: index === 0 ? "Now" : `+${index * 3}d`,
+      historicalRisk: index < 4 ? clampRiskScore(forecastBase + offset - 4) : undefined,
+      predictedRisk: projected,
+    };
+  });
+}
+
 export function riskForecastForSite(dataset: SafePredictDataset, siteId: string) {
   if (!hasSafePredictForecastInputs(dataset, siteId)) return [];
 
-  const site = jobsiteById(dataset, siteId);
-  const delta = site ? site.riskScore - 68 : 0;
+  if (dataset.mode === "live" && dataset.forecasts.length === 0) {
+    return generatedLiveForecast(dataset, siteId);
+  }
+
+  const delta = scoreForForecastScope(dataset, siteId) - 68;
   return dataset.forecasts.map((point) => ({
     ...point,
     predictedRisk: Math.max(0, Math.min(100, point.predictedRisk + Math.round(delta / 3))),
     historicalRisk: point.historicalRisk == null ? undefined : Math.max(0, Math.min(100, point.historicalRisk + Math.round(delta / 4))),
   }));
+}
+
+function forecastConfidenceLabel(percent: number): SafePredictForecastConfidence["label"] {
+  if (percent >= 75) return "High";
+  if (percent >= 45) return "Medium";
+  return "Low";
+}
+
+export function forecastConfidenceForSite(dataset: SafePredictDataset, siteId: string): SafePredictForecastConfidence {
+  const siteIds = safePredictScopeSiteIds(dataset, siteId);
+  const scopedJobsites = dataset.jobsites.filter((site) => siteIds.has(site.id));
+  const countScoped = <T extends { siteId: string }>(rows: T[]) => rows.filter((row) => siteIds.has(row.siteId)).length;
+  const counts = {
+    actions: countScoped(dataset.actions),
+    incidents: countScoped(dataset.incidents),
+    observations: countScoped(dataset.observations),
+    inspections: countScoped(dataset.inspections),
+    permits: countScoped(dataset.permits),
+    hazards: countScoped(dataset.hazards),
+    employees: dataset.employees.filter((employee) => siteIds.has(employee.assignedSiteId)).length,
+    forecastPoints: riskForecastForSite(dataset, siteId).length,
+  };
+  const signalCount =
+    counts.actions +
+    counts.incidents +
+    counts.observations +
+    counts.inspections +
+    counts.permits +
+    counts.hazards +
+    counts.employees;
+  const sourceCount = Object.entries(counts).filter(([key, count]) => key !== "forecastPoints" && count > 0).length;
+
+  if (siteIds.size === 0 || scopedJobsites.length === 0 || !hasSafePredictForecastInputs(dataset, siteId)) {
+    return {
+      percent: 0,
+      label: "Low",
+      sourceCount: 0,
+      signalCount: 0,
+      detail: "No connected jobsite signals are available for this forecast yet.",
+    };
+  }
+
+  const percent = clampRiskScore(
+    18 +
+      (scopedJobsites.length > 0 ? 12 : 0) +
+      Math.min(32, sourceCount * 5) +
+      Math.min(24, signalCount * 2) +
+      Math.min(14, counts.forecastPoints)
+  );
+  const label = forecastConfidenceLabel(percent);
+
+  return {
+    percent,
+    label,
+    sourceCount,
+    signalCount,
+    detail: `${sourceCount} source type${sourceCount === 1 ? "" : "s"} and ${signalCount} scoped signal${signalCount === 1 ? "" : "s"} support this forecast.`,
+  };
 }
 
 export function summarizeSafePredictDataset(dataset: SafePredictDataset) {

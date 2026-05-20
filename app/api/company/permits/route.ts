@@ -6,6 +6,11 @@ import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildPermitFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 import { demoPermitRows } from "@/lib/demoWorkspace";
+import {
+  SAFE_PREDICT_PERMIT_FORM_METADATA_KEY,
+  normalizePermitForm,
+  preparePermitFormForSave,
+} from "@/lib/safePredictPermitForms";
 
 export const runtime = "nodejs";
 
@@ -32,6 +37,23 @@ function normalizeEscalation(input: unknown, fallback = "none") {
 function normalizeStopWork(input: unknown, fallback = "normal") {
   const value = String(input ?? "").trim().toLowerCase();
   return STOP_WORK_STATUSES.has(value) ? value : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergePermitFormMetadata(
+  currentMetadata: unknown,
+  permitType: string,
+  permitFormInput: unknown
+) {
+  const metadata = isRecord(currentMetadata) ? { ...currentMetadata } : {};
+  const permitForm = normalizePermitForm(permitFormInput, permitType);
+  return {
+    ...metadata,
+    [SAFE_PREDICT_PERMIT_FORM_METADATA_KEY]: preparePermitFormForSave(permitForm),
+  };
 }
 
 function applyPermitAutomation(input: {
@@ -246,6 +268,9 @@ export async function POST(request: Request) {
     stop_work_at: stopWorkStatus === "stop_work_active" ? new Date().toISOString() : null,
     dap_activity_id: linkedActivity?.id ?? null,
     observation_id: String(body?.observationId ?? "").trim() || null,
+    ...(typeof body?.permitForm !== "undefined"
+      ? { source_metadata: mergePermitFormMetadata(body?.sourceMetadata, permitType, body.permitForm) }
+      : {}),
     created_by: auth.user.id,
     updated_by: auth.user.id,
   }).select("*").single();
@@ -289,7 +314,7 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "Permit id is required." }, { status: 400 });
   const existing = await auth.supabase
     .from("company_permits")
-    .select("id, jobsite_id, status, escalation_level, stop_work_status")
+    .select("id, jobsite_id, status, escalation_level, stop_work_status, permit_type, source_metadata")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -384,6 +409,17 @@ export async function PATCH(request: Request) {
       : {}),
     ...(nextStopWork === "stop_work_active" && existing.data.stop_work_status !== "stop_work_active"
       ? { stop_work_at: new Date().toISOString() }
+      : {}),
+    ...(typeof body?.permitForm !== "undefined"
+      ? {
+          source_metadata: mergePermitFormMetadata(
+            existing.data.source_metadata,
+            linkedActivity?.permit_type?.trim() ||
+              (typeof body?.permitType === "string" && body.permitType.trim()) ||
+              String(existing.data.permit_type ?? "Work Permit"),
+            body.permitForm
+          ),
+        }
       : {}),
     updated_by: auth.user.id,
   }).eq("id", id).eq("company_id", companyScope.companyId).select("*").single();

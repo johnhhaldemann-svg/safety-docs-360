@@ -15,6 +15,7 @@ type JobsitePayload = {
   status?: string;
   projectManager?: string;
   safetyLead?: string;
+  zipCode?: string;
   auditCustomerId?: string | null;
   customerCompanyName?: string;
   customerReportEmail?: string;
@@ -51,7 +52,14 @@ function normalizeEmail(value?: string | null) {
 }
 
 const JOBSITE_SELECT =
-  "id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+  "id, company_id, name, jobsite_number, project_number, location, status, project_manager, safety_lead, zip_code, weather_address_line_1, weather_address_line_2, weather_city, weather_state, weather_country, weather_latitude, weather_longitude, weather_location_source, weather_location_confidence, nws_grid_id, nws_grid_x, nws_grid_y, nws_forecast_url, nws_forecast_hourly_url, weather_enabled, weather_last_checked_at, audit_customer_id, customer_company_name, customer_report_email, start_date, end_date, notes, created_at, updated_at, archived_at";
+
+function normalizeZipCode(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{5})(?:-?(\d{4}))?$/);
+  return match ? (match[2] ? `${match[1]}-${match[2]}` : match[1]) : "invalid";
+}
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
@@ -172,6 +180,7 @@ export async function POST(request: Request) {
   const location = body?.location?.trim() ?? "";
   const projectManager = body?.projectManager?.trim() ?? "";
   const safetyLead = body?.safetyLead?.trim() ?? "";
+  const zipCode = normalizeZipCode(body?.zipCode);
   const auditCustomerId = body?.auditCustomerId?.trim() ?? "";
   const customerCompanyName = body?.customerCompanyName?.trim() ?? "";
   const customerReportEmail = normalizeEmail(body?.customerReportEmail);
@@ -188,6 +197,9 @@ export async function POST(request: Request) {
   }
   if (customerReportEmail === "invalid") {
     return NextResponse.json({ error: "Enter a valid customer report email." }, { status: 400 });
+  }
+  if (zipCode === "invalid") {
+    return NextResponse.json({ error: "Enter a valid 5-digit ZIP code or ZIP+4." }, { status: 400 });
   }
   if (auditCustomerId) {
     const customerCheck = await auth.supabase
@@ -294,6 +306,7 @@ export async function POST(request: Request) {
       status,
       project_manager: projectManager || null,
       safety_lead: safetyLead || null,
+      zip_code: zipCode,
       audit_customer_id: auditCustomerId || null,
       customer_company_name: customerCompanyName || null,
       customer_report_email: customerReportEmail,

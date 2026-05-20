@@ -168,12 +168,14 @@ export function SelectShell({
   onChange,
   options,
   className,
+  disabled = false,
 }: {
   label?: string;
   value: string;
   onChange?: (value: string) => void;
   options: Array<{ label: string; value: string }>;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className={cx("block w-full sm:min-w-[160px]", className)}>
@@ -185,7 +187,8 @@ export function SelectShell({
               onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onChange(event.target.value),
             }
           : { defaultValue: value })}
-        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+        disabled={disabled}
+        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500 disabled:bg-slate-50"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -340,6 +343,10 @@ export function ForecastTrendChart({ data, compact = false }: { data: SafePredic
           <XAxis dataKey="date" tickLine={false} axisLine={{ stroke: "#cbd5e1" }} tick={{ fill: "#475569", fontSize: 12 }} />
           <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: "#475569", fontSize: 12 }} />
           <Tooltip
+            formatter={(value, name) => [
+              typeof value === "number" ? `${value} risk index` : value,
+              name === "historicalRisk" ? "Historical risk index" : name === "predictedRisk" ? "Predicted risk index" : name,
+            ]}
             contentStyle={{
               borderRadius: 8,
               border: "1px solid #dbe3ee",
@@ -347,11 +354,11 @@ export function ForecastTrendChart({ data, compact = false }: { data: SafePredic
             }}
           />
           <Area type="monotone" dataKey="predictedRisk" stroke="none" fill="url(#highRiskBand)" fillOpacity={0.8} />
-          <Line type="monotone" dataKey="historicalRisk" name="Historical Risk" stroke="#ef4444" strokeWidth={2.5} dot={false} connectNulls />
+          <Line type="monotone" dataKey="historicalRisk" name="Historical risk index" stroke="#ef4444" strokeWidth={2.5} dot={false} connectNulls />
           <Line
             type="monotone"
             dataKey="predictedRisk"
-            name="Predicted Risk"
+            name="Predicted risk index"
             stroke="#f97316"
             strokeWidth={3}
             dot={false}
@@ -410,17 +417,20 @@ export function RiskHeatMap({ variant = "dashboard" }: { variant?: "dashboard" |
   );
 }
 
-export function ConfidenceGauge({ value }: { value: number }) {
+export function ConfidenceGauge({ value, label = "High" }: { value: number; label?: "High" | "Medium" | "Low" }) {
+  const clampedValue = Math.max(0, Math.min(100, Math.round(value)));
+  const fillColor = label === "High" ? "#16a34a" : label === "Medium" ? "#f59e0b" : "#ef4444";
+
   return (
-    <div className="relative mx-auto h-24 w-40">
+    <div className="relative mx-auto h-24 w-40" role="meter" aria-label={`Model confidence ${clampedValue}% ${label}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampedValue}>
       <div
         className="absolute inset-x-0 bottom-0 h-20 rounded-t-full"
-        style={{ background: `conic-gradient(from 270deg, #16a34a 0deg ${value * 1.8}deg, #dbeafe ${value * 1.8}deg 180deg, transparent 180deg)` }}
+        style={{ background: `conic-gradient(from 270deg, ${fillColor} 0deg ${clampedValue * 1.8}deg, #dbeafe ${clampedValue * 1.8}deg 180deg, transparent 180deg)` }}
       />
       <div className="absolute inset-x-4 bottom-0 h-16 rounded-t-full bg-white" />
       <div className="absolute inset-x-0 bottom-1 text-center">
-        <p className="text-3xl font-black text-slate-950">{value}%</p>
-        <p className="text-xs font-bold text-slate-500">High Confidence</p>
+        <p className="text-3xl font-black text-slate-950">{clampedValue}%</p>
+        <p className="text-xs font-bold text-slate-500">{label} Confidence</p>
       </div>
     </div>
   );

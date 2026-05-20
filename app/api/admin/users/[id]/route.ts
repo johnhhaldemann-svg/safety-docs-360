@@ -30,6 +30,10 @@ type ActionPayload = {
 };
 
 function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("company_memberships_role_check")) {
+    return "The database membership role constraint has not been updated yet. Run the latest Supabase migration to allow current company-scoped roles in company memberships.";
+  }
+
   if ((message ?? "").includes("user_roles_role_check")) {
     return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
   }
@@ -445,7 +449,7 @@ export async function PATCH(
 
     if (membershipError) {
       return NextResponse.json(
-        { error: membershipError.message || "Failed to sync company membership." },
+        { error: formatRoleConstraintError(membershipError.message) },
         { status: 500 }
       );
     }
@@ -518,26 +522,6 @@ export async function POST(
     : undefined;
 
   if (action === "resend_invite") {
-    const { data: roleRow } = await adminClient
-      .from("user_roles")
-      .select("role, team, account_status")
-      .eq("user_id", id)
-      .maybeSingle();
-    const role = normalizeAppRole(
-      roleRow && typeof roleRow === "object" && "role" in roleRow
-        ? String(roleRow.role ?? "viewer")
-        : "viewer"
-    );
-    const team =
-      roleRow && typeof roleRow === "object" && "team" in roleRow
-        ? String(roleRow.team ?? "General")
-        : "General";
-    const accountStatus = normalizeAccountStatus(
-      roleRow && typeof roleRow === "object" && "account_status" in roleRow
-        ? String(roleRow.account_status ?? "active")
-        : "active"
-    );
-
     const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       ...(normalizedRedirectTo ? { redirectTo: normalizedRedirectTo } : {}),
     });

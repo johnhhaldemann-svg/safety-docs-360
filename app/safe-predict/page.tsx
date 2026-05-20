@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
 import {
   Card,
   ExportButton,
@@ -17,6 +17,7 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
+  riskLabel,
   safePredictMitigations,
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
@@ -169,6 +170,248 @@ function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord
         </Link>
       ))}
     </div>
+  );
+}
+
+type JobsiteMapPoint = {
+  jobsite: SafePredictJobsiteRecord;
+  x: number;
+  y: number;
+  coordinateBacked: boolean;
+};
+
+const offlineMapPositions = [
+  { x: 15, y: 21 },
+  { x: 38, y: 21 },
+  { x: 62, y: 21 },
+  { x: 85, y: 21 },
+  { x: 15, y: 50 },
+  { x: 38, y: 50 },
+  { x: 62, y: 50 },
+  { x: 85, y: 50 },
+  { x: 15, y: 79 },
+  { x: 38, y: 79 },
+  { x: 62, y: 79 },
+  { x: 85, y: 79 },
+] as const;
+
+function riskPinClasses(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "border-red-200 bg-red-600 text-white shadow-red-200";
+  if (level === "high") return "border-orange-200 bg-orange-500 text-white shadow-orange-200";
+  if (level === "medium") return "border-amber-200 bg-amber-400 text-slate-950 shadow-amber-100";
+  return "border-emerald-200 bg-emerald-500 text-white shadow-emerald-100";
+}
+
+function hasValidCoordinates(jobsite: SafePredictJobsiteRecord) {
+  return (
+    typeof jobsite.weatherLatitude === "number" &&
+    Number.isFinite(jobsite.weatherLatitude) &&
+    jobsite.weatherLatitude >= -90 &&
+    jobsite.weatherLatitude <= 90 &&
+    typeof jobsite.weatherLongitude === "number" &&
+    Number.isFinite(jobsite.weatherLongitude) &&
+    jobsite.weatherLongitude >= -180 &&
+    jobsite.weatherLongitude <= 180
+  );
+}
+
+function offlineMapPoint(index: number, count: number) {
+  const preset = offlineMapPositions[index];
+  if (preset) return preset;
+
+  const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  return {
+    x: columns === 1 ? 50 : 14 + column * (72 / (columns - 1)),
+    y: rows === 1 ? 50 : 18 + row * (64 / (rows - 1)),
+  };
+}
+
+function buildJobsiteMapPoints(jobsites: SafePredictJobsiteRecord[]): JobsiteMapPoint[] {
+  if (jobsites.length === 0) return [];
+
+  const canUseCoordinates = jobsites.every(hasValidCoordinates);
+  if (!canUseCoordinates) {
+    return jobsites.map((jobsite, index) => ({
+      jobsite,
+      ...offlineMapPoint(index, jobsites.length),
+      coordinateBacked: false,
+    }));
+  }
+
+  const latitudes = jobsites.map((jobsite) => jobsite.weatherLatitude as number);
+  const longitudes = jobsites.map((jobsite) => jobsite.weatherLongitude as number);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+  const latitudeRange = maxLatitude - minLatitude;
+  const longitudeRange = maxLongitude - minLongitude;
+
+  return jobsites.map((jobsite, index) => {
+    if (latitudeRange === 0 && longitudeRange === 0) {
+      return {
+        jobsite,
+        ...offlineMapPoint(index, jobsites.length),
+        coordinateBacked: true,
+      };
+    }
+
+    const x = longitudeRange === 0 ? 50 : 12 + (((jobsite.weatherLongitude as number) - minLongitude) / longitudeRange) * 76;
+    const y = latitudeRange === 0 ? 50 : 84 - (((jobsite.weatherLatitude as number) - minLatitude) / latitudeRange) * 68;
+    return { jobsite, x, y, coordinateBacked: true };
+  });
+}
+
+function highestRiskJobsite(jobsites: SafePredictJobsiteRecord[]) {
+  return jobsites.reduce<SafePredictJobsiteRecord | null>((highest, jobsite) => {
+    if (!highest || jobsite.riskScore > highest.riskScore) return jobsite;
+    return highest;
+  }, null);
+}
+
+function JobsiteRiskMap({
+  jobsites,
+  selectedJobsiteId,
+  onSelectJobsite,
+}: {
+  jobsites: SafePredictJobsiteRecord[];
+  selectedJobsiteId: string;
+  onSelectJobsite: (jobsiteId: string) => void;
+}) {
+  const mapPoints = useMemo(() => buildJobsiteMapPoints(jobsites), [jobsites]);
+  const selectedJobsite =
+    jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ??
+    (selectedJobsiteId === "all" ? highestRiskJobsite(jobsites) : null) ??
+    jobsites[0];
+  const coordinateBacked = mapPoints.length > 0 && mapPoints.every((point) => point.coordinateBacked);
+
+  return (
+    <Card id="jobsite-source-cards" className="mt-5 scroll-mt-24 p-5">
+      <SectionTitle
+        title="Jobsite Risk Map"
+        hint="Shows active jobsites as clickable map pins. Select a pin to review the jobsite number, risk band, score, workers, and open actions before opening the full command center."
+      />
+      {jobsites.length === 0 ? (
+        <div className="mt-5 grid min-h-[280px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+          <div>
+            <p className="text-sm font-black text-slate-900">No jobsites to map yet</p>
+            <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">
+              Add active jobsites to populate the dashboard map with risk markers.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
+            <div className="relative min-h-[480px] min-w-[760px] overflow-hidden">
+              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.14)_1px,transparent_1px),linear-gradient(0deg,rgba(148,163,184,0.14)_1px,transparent_1px)] bg-[size:56px_56px]" />
+              <svg className="absolute inset-0 h-full w-full text-slate-300" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M4 72 C16 61 23 64 34 55 C45 46 51 30 66 28 C78 26 83 36 96 28" fill="none" stroke="currentColor" strokeWidth="0.55" strokeDasharray="2 2" />
+                <path d="M8 20 C22 26 30 18 42 26 C56 36 57 48 74 52 C83 54 89 62 94 78" fill="none" stroke="currentColor" strokeWidth="0.48" />
+                <path d="M12 88 L29 68 L45 73 L60 55 L83 58 L94 42" fill="none" stroke="currentColor" strokeWidth="0.42" strokeDasharray="1.5 1.5" />
+                <circle cx="18" cy="24" r="10" fill="currentColor" opacity="0.08" />
+                <circle cx="77" cy="72" r="14" fill="currentColor" opacity="0.08" />
+                <circle cx="55" cy="43" r="18" fill="currentColor" opacity="0.05" />
+              </svg>
+              <div className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
+                {coordinateBacked ? "Weather coordinates" : "Offline layout"}
+              </div>
+              {mapPoints.map((point) => {
+                const isSelected = selectedJobsite?.id === point.jobsite.id;
+                return (
+                  <button
+                    key={point.jobsite.id}
+                    type="button"
+                    onClick={() => onSelectJobsite(point.jobsite.id)}
+                    aria-pressed={isSelected}
+                    aria-label={`${point.jobsite.name}, ${point.jobsite.code}, Risk ${riskLabel(point.jobsite.riskLevel)}`}
+                    className={cx(
+                      "absolute w-36 -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-white p-2 text-left shadow-[0_12px_28px_rgba(15,23,42,0.14)] transition hover:-translate-y-[54%] hover:border-blue-300 hover:shadow-[0_18px_34px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                      isSelected ? "z-20 border-blue-400 ring-4 ring-blue-100" : "z-10 border-slate-200"
+                    )}
+                    style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                  >
+                    <span className="flex items-start gap-2">
+                      <span className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-full border shadow-lg", riskPinClasses(point.jobsite.riskLevel))}>
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-black text-slate-950">{point.jobsite.name}</span>
+                        <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
+                        <span className="mt-1 inline-flex text-[10px] font-black text-slate-700">Risk {riskLabel(point.jobsite.riskLevel)}</span>
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside className="grid gap-4 content-start">
+            {selectedJobsite ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Selected jobsite</p>
+                    <h3 className="mt-1 text-xl font-black leading-tight text-slate-950">{selectedJobsite.name}</h3>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">{selectedJobsite.code}</p>
+                  </div>
+                  <RiskBadge level={selectedJobsite.riskLevel} />
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Score</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.riskScore}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Workers</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.workforceCount}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Actions</p>
+                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.openActions}</p>
+                  </div>
+                </div>
+                <dl className="mt-4 grid gap-2 text-sm">
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
+                    <dt className="font-bold text-slate-500">Location</dt>
+                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.cityState}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
+                    <dt className="font-bold text-slate-500">Site lead</dt>
+                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.siteLead}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
+                    <dt className="font-bold text-slate-500">Phase</dt>
+                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.phase}</dd>
+                  </div>
+                </dl>
+                <Link
+                  href={`/safe-predict/jobsites/${encodeURIComponent(selectedJobsite.id)}`}
+                  className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+                >
+                  Open command center
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </div>
+            ) : null}
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm font-black text-slate-900">Risk Level</p>
+              <div className="mt-4 grid gap-3 text-sm font-semibold text-slate-600">
+                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" /> Low (0-39)</p>
+                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-400" /> Medium (40-69)</p>
+                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-orange-500" /> High (70-89)</p>
+                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-600" /> Critical (90-100)</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -342,27 +585,11 @@ export default function SafePredictDashboardPage() {
         />
       </div>
 
-      <div id="jobsite-source-cards" className="mt-5 grid scroll-mt-24 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        {dataset.jobsites.map((jobsite) => (
-          <Link key={jobsite.id} href={`/safe-predict/jobsites/${encodeURIComponent(jobsite.id)}`} className="group rounded-lg border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.1)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600">
-                <MapPin className="h-5 w-5" />
-              </span>
-              <RiskBadge level={jobsite.riskLevel} />
-            </div>
-            <p className="mt-3 text-sm font-black text-slate-950">{jobsite.name}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{jobsite.code}</p>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-              <span className="rounded-md bg-slate-50 p-2 font-semibold text-slate-600"><Users className="mr-1 inline h-3.5 w-3.5" />{jobsite.workforceCount}</span>
-              <span className="rounded-md bg-slate-50 p-2 font-semibold text-slate-600">{jobsite.openActions} actions</span>
-            </div>
-            <p className="mt-3 text-[10px] font-black uppercase tracking-wide text-blue-600">
-              Open command center
-            </p>
-          </Link>
-        ))}
-      </div>
+      <JobsiteRiskMap
+        jobsites={dataset.jobsites}
+        selectedJobsiteId={selectedJobsiteId}
+        onSelectJobsite={setSelectedJobsiteId}
+      />
 
       <div className="mt-5 grid gap-5 2xl:grid-cols-[1.25fr_1fr]">
         <Card className="p-5">

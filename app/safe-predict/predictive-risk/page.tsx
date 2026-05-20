@@ -16,6 +16,7 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
+  forecastConfidenceForSite,
   hasSafePredictForecastInputs,
   riskForecastForSite,
 } from "@/lib/safePredictData";
@@ -28,6 +29,7 @@ export default function SafePredictPredictiveRiskPage() {
   const activeSite = dataset.jobsites.find((site) => site.id === activeSiteId) ?? dataset.jobsites[0];
   const hasForecastInputs = hasSafePredictForecastInputs(dataset, activeSiteId);
   const hasForecast = hasForecastInputs && activeForecast.length > 0;
+  const forecastConfidence = forecastConfidenceForSite(dataset, activeSiteId);
   const hasDrivers = dataset.riskDrivers.length > 0;
   const recommendedActions = dataset.mode === "live" && !hasDrivers
     ? []
@@ -160,7 +162,8 @@ export default function SafePredictPredictiveRiskPage() {
                 </div>
                 <div className="border-t border-slate-200 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
                   <p className="text-xs font-black uppercase tracking-wide text-slate-500">Model Confidence</p>
-                  <ConfidenceGauge value={87} />
+                  <ConfidenceGauge value={forecastConfidence.percent} label={forecastConfidence.label} />
+                  <p className="mt-1 text-center text-[11px] font-bold leading-4 text-slate-500">{forecastConfidence.detail}</p>
                 </div>
               </div>
             </>

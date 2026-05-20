@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  buildWeatherAddress,
+  normalizeZipCode,
+  resolveWeatherLocation,
+} from "@/lib/weather/locationResolver";
+
+describe("weather location resolver", () => {
+  it("normalizes ZIP and ZIP+4 values", () => {
+    expect(normalizeZipCode("10001")).toBe("10001");
+    expect(normalizeZipCode("10001-1234")).toBe("10001-1234");
+    expect(normalizeZipCode("100011234")).toBe("10001-1234");
+    expect(normalizeZipCode("abc")).toBeNull();
+  });
+
+  it("builds full weather addresses for Census geocoding", () => {
+    expect(
+      buildWeatherAddress({
+        addressLine1: "123 Main St",
+        city: "New York",
+        state: "NY",
+        zipCode: "10001",
+      })
+    ).toBe("123 Main St, New York, NY, 10001, US");
+  });
+
+  it("prefers full address geocoding before ZIP fallback", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(url).toContain("geocoding.geo.census.gov");
+      return Response.json({
+        result: {
+          addressMatches: [
+            {
+              matchedAddress: "123 MAIN ST, NEW YORK, NY, 10001",
+              coordinates: { x: -73.99, y: 40.75 },
+            },
+          ],
+        },
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation(
+      { addressLine1: "123 Main St", city: "New York", state: "NY", zipCode: "10001" },
+      { fetcher }
+    );
+
+    expect(result).toMatchObject({
+      latitude: 40.75,
+      longitude: -73.99,
+      source: "address",
+      confidence: "high",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to Geocodio ZIP centroid when only ZIP is available", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(url).toContain("api.geocod.io");
+      return Response.json({
+        results: [
+          {
+            location: { lat: 40.753, lng: -73.997 },
+            address_components: { city: "New York", state: "NY" },
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation(
+      { zipCode: "10001" },
+      { fetcher, geocodioApiKey: "test-key" }
+    );
+
+    expect(result).toMatchObject({
+      latitude: 40.753,
+      longitude: -73.997,
+      source: "zip_centroid",
+      confidence: "low",
+    });
+  });
+});

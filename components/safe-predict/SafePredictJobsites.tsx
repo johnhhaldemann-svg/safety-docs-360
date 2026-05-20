@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -10,8 +10,11 @@ import {
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Download,
+  Pencil,
   FilterX,
   MapPin,
   Plus,
@@ -20,10 +23,17 @@ import {
   Sparkles,
   Upload,
   Users,
+  X,
 } from "lucide-react";
+import { AiEngineRefreshButton } from "@/components/ai-engine/AiEngineRefreshButton";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { triggerBrowserDownload } from "@/lib/browserDownload";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import {
+  SafePredictPermitFormDialog,
+  type SafePredictPermitFormMode,
+  type SafePredictPermitFormSaveInput,
+} from "@/components/safe-predict/SafePredictPermitFormDialog";
 import {
   Card,
   CorrectiveActionCard,
@@ -40,18 +50,40 @@ import {
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
   jobsiteById,
+  clampRiskScore,
   riskForecastForSite,
   siteScoped,
   summarizeSafePredictDataset,
+  type SafePredictDataset,
   type SafePredictJobsiteRecord,
   type SafePredictJobsiteStatus,
 } from "@/lib/safePredictData";
-import type { SafePredictRiskLevel } from "@/lib/safePredictMockData";
+import { SAFE_PREDICT_RISK_INDEX_HELPER, type SafePredictRiskLevel } from "@/lib/safePredictMockData";
+import { permitReadinessLabel as permitFormReadinessLabel } from "@/lib/safePredictPermitForms";
 import { CONSTRUCTION_TRADE_LABELS } from "@/lib/constructionTradeTaxonomy";
 import {
   buildRuleBasedScheduleHazardPrediction,
   type ScheduleHazardPredictionResponse,
 } from "@/lib/scheduleHazardPrediction";
+import { formatTitleCase } from "@/lib/formatTitleCase";
+import {
+  parseScheduleTemplateFile,
+  scheduleTemplateAccept,
+  scheduleTemplateHeader,
+  type ScheduleTemplateTask,
+} from "@/lib/scheduleTemplateImport";
+import {
+  buildScheduleCalendarDays,
+  compactScheduleDateLabel,
+  dedupeScheduleEvents,
+  scheduleApiItemToEvent,
+  scheduleDateLabelToDateOnly,
+  scheduleEventDateKeys,
+  toDateOnly,
+  normalizeScheduleRiskLevel,
+  type SafePredictScheduleApiItem,
+  type SafePredictScheduleEvent,
+} from "@/lib/safePredictScheduleCalendar";
 
 const statusOptions: Array<{ label: string; value: SafePredictJobsiteStatus | "all" }> = [
   { label: "All Statuses", value: "all" },
@@ -73,6 +105,8 @@ const detailTabs = [
   "Documents & Reports",
   "Activity Timeline",
 ] as const;
+
+type DetailTab = (typeof detailTabs)[number];
 
 const scheduleTaskTypeOptions = [
   "Work at height / elevated work",
@@ -106,60 +140,67 @@ type DetailTableAction = {
   label: string;
   href?: string;
   onClick?: () => void;
+  secondaryLabel?: string;
+  secondaryOnClick?: () => void;
 };
 
-type ScheduleTaskForm = {
-  title: string;
-  dueDate: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
-  trade: string;
-  taskType: string;
-  owner: string;
-  workArea: string;
-  crewSize: string;
-  riskLevel: SafePredictRiskLevel;
-  hazards: string;
-  permits: string;
-  controls: string;
-  notes: string;
+type ScheduleTaskForm = ScheduleTemplateTask;
+
+type ScheduledRiskEvent = SafePredictScheduleEvent & {
+  editForm?: ScheduleTaskForm;
+  readOnly?: boolean;
+  scheduleItemId?: string;
 };
 
-type ScheduledRiskEvent = {
+type JobsiteAttentionTone = "critical" | "high" | "medium" | "low" | "blue";
+
+type JobsiteAttentionItem = {
   id: string;
   title: string;
-  type: string;
-  date: string;
-  owner: string;
-  location: string;
-  riskLevel: SafePredictRiskLevel;
   detail: string;
-  controls: string[];
-  hazards?: string[];
-  permits?: string[];
-  source: string;
-  predictionSource?: ScheduleHazardPredictionResponse["source"];
-  isManual?: boolean;
+  tone: JobsiteAttentionTone;
+  actionLabel: string;
+  targetTab: DetailTab;
 };
 
-const scheduleTemplateColumns = [
-  { key: "title", label: "Task title", aliases: ["task", "task title", "title", "activity"] },
-  { key: "dueDate", label: "Date", aliases: ["date", "due date", "work start date", "start date"] },
-  { key: "trade", label: "Trade", aliases: ["trade", "crew trade"] },
-  { key: "taskType", label: "Task type", aliases: ["task type", "type", "work type"] },
-  { key: "workArea", label: "Work area", aliases: ["work area", "area", "location"] },
-  { key: "shiftStartTime", label: "Shift start", aliases: ["shift start", "start time", "shift start time"] },
-  { key: "shiftEndTime", label: "Shift end", aliases: ["shift end", "end time", "shift end time"] },
-  { key: "crewSize", label: "Crew size", aliases: ["crew size", "crew", "headcount"] },
-  { key: "riskLevel", label: "Risk level", aliases: ["risk", "risk level", "priority"] },
-  { key: "owner", label: "Owner / supervisor", aliases: ["owner", "supervisor", "owner / supervisor"] },
-  { key: "hazards", label: "Hazards", aliases: ["hazards", "hazard categories"] },
-  { key: "permits", label: "Permit triggers", aliases: ["permit triggers", "permits", "permit"] },
-  { key: "controls", label: "Required controls", aliases: ["required controls", "controls"] },
-  { key: "notes", label: "Notes", aliases: ["notes", "context"] },
-] as const;
+type JobsiteReadinessSignal = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: JobsiteAttentionTone;
+  targetTab: DetailTab;
+};
 
-const scheduleTemplateHeader = scheduleTemplateColumns.map((column) => column.label).join(",");
+type JobsiteActivityItem = {
+  id: string;
+  title: string;
+  detail: string;
+  meta: string;
+  tone: JobsiteAttentionTone;
+};
+
+type JobsiteCommandSummary = {
+  site: SafePredictJobsiteRecord;
+  aiRiskSummary: string;
+  nextBestAction: string;
+  nextScheduleTitle: string;
+  nextScheduleDate: string;
+  highRiskScheduleCount: number;
+  attentionItems: JobsiteAttentionItem[];
+  readinessSignals: JobsiteReadinessSignal[];
+  activityItems: JobsiteActivityItem[];
+};
+
+type SchedulePermitReadiness = {
+  id: string;
+  title: string;
+  date: string;
+  riskLevel: SafePredictRiskLevel;
+  status: "ready" | "needs-permit" | "needs-review";
+  detail: string;
+  permitLabels: string[];
+};
 
 function statusLabel(status: SafePredictJobsiteStatus) {
   if (status === "action-needed") return "Action Needed";
@@ -179,6 +220,252 @@ function riskSort(level: SafePredictRiskLevel) {
 
 function riskText(level: SafePredictRiskLevel) {
   return level === "critical" ? "Critical" : level === "high" ? "High" : level === "medium" ? "Medium" : "Low";
+}
+
+function attentionToneClass(tone: JobsiteAttentionTone) {
+  if (tone === "critical") return "border-red-200 bg-red-50 text-red-700";
+  if (tone === "high") return "border-orange-200 bg-orange-50 text-orange-700";
+  if (tone === "medium") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (tone === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
+function signalBorderClass(tone: JobsiteAttentionTone) {
+  if (tone === "critical") return "border-l-red-500";
+  if (tone === "high") return "border-l-orange-500";
+  if (tone === "medium") return "border-l-amber-400";
+  if (tone === "blue") return "border-l-blue-500";
+  return "border-l-emerald-500";
+}
+
+function openActionDueValue(dueDate: string) {
+  const parsed = Date.parse(dueDate);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function normalizePermitMatchText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function permitMatchesTrigger(permitType: string, trigger: string) {
+  const permit = normalizePermitMatchText(permitType);
+  const needed = normalizePermitMatchText(trigger);
+  if (!permit || !needed) return false;
+  return permit.includes(needed) || needed.includes(permit) || needed.split(" ").some((part) => part.length > 4 && permit.includes(part));
+}
+
+function buildSchedulePermitReadiness(events: ScheduledRiskEvent[], permits: SafePredictDataset["permits"]): SchedulePermitReadiness[] {
+  return events
+    .filter((event) => event.type !== "Permit")
+    .slice(0, 8)
+    .map((event) => {
+      const permitLabels = event.permits?.filter(Boolean) ?? [];
+      if (permitLabels.length === 0) {
+        return {
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          riskLevel: event.riskLevel,
+          status: "ready",
+          detail: "No permit trigger predicted for this task.",
+          permitLabels,
+        } satisfies SchedulePermitReadiness;
+      }
+
+      const matchedPermits = permitLabels.flatMap((label) => permits.filter((permit) => permitMatchesTrigger(permit.type, label)));
+      const uniqueMatchedPermits = [...new Map(matchedPermits.map((permit) => [permit.id, permit])).values()];
+      if (uniqueMatchedPermits.length === 0) {
+        return {
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          riskLevel: event.riskLevel,
+          status: "needs-permit",
+          detail: `${permitLabels.join(", ")} not found in the permit log.`,
+          permitLabels,
+        } satisfies SchedulePermitReadiness;
+      }
+
+      const reviewPermits = uniqueMatchedPermits.filter((permit) => permit.status !== "Active");
+      return {
+        id: event.id,
+        title: event.title,
+        date: event.date,
+        riskLevel: event.riskLevel,
+        status: reviewPermits.length > 0 ? "needs-review" : "ready",
+        detail:
+          reviewPermits.length > 0
+            ? `${reviewPermits.map((permit) => `${permit.type} is ${permit.status.toLowerCase()}`).join("; ")}.`
+            : `${uniqueMatchedPermits.length} matching active permit${uniqueMatchedPermits.length === 1 ? "" : "s"} found.`,
+        permitLabels,
+      } satisfies SchedulePermitReadiness;
+    });
+}
+
+function permitReadinessTone(status: SchedulePermitReadiness["status"]): JobsiteAttentionTone {
+  if (status === "needs-permit") return "critical";
+  if (status === "needs-review") return "medium";
+  return "low";
+}
+
+function schedulePermitReadinessLabel(status: SchedulePermitReadiness["status"]) {
+  if (status === "needs-permit") return "Needs permit";
+  if (status === "needs-review") return "Needs review";
+  return "Ready";
+}
+
+function buildJobsiteCommandSummary(
+  dataset: SafePredictDataset,
+  site: SafePredictJobsiteRecord,
+  scheduleEvents: ScheduledRiskEvent[] = []
+): JobsiteCommandSummary {
+  const siteEmployees = dataset.employees.filter((employee) => employee.assignedSiteId === site.id);
+  const siteActions = siteScoped(dataset.actions, site.id);
+  const openActions = siteActions.filter((action) => action.status !== "Closed");
+  const overdueActions = openActions.filter((action) => openActionDueValue(action.dueDate) < Date.now());
+  const siteInspections = siteScoped(dataset.inspections, site.id);
+  const inspectionGaps = siteInspections.filter((inspection) => inspection.failedItems > 0 || inspection.status === "Overdue" || inspection.status === "Failed Check");
+  const sitePermits = siteScoped(dataset.permits, site.id);
+  const permitBlockers = sitePermits.filter((permit) => permit.status !== "Active" || permit.riskLevel === "critical" || permit.riskLevel === "high");
+  const siteIncidents = siteScoped(dataset.incidents, site.id);
+  const siteObservations = siteScoped(dataset.observations, site.id);
+  const siteDocuments = siteScoped(dataset.documents, site.id);
+  const siteReports = siteScoped(dataset.reports, site.id);
+  const workforceAtRisk = siteEmployees.filter((employee) => employee.status !== "compliant");
+  const highRiskSchedule = scheduleEvents.filter((event) => event.riskLevel === "critical" || event.riskLevel === "high");
+  const nextSchedule = scheduleEvents[0];
+  const attentionItems: JobsiteAttentionItem[] = [];
+
+  if (highRiskSchedule.length > 0) {
+    attentionItems.push({
+      id: "schedule-risk",
+      title: `${highRiskSchedule.length} high-risk schedule item${highRiskSchedule.length === 1 ? "" : "s"}`,
+      detail: `${highRiskSchedule[0].title} is the first item needing a pre-task control check.`,
+      tone: highRiskSchedule.some((event) => event.riskLevel === "critical") ? "critical" : "high",
+      actionLabel: "Review schedule",
+      targetTab: "Schedule",
+    });
+  }
+  if (overdueActions.length > 0) {
+    attentionItems.push({
+      id: "overdue-actions",
+      title: `${overdueActions.length} overdue corrective action${overdueActions.length === 1 ? "" : "s"}`,
+      detail: `${overdueActions[0].title} needs owner follow-up before work continues.`,
+      tone: "critical",
+      actionLabel: "Open actions",
+      targetTab: "Corrective Actions",
+    });
+  }
+  if (permitBlockers.length > 0) {
+    attentionItems.push({
+      id: "permit-readiness",
+      title: `${permitBlockers.length} permit blocker${permitBlockers.length === 1 ? "" : "s"}`,
+      detail: `${permitBlockers[0].type} is ${permitBlockers[0].status.toLowerCase()} and should be verified before the shift.`,
+      tone: permitBlockers.some((permit) => permit.status === "Expired") ? "critical" : "medium",
+      actionLabel: "Check permits",
+      targetTab: "Permits",
+    });
+  }
+  if (inspectionGaps.length > 0) {
+    attentionItems.push({
+      id: "inspection-gaps",
+      title: `${inspectionGaps.length} inspection gap${inspectionGaps.length === 1 ? "" : "s"}`,
+      detail: `${inspectionGaps[0].title} has ${inspectionGaps[0].failedItems} failed check${inspectionGaps[0].failedItems === 1 ? "" : "s"}.`,
+      tone: "medium",
+      actionLabel: "Inspect gaps",
+      targetTab: "Inspections",
+    });
+  }
+  if (attentionItems.length === 0) {
+    attentionItems.push({
+      id: "steady-state",
+      title: "No urgent blockers detected",
+      detail: "Keep the daily huddle focused on schedule changes, permit readiness, and field observations.",
+      tone: "low",
+      actionLabel: "Review dashboard",
+      targetTab: "Overview",
+    });
+  }
+
+  const readinessSignals: JobsiteReadinessSignal[] = [
+    {
+      id: "workforce",
+      label: "Workforce",
+      value: `${siteEmployees.length || site.workforceCount}`,
+      detail: workforceAtRisk.length > 0 ? `${workforceAtRisk.length} worker${workforceAtRisk.length === 1 ? "" : "s"} need readiness review.` : "Crew readiness looks clear.",
+      tone: workforceAtRisk.length > 0 ? "medium" : "low",
+      targetTab: "Workforce",
+    },
+    {
+      id: "permits",
+      label: "Permits",
+      value: `${sitePermits.length || site.activePermits}`,
+      detail: permitBlockers.length > 0 ? `${permitBlockers.length} permit item${permitBlockers.length === 1 ? "" : "s"} need review.` : "No permit blockers detected.",
+      tone: permitBlockers.length > 0 ? "high" : "low",
+      targetTab: "Permits",
+    },
+    {
+      id: "inspections",
+      label: "Inspections",
+      value: `${inspectionGaps.length || site.inspectionGaps}`,
+      detail: inspectionGaps.length > 0 ? "Failed or overdue checks need closure." : "No failed checks currently flagged.",
+      tone: inspectionGaps.length > 0 ? "medium" : "low",
+      targetTab: "Inspections",
+    },
+    {
+      id: "documents",
+      label: "Docs & reports",
+      value: `${siteDocuments.length + siteReports.length}`,
+      detail: siteReports.some((report) => report.status === "Ready") ? "Client or leadership report is ready." : "No ready report is waiting.",
+      tone: siteReports.some((report) => report.status === "Ready") ? "blue" : "low",
+      targetTab: "Documents & Reports",
+    },
+  ];
+
+  const activityItems: JobsiteActivityItem[] = [
+    ...openActions.slice(0, 2).map<JobsiteActivityItem>((action) => ({
+      id: `action-${action.id}`,
+      title: action.title,
+      detail: `${action.status} corrective action assigned to ${action.assignee}.`,
+      meta: action.dueDate,
+      tone: action.priority === "critical" ? "critical" : action.priority === "high" ? "high" : "medium",
+    })),
+    ...siteObservations.slice(0, 1).map<JobsiteActivityItem>((observation) => ({
+      id: `observation-${observation.id}`,
+      title: observation.title,
+      detail: observation.detail,
+      meta: observation.submittedAt,
+      tone: observation.riskLevel === "critical" ? "critical" : observation.riskLevel === "high" ? "high" : "blue",
+    })),
+    ...siteIncidents.slice(0, 1).map<JobsiteActivityItem>((incident) => ({
+      id: `incident-${incident.id}`,
+      title: incident.title,
+      detail: incident.detail,
+      meta: incident.reportedAt,
+      tone: incident.severity === "critical" ? "critical" : incident.severity === "high" ? "high" : "medium",
+    })),
+  ].slice(0, 4);
+
+  const nextBestAction =
+    attentionItems[0]?.id === "steady-state"
+      ? "Run the daily huddle and confirm no new schedule or permit changes."
+      : attentionItems[0].detail;
+  const aiRiskSummary =
+    site.riskLevel === "critical" || site.riskLevel === "high"
+      ? `${riskText(site.riskLevel)} jobsite risk is being driven by ${attentionItems[0].title.toLowerCase()}.`
+      : `${riskText(site.riskLevel)} jobsite risk with ${openActions.length} open action${openActions.length === 1 ? "" : "s"} and ${permitBlockers.length} permit blocker${permitBlockers.length === 1 ? "" : "s"}.`;
+
+  return {
+    site,
+    aiRiskSummary,
+    nextBestAction,
+    nextScheduleTitle: nextSchedule?.title ?? "No scheduled high-risk work loaded",
+    nextScheduleDate: nextSchedule?.date ?? "Next 7 days",
+    highRiskScheduleCount: highRiskSchedule.length,
+    attentionItems: attentionItems.slice(0, 4),
+    readinessSignals,
+    activityItems,
+  };
 }
 
 function predictionSourceLabel(source?: ScheduleHazardPredictionResponse["source"]) {
@@ -210,161 +497,6 @@ function listText(value: string[]) {
   return value.join(", ");
 }
 
-function normalizeCsvHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function parseCsvRows(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        cell += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === "," && !inQuotes) {
-      row.push(cell);
-      cell = "";
-      continue;
-    }
-
-    if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(cell);
-      if (row.some((value) => value.trim())) rows.push(row);
-      row = [];
-      cell = "";
-      continue;
-    }
-
-    cell += char;
-  }
-
-  row.push(cell);
-  if (row.some((value) => value.trim())) rows.push(row);
-  return rows;
-}
-
-function normalizeScheduleDate(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return trimmed;
-  const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!usMatch) return null;
-  const month = Number(usMatch[1]);
-  const day = Number(usMatch[2]);
-  const year = Number(usMatch[3]);
-  const parsed = new Date(year, month - 1, day);
-  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function normalizeScheduleTime(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const twentyFourHour = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (twentyFourHour) {
-    const hour = Number(twentyFourHour[1]);
-    const minute = Number(twentyFourHour[2]);
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-    return null;
-  }
-
-  const amPm = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
-  if (!amPm) return null;
-  let hour = Number(amPm[1]);
-  const minute = Number(amPm[2] ?? "0");
-  const period = amPm[3].toLowerCase();
-  if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
-  if (period === "pm" && hour !== 12) hour += 12;
-  if (period === "am" && hour === 12) hour = 0;
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function normalizeScheduleRisk(value: string) {
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return "high";
-  if (["critical", "high", "medium", "low"].includes(normalized)) return normalized as SafePredictRiskLevel;
-  return null;
-}
-
-function parseScheduleTemplateCsv(text: string) {
-  const [headerRow, ...dataRows] = parseCsvRows(text.replace(/^\uFEFF/, ""));
-  const tasks: ScheduleTaskForm[] = [];
-  const errors: string[] = [];
-  if (!headerRow) return { tasks, errors: ["No CSV header row found."] };
-
-  const headerMap = new Map<string, number>();
-  headerRow.forEach((header, index) => headerMap.set(normalizeCsvHeader(header), index));
-
-  function cellFor(column: (typeof scheduleTemplateColumns)[number]) {
-    const match = column.aliases.find((alias) => headerMap.has(normalizeCsvHeader(alias)));
-    return typeof match === "string" ? headerMap.get(normalizeCsvHeader(match)) : undefined;
-  }
-
-  for (const [rowOffset, row] of dataRows.entries()) {
-    const rowNumber = rowOffset + 2;
-    const valueFor = (column: (typeof scheduleTemplateColumns)[number]) => {
-      const index = cellFor(column);
-      return typeof index === "number" ? (row[index] ?? "").trim() : "";
-    };
-
-    const title = valueFor(scheduleTemplateColumns[0]);
-    if (!title && row.every((value) => !value.trim())) continue;
-    if (!title) {
-      errors.push(`Row ${rowNumber}: task title is required.`);
-      continue;
-    }
-
-    const dueDate = normalizeScheduleDate(valueFor(scheduleTemplateColumns[1]));
-    const shiftStartTime = normalizeScheduleTime(valueFor(scheduleTemplateColumns[5]));
-    const shiftEndTime = normalizeScheduleTime(valueFor(scheduleTemplateColumns[6]));
-    const riskLevel = normalizeScheduleRisk(valueFor(scheduleTemplateColumns[8]));
-    const crewSize = valueFor(scheduleTemplateColumns[7]);
-    const crewSizeNumber = crewSize ? Number(crewSize) : null;
-    const invalidCrewSize = crewSizeNumber !== null && (!Number.isFinite(crewSizeNumber) || crewSizeNumber < 0);
-
-    if (dueDate === null) errors.push(`Row ${rowNumber}: date must be YYYY-MM-DD or MM/DD/YYYY.`);
-    if (shiftStartTime === null) errors.push(`Row ${rowNumber}: shift start must be HH:MM or h:mm AM/PM.`);
-    if (shiftEndTime === null) errors.push(`Row ${rowNumber}: shift end must be HH:MM or h:mm AM/PM.`);
-    if (riskLevel === null) errors.push(`Row ${rowNumber}: risk level must be critical, high, medium, or low.`);
-    if (invalidCrewSize) errors.push(`Row ${rowNumber}: crew size must be a positive number.`);
-    if (dueDate === null || shiftStartTime === null || shiftEndTime === null || riskLevel === null || invalidCrewSize) continue;
-
-    tasks.push({
-      title,
-      dueDate,
-      shiftStartTime,
-      shiftEndTime,
-      trade: valueFor(scheduleTemplateColumns[2]),
-      taskType: valueFor(scheduleTemplateColumns[3]),
-      workArea: valueFor(scheduleTemplateColumns[4]),
-      crewSize,
-      riskLevel,
-      owner: valueFor(scheduleTemplateColumns[9]),
-      hazards: valueFor(scheduleTemplateColumns[10]),
-      permits: valueFor(scheduleTemplateColumns[11]),
-      controls: valueFor(scheduleTemplateColumns[12]),
-      notes: valueFor(scheduleTemplateColumns[13]),
-    });
-  }
-
-  return { tasks, errors };
-}
-
 function scheduleTemplateFileName(site: SafePredictJobsiteRecord) {
   const slug = [site.code, site.name]
     .filter(Boolean)
@@ -377,6 +509,43 @@ function scheduleTemplateFileName(site: SafePredictJobsiteRecord) {
 
 function jobsiteSearchText(site: SafePredictJobsiteRecord) {
   return [site.name, site.code, site.address, site.cityState, site.phase, site.siteLead, site.projectManager, site.customerName].join(" ").toLowerCase();
+}
+
+function scheduleFormForApiItem(item: SafePredictScheduleApiItem): ScheduleTaskForm {
+  const taskType = typeof item.sourceMetadata?.taskType === "string" ? item.sourceMetadata.taskType : "";
+  const startDate = item.workStartDate?.slice(0, 10) ?? "";
+  const endDate = item.workEndDate?.slice(0, 10) ?? "";
+  const metadata = item.sourceMetadata ?? {};
+  const metadataString = (key: string) => {
+    const value = metadata[key];
+    return value == null ? undefined : String(value);
+  };
+  return {
+    title: item.title?.trim() || "",
+    dueDate: startDate,
+    workEndDate: endDate && endDate !== startDate ? endDate : "",
+    shiftStartTime: item.shiftStartTime ?? "",
+    shiftEndTime: item.shiftEndTime ?? "",
+    trade: item.trade ?? "",
+    taskType,
+    owner: item.supervisorName ?? "",
+    workArea: item.workArea ?? "",
+    crewSize: item.crewSize == null ? "" : String(item.crewSize),
+    riskLevel: normalizeScheduleRiskLevel(item.riskLevel),
+    hazards: listText(item.hazardCategories ?? []),
+    permits: listText(item.permitTriggers ?? []),
+    controls: listText(item.requiredControls ?? []),
+    notes: item.notes ?? "",
+    sourceMetadata: {
+      importKey: metadataString("importKey"),
+      importSource: metadataString("importSource"),
+      sourceTaskId: metadataString("sourceTaskId"),
+      percentComplete: metadataString("percentComplete"),
+      projectStatus: metadataString("projectStatus"),
+      priority: metadataString("priority"),
+      outlineLevel: metadataString("outlineLevel"),
+    },
+  };
 }
 
 export function SafePredictJobsitesPortfolio() {
@@ -403,10 +572,18 @@ export function SafePredictJobsitesPortfolio() {
   const visibleJobsites = useMemo(() => {
     return dataset.jobsites
       .filter((site) => status === "all" || site.status === status)
-      .filter((site) => risk === "all" || site.riskLevel === risk)
+      .filter((site) => risk === "all" || site.riskLevel === risk || (risk === "critical" && site.riskLevel === "high"))
       .filter((site) => !normalizedQuery || jobsiteSearchText(site).includes(normalizedQuery))
       .sort((a, b) => riskSort(b.riskLevel) - riskSort(a.riskLevel));
   }, [dataset.jobsites, normalizedQuery, risk, status]);
+  const jobsiteCommandSummaries = useMemo(() => {
+    return new Map(dataset.jobsites.map((site) => [site.id, buildJobsiteCommandSummary(dataset, site)]));
+  }, [dataset]);
+  const portfolioAttention = visibleJobsites
+    .map((site) => jobsiteCommandSummaries.get(site.id))
+    .filter((summary): summary is JobsiteCommandSummary => Boolean(summary))
+    .flatMap((summary) => summary.attentionItems.map((item) => ({ ...item, site: summary.site })))
+    .slice(0, 5);
 
   function clearFilters() {
     setQuery("");
@@ -503,7 +680,58 @@ export function SafePredictJobsitesPortfolio() {
       </div>
 
       <Card className="mt-5 p-5">
-        <div className="grid gap-4 2xl:grid-cols-[1fr_190px_170px_auto] 2xl:items-end">
+        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-blue-50 text-blue-600">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-blue-600">Daily Command Brief</p>
+                <h2 className="text-xl font-black text-slate-950">What Needs Attention Before the Next Shift</h2>
+              </div>
+            </div>
+            <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+              Jobsites are ranked by risk, open work, permit readiness, inspection gaps, and field activity so safety managers can move from signal to action fast.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setRisk("critical")} className="inline-flex h-9 items-center rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700">
+                Critical only
+              </button>
+              <button type="button" onClick={() => setStatus("action-needed")} className="inline-flex h-9 items-center rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-black text-orange-700">
+                Action needed
+              </button>
+              <button type="button" onClick={() => setShowCreateJobsite(true)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700">
+                <Plus className="h-3.5 w-3.5" />
+                Add jobsite
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {portfolioAttention.length > 0 ? (
+              portfolioAttention.map((item) => (
+                <Link
+                  key={`${item.site.id}-${item.id}`}
+                  href={`/safe-predict/jobsites/${encodeURIComponent(item.site.id)}`}
+                  className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-200 hover:bg-white"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black uppercase tracking-wide text-slate-500">{item.site.name}</span>
+                    <span className="mt-1 block text-sm font-black text-slate-950">{formatTitleCase(item.title) || item.title}</span>
+                    <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{item.detail}</span>
+                  </span>
+                  <span className={cx("shrink-0 rounded-full border px-2.5 py-1 text-xs font-black", attentionToneClass(item.tone))}>{item.actionLabel}</span>
+                </Link>
+              ))
+            ) : (
+              <EmptyLivePanel title="No Command Signals Yet" detail="Create a jobsite or switch to sample data to see the command brief populate with risk-ranked work." />
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="mt-5 p-5">
+        <div className="grid gap-4 xl:grid-cols-[1fr_190px_170px_auto] xl:items-end">
           <label className="relative block">
             <span className="mb-1 block text-xs font-bold text-slate-600">Search</span>
             <Search className="absolute bottom-3 left-3 h-5 w-5 text-slate-400" />
@@ -553,6 +781,8 @@ export function SafePredictJobsitesPortfolio() {
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             {visibleJobsites.map((site) => {
               const selected = selectedJobsiteId === site.id;
+              const command = jobsiteCommandSummaries.get(site.id) ?? buildJobsiteCommandSummary(dataset, site);
+              const primaryAttention = command.attentionItems[0];
               return (
                 <Link
                   key={site.id}
@@ -580,11 +810,24 @@ export function SafePredictJobsitesPortfolio() {
                   <h2 className="mt-4 text-lg font-black text-slate-950">{site.name}</h2>
                   <p className="mt-1 text-sm font-semibold text-slate-500">{site.code} - {site.cityState}</p>
                   <p className="mt-2 text-sm leading-5 text-slate-600">{site.phase}</p>
+                  <div className={cx("mt-4 rounded-lg border px-3 py-2", attentionToneClass(primaryAttention.tone))}>
+                    <p className="text-xs font-black uppercase tracking-wide">Needs attention</p>
+                    <p className="mt-1 text-sm font-black leading-5">{formatTitleCase(primaryAttention.title) || primaryAttention.title}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 opacity-90">{primaryAttention.detail}</p>
+                  </div>
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black text-slate-700 sm:grid-cols-4">
                     <span className="rounded-md bg-slate-50 p-2"><Users className="mr-1 inline h-3.5 w-3.5" />{site.workforceCount}</span>
                     <span className="rounded-md bg-slate-50 p-2">{site.activePermits} permits</span>
                     <span className="rounded-md bg-slate-50 p-2">{site.openActions} actions</span>
                     <span className="rounded-md bg-slate-50 p-2">{site.inspectionGaps} gaps</span>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {command.readinessSignals.slice(0, 2).map((signal) => (
+                      <span key={`${site.id}-${signal.id}`} className={cx("rounded-md border-l-4 bg-slate-50 p-2 text-xs font-bold text-slate-600", signalBorderClass(signal.tone))}>
+                        <span className="block font-black text-slate-950">{signal.label}: {signal.value}</span>
+                        {signal.detail}
+                      </span>
+                    ))}
                   </div>
                   <p className="mt-4 inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-blue-600">
                     Open command center <ArrowRight className="h-4 w-4" />
@@ -594,12 +837,12 @@ export function SafePredictJobsitesPortfolio() {
             })}
           </div>
           {visibleJobsites.length === 0 ? (
-            <div className="mt-5 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <p className="text-lg font-black text-slate-950">{isLiveEmpty ? "No live jobsites yet." : "No jobsites match those filters."}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-500">
-                {isLiveEmpty ? "Add or import the first jobsite for this company to populate this workspace." : "Clear filters or switch back to sample data."}
-              </p>
-            </div>
+            <CommandEmptyState
+              isLiveEmpty={isLiveEmpty}
+              onCreate={() => setShowCreateJobsite(true)}
+              onClear={clearFilters}
+              onSample={() => setMode("demo")}
+            />
           ) : null}
         </Card>
 
@@ -610,12 +853,12 @@ export function SafePredictJobsitesPortfolio() {
               {isLiveMode ? (
                 <LiveJobsiteRiskList
                   jobsites={dataset.jobsites}
-                  emptyTitle="No live risk zones"
+                  emptyTitle="No Live Risk Zones"
                   emptyDetail="Site risk zones will appear after this company has jobsites and field activity."
                 />
               ) : isLiveEmpty ? (
                 <EmptyLivePanel
-                  title="No live risk zones"
+                  title="No Live Risk Zones"
                   detail="Site risk zones will appear after this company has jobsites and field activity."
                 />
               ) : (
@@ -630,7 +873,7 @@ export function SafePredictJobsitesPortfolio() {
                 <EventTimeline events={dataset.events} />
               ) : (
                 <EmptyLivePanel
-                  title="No recent activity"
+                  title="No Recent Activity"
                   detail="Jobsite events, observations, corrective actions, and reports will appear here as live records are created."
                 />
               )}
@@ -643,10 +886,58 @@ export function SafePredictJobsitesPortfolio() {
 }
 
 function EmptyLivePanel({ title, detail }: { title: string; detail: string }) {
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
-      <p className="text-sm font-black text-slate-950">{title}</p>
+      <p className="text-sm font-black text-slate-950">{displayTitle}</p>
       <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function CommandEmptyState({
+  isLiveEmpty,
+  onCreate,
+  onClear,
+  onSample,
+}: {
+  isLiveEmpty: boolean;
+  onCreate: () => void;
+  onClear: () => void;
+  onSample: () => void;
+}) {
+  return (
+    <div className="mt-5 rounded-lg border border-dashed border-blue-200 bg-blue-50/60 p-8">
+      <div className="mx-auto max-w-2xl text-center">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-white text-blue-600 shadow-sm">
+          <Building2 className="h-6 w-6" />
+        </span>
+        <p className="mt-4 text-lg font-black text-slate-950">
+          {isLiveEmpty ? "Start the company command center with the first jobsite." : "No jobsites match the current command filters."}
+        </p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+          {isLiveEmpty
+            ? "Once a jobsite exists, this page ranks risk, open actions, permits, inspections, schedule hazards, documents, and activity in one safety-manager view."
+            : "Clear the filters to return to the ranked portfolio, or use sample data to preview the full command center."}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <button type="button" onClick={onCreate} className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm">
+            <Plus className="h-4 w-4" />
+            New jobsite
+          </button>
+          <button type="button" onClick={onClear} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <FilterX className="h-4 w-4" />
+            Clear filters
+          </button>
+          {isLiveEmpty ? (
+            <button type="button" onClick={onSample} className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm">
+              <ShieldCheck className="h-4 w-4" />
+              View sample command center
+            </button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -685,7 +976,7 @@ function LiveJobsiteRiskList({
           </span>
           <span className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-slate-800">
             <span className={cx("h-2.5 w-2.5 rounded-full", riskDotClass(jobsite.riskLevel))} />
-            {jobsite.riskScore}
+            {clampRiskScore(jobsite.riskScore)}
           </span>
         </Link>
       ))}
@@ -693,18 +984,158 @@ function LiveJobsiteRiskList({
   );
 }
 
+function JobsiteCommandDashboard({
+  summary,
+  mode,
+  onRefreshSchedule,
+  onCreateAction,
+  onOpenTab,
+}: {
+  summary: JobsiteCommandSummary;
+  mode: "demo" | "live";
+  onRefreshSchedule: () => void | Promise<void>;
+  onCreateAction: () => void;
+  onOpenTab: (tab: DetailTab) => void;
+}) {
+  return (
+    <Card className="mb-5 p-5">
+      <div className="grid gap-5 2xl:grid-cols-[1fr_420px]">
+        <div>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-wide text-blue-600">Safety Manager Command Center</p>
+              <h2 className="mt-1 text-2xl font-black leading-tight text-slate-950">Today&apos;s Jobsite Decision Board</h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">{summary.aiRiskSummary}</p>
+            </div>
+            {mode === "live" ? (
+              <AiEngineRefreshButton
+                days={30}
+                jobsiteId={summary.site.id}
+                label="Refresh site AI"
+                onRefreshed={onRefreshSchedule}
+                compact
+                buttonClassName="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+              />
+            ) : (
+              <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-600">
+                <Sparkles className="h-4 w-4" />
+                Sample AI brief
+              </span>
+            )}
+          </div>
+
+          <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-blue-700">Next best action</p>
+                <p className="mt-1 text-sm font-black leading-6 text-slate-950">{summary.nextBestAction}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onCreateAction} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-black text-white shadow-sm">
+                  <Plus className="h-3.5 w-3.5" />
+                  Create action
+                </button>
+                <button type="button" onClick={() => onOpenTab("Schedule")} className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Open schedule
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {summary.attentionItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenTab(item.targetTab)}
+                className={cx("rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm", attentionToneClass(item.tone))}
+              >
+                <span className="block text-xs font-black uppercase tracking-wide">{item.actionLabel}</span>
+                <span className="mt-1 block text-sm font-black leading-5 text-slate-950">{formatTitleCase(item.title) || item.title}</span>
+                <span className="mt-1 block text-xs font-semibold leading-5 opacity-90">{item.detail}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-blue-600 shadow-sm">
+                <CalendarCheck className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">Next schedule risk</p>
+                <p className="mt-1 truncate text-sm font-black text-slate-950">{summary.nextScheduleTitle}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{summary.nextScheduleDate} | {summary.highRiskScheduleCount} high-risk item{summary.highRiskScheduleCount === 1 ? "" : "s"}</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {summary.readinessSignals.map((signal) => (
+              <button
+                key={signal.id}
+                type="button"
+                onClick={() => onOpenTab(signal.targetTab)}
+                className={cx("rounded-lg border border-slate-200 border-l-4 bg-white p-3 text-left shadow-sm hover:bg-slate-50", signalBorderClass(signal.tone))}
+              >
+                <span className="block text-xs font-black uppercase tracking-wide text-slate-500">{signal.label}</span>
+                <span className="mt-1 block text-lg font-black text-slate-950">{signal.value}</span>
+                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{signal.detail}</span>
+              </button>
+            ))}
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-black text-slate-950">Latest Site Activity</p>
+            <div className="mt-3 space-y-2">
+              {summary.activityItems.length > 0 ? (
+                summary.activityItems.map((item) => (
+                  <button key={item.id} type="button" onClick={() => onOpenTab("Activity Timeline")} className="flex w-full items-start justify-between gap-3 rounded-lg bg-slate-50 p-3 text-left hover:bg-blue-50/50">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-slate-950">{formatTitleCase(item.title) || item.title}</span>
+                      <span className="mt-1 line-clamp-2 block text-xs font-semibold leading-5 text-slate-600">{item.detail}</span>
+                    </span>
+                    <span className={cx("shrink-0 rounded-full border px-2 py-1 text-[11px] font-black", attentionToneClass(item.tone))}>{item.meta}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs font-semibold text-slate-500">
+                  No activity has been recorded for this jobsite yet.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
-  const { dataset, updateActionStatus, addDraftAction, setSelectedJobsiteId, mode } = useSafePredictData();
-  const [activeTab, setActiveTab] = useState<(typeof detailTabs)[number]>("Overview");
+  const { dataset, updateActionStatus, addDraftAction, addDraftPermit, updatePermit, refreshLiveData, setSelectedJobsiteId, mode } = useSafePredictData();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<DetailTab>("Overview");
   const manualScheduleTaskIdRef = useRef(0);
   const scheduleTemplateInputRef = useRef<HTMLInputElement | null>(null);
+  const scheduleTaskFormRef = useRef<HTMLDivElement | null>(null);
   const [manualScheduleTasks, setManualScheduleTasks] = useState<ScheduledRiskEvent[]>([]);
+  const [persistedScheduleTasks, setPersistedScheduleTasks] = useState<ScheduledRiskEvent[]>([]);
+  const [scheduleLoadError, setScheduleLoadError] = useState<string | null>(null);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [schedulePrediction, setSchedulePrediction] = useState<ScheduleHazardPredictionResponse | null>(null);
   const [schedulePredictionLoading, setSchedulePredictionLoading] = useState(false);
   const [schedulePredictionError, setSchedulePredictionError] = useState<string | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleImporting, setScheduleImporting] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  const [permitFormOpen, setPermitFormOpen] = useState(false);
+  const [permitFormMode, setPermitFormMode] = useState<SafePredictPermitFormMode>("view");
+  const [activePermit, setActivePermit] = useState<SafePredictDataset["permits"][number] | null>(null);
+  const [permitSaving, setPermitSaving] = useState(false);
+  const [permitMessage, setPermitMessage] = useState("");
+  const [editingScheduleTask, setEditingScheduleTask] = useState<ScheduledRiskEvent | null>(null);
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
     dueDate: "",
@@ -716,6 +1147,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     workArea: "",
     crewSize: "",
     riskLevel: "high",
+    workEndDate: "",
     hazards: "",
     permits: "",
     controls: "",
@@ -756,6 +1188,161 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const siteDocuments = siteScoped(dataset.documents, site.id);
   const siteReports = siteScoped(dataset.reports, site.id);
   const siteEvents = dataset.events.filter((event) => event.detail.toLowerCase().includes(site.name.toLowerCase().split(" ")[0]) || event.detail.toLowerCase().includes(site.name.toLowerCase()));
+  const displayedRiskScore = clampRiskScore(site.riskScore);
+  const scheduleJobsiteId = site.id;
+  const scheduleFallbackOwner = site.siteLead;
+  const scheduleFallbackLocation = site.phase;
+
+  function openPermitForm(permit: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode) {
+    setActivePermit(permit);
+    setPermitFormMode(nextMode);
+    setPermitMessage("");
+    setPermitFormOpen(true);
+  }
+
+  function permitStatusApiValue(status: SafePredictDataset["permits"][number]["status"]) {
+    if (status === "Active") return "active";
+    if (status === "Expired") return "expired";
+    return "draft";
+  }
+
+  function permitTypeApiValue(type: string) {
+    return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+
+  function permitDueAtValue(expiresAt: string) {
+    const trimmed = expiresAt.trim();
+    if (!trimmed) return null;
+    const parsed = Date.parse(trimmed);
+    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  }
+
+  async function savePermit(input: SafePredictPermitFormSaveInput) {
+    const title = input.title.trim();
+    if (!title || !input.siteId) {
+      setPermitMessage("Permit title and jobsite are required.");
+      return;
+    }
+
+    setPermitSaving(true);
+    setPermitMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+
+      if (mode === "live" && token) {
+        const response = await fetch("/api/company/permits", {
+          method: input.id ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            id: input.id,
+            title,
+            permitType: permitTypeApiValue(input.type),
+            severity: input.riskLevel,
+            category: "safety",
+            jobsiteId: input.siteId,
+            ownerUserId: null,
+            dueAt: permitDueAtValue(input.expiresAt),
+            sifFlag: input.riskLevel === "critical" || input.riskLevel === "high",
+            escalationLevel: input.riskLevel === "critical" ? "urgent" : "none",
+            escalationReason: "",
+            stopWorkStatus: input.status === "Expired" ? "stop_work_requested" : "normal",
+            stopWorkReason: input.status === "Expired" ? "Expired permit requires hold before work proceeds." : "",
+            jsaActivityId: null,
+            observationId: null,
+            status: permitStatusApiValue(input.status),
+            permitForm: input.permitForm,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          setPermitMessage(payload?.error || "Could not save the permit.");
+          return;
+        }
+      }
+
+      const nextPermit: SafePredictDataset["permits"][number] = {
+        ...(activePermit ?? {}),
+        id: input.id || activePermit?.id || `draft-permit-${Date.now()}`,
+        title,
+        siteId: input.siteId,
+        type: input.type,
+        status: input.status,
+        owner: input.owner.trim() || "Unassigned",
+        expiresAt: input.expiresAt || "No expiration set",
+        riskLevel: input.riskLevel,
+        permitForm: input.permitForm,
+        readiness: permitFormReadinessLabel(input.permitForm),
+      };
+      if (input.id || activePermit) {
+        updatePermit(nextPermit);
+      } else {
+        addDraftPermit(nextPermit);
+      }
+      refreshLiveData();
+      setPermitFormOpen(false);
+      setActivePermit(null);
+      setPermitMessage(mode === "live" && token ? "Permit saved to the company permit register." : "Permit saved locally.");
+    } catch (error) {
+      setPermitMessage(error instanceof Error ? error.message : "Could not save the permit.");
+    } finally {
+      setPermitSaving(false);
+    }
+  }
+
+  const loadPersistedSchedule = useCallback(async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token ?? null;
+      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(scheduleJobsiteId)}/schedule`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+      const data = (await response.json().catch(() => null)) as {
+        items?: SafePredictScheduleApiItem[];
+        warning?: string;
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        setScheduleLoadError(data?.error || "Saved schedule tasks could not be loaded.");
+        setPersistedScheduleTasks([]);
+        return;
+      }
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setPersistedScheduleTasks(
+        items.map((item) => ({
+          ...scheduleApiItemToEvent(item, { owner: scheduleFallbackOwner, location: scheduleFallbackLocation }),
+          editForm: item.readOnly ? undefined : scheduleFormForApiItem(item),
+          readOnly: Boolean(item.readOnly),
+          scheduleItemId: item.source === "manual" ? item.id : undefined,
+        }))
+      );
+      setScheduleLoadError(data?.warning ?? null);
+    } catch (error) {
+      setScheduleLoadError(error instanceof Error ? error.message : "Saved schedule tasks could not be loaded.");
+      setPersistedScheduleTasks([]);
+    }
+  }, [scheduleFallbackLocation, scheduleFallbackOwner, scheduleJobsiteId]);
+
+  useEffect(() => {
+    if (mode !== "live") {
+      const handle = window.setTimeout(() => {
+        setPersistedScheduleTasks([]);
+        setScheduleLoadError(null);
+      }, 0);
+      return () => window.clearTimeout(handle);
+    }
+    void loadPersistedSchedule();
+  }, [loadPersistedSchedule, mode]);
+
   const alertScheduleEvents: ScheduledRiskEvent[] = siteAlerts.slice(0, 4).map((alert, index) => ({
     id: `alert-${alert.id}`,
     title: alert.title,
@@ -767,6 +1354,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     detail: alert.detail,
     controls: ["Pre-task brief", "Supervisor verification"],
     source: "Predictive signal",
+    startDate: scheduleDateLabelToDateOnly(index === 0 ? "Today" : `Next ${index + 1} shifts`),
   }));
   const hazardScheduleEvents: ScheduledRiskEvent[] = siteHazards.map((hazard) => ({
     id: `hazard-${hazard.id}`,
@@ -779,6 +1367,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     detail: `${hazard.controlStatus} before work continues.`,
     controls: [hazard.controlStatus, "Field verification"],
     source: "Hazard register",
+    startDate: scheduleDateLabelToDateOnly(hazard.dueDate),
   }));
   const inspectionScheduleEvents: ScheduledRiskEvent[] = siteInspections.map((inspection) => ({
     id: `inspection-${inspection.id}`,
@@ -791,6 +1380,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     detail: `${inspection.failedItems} failed check${inspection.failedItems === 1 ? "" : "s"} currently tied to this inspection.`,
     controls: inspection.failedItems > 0 ? ["Close failed checks", "Document verification"] : ["Complete checklist"],
     source: "Inspection plan",
+    startDate: scheduleDateLabelToDateOnly(inspection.dueDate),
   }));
   const permitScheduleEvents: ScheduledRiskEvent[] = sitePermits.map((permit) => ({
     id: `permit-${permit.id}`,
@@ -803,6 +1393,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     detail: `${permit.status} permit needs review before scheduled work.`,
     controls: ["Permit check", "Crew signoff"],
     source: "Permit center",
+    startDate: scheduleDateLabelToDateOnly(permit.expiresAt),
   }));
   const actionScheduleEvents: ScheduledRiskEvent[] = siteActions
     .filter((action) => action.status !== "Closed")
@@ -818,11 +1409,31 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       detail: `${action.status} corrective action from ${action.createdFrom}.`,
       controls: ["Complete task", "Verify effectiveness"],
       source: "Corrective actions",
+      startDate: scheduleDateLabelToDateOnly(action.dueDate),
     }));
-  const upcomingRiskEvents = [...manualScheduleTasks, ...alertScheduleEvents, ...hazardScheduleEvents, ...inspectionScheduleEvents, ...permitScheduleEvents, ...actionScheduleEvents]
+  const upcomingRiskEvents = (dedupeScheduleEvents([...persistedScheduleTasks, ...manualScheduleTasks, ...alertScheduleEvents, ...hazardScheduleEvents, ...inspectionScheduleEvents, ...permitScheduleEvents, ...actionScheduleEvents]) as ScheduledRiskEvent[])
     .sort((a, b) => riskSort(b.riskLevel) - riskSort(a.riskLevel) || a.title.localeCompare(b.title));
+  const commandSummary = buildJobsiteCommandSummary(dataset, site, upcomingRiskEvents);
 
   const highRiskScheduleCount = upcomingRiskEvents.filter((event) => event.riskLevel === "critical" || event.riskLevel === "high").length;
+  const addedScheduleCount = upcomingRiskEvents.filter((event) => event.isManual).length;
+  const scheduleCalendarDays = buildScheduleCalendarDays(upcomingRiskEvents, calendarMonth);
+  const selectedCalendarEvents = selectedCalendarDate
+    ? upcomingRiskEvents.filter((event) => scheduleEventDateKeys(event).includes(selectedCalendarDate))
+    : upcomingRiskEvents;
+  const schedulePermitReadiness = buildSchedulePermitReadiness(upcomingRiskEvents, sitePermits);
+  const blockedSchedulePermitItems = schedulePermitReadiness.filter((item) => item.status !== "ready");
+  const openSiteActionsCount = siteActions.filter((action) => action.status !== "Closed").length;
+  const tabCounts: Partial<Record<DetailTab, number>> = {
+    "Corrective Actions": openSiteActionsCount,
+    Workforce: siteEmployees.length || site.workforceCount,
+    Schedule: upcomingRiskEvents.length,
+    Permits: blockedSchedulePermitItems.length || sitePermits.length || site.activePermits,
+    Inspections: siteInspections.filter((inspection) => inspection.failedItems > 0 || inspection.status === "Overdue" || inspection.status === "Failed Check").length || site.inspectionGaps,
+    "Incidents & Observations": siteIncidents.length + siteObservations.length,
+    "Documents & Reports": siteDocuments.length + siteReports.length,
+    "Activity Timeline": siteEvents.length || dataset.events.length,
+  };
 
   function updateScheduleTaskForm<K extends keyof ScheduleTaskForm>(key: K, value: ScheduleTaskForm[K]) {
     setScheduleTaskForm((current) => ({ ...current, [key]: value }));
@@ -956,6 +1567,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     return {
       title: form.title.trim(),
       workStartDate: form.dueDate || new Date().toISOString().slice(0, 10),
+      workEndDate: form.workEndDate || null,
       shiftStartTime: form.shiftStartTime || null,
       shiftEndTime: form.shiftEndTime || null,
       trade: form.trade,
@@ -969,17 +1581,21 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       requiredControls: controls,
       status: "planned",
       notes: form.notes,
-      sourceMetadata: prediction
-        ? {
-            schedulePrediction: {
-              source: prediction.source,
-              inputFingerprint: prediction.inputFingerprint ?? null,
-              confidence: prediction.confidence,
-              rationale: prediction.rationale,
-              matchedSignals: prediction.matchedSignals,
-            },
-          }
-        : null,
+      sourceMetadata: {
+        ...(form.sourceMetadata ?? {}),
+        ...(form.taskType ? { taskType: form.taskType } : {}),
+        ...(prediction
+          ? {
+              schedulePrediction: {
+                source: prediction.source,
+                inputFingerprint: prediction.inputFingerprint ?? null,
+                confidence: prediction.confidence,
+                rationale: prediction.rationale,
+                matchedSignals: prediction.matchedSignals,
+              },
+            }
+          : {}),
+      },
     };
   }
 
@@ -1000,22 +1616,56 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       },
       body: JSON.stringify(schedulePayloadForForm(form, prediction)),
     });
-    const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+    const data = (await response.json().catch(() => null)) as { error?: string; message?: string; importAction?: "created" | "updated" } | null;
     return {
       ok: response.ok,
       message: data?.message,
+      importAction: data?.importAction ?? "created",
       error: data?.error || (response.ok ? null : "Schedule task could not be saved."),
     };
   }
 
-  function scheduleEventForForm(form: ScheduleTaskForm, prediction: ScheduleHazardPredictionResponse | null, source: string) {
-    const controls = controlList(form.controls);
-    manualScheduleTaskIdRef.current += 1;
+  async function updateScheduleFormInApi(
+    itemId: string,
+    form: ScheduleTaskForm,
+    prediction: ScheduleHazardPredictionResponse | null,
+    accessToken?: string | null
+  ) {
+    const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/schedule`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        itemId,
+        ...schedulePayloadForForm(form, prediction),
+      }),
+    });
+    const data = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
     return {
-      id: `manual-schedule-${manualScheduleTaskIdRef.current}`,
+      ok: response.ok,
+      message: data?.message,
+      error: data?.error || (response.ok ? null : "Schedule task could not be updated."),
+    };
+  }
+
+  function scheduleEventForForm(
+    form: ScheduleTaskForm,
+    prediction: ScheduleHazardPredictionResponse | null,
+    source: string,
+    existingEvent?: ScheduledRiskEvent | null
+  ) {
+    const controls = controlList(form.controls);
+    const importedEventId = form.sourceMetadata?.importKey ? `schedule-import-${form.sourceMetadata.importKey}` : null;
+    const startDate = form.dueDate || toDateOnly(new Date());
+    const endDate = form.workEndDate || startDate;
+    if (!importedEventId && !existingEvent?.id) manualScheduleTaskIdRef.current += 1;
+    return {
+      id: importedEventId ?? existingEvent?.id ?? `manual-schedule-${manualScheduleTaskIdRef.current}`,
       title: form.title.trim(),
       type: form.taskType || "Task",
-      date: compactDateLabel(form.dueDate),
+      date: startDate && endDate !== startDate ? `${compactScheduleDateLabel(startDate)}-${compactScheduleDateLabel(endDate)}` : compactDateLabel(form.dueDate),
       owner: form.owner.trim() || site.siteLead,
       location: form.workArea.trim() || site.phase,
       riskLevel: form.riskLevel,
@@ -1026,6 +1676,12 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       source,
       predictionSource: prediction?.source,
       isManual: true,
+      startDate,
+      endDate,
+      dedupeKey: importedEventId ?? existingEvent?.dedupeKey,
+      editForm: form,
+      readOnly: existingEvent?.readOnly,
+      scheduleItemId: existingEvent?.scheduleItemId,
     } satisfies ScheduledRiskEvent;
   }
 
@@ -1041,6 +1697,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       workArea: "",
       crewSize: "",
       riskLevel: "high",
+      workEndDate: "",
       hazards: "",
       permits: "",
       controls: "",
@@ -1048,6 +1705,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     });
     setSchedulePrediction(null);
     setSchedulePredictionError(null);
+    setEditingScheduleTask(null);
   }
 
   async function addScheduleTask() {
@@ -1057,6 +1715,35 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     setScheduleMessage(null);
     const prediction = schedulePrediction;
     const formToSave = enrichScheduleFormWithPrediction({ ...scheduleTaskForm, title }, prediction);
+    if (editingScheduleTask) {
+      if (mode === "live" && editingScheduleTask.scheduleItemId) {
+        try {
+          const result = await updateScheduleFormInApi(editingScheduleTask.scheduleItemId, formToSave, prediction, await scheduleAccessToken());
+          if (!result.ok) {
+            setScheduleMessage(result.error || "Schedule task could not be updated.");
+            setScheduleSaving(false);
+            return;
+          }
+          setScheduleMessage(result.message || "Schedule task updated.");
+          resetScheduleTaskForm();
+          await loadPersistedSchedule();
+          setScheduleSaving(false);
+          return;
+        } catch (error) {
+          setScheduleMessage(error instanceof Error ? error.message : "Schedule task could not be updated.");
+          setScheduleSaving(false);
+          return;
+        }
+      }
+
+      const updatedTask = scheduleEventForForm(formToSave, prediction, editingScheduleTask.source, editingScheduleTask);
+      setManualScheduleTasks((current) => current.map((task) => (task.id === editingScheduleTask.id ? updatedTask : task)));
+      setScheduleMessage("Schedule task updated.");
+      resetScheduleTaskForm();
+      setScheduleSaving(false);
+      return;
+    }
+
     if (mode === "live") {
       try {
         const result = await saveScheduleFormToApi(formToSave, prediction, await scheduleAccessToken());
@@ -1066,16 +1753,31 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           return;
         }
         setScheduleMessage(result.message || "Schedule task saved.");
+        resetScheduleTaskForm();
+        await loadPersistedSchedule();
+        setScheduleSaving(false);
+        return;
       } catch (error) {
         setScheduleMessage(error instanceof Error ? error.message : "Schedule task could not be saved.");
         setScheduleSaving(false);
         return;
       }
     }
-    const task = scheduleEventForForm(formToSave, prediction, mode === "live" ? "Saved schedule task" : "Added task");
+    const task = scheduleEventForForm(formToSave, prediction, "Added task");
     setManualScheduleTasks((current) => [task, ...current]);
     resetScheduleTaskForm();
     setScheduleSaving(false);
+  }
+
+  function startEditingScheduleTask(event: ScheduledRiskEvent) {
+    if (!event.editForm || event.readOnly) return;
+    setActiveTab("Schedule");
+    setEditingScheduleTask(event);
+    setScheduleTaskForm(event.editForm);
+    setSchedulePrediction(null);
+    setSchedulePredictionError(null);
+    setScheduleMessage(`Editing "${event.title}".`);
+    window.setTimeout(() => scheduleTaskFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
 
   function downloadScheduleTemplate() {
@@ -1087,10 +1789,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   async function uploadScheduleTemplate(file: File | null) {
     if (!file) return;
     setScheduleImporting(true);
-    setScheduleMessage(null);
+    setScheduleMessage(`Reading ${file.name}...`);
     try {
-      const text = await file.text();
-      const parsed = parseScheduleTemplateCsv(text);
+      const parsed = await parseScheduleTemplateFile(file);
       if (parsed.tasks.length === 0) {
         setScheduleMessage(parsed.errors.length > 0 ? parsed.errors.slice(0, 3).join(" ") : "No schedule rows were found in that template.");
         return;
@@ -1098,6 +1799,8 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
 
       const events: ScheduledRiskEvent[] = [];
       const saveErrors: string[] = [];
+      let imported = 0;
+      let updated = 0;
       const accessToken = mode === "live" ? await scheduleAccessToken() : null;
 
       for (const [index, task] of parsed.tasks.entries()) {
@@ -1109,14 +1812,29 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             saveErrors.push(`Row ${index + 2}: ${result.error || "save failed"}`);
             continue;
           }
+          if (result.importAction === "updated") updated += 1;
+          else imported += 1;
+        } else {
+          imported += 1;
         }
         events.push(scheduleEventForForm(taskWithPrediction, prediction, mode === "live" ? "Imported schedule task" : "Imported task"));
       }
 
-      if (events.length > 0) setManualScheduleTasks((current) => [...events, ...current]);
+      if (events.length > 0) {
+        if (mode === "live") {
+          await loadPersistedSchedule();
+        } else {
+          setManualScheduleTasks((current) => {
+            const incomingIds = new Set(events.map((event) => event.id));
+            return [...events, ...current.filter((event) => !incomingIds.has(event.id))];
+          });
+        }
+      }
       const skipped = parsed.errors.length + saveErrors.length;
       const detail = [...parsed.errors, ...saveErrors].slice(0, 3).join(" ");
-      setScheduleMessage(`Imported ${events.length} schedule task${events.length === 1 ? "" : "s"}${skipped ? `; skipped ${skipped}. ${detail}` : "."}`);
+      const updatedText = updated ? ` Updated ${updated} existing task${updated === 1 ? "" : "s"}.` : "";
+      const skippedText = skipped ? ` Skipped ${skipped} row${skipped === 1 ? "" : "s"}. ${detail}` : "";
+      setScheduleMessage(`Imported ${imported} schedule task${imported === 1 ? "" : "s"} from ${file.name}.${updatedText}${skippedText} Added tasks are shown in the high-to-low risk plan below.`);
     } catch (error) {
       setScheduleMessage(error instanceof Error ? error.message : "Schedule template could not be uploaded.");
     } finally {
@@ -1165,6 +1883,22 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <button type="button" onClick={() => setActiveTab("Documents & Reports")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               Files & reports
             </button>
+            <Link href={`/jobsites/${encodeURIComponent(site.id)}/overview`} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+              Ops workspace
+            </Link>
+            {mode === "live" ? (
+              <AiEngineRefreshButton
+                days={30}
+                jobsiteId={site.id}
+                label="Refresh site AI"
+                onRefreshed={async () => {
+                  await loadPersistedSchedule();
+                  router.refresh();
+                }}
+                compact
+                buttonClassName="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60"
+              />
+            ) : null}
             <ExportButton
               fileName={`safe-predict-${site.id}-jobsite-report.json`}
               label={`Export ${site.name} report`}
@@ -1181,6 +1915,31 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         }
       />
 
+      {permitMessage && !permitFormOpen ? (
+        <p className="mb-5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+          {permitMessage}
+        </p>
+      ) : null}
+
+      {permitFormOpen ? (
+        <SafePredictPermitFormDialog
+          key={activePermit?.id ?? `create-${site.id}`}
+          mode={permitFormMode}
+          permit={activePermit}
+          jobsites={dataset.jobsites}
+          fallbackSiteId={site.id}
+          saving={permitSaving}
+          message={permitMessage}
+          onClose={() => {
+            setPermitFormOpen(false);
+            setActivePermit(null);
+            setPermitMessage("");
+          }}
+          onModeChange={setPermitFormMode}
+          onSave={(input) => void savePermit(input)}
+        />
+      ) : null}
+
       <Card className="mb-5 p-5">
         <div className="grid gap-5 2xl:grid-cols-[1fr_420px]">
           <div>
@@ -1190,7 +1949,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">{site.code}</span>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <InfoTile label="Risk Score" value={`${site.riskScore}/100`} tone="text-red-600" />
+              <InfoTile label="Risk Score" value={`${displayedRiskScore}/100`} tone="text-red-600" helper={SAFE_PREDICT_RISK_INDEX_HELPER} />
               <InfoTile label="Site Lead" value={site.siteLead} />
               <InfoTile label="Project Manager" value={site.projectManager} />
               <InfoTile label="Customer" value={site.customerName} />
@@ -1205,6 +1964,17 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         </div>
       </Card>
 
+      <JobsiteCommandDashboard
+        summary={commandSummary}
+        mode={mode}
+        onRefreshSchedule={() => void loadPersistedSchedule()}
+        onCreateAction={createSiteAction}
+        onOpenTab={(tab) => {
+          setActiveTab(tab);
+          setSelectedJobsiteId(site.id);
+        }}
+      />
+
       <div className="mb-5 rounded-lg border border-slate-200 bg-white p-1">
         <div className="flex flex-wrap gap-2">
           {detailTabs.map((tab) => (
@@ -1217,48 +1987,132 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
               }}
               className={cx("min-h-10 flex-1 rounded-md px-3 py-2 text-xs font-black transition sm:flex-none", activeTab === tab ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50")}
             >
-              {tab}
+              <span className="inline-flex items-center gap-2">
+                {tab}
+                {tabCounts[tab] ? (
+                  <span className={cx("rounded-full px-2 py-0.5 text-[10px] font-black", activeTab === tab ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>
+                    {tabCounts[tab]}
+                  </span>
+                ) : null}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
       {activeTab === "Overview" ? (
-        <div className="grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="p-5">
-            <SectionTitle title="Jobsite Risk Heat Map" />
-            <div className="mt-4">
-              {mode === "live" ? (
-                <LiveJobsiteRiskList
-                  jobsites={[site]}
-                  emptyTitle="No live risk zones"
-                  emptyDetail="This jobsite will show risk zones after field activity is recorded."
-                />
-              ) : (
-                <RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} />
-              )}
+            <SectionTitle title="Today On This Site" hint="A daily shift board that turns jobsite records into decisions before work starts." />
+            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-blue-700">Priority focus</p>
+              <p className="mt-1 text-lg font-black leading-snug text-slate-950">{formatTitleCase(commandSummary.attentionItems[0]?.title ?? "No blockers detected") || "No Blockers Detected"}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{commandSummary.nextBestAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => setActiveTab(commandSummary.attentionItems[0]?.targetTab ?? "Schedule")} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-black text-white shadow-sm">
+                  Open focus area
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={createSiteAction} className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm">
+                  <Plus className="h-3.5 w-3.5" />
+                  Create action
+                </button>
+              </div>
             </div>
-          </Card>
-          <Card className="p-5">
-            <SectionTitle title="Top Site Signals" />
-            <div className="mt-4 space-y-3">
-              {[...siteAlerts, ...siteHazards].slice(0, 5).map((item) => (
-                <button key={item.id} type="button" onClick={() => setActiveTab("Corrective Actions")} className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-left hover:bg-white">
-                  <span>
-                    <span className="block text-sm font-black text-slate-950">{item.title}</span>
-                    <span className="mt-1 block text-xs text-slate-500">{"detail" in item ? item.detail : item.controlStatus}</span>
-                  </span>
-                  <RiskBadge level={item.riskLevel} />
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <ShiftBoardColumn
+                title="Before Work Starts"
+                items={[
+                  blockedSchedulePermitItems.length > 0 ? `${blockedSchedulePermitItems.length} schedule item${blockedSchedulePermitItems.length === 1 ? "" : "s"} need permit readiness.` : "Permit readiness is clear for visible schedule items.",
+                  highRiskScheduleCount > 0 ? `${highRiskScheduleCount} high-risk task${highRiskScheduleCount === 1 ? "" : "s"} need pre-task controls.` : "No high-risk schedule task is currently queued.",
+                  openSiteActionsCount > 0 ? `${openSiteActionsCount} open action${openSiteActionsCount === 1 ? "" : "s"} should be reviewed in huddle.` : "No open corrective action is blocking startup.",
+                ]}
+              />
+              <ShiftBoardColumn
+                title="During Work"
+                items={[
+                  siteObservations.length > 0 ? `${siteObservations.length} observation${siteObservations.length === 1 ? "" : "s"} available for field coaching.` : "Capture observations as work starts moving.",
+                  siteEmployees.length > 0 ? `${siteEmployees.length} worker${siteEmployees.length === 1 ? "" : "s"} assigned to this jobsite.` : "Assign workers to see crew readiness here.",
+                  commandSummary.nextScheduleTitle,
+                ]}
+              />
+              <ShiftBoardColumn
+                title="Before Closeout"
+                items={[
+                  siteInspections.some((inspection) => inspection.failedItems > 0) ? "Close failed inspection checks before shift handoff." : "No failed inspection checks are currently flagged.",
+                  siteReports.some((report) => report.status === "Ready") ? "A site report is ready for review or delivery." : "Build reports as documents and field activity accumulate.",
+                  siteDocuments.length > 0 ? `${siteDocuments.length} document${siteDocuments.length === 1 ? "" : "s"} connected to this site.` : "Attach JSAs, permits, and inspections to complete the record.",
+                ]}
+              />
+            </div>
+            <p className="mt-4 text-xs font-black uppercase tracking-wide text-slate-500">Readiness</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {commandSummary.readinessSignals.map((signal) => (
+                <button key={`overview-${signal.id}`} type="button" onClick={() => setActiveTab(signal.targetTab)} className={cx("rounded-lg border border-slate-200 border-l-4 bg-white p-3 text-left shadow-sm hover:bg-slate-50", signalBorderClass(signal.tone))}>
+                  <span className="block text-xs font-black uppercase tracking-wide text-slate-500">{signal.label}</span>
+                  <span className="mt-1 block text-lg font-black text-slate-950">{signal.value}</span>
+                  <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{signal.detail}</span>
                 </button>
               ))}
             </div>
+            {sitePermits[0] ? (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Permit Readiness</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">{sitePermits[0].title || sitePermits[0].type}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">{sitePermits[0].readiness}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => openPermitForm(sitePermits[0], "view")} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50">View</button>
+                    <button type="button" onClick={() => openPermitForm(sitePermits[0], "edit")} className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-100">Edit</button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </Card>
+          <div className="space-y-5">
+            <Card className="p-5">
+              <SectionTitle title="Risk Map" />
+              <div className="mt-4">
+                {mode === "live" ? (
+                  <LiveJobsiteRiskList
+                    jobsites={[site]}
+                    emptyTitle="No Live Risk Zones"
+                    emptyDetail="This jobsite will show risk zones after field activity is recorded."
+                  />
+                ) : (
+                  <RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} />
+                )}
+              </div>
+            </Card>
+            <Card className="p-5">
+              <SectionTitle title="Top Site Signals" />
+              <div className="mt-4 space-y-3">
+                {[...siteAlerts, ...siteHazards].slice(0, 5).map((item) => (
+                  <button key={item.id} type="button" onClick={() => setActiveTab("Corrective Actions")} className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-left hover:bg-white">
+                    <span>
+                      <span className="block text-sm font-black text-slate-950">{item.title}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{"detail" in item ? item.detail : item.controlStatus}</span>
+                    </span>
+                    <RiskBadge level={item.riskLevel} />
+                  </button>
+                ))}
+                {[...siteAlerts, ...siteHazards].length === 0 ? (
+                  <EmptyTabPanel title="No Site Signals Yet" detail="Risk signals will appear after observations, hazards, inspections, schedules, or AI recommendations are recorded." actionLabel="Create site action" onAction={createSiteAction} />
+                ) : null}
+              </div>
+            </Card>
+          </div>
         </div>
       ) : null}
 
       {activeTab === "Predictive Risk" ? (
         <Card className="p-5">
-          <SectionTitle title="Site 30-Day Risk Forecast" />
+          <SectionTitle
+            title="Site 30-Day Risk Index Forecast"
+            hint={SAFE_PREDICT_RISK_INDEX_HELPER}
+          />
           <ForecastTrendChart data={riskForecastForSite(dataset, site.id)} />
         </Card>
       ) : null}
@@ -1273,6 +2127,14 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
               </div>
             ))}
           </div>
+          {siteActions.length === 0 ? (
+            <EmptyTabPanel
+              title="No Corrective Actions Yet"
+              detail="Create the first action from a schedule risk, inspection gap, observation, or manual site concern so the team has a clear owner and next step."
+              actionLabel="Create site action"
+              onAction={createSiteAction}
+            />
+          ) : null}
         </Card>
       ) : null}
 
@@ -1282,16 +2144,34 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           rows={siteEmployees.map((employee) => [employee.name, employee.trade, employee.role, employee.status, `${employee.readinessScore}`])}
           headers={["Employee", "Trade", "Role", "Status", "Readiness", "Action"]}
           actions={siteEmployees.map(() => ({ label: "Assign training", href: `/safe-predict/training?jobsiteId=${encodeURIComponent(site.id)}` }))}
+          emptyTitle="No Workforce Assigned Yet"
+          emptyDetail="Assign workers to this jobsite to compare crew readiness against scheduled high-risk work and required training."
+          emptyAction={{ label: "Manage workforce", href: "/safe-predict/team-access" }}
         />
       ) : null}
 
       {activeTab === "Permits" ? (
-        <DataTable
-          title="Permits"
-          rows={sitePermits.map((permit) => [permit.type, permit.status, permit.owner, permit.expiresAt, permit.riskLevel])}
-          headers={["Permit", "Status", "Owner", "Expires", "Risk", "Action"]}
-          actions={sitePermits.map(() => ({ label: "Renew", href: `/safe-predict/permit-center?jobsiteId=${encodeURIComponent(site.id)}` }))}
-        />
+        <div className="space-y-5">
+          <PermitReadinessBoard
+            items={schedulePermitReadiness}
+            onOpenSchedule={() => setActiveTab("Schedule")}
+            onOpenPermits={() => setActiveTab("Permits")}
+          />
+          <DataTable
+            title="Permits"
+            rows={sitePermits.map((permit) => [permit.title || permit.type, permit.status, permit.owner, permit.expiresAt, permit.riskLevel, permit.readiness])}
+            headers={["Permit", "Status", "Owner", "Expires", "Risk", "Readiness", "Action"]}
+            actions={sitePermits.map((permit) => ({
+              label: "View",
+              onClick: () => openPermitForm(permit, "view"),
+              secondaryLabel: "Edit",
+              secondaryOnClick: () => openPermitForm(permit, "edit"),
+            }))}
+            emptyTitle="No Permits Logged Yet"
+            emptyDetail="Permits added here will connect to scheduled work so supervisors can see what is ready, expiring, or blocking the shift."
+            emptyAction={{ label: "Open permit center", href: `/safe-predict/permit-center?jobsiteId=${encodeURIComponent(site.id)}` }}
+          />
+        </div>
       ) : null}
 
       {activeTab === "Inspections" ? (
@@ -1300,6 +2180,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           rows={siteInspections.map((inspection) => [inspection.title, inspection.checklist, inspection.inspector, inspection.status, `${inspection.failedItems}`])}
           headers={["Inspection", "Checklist", "Inspector", "Status", "Failed", "Action"]}
           actions={siteInspections.map((inspection) => ({ label: "Create action", onClick: () => createActionForSignal({ id: inspection.id, title: inspection.title, riskLevel: inspection.riskLevel, createdFrom: "Inspection" }) }))}
+          emptyTitle="No inspections scheduled yet"
+          emptyDetail="Schedule inspections or import audit results to surface failed checks, repeat findings, and action-ready gaps."
+          emptyAction={{ label: "Open jobsite audits", href: "/safe-predict/inspections" }}
         />
       ) : null}
 
@@ -1310,27 +2193,39 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             rows={siteIncidents.map((incident) => [incident.title, incident.type, incident.status, incident.reportedBy, incident.reportedAt])}
             headers={["Incident", "Type", "Status", "Reported By", "Date", "Action"]}
             actions={siteIncidents.map((incident) => ({ label: "Create action", onClick: () => createActionForSignal({ id: incident.id, title: incident.title, riskLevel: incident.severity, createdFrom: "Manual" }) }))}
+            emptyTitle="No incidents reported"
+            emptyDetail="Incidents and near misses will appear here for investigation, corrective action, and trend review."
+            emptyAction={{ label: "Report incident", href: "/safe-predict/incidents" }}
           />
           <DataTable
             title="Observations"
             rows={siteObservations.map((observation) => [observation.title, observation.category, observation.status, observation.submittedBy, observation.submittedAt])}
             headers={["Observation", "Category", "Status", "Submitted By", "Date", "Action"]}
             actions={siteObservations.map((observation) => ({ label: "Convert", onClick: () => createActionForSignal({ id: observation.id, title: observation.title, riskLevel: observation.riskLevel, createdFrom: "Observation" }) }))}
+            emptyTitle="No observations captured"
+            emptyDetail="Capture good catches, unsafe conditions, and positive observations to feed the jobsite risk model."
+            emptyAction={{ label: "Add observation", href: "/safe-predict/observations" }}
           />
         </div>
       ) : null}
 
       {activeTab === "Documents & Reports" ? (
         <div className="grid gap-5 2xl:grid-cols-2">
-          <DataTable title="Documents" rows={siteDocuments.map((document) => [document.title, document.type, document.status, document.updatedAt])} headers={["Document", "Type", "Status", "Updated", "Action"]} actions={siteDocuments.map(() => ({ label: "Open", href: "/safe-predict/reports" }))} />
-          <DataTable title="Reports" rows={siteReports.map((report) => [report.title, report.audience, report.status, report.updatedAt])} headers={["Report", "Audience", "Status", "Updated", "Action"]} actions={siteReports.map(() => ({ label: "Open", href: "/safe-predict/reports" }))} />
+          <DataTable title="Documents" rows={siteDocuments.map((document) => [document.title, document.type, document.status, document.updatedAt])} headers={["Document", "Type", "Status", "Updated", "Action"]} actions={siteDocuments.map(() => ({ label: "Open", href: "/safe-predict/reports" }))} emptyTitle="No documents attached" emptyDetail="Attach JSAs, permits, inspections, training records, and site reports to make this jobsite audit-ready." emptyAction={{ label: "Open documents", href: "/safe-predict/reports" }} />
+          <DataTable title="Reports" rows={siteReports.map((report) => [report.title, report.audience, report.status, report.updatedAt])} headers={["Report", "Audience", "Status", "Updated", "Action"]} actions={siteReports.map(() => ({ label: "Open", href: "/safe-predict/reports" }))} emptyTitle="No reports built yet" emptyDetail="Build a site report once the schedule, permits, inspections, and field activity are ready for review." emptyAction={{ label: "Build report", href: "/safe-predict/reports" }} />
         </div>
       ) : null}
 
       {activeTab === "Activity Timeline" ? (
         <Card className="p-5">
           <SectionTitle title="Activity Timeline" />
-          <div className="mt-5"><EventTimeline events={siteEvents.length > 0 ? siteEvents : dataset.events} /></div>
+          <div className="mt-5">
+            {siteEvents.length > 0 || dataset.events.length > 0 ? (
+              <EventTimeline events={siteEvents.length > 0 ? siteEvents : dataset.events} />
+            ) : (
+              <EmptyTabPanel title="No Timeline Activity Yet" detail="AI refreshes, schedule edits, permit checks, inspections, observations, and reports will appear here as this jobsite starts moving." />
+            )}
+          </div>
         </Card>
       ) : null}
 
@@ -1340,15 +2235,21 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <InfoTile label="Upcoming Events" value={upcomingRiskEvents.length} />
             <InfoTile label="High Risk Events" value={highRiskScheduleCount} tone="text-red-600" />
-            <InfoTile label="Added Tasks" value={manualScheduleTasks.length} tone="text-blue-600" />
+            <InfoTile label="Added Tasks" value={addedScheduleCount} tone="text-blue-600" />
             <InfoTile label="Next Owner" value={upcomingRiskEvents[0]?.owner ?? site.siteLead} />
           </div>
 
-          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <PermitReadinessBoard
+            items={schedulePermitReadiness}
+            onOpenSchedule={() => setActiveTab("Schedule")}
+            onOpenPermits={() => setActiveTab("Permits")}
+          />
+
+          <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-black text-slate-950">
-                <Plus className="h-4 w-4 text-blue-600" />
-                Add Schedule Task
+                <Upload className="h-4 w-4 text-blue-600" />
+                Bulk Schedule Import
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -1357,21 +2258,61 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50"
                 >
                   <Download className="h-4 w-4" />
-                  Download Template
+                  Download CSV Template
                 </button>
-                <label className={cx("inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50", scheduleImporting ? "pointer-events-none opacity-60" : "")}>
+                <label
+                  className={cx(
+                    "inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-50",
+                    scheduleImporting ? "pointer-events-none cursor-not-allowed opacity-60" : "cursor-pointer"
+                  )}
+                >
                   <Upload className="h-4 w-4" />
-                  {scheduleImporting ? "Uploading" : "Upload Template"}
+                  {scheduleImporting ? "Importing" : "Bulk Upload Tasks"}
                   <input
                     ref={scheduleTemplateInputRef}
                     type="file"
-                    accept=".csv,text/csv"
+                    accept={scheduleTemplateAccept}
                     className="sr-only"
+                    disabled={scheduleImporting}
                     onChange={(event) => void uploadScheduleTemplate(event.target.files?.[0] ?? null)}
                   />
                 </label>
-                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Plans into high-to-low risk order</span>
               </div>
+            </div>
+            {scheduleMessage ? (
+              <div
+                aria-live="polite"
+                className="mt-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-700 shadow-sm"
+              >
+                {scheduleMessage}
+              </div>
+            ) : null}
+            {scheduleLoadError ? (
+              <div
+                aria-live="polite"
+                className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800 shadow-sm"
+              >
+                {scheduleLoadError}
+              </div>
+            ) : null}
+          </div>
+
+          <div ref={scheduleTaskFormRef} className="mt-4 scroll-mt-24 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-950">
+                {editingScheduleTask ? <Pencil className="h-4 w-4 text-blue-600" /> : <Plus className="h-4 w-4 text-blue-600" />}
+                {editingScheduleTask ? "Edit Schedule Task" : "Add Individual Schedule Task"}
+              </div>
+              {editingScheduleTask ? (
+                <button
+                  type="button"
+                  onClick={resetScheduleTaskForm}
+                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 hover:bg-slate-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancel edit
+                </button>
+              ) : null}
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <input
@@ -1523,27 +2464,52 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 disabled={!scheduleTaskForm.title.trim() || scheduleSaving}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Plus className="h-4 w-4" />
-                {scheduleSaving ? "Saving" : mode === "live" ? "Save" : "Add"}
+                {editingScheduleTask ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {scheduleSaving ? "Saving" : editingScheduleTask ? "Update task" : mode === "live" ? "Save" : "Add"}
               </button>
-              {scheduleMessage ? <span className="text-xs font-bold text-slate-600">{scheduleMessage}</span> : null}
             </div>
           </div>
+
+          <ScheduleCalendar
+            days={scheduleCalendarDays}
+            monthDate={calendarMonth}
+            selectedDate={selectedCalendarDate}
+            onClearDate={() => setSelectedCalendarDate(null)}
+            onNextMonth={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+            onPreviousMonth={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+            onSelectDate={(date) => setSelectedCalendarDate((current) => (current === date ? null : date))}
+          />
 
           <div className="mt-5 grid gap-5 2xl:grid-cols-[1fr_360px]">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-base font-black text-slate-950">Upcoming High-to-Low Risk Plan</h3>
-                <span className="text-xs font-black uppercase tracking-wide text-slate-500">Critical, high, medium, low</span>
+                {selectedCalendarDate ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCalendarDate(null)}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 hover:bg-slate-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Show all
+                  </button>
+                ) : (
+                  <span className="text-xs font-black uppercase tracking-wide text-slate-500">Critical, high, medium, low</span>
+                )}
               </div>
               <div className="mt-3 space-y-3">
-                {upcomingRiskEvents.map((event) => (
+                {selectedCalendarEvents.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
+                    No schedule items on {selectedCalendarDate ? compactScheduleDateLabel(selectedCalendarDate) : "this date"}.
+                  </div>
+                ) : null}
+                {selectedCalendarEvents.map((event) => (
                   <article key={event.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-blue-600" />
-                          <h4 className="text-sm font-black leading-5 text-slate-950">{event.title}</h4>
+                          <h4 className="text-sm font-black leading-5 text-slate-950">{formatTitleCase(event.title) || event.title}</h4>
                           <RiskBadge level={event.riskLevel} />
                           {event.isManual ? <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">Added</span> : null}
                         </div>
@@ -1554,6 +2520,18 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                         <p className="mt-1 text-sm font-black text-slate-950">{event.date}</p>
                       </div>
                     </div>
+                    {event.editForm && !event.readOnly ? (
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => startEditingScheduleTask(event)}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 text-xs font-black text-blue-700 hover:bg-blue-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit task
+                        </button>
+                      </div>
+                    ) : null}
                     <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 md:grid-cols-3">
                       <span className="rounded-md bg-slate-50 p-2">Owner: {event.owner}</span>
                       <span className="rounded-md bg-slate-50 p-2">Area: {event.location}</span>
@@ -1587,11 +2565,120 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   );
 }
 
-function InfoTile({ label, value, tone = "text-slate-950" }: { label: string; value: string | number; tone?: string }) {
+function ScheduleCalendar({
+  days,
+  monthDate,
+  selectedDate,
+  onClearDate,
+  onNextMonth,
+  onPreviousMonth,
+  onSelectDate,
+}: {
+  days: ReturnType<typeof buildScheduleCalendarDays>;
+  monthDate: Date;
+  selectedDate: string | null;
+  onClearDate: () => void;
+  onNextMonth: () => void;
+  onPreviousMonth: () => void;
+  onSelectDate: (date: string) => void;
+}) {
+  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(monthDate);
+
+  return (
+    <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionTitle title="Schedule Calendar" />
+        <div className="flex items-center gap-2">
+          {selectedDate ? (
+            <button
+              type="button"
+              onClick={onClearDate}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 hover:bg-slate-50"
+            >
+              <X className="h-3.5 w-3.5" />
+              Show all
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onPreviousMonth}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-36 text-center text-sm font-black text-slate-950">{monthLabel}</div>
+          <button
+            type="button"
+            onClick={onNextMonth}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-black uppercase tracking-wide text-slate-500">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+          <div key={day} className="py-2">{day}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const selected = selectedDate === day.date;
+          const highRisk = day.events.some((event) => event.riskLevel === "critical" || event.riskLevel === "high");
+          return (
+            <button
+              key={day.date}
+              type="button"
+              onClick={() => onSelectDate(day.date)}
+              className={cx(
+                "min-h-28 rounded-lg border p-2 text-left transition",
+                day.inMonth ? "bg-white" : "bg-slate-50/70 text-slate-400",
+                day.events.length > 0 ? "border-slate-200 hover:border-blue-200 hover:bg-blue-50/40" : "border-slate-100",
+                highRisk && day.inMonth ? "ring-1 ring-red-100" : "",
+                selected ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100" : ""
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={cx("grid h-6 w-6 place-items-center rounded-full text-xs font-black", day.isToday ? "bg-blue-600 text-white" : "text-slate-700")}>{day.dayNumber}</span>
+                {day.events.length > 0 ? <span className="text-[11px] font-black text-slate-500">{day.events.length}</span> : null}
+              </div>
+              <div className="mt-2 space-y-1">
+                {day.events.slice(0, 3).map((event) => (
+                  <div
+                    key={`${day.date}-${event.id}`}
+                    className={cx("truncate rounded-md border px-2 py-1 text-[11px] font-black leading-4", calendarEventClass(event.riskLevel))}
+                    title={`${formatTitleCase(event.title) || event.title} - ${event.source}`}
+                  >
+                    {formatTitleCase(event.title) || event.title}
+                  </div>
+                ))}
+                {day.events.length > 3 ? (
+                  <div className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-500">+{day.events.length - 3}</div>
+                ) : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function calendarEventClass(level: SafePredictRiskLevel) {
+  if (level === "critical") return "border-red-200 bg-red-50 text-red-700";
+  if (level === "high") return "border-orange-200 bg-orange-50 text-orange-700";
+  if (level === "medium") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
+function InfoTile({ label, value, tone = "text-slate-950", helper }: { label: string; value: string | number; tone?: string; helper?: string }) {
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
       <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
       <p className={cx("mt-2 text-lg font-black leading-snug break-words", tone)}>{value}</p>
+      {helper ? <p className="mt-2 text-[11px] font-semibold leading-4 text-slate-500">{helper}</p> : null}
     </div>
   );
 }
@@ -1615,11 +2702,139 @@ function PredictionField({ label, values, empty }: { label: string; values: stri
   );
 }
 
-function DataTable({ title, headers, rows, actions = [] }: { title: string; headers: string[]; rows: string[][]; actions?: DetailTableAction[] }) {
+function ShiftBoardColumn({ title, items }: { title: string; items: string[] }) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">{displayTitle}</p>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <div key={`${title}-${item}`} className="rounded-md bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyTabPanel({
+  title,
+  detail,
+  actionLabel,
+  href,
+  onAction,
+}: {
+  title: string;
+  detail: string;
+  actionLabel?: string;
+  href?: string;
+  onAction?: () => void;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+      <p className="text-sm font-black text-slate-950">{displayTitle}</p>
+      <p className="mx-auto mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-500">{detail}</p>
+      {actionLabel && href ? (
+        <Link href={href} className="mt-4 inline-flex h-10 items-center justify-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm hover:bg-blue-50">
+          {actionLabel}
+        </Link>
+      ) : null}
+      {actionLabel && onAction ? (
+        <button type="button" onClick={onAction} className="mt-4 inline-flex h-10 items-center justify-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-black text-blue-700 shadow-sm hover:bg-blue-50">
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function PermitReadinessBoard({
+  items,
+  onOpenSchedule,
+  onOpenPermits,
+}: {
+  items: SchedulePermitReadiness[];
+  onOpenSchedule: () => void;
+  onOpenPermits: () => void;
+}) {
+  const blocked = items.filter((item) => item.status !== "ready");
+  return (
+    <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-blue-600">Schedule + Permit Readiness</p>
+          <h3 className="mt-1 text-base font-black text-slate-950">
+            {formatTitleCase(blocked.length > 0 ? `${blocked.length} scheduled task${blocked.length === 1 ? "" : "s"} blocked or needing permit review` : "Visible schedule items are permit-ready")}
+          </h3>
+          <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+            Scheduled work is checked against predicted permit triggers and the site permit log.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={onOpenSchedule} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50">
+            Open schedule
+          </button>
+          <button type="button" onClick={onOpenPermits} className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 hover:bg-blue-100">
+            Review permits
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {items.length > 0 ? (
+          items.slice(0, 4).map((item) => (
+            <article key={`permit-readiness-${item.id}`} className={cx("rounded-lg border p-3", attentionToneClass(permitReadinessTone(item.status)))}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-black leading-5 text-slate-950">{formatTitleCase(item.title) || item.title}</h4>
+                <span className="rounded-full border bg-white/70 px-2.5 py-1 text-[11px] font-black">{schedulePermitReadinessLabel(item.status)}</span>
+              </div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{item.date} | {riskText(item.riskLevel)} risk</p>
+              <p className="mt-2 text-xs font-semibold leading-5 opacity-90">{item.detail}</p>
+              {item.permitLabels.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {item.permitLabels.map((label) => (
+                    <span key={`${item.id}-${label}`} className="rounded-full border border-blue-100 bg-white px-2 py-0.5 text-[11px] font-black text-blue-700">{label.replace(/_/g, " ")}</span>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))
+        ) : (
+          <div className="lg:col-span-2">
+            <EmptyTabPanel title="No Scheduled Work to Check" detail="Add or import schedule tasks with permit triggers to see what is ready, missing, or expiring before work starts." actionLabel="Open schedule" onAction={onOpenSchedule} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DataTable({
+  title,
+  headers,
+  rows,
+  actions = [],
+  emptyTitle = "No records yet for this jobsite.",
+  emptyDetail = "Records will appear here as this jobsite starts moving.",
+  emptyAction,
+}: {
+  title: string;
+  headers: string[];
+  rows: string[][];
+  actions?: DetailTableAction[];
+  emptyTitle?: string;
+  emptyDetail?: string;
+  emptyAction?: { label: string; href?: string; onClick?: () => void };
+}) {
   const visibleHeaders = headers.filter((header) => header !== "Action");
+  const displayTitle = formatTitleCase(title) || title;
+
   return (
     <Card className="overflow-hidden">
-      <div className="p-5 pb-3"><SectionTitle title={title} /></div>
+      <div className="p-5 pb-3"><SectionTitle title={displayTitle} /></div>
       <div className="space-y-3 p-4 pt-1 md:hidden">
         {rows.map((row, rowIndex) => (
           <article key={`${title}-card-${rowIndex}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -1633,18 +2848,21 @@ function DataTable({ title, headers, rows, actions = [] }: { title: string; head
               ))}
             </dl>
             {actions[rowIndex] ? (
-              <div className="mt-4">
+              <div className="mt-4 flex gap-2">
                 {actions[rowIndex].href ? (
                   <Link href={actions[rowIndex].href} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</Link>
                 ) : (
                   <button type="button" onClick={actions[rowIndex].onClick} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</button>
                 )}
+                {actions[rowIndex].secondaryLabel ? (
+                  <button type="button" onClick={actions[rowIndex].secondaryOnClick} className="inline-flex w-full justify-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">{actions[rowIndex].secondaryLabel}</button>
+                ) : null}
               </div>
             ) : null}
           </article>
         ))}
         {rows.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500">No records yet for this jobsite.</div>
+          <EmptyTabPanel title={emptyTitle} detail={emptyDetail} actionLabel={emptyAction?.label} href={emptyAction?.href} onAction={emptyAction?.onClick} />
         ) : null}
       </div>
       <div className="hidden overflow-x-auto md:block">
@@ -1660,17 +2878,26 @@ function DataTable({ title, headers, rows, actions = [] }: { title: string; head
                 {row.map((cell, cellIndex) => <td key={`${title}-${rowIndex}-${cellIndex}`} className="px-5 py-3 font-semibold text-slate-700">{cell}</td>)}
                 {actions[rowIndex] ? (
                   <td className="px-5 py-3">
+                    <div className="flex flex-wrap gap-2">
                     {actions[rowIndex].href ? (
                       <Link href={actions[rowIndex].href} className="inline-flex rounded-md border border-blue-200 px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</Link>
                     ) : (
                       <button type="button" onClick={actions[rowIndex].onClick} className="inline-flex rounded-md border border-blue-200 px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">{actions[rowIndex].label}</button>
                     )}
+                    {actions[rowIndex].secondaryLabel ? (
+                      <button type="button" onClick={actions[rowIndex].secondaryOnClick} className="inline-flex rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">{actions[rowIndex].secondaryLabel}</button>
+                    ) : null}
+                    </div>
                   </td>
                 ) : null}
               </tr>
             ))}
             {rows.length === 0 ? (
-              <tr><td colSpan={headers.length} className="px-5 py-8 text-center text-sm font-semibold text-slate-500">No records yet for this jobsite.</td></tr>
+              <tr>
+                <td colSpan={headers.length}>
+                  <EmptyTabPanel title={emptyTitle} detail={emptyDetail} actionLabel={emptyAction?.label} href={emptyAction?.href} onAction={emptyAction?.onClick} />
+                </td>
+              </tr>
             ) : null}
           </tbody>
         </table>

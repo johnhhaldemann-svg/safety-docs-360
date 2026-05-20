@@ -7,6 +7,7 @@ import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { buildCorrectiveActionFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 import { demoWorkspaceSummary } from "@/lib/demoWorkspace";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
+import { validateCompanyAssignableUserId } from "@/lib/companyAssignableUsers";
 
 export const runtime = "nodejs";
 
@@ -129,8 +130,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Jobsite access denied for this observation." }, { status: 403 });
   }
 
-  const assignedUserIdRaw = String(body?.assignedUserId ?? "").trim();
-  const assigned_user_id = assignedUserIdRaw || null;
+  const assigneeValidation = await validateCompanyAssignableUserId({
+    supabase: auth.supabase,
+    companyId: companyScope.companyId,
+    assignedUserId: String(body?.assignedUserId ?? "").trim(),
+  });
+  if (assigneeValidation.error) {
+    return NextResponse.json({ error: assigneeValidation.error }, { status: 400 });
+  }
 
   const result = await auth.supabase
     .from("company_corrective_actions")
@@ -143,7 +150,7 @@ export async function POST(request: Request) {
       severity: String(body?.severity ?? "").trim().toLowerCase() || "medium",
       category: String(body?.category ?? "").trim().toLowerCase() || "hazard",
       due_at: String(body?.dueAt ?? "").trim() || null,
-      assigned_user_id,
+      assigned_user_id: assigneeValidation.assignedUserId,
       created_by: auth.user.id,
       updated_by: auth.user.id,
       observation_type: String(body?.observationType ?? "").trim().toLowerCase() || "negative",

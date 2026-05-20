@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSafePredictDataset,
+  forecastConfidenceForSite,
   hasSafePredictForecastInputs,
   jobsiteById,
   nextActionStatus,
   normalizeLiveActions,
   normalizeLiveDocuments,
   normalizeLiveJobsites,
+  normalizeLivePermits,
   normalizeLiveUsers,
   safePredictStatusToApi,
   riskForecastForSite,
   siteScoped,
   siteIdFromLabel,
+  summarizeSafePredictScope,
   summarizeSafePredictDataset,
 } from "@/lib/safePredictData";
+import { defaultPermitChecklistItems, isPermitFormComplete } from "@/lib/safePredictPermitForms";
 
 describe("safePredictData", () => {
   it("normalizes live jobsites while preserving SafePredict risk fields", () => {
@@ -143,6 +147,214 @@ describe("safePredictData", () => {
     expect(hasSafePredictForecastInputs(dataset, "live-site-1")).toBe(true);
   });
 
+  it("generates deterministic live forecasts from live workspace records", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-high", name: "High Risk Site", status: "active" },
+        { id: "live-low", name: "Low Risk Site", status: "active" },
+      ],
+      liveActions: [
+        { id: "act-1", jobsite_id: "live-high", title: "Repair guardrail", status: "in_progress", severity: "high" },
+        { id: "act-2", jobsite_id: "live-high", title: "Close scaffold access gap", status: "open", severity: "critical" },
+        { id: "act-3", jobsite_id: "live-low", title: "Closed paint touch-up", status: "verified_closed", severity: "low" },
+      ],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-high", title: "Near miss at stair tower", status: "open", severity: "high" }],
+      liveInspections: [{ id: "audit-1", jobsite_id: "live-high", title: "Daily walk", status: "failed", failed_items: 3 }],
+    });
+
+    const highForecast = riskForecastForSite(dataset, "live-high");
+    const lowForecast = riskForecastForSite(dataset, "live-low");
+
+    expect(highForecast).toHaveLength(10);
+    expect(highForecast[0]).toMatchObject({ date: "Now" });
+    expect(highForecast[0].predictedRisk).toBeGreaterThan(lowForecast[0]?.predictedRisk ?? -1);
+    expect(new Set(highForecast.map((point) => point.predictedRisk)).size).toBeGreaterThan(1);
+    expect(riskForecastForSite(dataset, "live-high")).toEqual(highForecast);
+  });
+
+  it("derives model confidence from scoped live signal coverage", () => {
+    const sparseDataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-sparse", name: "Sparse Site", status: "active" }],
+      liveActions: [{ id: "act-1", jobsite_id: "live-sparse", title: "Repair guardrail", status: "open", severity: "medium" }],
+    });
+    const connectedDataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-connected", name: "Connected Site", status: "active" }],
+      liveActions: [{ id: "act-1", jobsite_id: "live-connected", title: "Repair guardrail", status: "open", severity: "high" }],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-connected", title: "Near miss", status: "open", severity: "high" }],
+      liveObservations: [{ id: "obs-1", jobsite_id: "live-connected", title: "Blocked access", status: "open", severity: "medium" }],
+      livePermits: [{ id: "permit-1", jobsite_id: "live-connected", permit_type: "Hot Work", status: "active" }],
+      liveEmployees: [{ userId: "worker-1", name: "Sam Rivera", cells: ["compliant"] }],
+      liveInspections: [{ id: "audit-1", jobsite_id: "live-connected", title: "Daily walk", status: "failed", failed_items: 2 }],
+    });
+
+    const sparse = forecastConfidenceForSite(sparseDataset, "live-sparse");
+    const connected = forecastConfidenceForSite(connectedDataset, "live-connected");
+
+    expect(sparse.percent).not.toBe(87);
+    expect(connected.percent).toBeGreaterThan(sparse.percent);
+    expect(connected.sourceCount).toBeGreaterThan(sparse.sourceCount);
+    expect(connected.detail).toContain("source type");
+  });
+
+  it("returns low confidence when the selected live scope has no forecast inputs", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-empty", name: "Empty Site", status: "active" }],
+    });
+
+    expect(forecastConfidenceForSite(dataset, "live-empty")).toMatchObject({
+      percent: 0,
+      label: "Low",
+      sourceCount: 0,
+      signalCount: 0,
+    });
+  });
+
+  it("keeps dense high-risk live forecasts varied instead of pinned at 100", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-heavy", name: "Heavy Signal Site", status: "active" }],
+      liveActions: Array.from({ length: 10 }, (_, index) => ({
+        id: `act-${index}`,
+        jobsite_id: "live-heavy",
+        title: `Critical action ${index}`,
+        status: index % 2 === 0 ? "in_progress" : "open",
+        severity: index % 3 === 0 ? "critical" : "high",
+      })),
+      liveIncidents: Array.from({ length: 5 }, (_, index) => ({
+        id: `inc-${index}`,
+        jobsite_id: "live-heavy",
+        title: `High potential incident ${index}`,
+        status: "open",
+        severity: "critical",
+      })),
+      liveObservations: Array.from({ length: 8 }, (_, index) => ({
+        id: `obs-${index}`,
+        jobsite_id: "live-heavy",
+        title: `High risk observation ${index}`,
+        status: "open",
+        severity: "high",
+      })),
+      livePermits: Array.from({ length: 4 }, (_, index) => ({
+        id: `permit-${index}`,
+        jobsite_id: "live-heavy",
+        permit_type: "Hot Work",
+        status: "expired",
+      })),
+      liveInspections: Array.from({ length: 4 }, (_, index) => ({
+        id: `audit-${index}`,
+        jobsite_id: "live-heavy",
+        title: `Failed walk ${index}`,
+        status: "failed",
+        failed_items: 5,
+      })),
+    });
+
+    const forecast = riskForecastForSite(dataset, "live-heavy");
+
+    expect(forecast).toHaveLength(10);
+    expect(forecast.some((point) => point.predictedRisk < 100)).toBe(true);
+    expect(new Set(forecast.map((point) => point.predictedRisk)).size).toBeGreaterThan(1);
+  });
+
+  it("reduces live score pressure for closed and corrected records", () => {
+    const openDataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
+      liveActions: [
+        { id: "act-1", jobsite_id: "live-site-1", title: "Repair guardrail", status: "in_progress", severity: "high" },
+        { id: "act-2", jobsite_id: "live-site-1", title: "Replace scaffold access", status: "open", severity: "critical" },
+      ],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Near miss at stair tower", status: "open", severity: "high" }],
+      liveObservations: [{ id: "obs-1", jobsite_id: "live-site-1", title: "Material in walkway", status: "open", severity: "medium" }],
+    });
+    const closedDataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
+      liveActions: [
+        { id: "act-1", jobsite_id: "live-site-1", title: "Repair guardrail", status: "verified_closed", severity: "high" },
+        { id: "act-2", jobsite_id: "live-site-1", title: "Replace scaffold access", status: "corrected", severity: "critical" },
+      ],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Near miss at stair tower", status: "closed", severity: "high" }],
+      liveObservations: [{ id: "obs-1", jobsite_id: "live-site-1", title: "Material in walkway", status: "closed", severity: "medium" }],
+    });
+
+    expect(openDataset.jobsites[0].riskScore).toBeGreaterThan(closedDataset.jobsites[0].riskScore);
+    expect(riskForecastForSite(openDataset, "live-site-1")[0].predictedRisk).toBeGreaterThan(
+      riskForecastForSite(closedDataset, "live-site-1")[0].predictedRisk
+    );
+  });
+
+  it("summarizes filtered SafePredict scopes by visible site ids", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-high", name: "High Risk Site", status: "active" },
+        { id: "live-low", name: "Low Risk Site", status: "active" },
+      ],
+      liveActions: [
+        { id: "act-1", jobsite_id: "live-high", title: "Repair guardrail", status: "in_progress", severity: "high" },
+        { id: "act-2", jobsite_id: "live-low", title: "Paint final rail", status: "verified_closed", severity: "low" },
+      ],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-high", title: "Near miss at stair tower", status: "open", severity: "high" }],
+    });
+
+    const high = summarizeSafePredictScope(dataset, ["live-high"]);
+    const low = summarizeSafePredictScope(dataset, ["live-low"]);
+
+    expect(high.jobsites).toBe(1);
+    expect(high.openActions).toBe(1);
+    expect(high.riskScore).toBeGreaterThan(low.riskScore);
+    expect(low.openActions).toBe(0);
+  });
+
+  it("builds type-specific permit checklist defaults", () => {
+    expect(defaultPermitChecklistItems("Hot Work Permit").map((item) => item.label).join(" ")).toContain("Fire watch");
+    expect(defaultPermitChecklistItems("LOTO Permit").map((item) => item.label).join(" ")).toContain("Energy sources");
+    expect(defaultPermitChecklistItems("Lift Plan").map((item) => item.label).join(" ")).toContain("Lift plan");
+  });
+
+  it("normalizes live permit checklist and acknowledgement metadata", () => {
+    const jobsites = normalizeLiveJobsites([{ id: "live-site-1", name: "North Pier Expansion" }]);
+    const [permit] = normalizeLivePermits([
+      {
+        id: "permit-1",
+        jobsite_id: "live-site-1",
+        permit_type: "Hot Work",
+        title: "Level 3 hot work permit",
+        status: "active",
+        source_metadata: {
+          permit_form_v1: {
+            checklistItems: defaultPermitChecklistItems("Hot Work").map((item) => ({ ...item, checked: true })),
+            acknowledgement: {
+              acknowledged: true,
+              name: "Jack Jane",
+              acknowledgedAt: "2026-05-20T12:00:00.000Z",
+              statement: "I acknowledge the permit checklist has been reviewed.",
+            },
+            notes: "Fire watch assigned.",
+          },
+        },
+      },
+    ], jobsites);
+
+    expect(permit.title).toBe("Level 3 hot work permit");
+    expect(permit.readiness).toBe("Ready");
+    expect(isPermitFormComplete(permit.permitForm)).toBe(true);
+    expect(permit.permitForm.acknowledgement.name).toBe("Jack Jane");
+  });
+
   it("maps SafePredict action status changes to existing API statuses", () => {
     expect(safePredictStatusToApi("New")).toBe("open");
     expect(safePredictStatusToApi("In Progress")).toBe("in_progress");
@@ -174,6 +386,7 @@ describe("safePredictData", () => {
 
     expect(siteIdFromLabel("Plant 1")).toBe("plant-1");
     expect(jobsiteById(dataset, "warehouse-a")?.name).toContain("Warehouse A");
+    expect(riskForecastForSite(dataset, "plant-1")[0]).toMatchObject({ historicalRisk: 50, predictedRisk: 50 });
     expect(riskForecastForSite(dataset, "warehouse-a")[0].predictedRisk).toBeGreaterThan(
       riskForecastForSite(dataset, "warehouse-b")[0].predictedRisk
     );
