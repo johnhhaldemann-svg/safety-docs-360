@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { AlertTriangle, ArrowRight, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, Minus, Plus, RotateCcw, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
 import {
   Card,
@@ -201,6 +201,11 @@ type RealMapViewport = {
   project: (point: JobsiteMapPoint) => { left: number; top: number };
 };
 
+type MapPanOffset = {
+  x: number;
+  y: number;
+};
+
 const TILE_SIZE = 256;
 const REAL_MAP_WIDTH = 820;
 const REAL_MAP_HEIGHT = 500;
@@ -388,7 +393,7 @@ function chooseMapZoom(points: JobsiteMapPoint[]) {
   return 11;
 }
 
-function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number): RealMapViewport | null {
+function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number, panOffset: MapPanOffset): RealMapViewport | null {
   const locatedPoints = points.filter(
     (point) =>
       point.coordinateBacked &&
@@ -408,8 +413,8 @@ function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number)
   const tileCount = 2 ** zoom;
   const centerPixelX = longitudeToTileX(centerLongitude, zoom) * TILE_SIZE;
   const centerPixelY = latitudeToTileY(centerLatitude, zoom) * TILE_SIZE;
-  const originX = centerPixelX - REAL_MAP_WIDTH / 2;
-  const originY = centerPixelY - REAL_MAP_HEIGHT / 2;
+  const originX = centerPixelX - REAL_MAP_WIDTH / 2 - panOffset.x;
+  const originY = centerPixelY - REAL_MAP_HEIGHT / 2 - panOffset.y;
   const startTileX = Math.floor(originX / TILE_SIZE);
   const endTileX = Math.floor((originX + REAL_MAP_WIDTH) / TILE_SIZE);
   const startTileY = Math.max(0, Math.floor(originY / TILE_SIZE));
@@ -459,6 +464,14 @@ function JobsiteRiskMap({
   const [zipCoordinates, setZipCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
   const [cityCoordinates, setCityCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
   const [mapZoomAdjustment, setMapZoomAdjustment] = useState(0);
+  const [mapPanOffset, setMapPanOffset] = useState<MapPanOffset>({ x: 0, y: 0 });
+  const [isMapDragging, setIsMapDragging] = useState(false);
+  const mapDragState = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startPanOffset: MapPanOffset;
+  } | null>(null);
   const zipCodes = useMemo(
     () => [...new Set(jobsites.map((jobsite) => normalizeZipCode(jobsite.zipCode)).filter(Boolean))],
     [jobsites]
@@ -543,7 +556,7 @@ function JobsiteRiskMap({
     jobsites[0];
   const locatedMapPoints = mapPoints.filter((point) => point.coordinateBacked);
   const unlocatedMapPoints = mapPoints.filter((point) => !point.coordinateBacked);
-  const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints, mapZoomAdjustment), [mapPoints, mapZoomAdjustment]);
+  const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints, mapZoomAdjustment, mapPanOffset), [mapPanOffset, mapPoints, mapZoomAdjustment]);
   const baseMapZoom = locatedMapPoints.length > 0 ? chooseMapZoom(locatedMapPoints) : MIN_REAL_MAP_ZOOM;
   const currentMapZoom = clampNumber(baseMapZoom + mapZoomAdjustment, MIN_REAL_MAP_ZOOM, MAX_REAL_MAP_ZOOM);
   const canZoomOut = currentMapZoom > MIN_REAL_MAP_ZOOM;
@@ -561,6 +574,41 @@ function JobsiteRiskMap({
     : missingLocationCount < mapPoints.length
       ? "OpenStreetMap + partial locations"
       : "Add ZIP or coordinates";
+
+  function endMapDrag(event: PointerEvent<HTMLDivElement>) {
+    if (mapDragState.current?.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    mapDragState.current = null;
+    setIsMapDragging(false);
+  }
+
+  function handleMapPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!realMapViewport || event.button !== 0) return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest("button,a,input,select,textarea,[data-map-control='true']")) return;
+
+    mapDragState.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPanOffset: mapPanOffset,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsMapDragging(true);
+  }
+
+  function handleMapPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const dragState = mapDragState.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    setMapPanOffset({
+      x: dragState.startPanOffset.x + event.clientX - dragState.startX,
+      y: dragState.startPanOffset.y + event.clientY - dragState.startY,
+    });
+  }
 
   return (
     <Card id="jobsite-source-cards" className="mt-5 scroll-mt-24 p-5">
@@ -581,8 +629,15 @@ function JobsiteRiskMap({
         <div className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
             <div
-              className="relative overflow-hidden bg-slate-100"
-              style={{ width: REAL_MAP_WIDTH, height: REAL_MAP_HEIGHT }}
+              className={cx(
+                "relative overflow-hidden bg-slate-100 select-none",
+                realMapViewport ? (isMapDragging ? "cursor-grabbing" : "cursor-grab") : ""
+              )}
+              onPointerDown={handleMapPointerDown}
+              onPointerMove={handleMapPointerMove}
+              onPointerUp={endMapDrag}
+              onPointerCancel={endMapDrag}
+              style={{ width: REAL_MAP_WIDTH, height: REAL_MAP_HEIGHT, touchAction: "none" }}
             >
               {realMapViewport ? (
                 <>
@@ -594,7 +649,7 @@ function JobsiteRiskMap({
                       alt=""
                       aria-hidden="true"
                       draggable={false}
-                      className="absolute h-64 w-64 select-none"
+                      className="pointer-events-none absolute h-64 w-64 select-none"
                       style={{ left: tile.left, top: tile.top }}
                     />
                   ))}
@@ -609,12 +664,12 @@ function JobsiteRiskMap({
                   </div>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-slate-900/5" aria-hidden="true" />
-              <div className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-slate-900/5" aria-hidden="true" />
+              <div data-map-control="true" className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
                 {mapSourceLabel}
               </div>
               {realMapViewport ? (
-                <div className="absolute right-4 top-4 z-40 flex overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+                <div data-map-control="true" className="absolute right-4 top-4 z-40 flex overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
                   <button
                     type="button"
                     onClick={() => setMapZoomAdjustment((value) => value - 1)}
@@ -640,20 +695,23 @@ function JobsiteRiskMap({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMapZoomAdjustment(0)}
-                    disabled={mapZoomAdjustment === 0}
+                    onClick={() => {
+                      setMapZoomAdjustment(0);
+                      setMapPanOffset({ x: 0, y: 0 });
+                    }}
+                    disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0}
                     className="grid h-10 w-10 place-items-center border-l border-slate-200 text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
                     aria-label="Reset map zoom"
-                    title="Reset map zoom"
+                    title="Reset map view"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               ) : null}
-              <div className="absolute bottom-4 left-4 max-w-[360px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
-                Real map tiles are shown from OpenStreetMap. Pins use saved coordinates first, then ZIP lookup, then city/state lookup.
+              <div data-map-control="true" className="absolute bottom-4 left-4 max-w-[360px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
+                Drag to move the map. Real map tiles are shown from OpenStreetMap. Pins use saved coordinates first, then ZIP lookup, then city/state lookup.
               </div>
-              <div className="absolute bottom-4 right-4 rounded bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">
+              <div data-map-control="true" className="absolute bottom-4 right-4 rounded bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">
                 (c) OpenStreetMap contributors
               </div>
               {realMapViewport && locatedMapPoints.map((point) => {
@@ -692,7 +750,7 @@ function JobsiteRiskMap({
                 );
               })}
               {missingLocationCount > 0 ? (
-                <div className="absolute right-4 top-20 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
+                <div data-map-control="true" className="absolute right-4 top-20 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
                   <p className="text-xs font-black uppercase tracking-wide text-slate-500">Needs location</p>
                   <div className="mt-2 grid gap-2">
                     {unlocatedMapPoints.map((point) => (
