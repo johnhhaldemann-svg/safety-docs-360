@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, Minus, Plus, RotateCcw, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
 import {
   Card,
   ExportButton,
@@ -204,6 +204,8 @@ type RealMapViewport = {
 const TILE_SIZE = 256;
 const REAL_MAP_WIDTH = 820;
 const REAL_MAP_HEIGHT = 500;
+const MIN_REAL_MAP_ZOOM = 4;
+const MAX_REAL_MAP_ZOOM = 14;
 
 function riskPinClasses(level: SafePredictJobsiteRecord["riskLevel"]) {
   if (level === "critical") return "border-red-200 bg-red-600 text-white shadow-red-200";
@@ -386,7 +388,7 @@ function chooseMapZoom(points: JobsiteMapPoint[]) {
   return 11;
 }
 
-function buildRealMapViewport(points: JobsiteMapPoint[]): RealMapViewport | null {
+function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number): RealMapViewport | null {
   const locatedPoints = points.filter(
     (point) =>
       point.coordinateBacked &&
@@ -402,7 +404,7 @@ function buildRealMapViewport(points: JobsiteMapPoint[]): RealMapViewport | null
   const longitudes = locatedPoints.map((point) => point.longitude as number);
   const centerLatitude = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
   const centerLongitude = (Math.min(...longitudes) + Math.max(...longitudes)) / 2;
-  const zoom = chooseMapZoom(locatedPoints);
+  const zoom = clampNumber(chooseMapZoom(locatedPoints) + zoomAdjustment, MIN_REAL_MAP_ZOOM, MAX_REAL_MAP_ZOOM);
   const tileCount = 2 ** zoom;
   const centerPixelX = longitudeToTileX(centerLongitude, zoom) * TILE_SIZE;
   const centerPixelY = latitudeToTileY(centerLatitude, zoom) * TILE_SIZE;
@@ -456,6 +458,7 @@ function JobsiteRiskMap({
 }) {
   const [zipCoordinates, setZipCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
   const [cityCoordinates, setCityCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
+  const [mapZoomAdjustment, setMapZoomAdjustment] = useState(0);
   const zipCodes = useMemo(
     () => [...new Set(jobsites.map((jobsite) => normalizeZipCode(jobsite.zipCode)).filter(Boolean))],
     [jobsites]
@@ -540,7 +543,11 @@ function JobsiteRiskMap({
     jobsites[0];
   const locatedMapPoints = mapPoints.filter((point) => point.coordinateBacked);
   const unlocatedMapPoints = mapPoints.filter((point) => !point.coordinateBacked);
-  const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints), [mapPoints]);
+  const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints, mapZoomAdjustment), [mapPoints, mapZoomAdjustment]);
+  const baseMapZoom = locatedMapPoints.length > 0 ? chooseMapZoom(locatedMapPoints) : MIN_REAL_MAP_ZOOM;
+  const currentMapZoom = clampNumber(baseMapZoom + mapZoomAdjustment, MIN_REAL_MAP_ZOOM, MAX_REAL_MAP_ZOOM);
+  const canZoomOut = currentMapZoom > MIN_REAL_MAP_ZOOM;
+  const canZoomIn = currentMapZoom < MAX_REAL_MAP_ZOOM;
   const coordinateBacked = mapPoints.length > 0 && unlocatedMapPoints.length === 0;
   const zipBackedCount = mapPoints.filter((point) => point.source === "zip").length;
   const cityBackedCount = mapPoints.filter((point) => point.source === "city").length;
@@ -606,6 +613,43 @@ function JobsiteRiskMap({
               <div className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
                 {mapSourceLabel}
               </div>
+              {realMapViewport ? (
+                <div className="absolute right-4 top-4 z-40 flex overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
+                  <button
+                    type="button"
+                    onClick={() => setMapZoomAdjustment((value) => value - 1)}
+                    disabled={!canZoomOut}
+                    className="grid h-10 w-10 place-items-center text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    aria-label="Zoom out"
+                    title="Zoom out"
+                  >
+                    <Minus className="h-4 w-4" aria-hidden />
+                  </button>
+                  <div className="grid h-10 min-w-12 place-items-center border-x border-slate-200 px-2 text-xs font-black text-slate-600">
+                    Z{currentMapZoom}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMapZoomAdjustment((value) => value + 1)}
+                    disabled={!canZoomIn}
+                    className="grid h-10 w-10 place-items-center text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    aria-label="Zoom in"
+                    title="Zoom in"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapZoomAdjustment(0)}
+                    disabled={mapZoomAdjustment === 0}
+                    className="grid h-10 w-10 place-items-center border-l border-slate-200 text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
+                    aria-label="Reset map zoom"
+                    title="Reset map zoom"
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+              ) : null}
               <div className="absolute bottom-4 left-4 max-w-[360px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
                 Real map tiles are shown from OpenStreetMap. Pins use saved coordinates first, then ZIP lookup, then city/state lookup.
               </div>
@@ -648,7 +692,7 @@ function JobsiteRiskMap({
                 );
               })}
               {missingLocationCount > 0 ? (
-                <div className="absolute right-4 top-16 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
+                <div className="absolute right-4 top-20 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
                   <p className="text-xs font-black uppercase tracking-wide text-slate-500">Needs location</p>
                   <div className="mt-2 grid gap-2">
                     {unlocatedMapPoints.map((point) => (
