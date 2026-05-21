@@ -164,6 +164,7 @@ export default function IncidentsPage() {
   const [contractors, setContractors] = useState<Array<{ id: string; name: string }>>([]);
   const [crews, setCrews] = useState<Array<{ id: string; name: string }>>([]);
   const [demoMode, setDemoMode] = useState(false);
+  const [testAlertSending, setTestAlertSending] = useState(false);
 
   async function loadIncidents() {
     setLoading(true);
@@ -376,6 +377,51 @@ export default function IncidentsPage() {
     }
   }
 
+  async function sendIncidentAlertTest() {
+    if (demoMode) {
+      setMessageTone("warning");
+      setMessage("Incident alert tests are not available in demo mode.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Send a TEST ONLY critical incident alert to the configured company incident alert recipients?"
+    );
+    if (!confirmed) return;
+    setTestAlertSending(true);
+    setMessage("");
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/incidents/test-alert", {
+        method: "POST",
+        headers,
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            warning?: string | null;
+            recipients?: number;
+            sent?: number;
+            skipped?: number;
+            failed?: number;
+          }
+        | null;
+      if (!response.ok) {
+        throw new Error(data?.error || data?.warning || "Incident alert test failed.");
+      }
+      setMessageTone(data?.failed && data.failed > 0 ? "warning" : "success");
+      setMessage(
+        data?.message ||
+          `Incident alert test complete. Recipients: ${data?.recipients ?? 0}. Sent: ${data?.sent ?? 0}. Skipped: ${data?.skipped ?? 0}. Failed: ${data?.failed ?? 0}.`
+      );
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Incident alert test failed.");
+    } finally {
+      setTestAlertSending(false);
+    }
+  }
+
   const { density, setDensity, isCompact } = useTableDensity();
   const listDensity = useMemo(() => listSectionDensity(isCompact), [isCompact]);
 
@@ -388,6 +434,14 @@ export default function IncidentsPage() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
+            <button
+              type="button"
+              onClick={() => void sendIncidentAlertTest()}
+              disabled={testAlertSending}
+              className="rounded-xl border border-amber-500/70 px-4 py-2.5 text-sm font-semibold text-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {testAlertSending ? "Sending test..." : "Send test alert"}
+            </button>
             <Link href="/dashboard" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300">
               Back to Dashboard
             </Link>
