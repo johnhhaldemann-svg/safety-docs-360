@@ -2,6 +2,7 @@ import {
   demoCompanyTotals,
   permitTotals,
   riskLevelForScore,
+  riskLabel,
   safePredictActions,
   safePredictAlerts,
   safePredictDemoCompany,
@@ -247,6 +248,36 @@ export type SafePredictForecastConfidence = {
   sourceCount: number;
   signalCount: number;
   detail: string;
+};
+
+export type SafePredictForecastReasonDriver = {
+  id: string;
+  label: string;
+  detail: string;
+  evidence: string;
+  count: number;
+  score: number;
+  riskLevel: SafePredictRiskLevel;
+  source:
+    | "corrective_actions"
+    | "inspections"
+    | "incidents"
+    | "permits"
+    | "hazards"
+    | "observations"
+    | "workforce";
+  nextAction: string;
+};
+
+export type SafePredictForecastReason = {
+  date: string;
+  score: number;
+  riskLevel: SafePredictRiskLevel;
+  headline: string;
+  topDrivers: SafePredictForecastReasonDriver[];
+  evidence: string[];
+  nextAction: string;
+  missingDataNote?: string;
 };
 
 export type SafePredictLiveJobsiteRow = Record<string, unknown> & {
@@ -1436,6 +1467,194 @@ export function riskForecastForSite(dataset: SafePredictDataset, siteId: string)
     predictedRisk: Math.max(0, Math.min(100, point.predictedRisk + Math.round(delta / 3))),
     historicalRisk: point.historicalRisk == null ? undefined : Math.max(0, Math.min(100, point.historicalRisk + Math.round(delta / 4))),
   }));
+}
+
+function scopedRows<T extends { siteId: string }>(rows: T[], siteIds: Set<string>) {
+  return rows.filter((row) => siteIds.has(row.siteId));
+}
+
+function riskWeight(level: SafePredictRiskLevel) {
+  if (level === "critical") return 36;
+  if (level === "high") return 28;
+  if (level === "medium") return 16;
+  return 6;
+}
+
+function driverRiskLevel(score: number): SafePredictRiskLevel {
+  if (score >= 34) return "critical";
+  if (score >= 24) return "high";
+  if (score >= 12) return "medium";
+  return "low";
+}
+
+function driverFromAction(action: SafePredictActionRecord): SafePredictForecastReasonDriver {
+  const score = riskWeight(action.priority) + (action.status === "New" ? 4 : action.status === "In Progress" ? 2 : 0);
+  return {
+    id: `action-${action.id}`,
+    label: action.linkedRisk || action.title,
+    detail: "Open corrective action is still carrying risk pressure.",
+    evidence: `${action.title} is ${action.status.toLowerCase()} with ${riskLabel(action.priority).toLowerCase()} priority.`,
+    count: 1,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "corrective_actions",
+    nextAction: "Close or verify the corrective action and confirm controls in the field.",
+  };
+}
+
+function driverFromInspection(inspection: SafePredictInspectionRecord): SafePredictForecastReasonDriver {
+  const score = riskWeight(inspection.riskLevel) + Math.min(18, inspection.failedItems * 4);
+  const failedItems = inspection.failedItems > 0 ? `${inspection.failedItems} failed item${inspection.failedItems === 1 ? "" : "s"}` : inspection.status.toLowerCase();
+  return {
+    id: `inspection-${inspection.id}`,
+    label: "Inspection gaps",
+    detail: "Incomplete or failed inspection findings indicate controls need verification.",
+    evidence: `${inspection.title} shows ${failedItems}.`,
+    count: Math.max(1, inspection.failedItems),
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "inspections",
+    nextAction: "Review failed inspection items and verify corrective controls before the next work period.",
+  };
+}
+
+function driverFromIncident(incident: SafePredictIncidentRecord): SafePredictForecastReasonDriver {
+  const score = riskWeight(incident.severity) + (incident.type === "Near Miss" ? 4 : 0);
+  return {
+    id: `incident-${incident.id}`,
+    label: incident.type === "Near Miss" ? "Near miss exposure" : "Open incident review",
+    detail: "Recent incident activity increases the forecast until review and controls are complete.",
+    evidence: `${incident.title} remains in ${incident.status.toLowerCase()} status.`,
+    count: 1,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "incidents",
+    nextAction: "Complete the incident review and verify the control changes with the affected crew.",
+  };
+}
+
+function driverFromPermit(permit: SafePredictPermitRecord): SafePredictForecastReasonDriver {
+  const score = permit.status === "Expired" ? 38 : permit.status === "Expiring Soon" ? 24 : 18;
+  return {
+    id: `permit-${permit.id}`,
+    label: "Permit readiness gap",
+    detail: "Permit status or acknowledgement gaps can leave high-risk work without verified controls.",
+    evidence: `${permit.title} is ${permit.status.toLowerCase()} and readiness is ${permit.readiness.toLowerCase()}.`,
+    count: 1,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "permits",
+    nextAction: "Confirm permit status, checklist completion, and required acknowledgements before work proceeds.",
+  };
+}
+
+function driverFromHazard(hazard: SafePredictHazardRecord): SafePredictForecastReasonDriver {
+  const score = riskWeight(hazard.riskLevel) + (hazard.controlStatus === "Needs Control" ? 8 : 2);
+  return {
+    id: `hazard-${hazard.id}`,
+    label: hazard.title,
+    detail: "A known hazard remains open in the risk register.",
+    evidence: `${hazard.title} is marked ${hazard.controlStatus.toLowerCase()}.`,
+    count: 1,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "hazards",
+    nextAction: "Assign and verify controls for the open hazard.",
+  };
+}
+
+function driverFromObservation(observation: SafePredictObservationRecord): SafePredictForecastReasonDriver {
+  const score = riskWeight(observation.riskLevel) + (observation.status === "Open" ? 4 : 0);
+  return {
+    id: `observation-${observation.id}`,
+    label: observation.category || "Field observation",
+    detail: "Open field observations show controls that may not be holding in the work area.",
+    evidence: `${observation.title} is ${observation.status.toLowerCase()}.`,
+    count: 1,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "observations",
+    nextAction: "Review the observation with the crew and convert it to a verified corrective action if needed.",
+  };
+}
+
+function workforceDriver(employees: SafePredictDemoEmployee[]): SafePredictForecastReasonDriver | null {
+  const gaps = employees.filter((employee) => employee.status === "overdue" || employee.status === "expiring");
+  if (gaps.length === 0) return null;
+
+  const overdue = gaps.filter((employee) => employee.status === "overdue").length;
+  const expiring = gaps.length - overdue;
+  const score = Math.min(40, overdue * 8 + expiring * 4);
+  return {
+    id: "workforce-readiness",
+    label: "Workforce readiness gaps",
+    detail: "Training or credential gaps can raise exposure when high-risk work is planned.",
+    evidence: `${gaps.length} worker${gaps.length === 1 ? "" : "s"} have ${overdue} overdue and ${expiring} expiring readiness item${expiring === 1 ? "" : "s"}.`,
+    count: gaps.length,
+    score,
+    riskLevel: driverRiskLevel(score),
+    source: "workforce",
+    nextAction: "Close overdue training or assign qualified workers before high-risk tasks start.",
+  };
+}
+
+function forecastHeadline(score: number, riskLevel: SafePredictRiskLevel, drivers: SafePredictForecastReasonDriver[]) {
+  const driverLabel = drivers[0]?.label ?? "limited connected signal data";
+  if (riskLevel === "critical") return `${score}/100 critical risk is driven primarily by ${driverLabel}.`;
+  if (riskLevel === "high") return `${score}/100 high risk is elevated by ${driverLabel}.`;
+  if (riskLevel === "medium") return `${score}/100 moderate risk is being watched for ${driverLabel}.`;
+  return `${score}/100 low risk has no urgent elevated driver in the selected scope.`;
+}
+
+function forecastNextAction(riskLevel: SafePredictRiskLevel, drivers: SafePredictForecastReasonDriver[]) {
+  if (riskLevel === "critical") {
+    return "Immediate safety review is recommended; evaluate whether affected work should pause until controls are verified.";
+  }
+  if (riskLevel === "high") {
+    return "Review the top drivers today and verify controls with the supervisor before the next shift.";
+  }
+  return drivers[0]?.nextAction ?? "Continue monitoring connected safety signals and keep controls current.";
+}
+
+export function forecastReasonsForSite(
+  dataset: SafePredictDataset,
+  siteId: string,
+  points: SafePredictForecastPoint[]
+): SafePredictForecastReason[] {
+  const siteIds = safePredictScopeSiteIds(dataset, siteId);
+  const workforce = workforceDriver(dataset.employees.filter((employee) => siteIds.has(employee.assignedSiteId)));
+  const drivers = [
+    ...scopedRows(dataset.actions, siteIds).filter((action) => action.status !== "Closed").map(driverFromAction),
+    ...scopedRows(dataset.inspections, siteIds).filter((inspection) => inspection.status !== "Completed" || inspection.failedItems > 0).map(driverFromInspection),
+    ...scopedRows(dataset.incidents, siteIds).filter((incident) => incident.status !== "Closed").map(driverFromIncident),
+    ...scopedRows(dataset.permits, siteIds).filter((permit) => permit.status !== "Active" || permit.readiness !== "Ready").map(driverFromPermit),
+    ...scopedRows(dataset.hazards, siteIds).filter((hazard) => hazard.controlStatus !== "Controlled").map(driverFromHazard),
+    ...scopedRows(dataset.observations, siteIds)
+      .filter((observation) => observation.status !== "Closed" && observation.riskLevel !== "low")
+      .map(driverFromObservation),
+    ...(workforce ? [workforce] : []),
+  ].sort((a, b) => b.score - a.score || b.count - a.count || a.label.localeCompare(b.label));
+
+  const missingDataNote =
+    drivers.length === 0
+      ? "No connected corrective actions, incidents, inspections, permits, hazards, observations, or workforce readiness gaps are available for this forecast point."
+      : undefined;
+
+  return points.map((point): SafePredictForecastReason => {
+    const score = clampRiskScore(point.predictedRisk);
+    const riskLevel = riskLevelForScore(score);
+    const topDrivers = drivers.slice(0, 3);
+    return {
+      date: point.date,
+      score,
+      riskLevel,
+      headline: forecastHeadline(score, riskLevel, topDrivers),
+      topDrivers,
+      evidence: topDrivers.map((driver) => driver.evidence),
+      nextAction: forecastNextAction(riskLevel, topDrivers),
+      missingDataNote,
+    };
+  });
 }
 
 function forecastConfidenceLabel(percent: number): SafePredictForecastConfidence["label"] {

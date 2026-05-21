@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSafePredictDataset,
   forecastConfidenceForSite,
+  forecastReasonsForSite,
   hasSafePredictForecastInputs,
   jobsiteById,
   nextActionStatus,
@@ -172,6 +173,81 @@ describe("safePredictData", () => {
     expect(highForecast[0].predictedRisk).toBeGreaterThan(lowForecast[0]?.predictedRisk ?? -1);
     expect(new Set(highForecast.map((point) => point.predictedRisk)).size).toBeGreaterThan(1);
     expect(riskForecastForSite(dataset, "live-high")).toEqual(highForecast);
+  });
+
+  it("explains forecast points from the highest scoped open risk signals", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
+      liveActions: [
+        { id: "act-high", jobsite_id: "live-site-1", title: "Repair leading edge guardrail", status: "open", severity: "high", category: "fall_protection" },
+        { id: "act-low", jobsite_id: "live-site-1", title: "Touch up sign paint", status: "open", severity: "low", category: "signage" },
+      ],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Near miss at stair tower", status: "open", severity: "high", incident_type: "near_miss" }],
+      livePermits: [{ id: "permit-1", jobsite_id: "live-site-1", permit_type: "Hot Work", title: "Hot work permit", status: "expired" }],
+    });
+
+    const [reason] = forecastReasonsForSite(dataset, "live-site-1", [{ date: "Now", predictedRisk: 82 }]);
+
+    expect(reason.riskLevel).toBe("high");
+    expect(reason.topDrivers[0]?.source).toBe("permits");
+    expect(reason.topDrivers.map((driver) => driver.source)).toEqual(expect.arrayContaining(["incidents", "corrective_actions"]));
+    expect(reason.topDrivers.map((driver) => driver.evidence).join(" ")).not.toContain("Touch up sign paint");
+    expect(reason.nextAction).toContain("Review the top drivers today");
+  });
+
+  it("does not elevate closed or completed records in forecast reasons", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
+      liveActions: [{ id: "act-1", jobsite_id: "live-site-1", title: "Closed guardrail repair", status: "verified_closed", severity: "critical" }],
+      liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Closed near miss", status: "closed", severity: "high" }],
+      liveInspections: [{ id: "audit-1", jobsite_id: "live-site-1", title: "Daily walk", status: "completed", failed_items: 0 }],
+    });
+
+    const [reason] = forecastReasonsForSite(dataset, "live-site-1", [{ date: "Now", predictedRisk: 20 }]);
+
+    expect(reason.topDrivers).toEqual([]);
+    expect(reason.missingDataNote).toContain("No connected corrective actions");
+  });
+
+  it("returns a conservative missing-data reason for empty live scopes", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-empty", name: "Empty Site", status: "active" }],
+    });
+
+    const [reason] = forecastReasonsForSite(dataset, "live-empty", [{ date: "Now", predictedRisk: 45 }]);
+
+    expect(reason.riskLevel).toBe("medium");
+    expect(reason.topDrivers).toEqual([]);
+    expect(reason.headline).toContain("limited connected signal data");
+    expect(reason.missingDataNote).toContain("No connected corrective actions");
+  });
+
+  it("aggregates forecast reasons across all selected sites", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-a", name: "Low Site", status: "active" },
+        { id: "live-b", name: "High Site", status: "active" },
+      ],
+      liveActions: [
+        { id: "act-low", jobsite_id: "live-a", title: "Closed paint action", status: "verified_closed", severity: "low" },
+        { id: "act-high", jobsite_id: "live-b", title: "Open fall exposure", status: "open", severity: "critical", category: "fall_protection" },
+      ],
+    });
+
+    const [reason] = forecastReasonsForSite(dataset, "all", [{ date: "Now", predictedRisk: 91 }]);
+
+    expect(reason.riskLevel).toBe("critical");
+    expect(reason.topDrivers[0]).toMatchObject({ source: "corrective_actions" });
+    expect(reason.evidence.join(" ")).toContain("Open fall exposure");
+    expect(reason.nextAction).toContain("Immediate safety review");
   });
 
   it("derives model confidence from scoped live signal coverage", () => {

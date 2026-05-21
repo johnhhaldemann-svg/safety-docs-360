@@ -13,6 +13,7 @@ import {
   type PredictiveRiskJobsiteRow,
   type PredictiveRiskJsaActivityRow,
   type PredictiveRiskPermitRow,
+  type PredictiveRiskMitigationRow,
   type PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
 import type { WorkScheduleInputs } from "@/lib/injuryWeather/types";
@@ -248,8 +249,13 @@ export async function GET(request: Request) {
     .eq("company_id", companyId)
     .eq("is_deleted", false)
     .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
+  const mitigationsQuery = auth.supabase
+    .from("company_risk_ai_recommendations")
+    .select("id, title, status, priority, mitigation_state, risk_reduction_points")
+    .eq("company_id", companyId)
+    .in("status", ["field_used", "resolved"]) as unknown as PromiseLike<QueryResult<PredictiveRiskMitigationRow>>;
 
-  const [jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, scheduleItemsRes, observationsRes] = await Promise.all([
+  const [jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, scheduleItemsRes, observationsRes, mitigationsRes] = await Promise.all([
     jobsitesQuery,
     correctiveQuery,
     incidentsQuery,
@@ -257,6 +263,7 @@ export async function GET(request: Request) {
     jsaActivitiesQuery,
     scheduleItemsQuery,
     observationsQuery,
+    mitigationsQuery,
   ]);
 
   const scheduleItems = scheduleItemsRes.error
@@ -277,7 +284,8 @@ export async function GET(request: Request) {
     permitsRes.error?.message ||
     (jsaActivitiesRes.error && !isMissingTable(jsaActivitiesRes.error.message) ? jsaActivitiesRes.error.message : null) ||
     (scheduleItemsRes.error && !isMissingTable(scheduleItemsRes.error.message) ? scheduleItemsRes.error.message : null) ||
-    (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null);
+    (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null) ||
+    (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null);
 
   if (hardError) {
     return NextResponse.json({ error: hardError || "Failed to load predictive risk." }, { status: 500 });
@@ -297,6 +305,7 @@ export async function GET(request: Request) {
       jsaActivities: jsaActivitiesRes.error ? [] : jsaActivitiesRes.data ?? [],
       scheduleItems,
       observations: observationsRes.error ? [] : observationsRes.data ?? [],
+      riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
       warning:
         scheduleItemsRes.error && isMissingTable(scheduleItemsRes.error.message)
           ? "Work schedule data is not available yet. Run the latest Supabase migration to include schedule pressure in predictive risk."

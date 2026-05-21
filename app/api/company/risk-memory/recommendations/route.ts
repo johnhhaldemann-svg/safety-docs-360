@@ -4,6 +4,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { explainRecommendation } from "@/lib/leadershipTrust";
 import type { LeadershipEvidenceRef } from "@/lib/leadershipTrust";
+import { inferRiskActionType } from "@/lib/riskActionPlan";
 
 export const runtime = "nodejs";
 
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
 
   const res = await auth.supabase
     .from("company_risk_ai_recommendations")
-    .select("id, kind, title, body, confidence, created_at, dismissed, status, priority, owner_user_id, due_at, target_module, target_href, evidence_summary, accepted_at, field_used_at, resolved_at, dismissed_at")
+    .select("id, kind, title, body, confidence, created_at, dismissed, status, priority, action_type, owner_user_id, due_at, target_module, target_href, linked_module, linked_record_id, verification_required, mitigation_state, risk_reduction_points, evidence_summary, accepted_at, field_used_at, resolved_at, dismissed_at")
     .eq("company_id", companyScope.companyId)
     .neq("status", "dismissed")
     .eq("dismissed", false)
@@ -89,8 +90,22 @@ export async function GET(request: Request) {
         actionHref: rec.target_href ?? "/analytics/predictive-model",
         status: rec.status ?? "active",
         priority: rec.priority ?? "medium",
+        actionType:
+          rec.action_type ??
+          inferRiskActionType({
+            kind: rec.kind,
+            title: rec.title,
+            body: rec.body,
+            priority: rec.priority,
+            targetModule: rec.target_module,
+          }),
         ownerUserId: rec.owner_user_id ?? null,
         dueAt: rec.due_at ?? null,
+        linkedModule: rec.linked_module ?? null,
+        linkedRecordId: rec.linked_record_id ?? null,
+        verificationRequired: rec.verification_required ?? true,
+        mitigationState: rec.mitigation_state ?? "unverified",
+        riskReductionPoints: rec.risk_reduction_points ?? 0,
         sourceModule: rec.target_module ?? "risk_memory",
         evidenceRefs: parseEvidenceRefs(rec.evidence_summary),
         acceptedAt: rec.accepted_at ?? null,

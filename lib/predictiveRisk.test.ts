@@ -172,11 +172,22 @@ describe("buildPredictiveRiskPayload", () => {
       incidents: [],
       permits: [],
       jsaActivities: [],
+      riskMitigations: [
+        {
+          id: "rec-1",
+          status: "field_used",
+          mitigation_state: "field_verified",
+          priority: "high",
+          risk_reduction_points: 12,
+        },
+      ],
     });
 
     expect(payload.locations).toEqual([]);
     expect(payload.drivers[0]?.label).toBe("Fall Protection");
     expect(payload.summary.averageRiskScore).toBe(61);
+    expect(payload.summary.averageResidualRiskScore).toBe(49);
+    expect(payload.summary.aiRiskReductionPoints).toBe(12);
     expect(payload.model.provenanceNote).toContain("No jobsite-aware records");
     expect(payload.behaviorRisk.riskLevel).toBe("Low");
     expect(payload.safetyAiAssessment.confidence).toBe("low");

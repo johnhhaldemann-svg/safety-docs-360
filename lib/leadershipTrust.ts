@@ -48,9 +48,22 @@ export type ExplainableRecommendation = {
   created_at: string;
   status?: "active" | "accepted" | "assigned" | "field_used" | "resolved" | "dismissed" | "needs_review";
   priority?: "low" | "medium" | "high" | "critical";
+  actionType?:
+    | "assign"
+    | "request_documentation"
+    | "request_inspection"
+    | "create_corrective_action"
+    | "request_permit"
+    | "accountability_review"
+    | "stop_work_review";
   ownerTarget?: string;
   ownerUserId?: string | null;
   dueAt?: string | null;
+  linkedModule?: string | null;
+  linkedRecordId?: string | null;
+  verificationRequired?: boolean;
+  mitigationState?: string;
+  riskReductionPoints?: number;
   sourceModule?: string;
   sourceId?: string | null;
   evidence?: string;
@@ -148,8 +161,14 @@ export function explainRecommendation(params: {
   actionHref?: string | null;
   status?: ExplainableRecommendation["status"] | null;
   priority?: ExplainableRecommendation["priority"] | null;
+  actionType?: ExplainableRecommendation["actionType"] | null;
   ownerUserId?: string | null;
   dueAt?: string | null;
+  linkedModule?: string | null;
+  linkedRecordId?: string | null;
+  verificationRequired?: boolean | null;
+  mitigationState?: string | null;
+  riskReductionPoints?: number | null;
   evidenceRefs?: LeadershipEvidenceRef[];
   acceptedAt?: string | null;
   fieldUsedAt?: string | null;
@@ -168,9 +187,15 @@ export function explainRecommendation(params: {
     created_at: params.created_at,
     status: params.status ?? "active",
     priority: params.priority ?? "medium",
+    actionType: params.actionType ?? "assign",
     ownerTarget: "Safety leadership",
     ownerUserId: params.ownerUserId ?? null,
     dueAt: params.dueAt ?? null,
+    linkedModule: params.linkedModule ?? null,
+    linkedRecordId: params.linkedRecordId ?? null,
+    verificationRequired: params.verificationRequired ?? true,
+    mitigationState: params.mitigationState ?? "unverified",
+    riskReductionPoints: params.riskReductionPoints ?? 0,
     sourceModule,
     sourceId: params.sourceId ?? null,
     evidenceRefs: params.evidenceRefs ?? [],

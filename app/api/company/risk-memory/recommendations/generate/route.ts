@@ -6,6 +6,7 @@ import { buildLlmRiskRecommendations } from "@/lib/riskMemory/llmRecommendations
 import { buildRuleBasedRiskRecommendations, type RiskRecommendationDraft } from "@/lib/riskMemory/recommendations";
 import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import { buildSalesDemoRiskRecommendations } from "@/lib/demoWorkspace";
+import { enrichRiskActionDraft, inferRiskActionType } from "@/lib/riskActionPlan";
 import {
   createCompanyNotification,
   listCompanyNotificationRecipients,
@@ -102,16 +103,41 @@ export async function POST(request: Request) {
       }
     : { mode };
 
-  const rows = drafts.map((d) => ({
-    company_id: companyScope.companyId,
-    jobsite_id: jobsiteId,
-    kind: d.kind,
-    title: d.title,
-    body: d.body,
-    confidence: d.confidence,
-    context_snapshot: snapshot,
-    created_by: auth.user.id,
-  }));
+  const rows = drafts.map((d) => {
+    const actionDraft = enrichRiskActionDraft({
+      ...d,
+      priority: d.confidence >= 0.75 ? "high" : "medium",
+      targetModule: "risk_memory",
+      targetHref: "/settings/risk-memory",
+      evidenceRefs: [],
+      actionType: inferRiskActionType({
+        kind: d.kind,
+        title: d.title,
+        body: d.body,
+        priority: d.confidence >= 0.75 ? "high" : "medium",
+        targetModule: "risk_memory",
+      }),
+    });
+    return {
+      company_id: companyScope.companyId,
+      jobsite_id: jobsiteId,
+      kind: d.kind,
+      title: d.title,
+      body: d.body,
+      confidence: d.confidence,
+      context_snapshot: snapshot,
+      created_by: auth.user.id,
+      status: "active",
+      priority: actionDraft.priority,
+      action_type: actionDraft.actionType,
+      target_module: actionDraft.targetModule,
+      target_href: actionDraft.targetHref,
+      verification_required: actionDraft.verificationRequired,
+      mitigation_state: actionDraft.mitigationState,
+      risk_reduction_points: actionDraft.riskReductionPoints,
+      evidence_summary: { evidenceRefs: [] },
+    };
+  });
 
   const ins = await auth.supabase.from("company_risk_ai_recommendations").insert(rows).select("id, kind, title, body, confidence, created_at");
 

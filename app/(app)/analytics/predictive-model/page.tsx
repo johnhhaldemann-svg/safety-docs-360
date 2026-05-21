@@ -105,10 +105,16 @@ export default function PredictiveModelPage() {
           body: string;
           confidence: number;
           priority: ExplainableRecommendation["priority"];
+          actionType?: ExplainableRecommendation["actionType"];
           targetModule: string;
           targetHref: string;
           evidenceRefs: ExplainableRecommendation["evidenceRefs"];
           status: ExplainableRecommendation["status"];
+          verificationRequired?: boolean;
+          mitigationState?: string;
+          riskReductionPoints?: number;
+          linkedModule?: string | null;
+          linkedRecordId?: string | null;
           createdAt: string;
         }>;
         warnings?: string[];
@@ -124,7 +130,13 @@ export default function PredictiveModelPage() {
         created_at: rec.createdAt,
         status: rec.status,
         priority: rec.priority,
+        actionType: rec.actionType,
         sourceModule: rec.targetModule,
+        verificationRequired: rec.verificationRequired,
+        mitigationState: rec.mitigationState,
+        riskReductionPoints: rec.riskReductionPoints,
+        linkedModule: rec.linkedModule,
+        linkedRecordId: rec.linkedRecordId,
         evidenceRefs: rec.evidenceRefs ?? [],
         evidence:
           rec.evidenceRefs && rec.evidenceRefs.length > 0
@@ -145,29 +157,59 @@ export default function PredictiveModelPage() {
   }, [days, jobsiteId]);
 
   const updateRiskRecommendation = useCallback(
-    async (id: string, status: "accepted" | "assigned" | "field_used" | "resolved" | "dismissed") => {
+    async (id: string, actionType: string) => {
       setRiskActionLoading(true);
       setRiskActionMessage("");
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/company/risk-memory/recommendations/${encodeURIComponent(id)}`, {
-          method: "PATCH",
+        const res = await fetch(`/api/company/risk-memory/recommendations/${encodeURIComponent(id)}/actions`, {
+          method: "POST",
           headers: {
             ...headers,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({ actionType }),
         });
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        if (!res.ok) throw new Error(body?.error || "Failed to update recommendation.");
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          recommendation?: {
+            id: string;
+            status?: ExplainableRecommendation["status"];
+            action_type?: ExplainableRecommendation["actionType"];
+            owner_user_id?: string | null;
+            due_at?: string | null;
+            linked_module?: string | null;
+            linked_record_id?: string | null;
+            verification_required?: boolean;
+            mitigation_state?: string;
+            risk_reduction_points?: number;
+          };
+        } | null;
+        if (!res.ok) throw new Error(body?.error || "Failed to execute recommendation action.");
+        const updated = body?.recommendation;
         setRiskActionRecommendations((current) =>
           current
-            .map((item) => (item.id === id ? { ...item, status } : item))
+            .map((item) =>
+              item.id === id && updated
+                ? {
+                    ...item,
+                    status: updated.status ?? item.status,
+                    actionType: updated.action_type ?? item.actionType,
+                    ownerUserId: updated.owner_user_id ?? item.ownerUserId,
+                    dueAt: updated.due_at ?? item.dueAt,
+                    linkedModule: updated.linked_module ?? item.linkedModule,
+                    linkedRecordId: updated.linked_record_id ?? item.linkedRecordId,
+                    verificationRequired: updated.verification_required ?? item.verificationRequired,
+                    mitigationState: updated.mitigation_state ?? item.mitigationState,
+                    riskReductionPoints: updated.risk_reduction_points ?? item.riskReductionPoints,
+                  }
+                : item
+            )
             .filter((item) => item.status !== "dismissed" && item.status !== "resolved")
         );
-        setRiskActionMessage(`Recommendation marked ${status.replace("_", " ")}.`);
+        setRiskActionMessage(`Action recorded: ${actionType.replaceAll("_", " ")}.`);
       } catch (err) {
-        setRiskActionMessage(err instanceof Error ? err.message : "Failed to update recommendation.");
+        setRiskActionMessage(err instanceof Error ? err.message : "Failed to execute recommendation action.");
       } finally {
         setRiskActionLoading(false);
       }
@@ -196,7 +238,7 @@ export default function PredictiveModelPage() {
       riskActionLoading={riskActionLoading}
       riskActionMessage={riskActionMessage}
       onGenerateRiskActionPlan={() => void generateRiskActionPlan()}
-      onUpdateRiskRecommendation={(id, status) => void updateRiskRecommendation(id, status)}
+      onExecuteRiskRecommendation={(id, actionType) => void updateRiskRecommendation(id, actionType)}
     />
   );
 }

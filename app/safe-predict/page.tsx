@@ -19,7 +19,15 @@ import {
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
-import { hasSafePredictForecastInputs, riskForecastForSite, summarizeSafePredictDataset, type SafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
+import {
+  forecastReasonsForSite,
+  hasSafePredictForecastInputs,
+  riskForecastForSite,
+  summarizeSafePredictDataset,
+  type SafePredictDataset,
+  type SafePredictForecastReason,
+  type SafePredictJobsiteRecord,
+} from "@/lib/safePredictData";
 
 type ForecastWindow = 30 | 60 | 90;
 
@@ -35,6 +43,25 @@ function extendForecastWindow(points: SafePredictForecastPoint[], windowDays: Fo
   if (windowDays === 30 || points.length === 0) return points;
 
   const last = points[points.length - 1];
+  const relativeMatch = /^\+(\d+)d$/.exec(last.date);
+  if (relativeMatch) {
+    const startOffset = Number(relativeMatch[1]);
+    const extraPoints = windowDays === 60 ? 6 : 12;
+    let risk = last.predictedRisk;
+
+    return [
+      ...points,
+      ...Array.from({ length: extraPoints }, (_, index) => {
+        const swing = index % 3 === 0 ? 8 : index % 3 === 1 ? -5 : 3;
+        risk = Math.max(18, Math.min(92, risk + swing - Math.floor(index / 3)));
+        return {
+          date: `+${startOffset + (index + 1) * 5}d`,
+          predictedRisk: risk,
+        };
+      }),
+    ];
+  }
+
   const [month = "Jun", day = "9"] = last.date.split(" ");
   const startMonth = Math.max(0, monthIndex(month));
   const cursor = new Date(2025, startMonth, Number(day) || 9);
@@ -74,6 +101,14 @@ function commandRiskSparklineColor(level: SafePredictJobsiteRecord["riskLevel"])
   if (level === "high") return "#fb923c";
   if (level === "medium") return "#fbbf24";
   return "#34d399";
+}
+
+function highestForecastRiskIndex(points: SafePredictForecastPoint[]) {
+  if (points.length === 0) return 0;
+  return points.reduce(
+    (highestIndex, point, index) => (point.predictedRisk > (points[highestIndex]?.predictedRisk ?? -1) ? index : highestIndex),
+    0
+  );
 }
 
 function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
@@ -919,13 +954,27 @@ function CommandSparkline({ data, color = "#ef4444" }: { data: number[]; color?:
   );
 }
 
-function CommandForecastChart({ data }: { data: SafePredictForecastPoint[] }) {
+function CommandForecastChart({
+  data,
+  selectedIndex,
+  onSelectIndex,
+}: {
+  data: SafePredictForecastPoint[];
+  selectedIndex: number;
+  onSelectIndex: (index: number) => void;
+}) {
+  const chartPoints = data.map((point, index) => ({
+    point,
+    index,
+    x: data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520,
+    y: 235 - (point.predictedRisk / 100) * 190,
+  }));
   const plot = (key: "predictedRisk" | "historicalRisk") =>
     data
       .map((point, index) => {
         const value = point[key];
         if (typeof value !== "number") return null;
-        const x = data.length <= 1 ? 0 : 36 + (index / (data.length - 1)) * 520;
+        const x = data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520;
         const y = 235 - (value / 100) * 190;
         return `${x},${y}`;
       })
@@ -934,33 +983,100 @@ function CommandForecastChart({ data }: { data: SafePredictForecastPoint[] }) {
   const predicted = plot("predictedRisk");
   const historical = plot("historicalRisk");
   const area = predicted ? `36,235 ${predicted} 556,235` : "";
+  const selectedPoint = chartPoints[selectedIndex];
 
   return (
-    <svg viewBox="0 0 590 270" className="mt-3 h-[285px] w-full overflow-visible" role="img" aria-label="Predictive risk trend chart">
-      <defs>
-        <linearGradient id="commandForecastRiskBand" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#fecaca" stopOpacity="0.82" />
-          <stop offset="100%" stopColor="#fef3c7" stopOpacity="0.34" />
-        </linearGradient>
-      </defs>
-      {[0, 25, 50, 75, 100].map((tick) => {
-        const y = 235 - (tick / 100) * 190;
-        return (
-          <g key={tick}>
-            <line x1="36" x2="556" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="5 5" />
-            <text x="10" y={y + 4} fill="#64748b" fontSize="11" fontWeight="700">{tick}</text>
+    <div className="relative mt-3 h-[285px] w-full">
+      <svg viewBox="0 0 590 270" className="h-full w-full overflow-visible" role="img" aria-label="Predictive risk trend chart">
+        <defs>
+          <linearGradient id="commandForecastRiskBand" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#fecaca" stopOpacity="0.82" />
+            <stop offset="100%" stopColor="#fef3c7" stopOpacity="0.34" />
+          </linearGradient>
+        </defs>
+        {[0, 25, 50, 75, 100].map((tick) => {
+          const y = 235 - (tick / 100) * 190;
+          return (
+            <g key={tick}>
+              <line x1="36" x2="556" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="5 5" />
+              <text x="10" y={y + 4} fill="#64748b" fontSize="11" fontWeight="700">{tick}</text>
+            </g>
+          );
+        })}
+        {area ? <polygon points={area} fill="url(#commandForecastRiskBand)" /> : null}
+        {historical ? <polyline points={historical} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        {predicted ? <polyline points={predicted} fill="none" stroke="#f97316" strokeWidth="3" strokeDasharray="5 5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        {selectedPoint ? (
+          <g aria-hidden>
+            <line x1={selectedPoint.x} x2={selectedPoint.x} y1="45" y2="235" stroke="#2563eb" strokeDasharray="4 4" />
+            <circle cx={selectedPoint.x} cy={selectedPoint.y} r="7" fill="#2563eb" stroke="#ffffff" strokeWidth="3" />
           </g>
-        );
-      })}
-      {area ? <polygon points={area} fill="url(#commandForecastRiskBand)" /> : null}
-      {historical ? <polyline points={historical} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
-      {predicted ? <polyline points={predicted} fill="none" stroke="#f97316" strokeWidth="3" strokeDasharray="5 5" strokeLinecap="round" strokeLinejoin="round" /> : null}
-      {data.map((point, index) => {
-        const x = data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520;
-        const label = index === 0 ? "Now" : index % 2 === 0 ? `+${index * 3}d` : "";
-        return label ? <text key={`${point.date}-${index}`} x={x} y="258" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="700">{label}</text> : null;
-      })}
-    </svg>
+        ) : null}
+        {data.map((point, index) => {
+          const x = data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520;
+          const label = index === 0 ? "Now" : index % 2 === 0 ? point.date : "";
+          return label ? <text key={`${point.date}-${index}`} x={x} y="258" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="700">{label}</text> : null;
+        })}
+      </svg>
+      {chartPoints.map(({ point, index, x, y }) => (
+        <button
+          key={`${point.date}-${index}`}
+          type="button"
+          data-testid="forecast-risk-point"
+          onClick={() => onSelectIndex(index)}
+          aria-pressed={selectedIndex === index}
+          aria-label={`Show why risk is elevated on ${point.date}: ${point.predictedRisk} risk score`}
+          className={cx(
+            "absolute grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+            selectedIndex === index ? "border-blue-600 bg-blue-600/15" : "border-transparent bg-transparent hover:border-orange-300 hover:bg-orange-100/70"
+          )}
+          style={{ left: `${(x / 590) * 100}%`, top: `${(y / 270) * 100}%` }}
+        >
+          <span className={cx("h-2.5 w-2.5 rounded-full", selectedIndex === index ? "bg-blue-600" : "bg-orange-500")} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ForecastReasonPanel({ reason }: { reason: SafePredictForecastReason }) {
+  return (
+    <div data-testid="forecast-risk-reason-panel" className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4" aria-live="polite">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Why risk is elevated</p>
+          <p className="mt-1 text-xs font-black uppercase tracking-wide text-blue-700">Selected point: {reason.date}</p>
+          <p className="mt-1 text-sm font-bold leading-5 text-slate-800">{reason.headline}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <RiskBadge level={reason.riskLevel} />
+          <span className="text-sm font-black text-slate-900">{reason.score}/100</span>
+        </div>
+      </div>
+      {reason.topDrivers.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {reason.topDrivers.map((driver) => (
+            <div key={driver.id} className="rounded-md border border-white bg-white px-3 py-2 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-900">{driver.label}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{driver.evidence}</p>
+                </div>
+                <span className="shrink-0 text-xs font-black text-slate-500">{driver.score}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
+          {reason.missingDataNote}
+        </p>
+      )}
+      <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold leading-5 text-blue-800">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <span>{reason.nextAction}</span>
+      </div>
+    </div>
   );
 }
 
@@ -1075,14 +1191,29 @@ function CommandKpiStrip({
 export default function SafePredictDashboardPage() {
   const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
   const [forecastWindow, setForecastWindow] = useState<ForecastWindow>(30);
+  const [selectedForecastPoint, setSelectedForecastPoint] = useState<{ key: string; index: number } | null>(null);
   const totals = summarizeSafePredictDataset(dataset);
-  const selectedSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "riverside" : selectedJobsiteId;
-  const forecast = riskForecastForSite(dataset, selectedSiteId);
+  const selectedSiteId = selectedJobsiteId || "all";
+  const forecast = useMemo(() => riskForecastForSite(dataset, selectedSiteId), [dataset, selectedSiteId]);
   const hasForecastInputs = hasSafePredictForecastInputs(dataset, selectedSiteId);
   const displayedForecast = useMemo(
     () => extendForecastWindow(forecast, forecastWindow),
     [forecast, forecastWindow]
   );
+  const forecastReasons = useMemo(
+    () => forecastReasonsForSite(dataset, selectedSiteId, displayedForecast),
+    [dataset, displayedForecast, selectedSiteId]
+  );
+  const defaultForecastIndex = useMemo(
+    () => highestForecastRiskIndex(displayedForecast),
+    [displayedForecast]
+  );
+  const forecastSelectionKey = `${selectedSiteId}:${forecastWindow}:${displayedForecast.map((point) => `${point.date}-${point.predictedRisk}`).join("|")}`;
+  const activeForecastIndex =
+    selectedForecastPoint?.key === forecastSelectionKey && selectedForecastPoint.index >= 0 && selectedForecastPoint.index < displayedForecast.length
+      ? selectedForecastPoint.index
+      : defaultForecastIndex;
+  const activeForecastReason = forecastReasons[activeForecastIndex] ?? forecastReasons[0] ?? null;
   const hasForecast = hasForecastInputs && displayedForecast.length > 0;
   const completedInspections = dataset.inspections.filter((inspection) => inspection.status === "Completed").length;
   const complianceRate = totals.workforce.compliantPercent;
@@ -1176,7 +1307,12 @@ export default function SafePredictDashboardPage() {
               <div className="mt-4 inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
                 AI models indicate risk levels will remain elevated over the next {forecastWindow} days.
               </div>
-              <CommandForecastChart data={displayedForecast} />
+              <CommandForecastChart
+                data={displayedForecast}
+                selectedIndex={activeForecastIndex}
+                onSelectIndex={(index) => setSelectedForecastPoint({ key: forecastSelectionKey, index })}
+              />
+              {activeForecastReason ? <ForecastReasonPanel reason={activeForecastReason} /> : null}
               <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
                 <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-red-500" /> Historical Risk</span>
                 <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 border-t border-dashed border-orange-500" /> Predicted Risk</span>

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildRiskActionEvidencePack,
   buildRuleBasedRiskActionDrafts,
+  calculateRiskReductionPoints,
+  inferRiskActionType,
   parseRiskActionDraftsFromModelText,
 } from "@/lib/riskActionPlan";
 import type { PredictiveRiskPayload } from "@/lib/predictiveRisk";
@@ -14,8 +16,11 @@ function predictive(overrides?: Partial<PredictiveRiskPayload>): PredictiveRiskP
       highRiskLocationCount: 0,
       predictedIncidents: 0,
       averageRiskScore: 0,
+      averageResidualRiskScore: 0,
       confidencePercent: 0,
       riskSignalCount: 0,
+      aiRiskReductionPoints: 0,
+      mitigationSummary: "No mitigation in fixture.",
     },
     locations: [],
     drivers: [],
@@ -126,6 +131,7 @@ describe("riskActionPlan", () => {
 
     expect(drafts.length).toBeGreaterThanOrEqual(3);
     expect(drafts[0]?.priority).toBe("critical");
+    expect(drafts[0]?.actionType).toBe("stop_work_review");
     expect(drafts.some((draft) => draft.targetModule === "risk_memory")).toBe(true);
   });
 
@@ -163,5 +169,17 @@ describe("riskActionPlan", () => {
     expect(drafts[0]?.confidence).toBe(0.95);
     expect(drafts[0]?.priority).toBe("medium");
     expect(drafts[0]?.targetModule).toBe("predictive_risk");
+    expect(drafts[0]?.actionType).toBe("assign");
+  });
+
+  it("infers accountability and permit actions from recommendation text", () => {
+    expect(inferRiskActionType({ title: "Disciplinary review required for repeated unsafe acts" })).toBe("accountability_review");
+    expect(inferRiskActionType({ title: "Hot work permit verification", targetModule: "permit" })).toBe("request_permit");
+  });
+
+  it("only applies risk reduction after verified field use or resolution", () => {
+    expect(calculateRiskReductionPoints({ priority: "critical", status: "assigned", mitigationState: "field_verified" })).toBe(0);
+    expect(calculateRiskReductionPoints({ priority: "critical", status: "field_used", mitigationState: "assigned" })).toBe(0);
+    expect(calculateRiskReductionPoints({ priority: "critical", status: "field_used", mitigationState: "field_verified" })).toBe(18);
   });
 });

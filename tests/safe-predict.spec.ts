@@ -23,7 +23,21 @@ test.describe("SafePredict beta platform routes", () => {
   test("loads the beta platform shell directly", async ({ page }) => {
     await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("link", { name: /SafetyDoc360/ }).filter({ visible: true }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Welcome back, John." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  });
+
+  test("shows grounded reasons when a predictive risk point is selected", async ({ page }) => {
+    await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
+
+    const reasonPanel = page.getByTestId("forecast-risk-reason-panel");
+    await expect(reasonPanel).toBeVisible();
+    const initialReason = await reasonPanel.textContent();
+    await page.getByTestId("forecast-risk-point").first().click();
+
+    await expect.poll(async () => reasonPanel.textContent()).not.toBe(initialReason);
+    await expect(reasonPanel).toContainText("Selected point:");
+    await expect(reasonPanel).toContainText(/\/100/);
+    await expect(reasonPanel).toContainText(/review|verify|monitor/i);
   });
 
   for (const [from, to] of redirects) {

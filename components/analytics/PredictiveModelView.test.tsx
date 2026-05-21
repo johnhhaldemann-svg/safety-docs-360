@@ -72,4 +72,39 @@ describe("PredictiveModelView", () => {
 
     expect(html).toContain("No predictive risk signals yet");
   });
+
+  it("renders interactive risk action controls and mitigation state", () => {
+    const html = renderToStaticMarkup(
+      <PredictiveModelView
+        data={buildEmptyPredictiveRiskPayload(30)}
+        loading={false}
+        error=""
+        days={30}
+        riskActionRecommendations={[
+          {
+            id: "rec-1",
+            kind: "test",
+            title: "Verify controls before release",
+            body: "Document controls and assign a field verification.",
+            confidence: 0.8,
+            created_at: "2026-05-21T00:00:00.000Z",
+            status: "active",
+            priority: "high",
+            actionType: "create_corrective_action",
+            verificationRequired: true,
+            mitigationState: "linked_action_created",
+            riskReductionPoints: 0,
+            evidenceRefs: [],
+          },
+        ]}
+      />
+    );
+
+    expect(html).toContain("Suggested action");
+    expect(html).toContain("Corrective action");
+    expect(html).toContain("Residual risk");
+    expect(html).toContain("Verification required");
+    expect(html).toContain("Do: Corrective action");
+    expect(html).toContain("Stop-work review");
+  });
 });

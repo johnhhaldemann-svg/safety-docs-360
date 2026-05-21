@@ -72,6 +72,31 @@ function priorityTone(priority?: string) {
   return "text-amber-700";
 }
 
+function actionTypeLabel(actionType?: string) {
+  if (actionType === "request_documentation") return "Document";
+  if (actionType === "request_inspection") return "Inspection request";
+  if (actionType === "create_corrective_action") return "Corrective action";
+  if (actionType === "request_permit") return "Permit request";
+  if (actionType === "accountability_review") return "Accountability review";
+  if (actionType === "stop_work_review") return "Stop-work review";
+  if (actionType === "mark_field_used") return "Field used";
+  if (actionType === "resolve") return "Resolve";
+  if (actionType === "dismiss") return "Dismiss";
+  return "Assign";
+}
+
+function mitigationLabel(state?: string) {
+  if (state === "documentation_requested") return "Documentation requested";
+  if (state === "inspection_requested") return "Inspection requested";
+  if (state === "linked_action_created") return "Linked action created";
+  if (state === "evidence_uploaded") return "Evidence uploaded";
+  if (state === "field_verified") return "Field verified";
+  if (state === "resolved") return "Resolved";
+  if (state === "dismissed") return "Dismissed";
+  if (state === "assigned") return "Assigned";
+  return "No verified mitigation yet";
+}
+
 function TrendChart({ points }: { points: PredictiveRiskPayload["trend"] }) {
   const safe = points.length > 0 ? points : [{ label: "Now", riskScore: 0 }];
   const width = 520;
@@ -450,13 +475,13 @@ function RiskActionLoopPanel({
   loading,
   message,
   onGenerate,
-  onUpdateStatus,
+  onExecuteAction,
 }: {
   recommendations: ExplainableRecommendation[];
   loading?: boolean;
   message?: string;
   onGenerate?: () => void;
-  onUpdateStatus?: (id: string, status: "accepted" | "assigned" | "field_used" | "resolved" | "dismissed") => void;
+  onExecuteAction?: (id: string, actionType: string) => void;
 }) {
   return (
     <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
@@ -515,6 +540,38 @@ function RiskActionLoopPanel({
               <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Why this matters</p>
               <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{recommendation.body}</p>
               {recommendation.evidence ? <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">{recommendation.evidence}</p> : null}
+              <div className="mt-3 grid gap-2 md:grid-cols-4">
+                <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Suggested action</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-strong)]">{actionTypeLabel(recommendation.actionType)}</p>
+                </div>
+                <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Owner / due</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-strong)]">
+                    {recommendation.ownerUserId ? "Assigned" : "Unassigned"}{recommendation.dueAt ? ` | ${new Date(recommendation.dueAt).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Mitigation</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-strong)]">{mitigationLabel(recommendation.mitigationState)}</p>
+                </div>
+                <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Residual risk</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-strong)]">
+                    {(recommendation.riskReductionPoints ?? 0) > 0
+                      ? `-${recommendation.riskReductionPoints} verified points`
+                      : recommendation.verificationRequired === false
+                        ? "No credit yet"
+                        : "Verification required"}
+                  </p>
+                </div>
+              </div>
+              {recommendation.linkedModule || recommendation.linkedRecordId ? (
+                <p className="mt-2 text-xs font-semibold text-[var(--app-text)]">
+                  Linked {String(recommendation.linkedModule ?? "record").replaceAll("_", " ")}
+                  {recommendation.linkedRecordId ? `: ${recommendation.linkedRecordId}` : ""}
+                </p>
+              ) : null}
               {recommendation.evidenceRefs && recommendation.evidenceRefs.length > 0 ? (
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   {recommendation.evidenceRefs.slice(0, 4).map((ref) => (
@@ -530,15 +587,17 @@ function RiskActionLoopPanel({
                 </div>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
-                {(["accepted", "assigned", "field_used", "resolved", "dismissed"] as const).map((status) => (
+                {[recommendation.actionType ?? "assign", "assign", "request_documentation", "request_inspection", "create_corrective_action", "request_permit", "accountability_review", "stop_work_review", "mark_field_used", "resolve", "dismiss"]
+                  .filter((action, index, arr) => arr.indexOf(action) === index)
+                  .map((action) => (
                   <button
-                    key={status}
+                    key={action}
                     type="button"
-                    onClick={() => onUpdateStatus?.(recommendation.id, status)}
-                    disabled={loading || !onUpdateStatus}
+                    onClick={() => onExecuteAction?.(recommendation.id, action)}
+                    disabled={loading || !onExecuteAction}
                     className="rounded-md border border-[var(--app-border)] bg-white px-2.5 py-1.5 text-xs font-bold text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)] disabled:opacity-50"
                   >
-                    {status.replace("_", " ")}
+                    {action === recommendation.actionType ? `Do: ${actionTypeLabel(action)}` : actionTypeLabel(action)}
                   </button>
                 ))}
                 {recommendation.actionHref ? (
@@ -576,7 +635,7 @@ export function PredictiveModelView({
   riskActionLoading = false,
   riskActionMessage = "",
   onGenerateRiskActionPlan,
-  onUpdateRiskRecommendation,
+  onExecuteRiskRecommendation,
 }: {
   data: PredictiveRiskPayload | null;
   loading: boolean;
@@ -590,7 +649,7 @@ export function PredictiveModelView({
   riskActionLoading?: boolean;
   riskActionMessage?: string;
   onGenerateRiskActionPlan?: () => void;
-  onUpdateRiskRecommendation?: (id: string, status: "accepted" | "assigned" | "field_used" | "resolved" | "dismissed") => void;
+  onExecuteRiskRecommendation?: (id: string, actionType: string) => void;
 }) {
   const locations = data?.locations ?? [];
   const drivers = data?.drivers ?? [];
@@ -691,9 +750,13 @@ export function PredictiveModelView({
           />
           <MetricCard
             label="Average risk score"
-            value={loading ? "-" : data?.summary.averageRiskScore ?? 0}
+            value={loading ? "-" : data?.summary.averageResidualRiskScore ?? data?.summary.averageRiskScore ?? 0}
             detail="Out of 100"
-            explanation="Average of locations with active risk. Higher is worse; 100 is the cap for maximum displayed pressure."
+            explanation={
+              data?.summary.mitigationSummary
+                ? `Average of locations with active risk. Higher is worse; 100 is the cap for maximum displayed pressure. ${data.summary.mitigationSummary}`
+                : "Average of locations with active risk. Higher is worse; 100 is the cap for maximum displayed pressure."
+            }
             tone="text-orange-600"
           />
           <MetricCard
@@ -712,7 +775,7 @@ export function PredictiveModelView({
           loading={riskActionLoading}
           message={riskActionMessage}
           onGenerate={onGenerateRiskActionPlan}
-          onUpdateStatus={onUpdateRiskRecommendation}
+          onExecuteAction={onExecuteRiskRecommendation}
         />
 
         {!loading && !hasSignals ? (

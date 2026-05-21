@@ -74,8 +74,11 @@ export type PredictiveRiskPayload = {
     highRiskLocationCount: number;
     predictedIncidents: number;
     averageRiskScore: number;
+    averageResidualRiskScore: number;
     confidencePercent: number;
     riskSignalCount: number;
+    aiRiskReductionPoints: number;
+    mitigationSummary: string;
   };
   locations: PredictiveRiskLocation[];
   drivers: PredictiveRiskDriver[];
@@ -97,6 +100,15 @@ export type PredictiveRiskPayload = {
   safetyAiAssessment: SafetyAiAssessment;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
+};
+
+export type PredictiveRiskMitigationRow = {
+  id?: string | null;
+  title?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  mitigation_state?: string | null;
+  risk_reduction_points?: number | null;
 };
 
 export type PredictiveRiskJobsiteRow = {
@@ -775,6 +787,7 @@ export function buildPredictiveRiskPayload(input: {
   scheduleItems?: PredictiveRiskScheduleItemRow[];
   observations?: BehaviorRiskObservationRow[];
   trainingGaps?: BehaviorRiskTrainingGapRow[];
+  riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
   const days = normalizeDays(input.days);
@@ -838,6 +851,24 @@ export function buildPredictiveRiskPayload(input: {
     positiveLocations.length > 0
       ? Math.round(positiveLocations.reduce((sum, row) => sum + row.riskScore, 0) / positiveLocations.length)
       : scoreToDisplay(fallbackScore);
+  const aiRiskReductionPoints = Math.min(
+    25,
+    Math.max(
+      0,
+      Math.round(
+        (input.riskMitigations ?? []).reduce((sum, row) => {
+          const status = String(row.status ?? "").toLowerCase();
+          if (status !== "field_used" && status !== "resolved") return sum;
+          return sum + Math.max(0, Number(row.risk_reduction_points ?? 0));
+        }, 0)
+      )
+    )
+  );
+  const averageResidualRiskScore = Math.max(0, averageRiskScore - aiRiskReductionPoints);
+  const mitigationSummary =
+    aiRiskReductionPoints > 0
+      ? `${aiRiskReductionPoints} point${aiRiskReductionPoints === 1 ? "" : "s"} of verified AI action mitigation are reflected in residual risk.`
+      : "No AI action mitigation credit is applied until actions are field-used or resolved with verification.";
 
   const sourceCoverage = [
     {
@@ -951,8 +982,11 @@ export function buildPredictiveRiskPayload(input: {
       highRiskLocationCount: locations.filter((row) => row.riskScore >= 70).length,
       predictedIncidents: Math.max(0, Math.round(input.forecast.summary.predictedInjuriesNextMonth)),
       averageRiskScore,
+      averageResidualRiskScore,
       confidencePercent: confidence,
       riskSignalCount: rows.length || input.forecast.summary.riskSignalCount,
+      aiRiskReductionPoints,
+      mitigationSummary,
     },
     locations,
     drivers,

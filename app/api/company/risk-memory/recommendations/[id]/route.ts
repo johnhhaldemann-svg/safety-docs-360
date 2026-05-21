@@ -10,6 +10,7 @@ import {
   type AiEngineFeedbackOutcome,
   type AiEngineReadableClient,
 } from "@/lib/superadmin/aiEngineOperations";
+import { calculateRiskReductionPoints, mitigationStateForAction } from "@/lib/riskActionPlan";
 import type { RiskActionRecommendationStatus } from "@/types/risk-action-plan";
 
 export const runtime = "nodejs";
@@ -102,7 +103,7 @@ export async function PATCH(
 
   const existing = await auth.supabase
     .from("company_risk_ai_recommendations")
-    .select("id, company_id, status, priority, target_module")
+    .select("id, company_id, status, priority, action_type, target_module, mitigation_state, verification_required")
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
     .maybeSingle();
@@ -118,9 +119,27 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString();
+  const mitigationState =
+    nextStatus === "dismissed"
+      ? "dismissed"
+      : nextStatus === "resolved"
+        ? "resolved"
+        : nextStatus === "field_used"
+          ? "field_verified"
+          : nextStatus === "assigned"
+            ? mitigationStateForAction("assign")
+            : String(existing.data.mitigation_state ?? "unverified");
+  const riskReductionPoints = calculateRiskReductionPoints({
+    priority: existing.data.priority,
+    status: nextStatus,
+    mitigationState,
+    verificationRequired: existing.data.verification_required,
+  });
   const updatePayload: Record<string, unknown> = {
     status: nextStatus,
     dismissed: nextStatus === "dismissed",
+    mitigation_state: mitigationState,
+    risk_reduction_points: riskReductionPoints,
     ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
     ...(dueAt ? { due_at: dueAt } : {}),
     ...(nextStatus === "accepted" ? { accepted_at: now } : {}),
@@ -137,7 +156,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
-    .select("id, dismissed, status, priority, owner_user_id, due_at, target_module, target_href, accepted_at, field_used_at, resolved_at, dismissed_at")
+    .select("id, dismissed, status, priority, action_type, owner_user_id, due_at, target_module, target_href, linked_module, linked_record_id, verification_required, mitigation_state, risk_reduction_points, accepted_at, field_used_at, resolved_at, dismissed_at")
     .single();
 
   if (upd.error) {
@@ -160,6 +179,8 @@ export async function PATCH(
       targetModule: existing.data.target_module,
       ownerUserId,
       dueAt,
+      mitigationState,
+      riskReductionPoints,
     }),
   });
 

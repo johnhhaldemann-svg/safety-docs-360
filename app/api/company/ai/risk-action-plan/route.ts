@@ -20,6 +20,8 @@ import {
   buildLlmRiskActionDrafts,
   buildRiskActionEvidencePack,
   buildRuleBasedRiskActionDrafts,
+  calculateRiskReductionPoints,
+  inferRiskActionType,
   mergeRiskActionDrafts,
 } from "@/lib/riskActionPlan";
 import {
@@ -105,12 +107,29 @@ function normalizeRecommendationRow(row: Record<string, unknown>): RiskActionRec
     body: String(row.body ?? ""),
     confidence: Number(row.confidence ?? 0.5),
     priority: String(row.priority ?? "medium") as RiskActionRecommendation["priority"],
+    actionType: String(row.action_type ?? inferRiskActionType({
+      kind: row.kind as string | undefined,
+      title: row.title as string | undefined,
+      body: row.body as string | undefined,
+      priority: row.priority as string | undefined,
+      targetModule: row.target_module as string | undefined,
+    })) as RiskActionRecommendation["actionType"],
     targetModule: String(row.target_module ?? "predictive_risk") as RiskActionRecommendation["targetModule"],
     targetHref: String(row.target_href ?? "/analytics/predictive-model"),
     evidenceRefs: Array.isArray(evidence.evidenceRefs) ? evidence.evidenceRefs : [],
     status: String(row.status ?? "active") as RiskActionRecommendation["status"],
     ownerUserId: typeof row.owner_user_id === "string" ? row.owner_user_id : null,
     dueAt: typeof row.due_at === "string" ? row.due_at : null,
+    linkedModule: typeof row.linked_module === "string" ? row.linked_module as RiskActionRecommendation["linkedModule"] : null,
+    linkedRecordId: typeof row.linked_record_id === "string" ? row.linked_record_id : null,
+    verificationRequired: typeof row.verification_required === "boolean" ? row.verification_required : true,
+    mitigationState: String(row.mitigation_state ?? "unverified") as RiskActionRecommendation["mitigationState"],
+    riskReductionPoints: Number(row.risk_reduction_points ?? calculateRiskReductionPoints({
+      priority: row.priority as string | undefined,
+      status: row.status as string | undefined,
+      mitigationState: row.mitigation_state as string | undefined,
+      verificationRequired: row.verification_required as boolean | undefined,
+    })),
     createdAt: String(row.created_at ?? new Date().toISOString()),
     acceptedAt: typeof row.accepted_at === "string" ? row.accepted_at : null,
     fieldUsedAt: typeof row.field_used_at === "string" ? row.field_used_at : null,
@@ -149,6 +168,8 @@ export async function POST(request: Request) {
       status: "active" as const,
       ownerUserId: null,
       dueAt: null,
+      linkedModule: null,
+      linkedRecordId: null,
       createdAt: new Date().toISOString(),
       acceptedAt: null,
       fieldUsedAt: null,
@@ -322,8 +343,12 @@ export async function POST(request: Request) {
     created_by: auth.user.id,
     status: "active",
     priority: draft.priority,
+    action_type: draft.actionType,
     target_module: draft.targetModule,
     target_href: draft.targetHref,
+    verification_required: draft.verificationRequired,
+    mitigation_state: draft.mitigationState,
+    risk_reduction_points: draft.riskReductionPoints,
     evidence_summary: {
       evidenceRefs: draft.evidenceRefs,
       sourceCoverage: evidencePackSummary.sourceCoverage,
@@ -332,7 +357,7 @@ export async function POST(request: Request) {
   const insert = await auth.supabase
     .from("company_risk_ai_recommendations")
     .insert(rows)
-    .select("id, kind, title, body, confidence, created_at, status, priority, owner_user_id, due_at, target_module, target_href, evidence_summary, accepted_at, field_used_at, resolved_at, dismissed_at");
+    .select("id, kind, title, body, confidence, created_at, status, priority, action_type, owner_user_id, due_at, target_module, target_href, linked_module, linked_record_id, verification_required, mitigation_state, risk_reduction_points, evidence_summary, accepted_at, field_used_at, resolved_at, dismissed_at");
   if (insert.error) {
     return NextResponse.json({ error: insert.error.message || "Failed to save risk action plan." }, { status: 500 });
   }

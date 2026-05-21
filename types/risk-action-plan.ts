@@ -8,6 +8,41 @@ export type RiskActionRecommendationStatus =
 
 export type RiskActionPriority = "low" | "medium" | "high" | "critical";
 
+export type RiskActionType =
+  | "assign"
+  | "request_documentation"
+  | "request_inspection"
+  | "create_corrective_action"
+  | "request_permit"
+  | "accountability_review"
+  | "stop_work_review";
+
+export type RiskActionExecuteType =
+  | RiskActionType
+  | "mark_field_used"
+  | "resolve"
+  | "dismiss";
+
+export type RiskActionLinkedModule =
+  | "risk_recommendation"
+  | "corrective_action"
+  | "permit"
+  | "auditflow_assignment"
+  | "documentation_request"
+  | "accountability_review"
+  | "stop_work_review";
+
+export type RiskActionMitigationState =
+  | "unverified"
+  | "assigned"
+  | "documentation_requested"
+  | "inspection_requested"
+  | "linked_action_created"
+  | "evidence_uploaded"
+  | "field_verified"
+  | "resolved"
+  | "dismissed";
+
 export type RiskActionTargetModule =
   | "predictive_risk"
   | "field_issue"
@@ -57,9 +92,13 @@ export type RiskActionPlanDraft = {
   body: string;
   confidence: number;
   priority: RiskActionPriority;
+  actionType: RiskActionType;
   targetModule: RiskActionTargetModule;
   targetHref: string;
   evidenceRefs: RiskActionEvidenceRef[];
+  verificationRequired: boolean;
+  mitigationState: RiskActionMitigationState;
+  riskReductionPoints: number;
 };
 
 export type RiskActionRecommendation = RiskActionPlanDraft & {
@@ -67,6 +106,8 @@ export type RiskActionRecommendation = RiskActionPlanDraft & {
   status: RiskActionRecommendationStatus;
   ownerUserId: string | null;
   dueAt: string | null;
+  linkedModule: RiskActionLinkedModule | null;
+  linkedRecordId: string | null;
   createdAt: string;
   acceptedAt: string | null;
   fieldUsedAt: string | null;
