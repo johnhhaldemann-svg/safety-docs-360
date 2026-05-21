@@ -14,6 +14,7 @@ describe("safePredictWorkspaceConfig", () => {
       "hazards",
       "training",
       "permits",
+      "documents",
       "analytics",
       "reports",
       "settings",

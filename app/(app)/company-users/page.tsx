@@ -856,7 +856,7 @@ export default function CompanyUsersPage() {
         .includes(query)
     );
   }, [activeTrackedEmployees, jobsiteNameById, searchTerm, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
-  const filteredUsers = useMemo(() => {
+  const _filteredUsers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     const users = workspace.users.filter((user) => user.status === "Active" || user.status === "Suspended");
     if (!query) return users;
@@ -2201,7 +2201,7 @@ function WorkforceDirectoryView({
   );
 }
 
-function AppUsersView({
+function _AppUsersView({
   loading,
   users,
   searchTerm,

@@ -641,11 +641,19 @@ function JobsiteWeatherOverviewCard({
   weather,
   refreshing = false,
   onRefresh,
+  testSending = false,
+  testNotificationMessage,
+  testNotificationTone = "neutral",
+  onSendTestNotification,
 }: {
   site: SafePredictJobsiteRecord;
   weather: JobsiteWeatherOverviewData | null;
   refreshing?: boolean;
   onRefresh?: () => void;
+  testSending?: boolean;
+  testNotificationMessage?: string | null;
+  testNotificationTone?: "success" | "error" | "neutral";
+  onSendTestNotification?: () => void;
 }) {
   const jobsiteWeather = weather?.jobsite ?? jobsiteWeatherFromSite(site).jobsite;
   const alerts = weather?.alerts ?? [];
@@ -699,6 +707,22 @@ function JobsiteWeatherOverviewCard({
               {refreshing ? "Refreshing" : "Refresh"}
             </button>
           ) : null}
+          {onSendTestNotification ? (
+            <button
+              type="button"
+              onClick={onSendTestNotification}
+              disabled={testSending || !enabled}
+              className={cx(
+                "inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black shadow-sm transition",
+                testSending || !enabled
+                  ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              )}
+            >
+              <CloudSun className={cx("h-4 w-4", testSending ? "animate-pulse" : "")} />
+              {testSending ? "Sending test" : "Send test alert"}
+            </button>
+          ) : null}
           {forecastUrl ? (
             <a href={forecastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-100">
               NWS forecast
@@ -711,6 +735,16 @@ function JobsiteWeatherOverviewCard({
       ) : null}
       {forecast?.error ? (
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{forecast.error}</p>
+      ) : null}
+      {testNotificationMessage ? (
+        <p className={cx(
+          "mt-4 rounded-lg border px-3 py-2 text-sm font-semibold",
+          testNotificationTone === "success"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : testNotificationTone === "error"
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-slate-200 bg-slate-50 text-slate-700"
+        )}>{testNotificationMessage}</p>
       ) : null}
       {forecastDays.length > 0 ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -1737,6 +1771,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [editingScheduleTask, setEditingScheduleTask] = useState<ScheduledRiskEvent | null>(null);
   const [weatherOverview, setWeatherOverview] = useState<{ jobsiteId: string; data: JobsiteWeatherOverviewData } | null>(null);
   const [weatherRefreshing, setWeatherRefreshing] = useState(false);
+  const [weatherTestSending, setWeatherTestSending] = useState(false);
+  const [weatherTestMessage, setWeatherTestMessage] = useState<string | null>(null);
+  const [weatherTestTone, setWeatherTestTone] = useState<"success" | "error" | "neutral">("neutral");
   const weatherAutoEnableAttemptsRef = useRef<Set<string>>(new Set());
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
@@ -1919,6 +1956,55 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       });
     } finally {
       setWeatherRefreshing(false);
+    }
+  }
+
+  async function sendWeatherTestNotification() {
+    if (mode !== "live" || weatherTestSending) return;
+
+    setWeatherTestSending(true);
+    setWeatherTestTone("neutral");
+    setWeatherTestMessage("Sending test weather alert...");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/weather`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ action: "send_test_notification", channels: ["email", "sms"] }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+        error?: string;
+        result?: {
+          deliveriesSent?: number;
+          recipientsSeen?: number;
+          results?: Array<{ error?: string | null; channel?: string; status?: string; recipientName?: string | null }>;
+        };
+      } | null;
+      const firstError = payload?.result?.results?.find((item) => item.status === "failed" && item.error)?.error;
+      if (!response.ok) {
+        setWeatherTestTone("error");
+        setWeatherTestMessage(firstError || payload?.message || payload?.error || "Weather test notification could not be sent.");
+        return;
+      }
+
+      setWeatherTestTone("success");
+      setWeatherTestMessage(
+        payload?.message ||
+          `Weather test notification sent to ${payload?.result?.recipientsSeen ?? 0} recipient${payload?.result?.recipientsSeen === 1 ? "" : "s"}.`
+      );
+    } catch (error) {
+      setWeatherTestTone("error");
+      setWeatherTestMessage(error instanceof Error ? error.message : "Weather test notification could not be sent.");
+    } finally {
+      setWeatherTestSending(false);
     }
   }
 
@@ -2760,6 +2846,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             weather={displayedWeatherOverview}
             refreshing={weatherRefreshing}
             onRefresh={mode === "live" ? () => void refreshJobsiteWeather() : undefined}
+            testSending={weatherTestSending}
+            testNotificationMessage={weatherTestMessage}
+            testNotificationTone={weatherTestTone}
+            onSendTestNotification={mode === "live" ? () => void sendWeatherTestNotification() : undefined}
           />
           <div className="grid gap-5 2xl:grid-cols-[1.15fr_0.85fr]">
             <Card className="p-5">

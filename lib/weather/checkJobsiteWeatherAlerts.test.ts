@@ -151,6 +151,13 @@ describe("jobsite weather cron", () => {
           })),
         };
       }
+      if (table === "company_employee_jobsite_assignments") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
+      }
       if (table === "user_roles") {
         return {
           select: vi.fn(() => ({
@@ -303,6 +310,13 @@ describe("jobsite weather cron", () => {
           })),
         };
       }
+      if (table === "company_employee_jobsite_assignments") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
+      }
       if (table === "user_roles") {
         return {
           select: vi.fn(() => ({
@@ -414,6 +428,172 @@ describe("jobsite weather cron", () => {
           phone: "5553334444",
         }),
         channel: "email",
+      })
+    );
+  });
+
+  it("notifies active workforce profiles assigned directly to a weather jobsite", async () => {
+    process.env.FEATURE_JOBSITE_WEATHER_NOTIFICATIONS = "true";
+    const update = vi.fn(() => ({ eq: vi.fn() }));
+    const upsert = vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: { id: "event-1" }, error: null })),
+      })),
+    }));
+    const from = vi.fn((table: string) => {
+      if (table === "company_jobsites") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              neq: vi.fn(() => ({
+                limit: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        id: "jobsite-1",
+                        company_id: "company-1",
+                        name: "Hillcrest Office Fit-Out",
+                        zip_code: "53022",
+                        project_manager: "Morgan Ellis",
+                        safety_lead: "Grace Monroe",
+                        weather_latitude: 43.2286,
+                        weather_longitude: -88.1246,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+            })),
+          })),
+          update,
+        };
+      }
+      if (table === "jobsite_weather_subscriptions") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+          })),
+        };
+      }
+      if (table === "company_jobsite_assignments") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
+      }
+      if (table === "company_employee_jobsite_assignments") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() =>
+              Promise.resolve({
+                data: [
+                  {
+                    company_id: "company-1",
+                    jobsite_id: "jobsite-1",
+                    employee_id: "employee-morgan-rivera",
+                    status: "active",
+                  },
+                ],
+                error: null,
+              })
+            ),
+          })),
+        };
+      }
+      if (table === "user_roles") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
+      }
+      if (table === "user_profiles") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
+      }
+      if (table === "company_employee_profiles") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() =>
+              Promise.resolve({
+                data: [
+                  {
+                    id: "employee-morgan-rivera",
+                    company_id: "company-1",
+                    full_name: "Morgan Rivera",
+                    email: "morgan.rivera@example.com",
+                    phone: "5552221309",
+                    phone_normalized: "5552221309",
+                    status: "active",
+                  },
+                ],
+                error: null,
+              })
+            ),
+          })),
+        };
+      }
+      if (table === "weather_alert_events") {
+        return { upsert };
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+    const supabase = {
+      from,
+      auth: {
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+    const nwsClient = {
+      getActiveAlerts: vi.fn().mockResolvedValue([
+        {
+          id: "nws-alert-1",
+          eventName: "Severe Thunderstorm Warning",
+          severity: "Severe",
+          urgency: "Immediate",
+          certainty: "Likely",
+          headline: "Storm warning",
+          description: "Description",
+          instruction: "Secure loose materials.",
+          effectiveAt: "2026-05-20T19:45:00Z",
+          expiresAt: "2026-05-20T21:15:00Z",
+          status: "Actual",
+          rawPayload: {},
+        },
+      ]),
+    };
+
+    await expect(
+      checkJobsiteWeatherAlerts({
+        supabase: supabase as never,
+        nwsClient: nwsClient as never,
+        requireFeatureFlag: false,
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      jobsitesSeen: 1,
+      alertEventsUpserted: 1,
+      deliveriesSent: 2,
+    });
+
+    expect(deliverWeatherNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipient: expect.objectContaining({
+          userId: null,
+          employeeId: "employee-morgan-rivera",
+          email: "morgan.rivera@example.com",
+          phone: "5552221309",
+        }),
+        channel: "sms",
       })
     );
   });

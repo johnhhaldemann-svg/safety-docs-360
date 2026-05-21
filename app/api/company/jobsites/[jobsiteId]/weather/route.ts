@@ -8,6 +8,7 @@ import { normalizeZipCode, resolveWeatherLocationWithNwsPoint, type WeatherLocat
 import { NwsClient, type NwsForecastDay } from "@/lib/weather/nwsClient";
 import { checkJobsiteWeatherAlerts } from "@/lib/weather/checkJobsiteWeatherAlerts";
 import { normalizeWeatherEventAllowlist, normalizeWeatherSeverityThreshold } from "@/lib/weather/alertFiltering";
+import { sendJobsiteWeatherTestNotification } from "@/lib/weather/testNotification";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,8 @@ const WEATHER_JOBSITE_SELECT = [
   "id",
   "company_id",
   "name",
+  "project_manager",
+  "safety_lead",
   "zip_code",
   "weather_address_line_1",
   "weather_address_line_2",
@@ -284,11 +287,45 @@ export async function POST(
   const resolved = await resolveScopedJobsite(request, params);
   if ("authError" in resolved) return resolved.authError;
 
+  const body = (await request.json().catch(() => null)) as { action?: string | null; channels?: unknown } | null;
   const adminClient = createSupabaseAdminClient();
   if (!adminClient) {
     return NextResponse.json(
       { error: "Missing Supabase service role configuration for manual weather refresh." },
       { status: 500 }
+    );
+  }
+
+  if (body?.action === "send_test_notification") {
+    if (!isWeatherManagerRole(resolved.auth.role)) {
+      return NextResponse.json(
+        { error: "Only company weather managers can send weather test notifications." },
+        { status: 403 }
+      );
+    }
+
+    const result = await sendJobsiteWeatherTestNotification({
+      supabase: adminClient,
+      jobsite: resolved.jobsite as never,
+      channels: body.channels,
+    });
+    const status = result.ok
+      ? 200
+      : result.deliveriesSent > 0
+        ? 207
+        : result.recipientsSeen === 0
+          ? 404
+          : 503;
+    return NextResponse.json(
+      {
+        result,
+        message: result.ok
+          ? "Weather test notification sent."
+          : result.recipientsSeen === 0
+            ? "No PM, Site Lead, or workforce jobsite recipient could be resolved for this jobsite."
+            : "Weather test notification could not be fully sent.",
+      },
+      { status }
     );
   }
 

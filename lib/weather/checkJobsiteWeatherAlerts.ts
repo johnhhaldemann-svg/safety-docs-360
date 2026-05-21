@@ -57,6 +57,13 @@ type WeatherAssignmentRow = {
   role: string | null;
 };
 
+type WeatherEmployeeAssignmentRow = {
+  company_id: string;
+  jobsite_id: string;
+  employee_id: string;
+  status: string | null;
+};
+
 type WeatherRoleRow = {
   company_id: string;
   user_id: string;
@@ -104,6 +111,15 @@ export type CheckJobsiteWeatherAlertsInput = {
   jobsiteIds?: string[];
   requireFeatureFlag?: boolean;
   sendNotifications?: boolean;
+};
+
+export type JobsiteWeatherNotificationRecipient = {
+  userId: string | null;
+  employeeId: string | null;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+  channels: WeatherNotificationChannel[];
 };
 
 function emptyResult(overrides?: Partial<JobsiteWeatherCronResult>): JobsiteWeatherCronResult {
@@ -287,10 +303,14 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   const contactsByRecipientKey = new Map<string, WeatherUserContact | WeatherEmployeeContact>();
   if (jobsiteIds.length === 0 || companyIds.length === 0) return { subscriptionsByJobsite, contactsByRecipientKey };
 
-  const [assignmentResult, roleResult, employeeResult] = await Promise.all([
+  const [assignmentResult, employeeAssignmentResult, roleResult, employeeResult] = await Promise.all([
     params.supabase
       .from("company_jobsite_assignments")
       .select("company_id, jobsite_id, user_id, role")
+      .in("jobsite_id", jobsiteIds),
+    params.supabase
+      .from("company_employee_jobsite_assignments")
+      .select("company_id, jobsite_id, employee_id, status")
       .in("jobsite_id", jobsiteIds),
     params.supabase
       .from("user_roles")
@@ -302,9 +322,10 @@ async function loadPmAndSiteLeadSubscriptions(params: {
       .in("company_id", companyIds),
   ]);
 
-  if (assignmentResult.error || roleResult.error || employeeResult.error) {
+  if (assignmentResult.error || employeeAssignmentResult.error || roleResult.error || employeeResult.error) {
     throw new Error(
       assignmentResult.error?.message ||
+        employeeAssignmentResult.error?.message ||
         roleResult.error?.message ||
         employeeResult.error?.message ||
         "Failed to load PM and Site Lead weather recipients."
@@ -312,6 +333,9 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   }
 
   const assignments = ((assignmentResult.data ?? []) as WeatherAssignmentRow[]).filter((row) => clean(row.user_id));
+  const employeeAssignments = ((employeeAssignmentResult.data ?? []) as WeatherEmployeeAssignmentRow[]).filter((row) =>
+    clean(row.employee_id)
+  );
   const roles = ((roleResult.data ?? []) as WeatherRoleRow[]).filter((row) => clean(row.user_id));
   const contactsByUserId = await loadUserContactMap(params.supabase, roles.map((row) => row.user_id));
   for (const [userId, contact] of contactsByUserId.entries()) {
@@ -354,6 +378,17 @@ async function loadPmAndSiteLeadSubscriptions(params: {
         userRecipientIds.add(assignment.user_id);
       }
     }
+    for (const assignment of employeeAssignments) {
+      const contact = contactsByRecipientKey.get(employeeRecipientKey(assignment.employee_id)) as WeatherEmployeeContact | undefined;
+      if (
+        assignment.jobsite_id === jobsite.id &&
+        assignment.company_id === jobsite.company_id &&
+        isActiveStatus(assignment.status) &&
+        isActiveStatus(contact?.status)
+      ) {
+        employeeRecipientIds.add(assignment.employee_id);
+      }
+    }
 
     const projectManagerLabel = clean(jobsite.project_manager);
     if (projectManagerLabel) {
@@ -386,6 +421,36 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   }
 
   return { subscriptionsByJobsite, contactsByRecipientKey };
+}
+
+export async function resolveJobsiteWeatherNotificationRecipients(params: {
+  supabase: SupabaseClient;
+  jobsites: JobsiteWeatherRow[];
+}) {
+  const implicit = await loadPmAndSiteLeadSubscriptions(params);
+  const recipientsByKey = new Map<string, JobsiteWeatherNotificationRecipient[]>();
+
+  for (const [jobsiteId, subscriptions] of implicit.subscriptionsByJobsite.entries()) {
+    const rows: JobsiteWeatherNotificationRecipient[] = [];
+    const seen = new Set<string>();
+    for (const subscription of subscriptions) {
+      const recipientKey = subscriptionRecipientKey(subscription);
+      if (!recipientKey || seen.has(recipientKey)) continue;
+      seen.add(recipientKey);
+      const contact = implicit.contactsByRecipientKey.get(recipientKey);
+      rows.push({
+        userId: subscription.user_id ?? null,
+        employeeId: subscription.recipient_employee_id ?? null,
+        email: contact?.email ?? null,
+        phone: contact?.phone ?? null,
+        name: contact?.name ?? null,
+        channels: normalizeChannels(subscription.channels),
+      });
+    }
+    recipientsByKey.set(jobsiteId, rows);
+  }
+
+  return recipientsByKey;
 }
 
 async function upsertWeatherAlertEvent(params: {
