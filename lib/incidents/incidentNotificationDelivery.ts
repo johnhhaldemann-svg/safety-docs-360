@@ -118,7 +118,7 @@ function getBaseUrl() {
   );
 }
 
-function incidentUrl(record: IncidentAlertRecord) {
+function incidentUrl() {
   const baseUrl = getBaseUrl();
   const path = "/incidents";
   if (!baseUrl) return path;
@@ -189,7 +189,7 @@ export function buildIncidentAlertContent(params: {
   const action = severe
     ? "Verify emergency response, notify safety leadership, preserve facts, and complete a stop-work review before work resumes."
     : "Review the incident, confirm controls, and assign follow-up actions.";
-  const url = incidentUrl(params.record);
+  const url = incidentUrl();
   const text = [
     subject,
     `Category: ${category}`,

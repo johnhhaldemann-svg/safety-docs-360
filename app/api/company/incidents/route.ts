@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { coerceNonNegativeInt, readJobTransfer } from "@/lib/incidents/dart";
 import { normalizeBodyPart } from "@/lib/incidents/bodyPart";
 import { EXPOSURE_EVENT_TYPES, normalizeExposureEventType } from "@/lib/incidents/exposureEventType";
@@ -11,8 +12,14 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { canManageCompanyIncidents } from "@/lib/companyFeatureAccess";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
+import {
+  dispatchIncidentAlertNotifications,
+  shouldDispatchIncidentAlert,
+  type IncidentAlertRecord,
+} from "@/lib/incidents/incidentNotificationDelivery";
 import { buildIncidentFacetRow, upsertRiskMemoryFacetSafe } from "@/lib/riskMemory/facets";
 import { demoIncidentRows } from "@/lib/demoWorkspace";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -44,6 +51,8 @@ function normalizeStopWork(input: unknown, fallback = "normal") {
 function applyIncidentAutomation(input: {
   severity: string;
   sifFlag: boolean;
+  fatality: boolean;
+  idlhFlag: boolean;
   escalationLevel: string;
   stopWorkStatus: string;
   escalationReason: string | null;
@@ -55,13 +64,20 @@ function applyIncidentAutomation(input: {
   let stopWorkReason = input.stopWorkReason;
   const severity = input.severity;
   const sifFlag = input.sifFlag;
-  if (sifFlag || severity === "critical") {
-    escalationLevel = escalationLevel === "critical" ? "critical" : "urgent";
-    escalationReason = escalationReason || "Auto-escalated due to SIF/critical severity threshold.";
+  const severeLifeSafety = input.fatality || input.idlhFlag;
+  if (sifFlag || severity === "critical" || severeLifeSafety) {
+    escalationLevel = severeLifeSafety || escalationLevel === "critical" ? "critical" : "urgent";
+    escalationReason =
+      escalationReason ||
+      (input.fatality
+        ? "Auto-escalated due to fatality threshold."
+        : input.idlhFlag
+          ? "Auto-escalated due to IDLH threshold."
+          : "Auto-escalated due to SIF/critical severity threshold.");
     if (stopWorkStatus === "normal") {
       stopWorkStatus = "stop_work_requested";
       stopWorkReason =
-        stopWorkReason || "Auto stop-work request triggered by SIF/critical severity threshold.";
+        stopWorkReason || "Auto stop-work request triggered by severe life-safety threshold.";
     }
   }
   if (sifFlag && severity === "critical") {
@@ -71,6 +87,60 @@ function applyIncidentAutomation(input: {
       stopWorkReason || "Auto stop-work active due to combined SIF + critical severity threshold.";
   }
   return { escalationLevel, stopWorkStatus, escalationReason, stopWorkReason };
+}
+
+function incidentAlertRecordFromRow(row: Record<string, unknown>, companyId: string): IncidentAlertRecord {
+  return {
+    id: String(row.id ?? ""),
+    companyId,
+    jobsiteId: typeof row.jobsite_id === "string" ? row.jobsite_id : null,
+    title: String(row.title ?? "Incident alert"),
+    description: typeof row.description === "string" ? row.description : null,
+    severity: typeof row.severity === "string" ? row.severity : null,
+    category: typeof row.category === "string" ? row.category : null,
+    fatality: row.fatality === true,
+    idlhFlag: row.idlh_flag === true,
+    sifFlag: row.sif_flag === true,
+    stopWorkStatus: typeof row.stop_work_status === "string" ? row.stop_work_status : null,
+    escalationLevel: typeof row.escalation_level === "string" ? row.escalation_level : null,
+    occurredAt: typeof row.occurred_at === "string" ? row.occurred_at : null,
+    createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    ownerUserId: typeof row.owner_user_id === "string" ? row.owner_user_id : null,
+  };
+}
+
+async function dispatchIncidentAlertSafe(params: {
+  companyId: string;
+  supabase: SupabaseClient;
+  actorUserId: string;
+  previous?: IncidentAlertRecord | null;
+  row: Record<string, unknown>;
+}) {
+  const next = incidentAlertRecordFromRow(params.row, params.companyId);
+  if (!shouldDispatchIncidentAlert({ previous: params.previous ?? null, next })) return;
+  const result = await dispatchIncidentAlertNotifications({
+    supabase: params.supabase,
+    sourceTable: "company_incidents",
+    record: next,
+    actorUserId: params.actorUserId,
+  }).catch((error) => ({
+    attempted: true,
+    recipients: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 1,
+    error: error instanceof Error ? error.message : "Incident alert dispatch failed.",
+  }));
+  if (result.error) {
+    serverLog("warn", "incident_alert_dispatch_warning", {
+      companyId: params.companyId,
+      incidentId: next.id,
+      error: result.error,
+      sent: result.sent,
+      skipped: result.skipped,
+      failed: result.failed,
+    });
+  }
 }
 
 export async function GET(request: Request) {
@@ -180,9 +250,13 @@ export async function POST(request: Request) {
   }
   const severity = String(body?.severity ?? "").trim().toLowerCase() || "medium";
   const sifFlag = Boolean(body?.sifFlag);
+  const fatality = readObjectiveFlag(body?.fatality, false);
+  const idlhFlag = Boolean(body?.idlhFlag);
   const automated = applyIncidentAutomation({
     severity,
     sifFlag,
+    fatality,
+    idlhFlag,
     escalationLevel: normalizeEscalation(body?.escalationLevel),
     stopWorkStatus: normalizeStopWork(body?.stopWorkStatus),
     escalationReason: String(body?.escalationReason ?? "").trim() || null,
@@ -218,7 +292,6 @@ export async function POST(request: Request) {
   const jobTransfer = readJobTransfer(body?.jobTransfer, false);
   const recordable = readObjectiveFlag(body?.recordable, false);
   const lostTime = readObjectiveFlag(body?.lostTime, false);
-  const fatality = readObjectiveFlag(body?.fatality, false);
   const occurredAt = String(body?.occurredAt ?? "").trim() || null;
   const injuryTimePatterns = injuryTimePatternFromOccurredAt(occurredAt);
   const result = await auth.supabase.from("company_incidents").insert({
@@ -239,6 +312,7 @@ export async function POST(request: Request) {
     recordable,
     lost_time: lostTime,
     fatality,
+    idlh_flag: idlhFlag,
     owner_user_id: String(body?.ownerUserId ?? "").trim() || null,
     due_at: String(body?.dueAt ?? "").trim() || null,
     occurred_at: occurredAt,
@@ -272,6 +346,12 @@ export async function POST(request: Request) {
     },
     created_by: auth.user.id,
   });
+  await dispatchIncidentAlertSafe({
+    companyId: companyScope.companyId,
+    supabase: auth.supabase,
+    actorUserId: auth.user.id,
+    row: result.data as Record<string, unknown>,
+  });
   return NextResponse.json({ success: true, incident: result.data });
 }
 
@@ -292,7 +372,7 @@ export async function PATCH(request: Request) {
   const existing = await auth.supabase
     .from("company_incidents")
     .select(
-      "id, jobsite_id, status, severity, sif_flag, escalation_level, stop_work_status, category, injury_type, body_part, exposure_event_type, injury_source"
+      "id, company_id, jobsite_id, title, description, status, severity, sif_flag, escalation_level, stop_work_status, category, injury_type, body_part, exposure_event_type, injury_source, recordable, lost_time, fatality, idlh_flag, owner_user_id, occurred_at, created_at"
     )
     .eq("id", id)
     .eq("company_id", companyScope.companyId)
@@ -321,9 +401,15 @@ export async function PATCH(request: Request) {
       : existing.data.severity ?? "medium";
   const sifFlag =
     typeof body?.sifFlag === "boolean" ? body.sifFlag : Boolean(existing.data.sif_flag);
+  const fatality =
+    typeof body?.fatality === "boolean" ? body.fatality : Boolean(existing.data.fatality);
+  const idlhFlag =
+    typeof body?.idlhFlag === "boolean" ? body.idlhFlag : Boolean(existing.data.idlh_flag);
   const automated = applyIncidentAutomation({
     severity,
     sifFlag,
+    fatality,
+    idlhFlag,
     escalationLevel:
       typeof body?.escalationLevel === "string"
         ? normalizeEscalation(body.escalationLevel, existing.data.escalation_level ?? "none")
@@ -416,8 +502,19 @@ export async function PATCH(request: Request) {
     if (typeof body?.fatality !== "boolean") {
       return NextResponse.json({ error: "fatality must be a boolean." }, { status: 400 });
     }
-    objectivePatch.fatality = body.fatality;
+    objectivePatch.fatality = fatality;
   }
+  const idlhPatch: { idlh_flag?: boolean } = {};
+  if ("idlhFlag" in (body ?? {})) {
+    if (typeof body?.idlhFlag !== "boolean") {
+      return NextResponse.json({ error: "idlhFlag must be a boolean." }, { status: 400 });
+    }
+    idlhPatch.idlh_flag = idlhFlag;
+  }
+  const previousAlertRecord = incidentAlertRecordFromRow(
+    existing.data as Record<string, unknown>,
+    companyScope.companyId
+  );
   const result = await auth.supabase.from("company_incidents").update({
     ...(typeof body?.title === "string" ? { title: body.title.trim() } : {}),
     ...(typeof body?.description === "string" ? { description: body.description.trim() || null } : {}),
@@ -441,6 +538,7 @@ export async function PATCH(request: Request) {
       ? { injury_source: normalizeIncidentSource((body as { source?: unknown }).source) }
       : {}),
     ...objectivePatch,
+    ...idlhPatch,
     ...dartPatch,
     ...(typeof body?.ownerUserId === "string" ? { owner_user_id: body.ownerUserId.trim() || null } : {}),
     ...(typeof body?.jobsiteId === "string" ? { jobsite_id: body.jobsiteId.trim() || null } : {}),
@@ -488,9 +586,18 @@ export async function PATCH(request: Request) {
       escalationLevel: result.data.escalation_level,
       stopWorkStatus: result.data.stop_work_status,
       sifFlag: result.data.sif_flag,
+      fatality: result.data.fatality,
+      idlhFlag: result.data.idlh_flag,
       convertedFromSubmissionId: result.data.converted_from_submission_id,
     },
     created_by: auth.user.id,
+  });
+  await dispatchIncidentAlertSafe({
+    companyId: companyScope.companyId,
+    supabase: auth.supabase,
+    actorUserId: auth.user.id,
+    previous: previousAlertRecord,
+    row: result.data as Record<string, unknown>,
   });
   if (result.data.prediction_validation_status === "approved") {
     const facetPatch = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);

@@ -93,6 +93,7 @@ type IncidentRow = {
   recordable?: boolean | null;
   lost_time?: boolean | null;
   fatality?: boolean | null;
+  idlh_flag?: boolean | null;
   sif_flag: boolean;
   escalation_level: string;
   stop_work_status: string;
@@ -123,6 +124,7 @@ const EMPTY_FORM = {
   recordable: false,
   lostTime: false,
   fatality: false,
+  idlhFlag: false,
   /** Local datetime; API stores UTC and derives month/season/day/time-of-day (UTC). */
   occurredAt: "",
   observationId: "",
@@ -274,6 +276,7 @@ export default function IncidentsPage() {
             recordable: form.recordable,
             lost_time: form.lostTime,
             fatality: form.fatality,
+            idlh_flag: form.idlhFlag,
             sif_flag: form.category === "incident",
             escalation_level: "none",
             stop_work_status: "normal",
@@ -314,6 +317,7 @@ export default function IncidentsPage() {
           recordable: form.recordable,
           lostTime: form.lostTime,
           fatality: form.fatality,
+          idlhFlag: form.idlhFlag,
           ...(form.category === "incident"
             ? { injuryType: form.injuryType, bodyPart: form.bodyPart }
             : {}),
@@ -594,6 +598,15 @@ export default function IncidentsPage() {
               />
               Fatality
             </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.idlhFlag}
+                onChange={(e) => setForm((prev) => ({ ...prev, idlhFlag: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-600"
+              />
+              IDLH
+            </label>
           </div>
           <input
             value={form.observationId}
@@ -689,13 +702,14 @@ export default function IncidentsPage() {
                           {item.job_transfer ? " · Job transfer" : ""}
                         </>
                       ) : null}
-                      {(item.recordable || item.lost_time || item.fatality) && (
+                      {(item.recordable || item.lost_time || item.fatality || item.idlh_flag) && (
                         <>
                           {" "}
                           · Obj:
                           {item.recordable ? " Rec" : ""}
                           {item.lost_time ? " LT" : ""}
                           {item.fatality ? " Fatality" : ""}
+                          {item.idlh_flag ? " IDLH" : ""}
                         </>
                       )}
                       {(() => {
@@ -890,6 +904,15 @@ export default function IncidentsPage() {
                       className="h-3.5 w-3.5 rounded border-slate-600"
                     />
                     <span className="font-semibold">Fatality</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.idlh_flag)}
+                      onChange={(e) => void updateIncident(item, { idlhFlag: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-600"
+                    />
+                    <span className="font-semibold">IDLH</span>
                   </label>
                   <button onClick={() => void updateIncident(item, { status: item.status === "open" ? "in_progress" : item.status === "in_progress" ? "closed" : "open" })} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300">
                     Cycle Status

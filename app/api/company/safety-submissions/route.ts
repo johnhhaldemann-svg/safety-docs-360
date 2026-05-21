@@ -4,6 +4,8 @@ import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
+import { dispatchIncidentAlertNotifications } from "@/lib/incidents/incidentNotificationDelivery";
+import { serverLog } from "@/lib/serverLog";
 
 export const runtime = "nodejs";
 
@@ -30,6 +32,10 @@ type SafetySubmissionPayload = {
   category?: string;
   jobsiteId?: string;
   photoPath?: string;
+  fatality?: boolean;
+  idlhFlag?: boolean;
+  sifFlag?: boolean;
+  stopWorkStatus?: string;
 };
 
 function normalizeSeverity(severity?: string | null) {
@@ -40,6 +46,18 @@ function normalizeSeverity(severity?: string | null) {
 function normalizeCategory(category?: string | null) {
   const normalized = (category ?? "").trim().toLowerCase();
   return ISSUE_CATEGORIES.has(normalized) ? normalized : "hazard";
+}
+
+function normalizeStopWorkStatus(value?: string | null) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (
+    normalized === "stop_work_requested" ||
+    normalized === "stop_work_active" ||
+    normalized === "cleared"
+  ) {
+    return normalized;
+  }
+  return "normal";
 }
 
 function isMissingSafetySubmissionTable(message?: string | null) {
@@ -200,6 +218,10 @@ export async function POST(request: Request) {
   const category = normalizeCategory(body?.category);
   const jobsiteId = body?.jobsiteId?.trim() ?? "";
   const photoPath = body?.photoPath?.trim() ?? "";
+  const fatality = body?.fatality === true;
+  const idlhFlag = body?.idlhFlag === true;
+  const sifFlag = body?.sifFlag === true;
+  const stopWorkStatus = normalizeStopWorkStatus(body?.stopWorkStatus);
 
   if (!title) {
     return NextResponse.json({ error: "Issue title is required." }, { status: 400 });
@@ -215,6 +237,10 @@ export async function POST(request: Request) {
       severity,
       category,
       photo_path: photoPath || null,
+      fatality,
+      idlh_flag: idlhFlag,
+      sif_flag: sifFlag,
+      stop_work_status: stopWorkStatus,
       submitted_by: auth.user.id,
       created_by: auth.user.id,
       last_modified: new Date().toISOString(),
@@ -284,9 +310,9 @@ export async function POST(request: Request) {
       category,
       status: "open",
       observation_type: "negative",
-      sif_potential: false,
       priority: severity,
       immediate_action_required: severity === "high" || severity === "critical" || category === "near_miss",
+      sif_potential: sifFlag || fatality || idlhFlag || severity === "critical",
       source_submission_id: submissionResult.data.id,
       created_by: auth.user.id,
       updated_by: auth.user.id,
@@ -333,6 +359,45 @@ export async function POST(request: Request) {
       file_name: photoPath.split("/").pop() || "safety-photo",
       mime_type: null,
       created_by: auth.user.id,
+    });
+  }
+
+  const alertResult = await dispatchIncidentAlertNotifications({
+    supabase: auth.supabase,
+    sourceTable: "company_safety_submissions",
+    record: {
+      id: hashedSubmissionResult.data.id,
+      companyId: companyScope.companyId,
+      jobsiteId: jobsiteId || null,
+      title,
+      description: description || null,
+      severity,
+      category,
+      fatality,
+      idlhFlag,
+      sifFlag,
+      stopWorkStatus,
+      createdAt: hashedSubmissionResult.data.created_at,
+      ownerUserId: auth.user.id,
+    },
+    actorUserId: auth.user.id,
+  }).catch((error) => ({
+    attempted: true,
+    recipients: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 1,
+    error: error instanceof Error ? error.message : "Incident submission alert dispatch failed.",
+  }));
+
+  if (alertResult.error) {
+    serverLog("warn", "incident_submission_alert_dispatch_warning", {
+      companyId: companyScope.companyId,
+      submissionId: hashedSubmissionResult.data.id,
+      error: alertResult.error,
+      sent: alertResult.sent,
+      skipped: alertResult.skipped,
+      failed: alertResult.failed,
     });
   }
 
