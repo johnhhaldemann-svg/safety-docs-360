@@ -24,35 +24,6 @@ import {
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import { hasSafePredictForecastInputs, riskForecastForSite, summarizeSafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
 
-function SourceStatCard({
-  title,
-  value,
-  detail,
-  href,
-  accentClassName = "text-slate-950",
-}: {
-  title: string;
-  value: string | number;
-  detail: string;
-  href: string;
-  accentClassName?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group block rounded-lg border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-[0_14px_28px_rgba(15,23,42,0.1)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-      aria-label={`${title}: view source records`}
-    >
-      <p className="text-xs font-black text-slate-500">{title}</p>
-      <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
-      <p className={cx("mt-1 text-xs font-semibold", accentClassName)}>{detail}</p>
-      <p className="mt-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-600">
-        View source
-      </p>
-    </Link>
-  );
-}
-
 function CompanyLogoPanel({
   companyName,
   logoDataUrl,
@@ -905,55 +876,60 @@ export default function SafePredictDashboardPage() {
         }
       />
 
-      <div className="mb-5">
-        <h2 className="text-2xl font-black tracking-tight text-slate-950">Welcome back.</h2>
-        <p className="mt-1 text-slate-600">Here&apos;s what&apos;s happening across your projects today.</p>
-      </div>
-
-      <Card className="mb-5 p-5">
-        <div className="grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="mb-5 overflow-hidden rounded-lg border border-slate-900/10 bg-slate-950 shadow-[0_24px_54px_rgba(15,23,42,0.22)]">
+        <div className="grid gap-5 bg-[linear-gradient(135deg,#07182c_0%,#0d2b4c_52%,#0f3b68_100%)] p-5 text-white 2xl:grid-cols-[1.2fr_0.8fr]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-blue-100 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
               <Building2 className="h-7 w-7" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Company Account</p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{dataset.company.name}</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100">
+                  Site Command
+                </span>
+                <span className="rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
+                  Company Account
+                </span>
+              </div>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{dataset.company.name}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-50/80">
                 {dataset.company.industry} tenant based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{dataset.mode === "live" ? "Live data" : "Workspace data"}</span>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{totals.jobsites} active jobsites</span>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{totals.employees} workers</span>
+                <span className="rounded-md border border-white/15 bg-white/10 px-3 py-1 text-slate-100">{dataset.mode === "live" ? "Live data" : "Workspace data"}</span>
+                <span className="rounded-md border border-blue-300/30 bg-blue-400/15 px-3 py-1 text-blue-100">{totals.jobsites} active jobsites</span>
+                <span className="rounded-md border border-emerald-300/30 bg-emerald-400/15 px-3 py-1 text-emerald-100">{totals.employees} workers</span>
               </div>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-            <SourceStatCard
-              title="Workforce"
-              value={totals.employees}
-              detail={`${totals.overdueEmployees} overdue`}
-              href="/safe-predict/workforce#employee-roster"
-              accentClassName="text-red-600"
-            />
-            <SourceStatCard
-              title="Open Actions"
-              value={totals.openActions}
-              detail="Across all jobsites"
-              href="/safe-predict/risk-mitigation#corrective-action-tracker"
-              accentClassName="text-slate-600"
-            />
-            <SourceStatCard
-              title="Avg. Site Risk"
-              value={totals.riskScore}
-              detail={dataset.mode === "live" ? "Live score" : "Elevated"}
-              href="/safe-predict/risk-mitigation#prioritized-risk-queue"
-              accentClassName="text-orange-600"
-            />
+            {[
+              { title: "Workforce", value: totals.employees, detail: `${totals.overdueEmployees} overdue`, href: "/safe-predict/workforce#employee-roster", tone: "text-red-200" },
+              { title: "Open Actions", value: totals.openActions, detail: "Across all jobsites", href: "/safe-predict/risk-mitigation#corrective-action-tracker", tone: "text-blue-100" },
+              { title: "Avg. Site Risk", value: totals.riskScore, detail: dataset.mode === "live" ? "Live score" : "Elevated", href: "/safe-predict/risk-mitigation#prioritized-risk-queue", tone: "text-orange-200" },
+            ].map((item) => (
+              <Link
+                key={item.title}
+                href={item.href}
+                className="group block rounded-lg border border-white/12 bg-white/8 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:bg-white/12 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/30"
+              >
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-100/70">{item.title}</p>
+                <p className="mt-2 text-4xl font-black text-white">{item.value}</p>
+                <p className={cx("mt-1 text-xs font-black", item.tone)}>{item.detail}</p>
+                <p className="mt-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-200">
+                  View source
+                </p>
+              </Link>
+            ))}
           </div>
         </div>
-      </Card>
+      </section>
+
+      <JobsiteRiskMap
+        jobsites={dataset.jobsites}
+        selectedJobsiteId={selectedJobsiteId}
+        onSelectJobsite={setSelectedJobsiteId}
+      />
 
       <CompanyLogoPanel companyName={dataset.company.name} logoDataUrl={dataset.company.logoDataUrl} />
 
@@ -1012,12 +988,6 @@ export default function SafePredictDashboardPage() {
           sourceLabel="Open training matrix"
         />
       </div>
-
-      <JobsiteRiskMap
-        jobsites={dataset.jobsites}
-        selectedJobsiteId={selectedJobsiteId}
-        onSelectJobsite={setSelectedJobsiteId}
-      />
 
       <div className="mt-5 grid gap-5 2xl:grid-cols-[1.25fr_1fr]">
         <Card className="p-5">
