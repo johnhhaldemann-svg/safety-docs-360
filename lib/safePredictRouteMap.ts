@@ -57,11 +57,12 @@ function appendQueryAndHash(route: string, query: string, hash: string) {
 function mapLegacyDocumentLibrary(query: string, hash: string) {
   const params = new URLSearchParams(query);
   const tab = params.get("tab")?.trim().toLowerCase() ?? "";
-  if (tab && tab !== "documents") {
-    return null;
-  }
 
-  if (tab === "documents") {
+  if (!tab || tab === "documents") {
+    params.delete("tab");
+  } else if (tab === "templates" || tab === "marketplace") {
+    params.set("tab", tab);
+  } else {
     params.delete("tab");
   }
 

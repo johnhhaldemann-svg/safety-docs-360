@@ -307,7 +307,7 @@ export async function POST(request: Request) {
     successUrl: `${baseUrl}/documents?doc=${encodeURIComponent(
       document.id
     )}&checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${baseUrl}/library?tab=marketplace&doc=${encodeURIComponent(
+    cancelUrl: `${baseUrl}/documents?tab=marketplace&doc=${encodeURIComponent(
       document.id
     )}&checkout=cancelled`,
   });

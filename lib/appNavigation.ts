@@ -307,7 +307,7 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/documents", label: "Documents", short: "DC" },
       {
-        href: "/library?tab=marketplace",
+        href: "/documents?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
@@ -390,7 +390,7 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/documents", label: "Documents", short: "DC" },
       {
-        href: "/library?tab=marketplace",
+        href: "/documents?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },
@@ -465,7 +465,7 @@ export const companyUserSideSections: NavSection[] = [
     items: [
       { href: "/documents", label: "Documents", short: "DC" },
       {
-        href: "/library?tab=marketplace",
+        href: "/documents?tab=marketplace",
         label: "Template Marketplace",
         short: "MK",
       },

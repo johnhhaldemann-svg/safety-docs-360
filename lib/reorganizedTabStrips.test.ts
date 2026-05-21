@@ -67,8 +67,8 @@ describe("Reorganized tab strips (release contracts)", () => {
     expect(src).toContain("PredictiveModelView");
   });
 
-  it("library exposes three primary tabs via AppTabBar", () => {
-    const src = readFileSync(join(REPO_ROOT, "app/(app)/library/page.tsx"), "utf8");
+  it("documents workspace exposes three primary tabs via AppTabBar", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/documents/documents-page-client.tsx"), "utf8");
     expect(src).toContain('const LIBRARY_PRIMARY_TABS = ["documents", "templates", "marketplace"]');
     expect(src).toContain("<AppTabBar");
   });

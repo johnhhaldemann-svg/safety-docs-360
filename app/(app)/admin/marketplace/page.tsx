@@ -207,7 +207,7 @@ export default function AdminMarketplacePage() {
               Open Review Queue
             </Link>
             <Link
-              href="/library?tab=marketplace"
+              href="/documents?tab=marketplace"
               className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               View User Marketplace

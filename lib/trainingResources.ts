@@ -50,7 +50,7 @@ export const trainingResources: TrainingResource[] = [
     ],
     relatedLinks: [
       { label: "Documents", href: "/documents" },
-      { label: "Template Marketplace", href: "/library?tab=marketplace" },
+      { label: "Template Marketplace", href: "/documents?tab=marketplace" },
       { label: "Upload Documents", href: "/upload" },
       { label: "Submit For Review", href: "/submit" },
       { label: "PESH Builder", href: "/peshep" },
