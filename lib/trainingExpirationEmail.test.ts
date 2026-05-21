@@ -46,7 +46,7 @@ describe("training expiration email", () => {
     });
 
     expect(result).toMatchObject({ sent: true, status: "sent", providerMessageId: "email-1" });
-    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body ?? "{}")) as {
+    const body = JSON.parse(String((fetcher as any).mock.calls[0]?.[1]?.body ?? "{}")) as {
       from: string;
       subject: string;
       html: string;

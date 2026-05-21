@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowRight,
   AlertTriangle,
   CheckCircle2,
   Clipboard,
@@ -12,7 +13,6 @@ import {
   MapPin,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   UserCheck,
   UserPlus,
   Users,
@@ -260,10 +260,37 @@ const roleOptions = [
 ];
 
 const fieldClassName =
-  "w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--app-text-strong)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
+  "w-full rounded-xl border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition placeholder:font-normal placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
 
 const compactCardClassName =
-  "rounded-lg border border-[var(--app-border)] bg-white/92 p-4 shadow-[var(--app-shadow-soft)]";
+  "rounded-xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_var(--app-panel)_100%)] p-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)]";
+
+const actionRowClassName =
+  "relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.76)_0%,_var(--app-panel)_100%)] px-4 py-4 shadow-[0_8px_18px_rgba(76,108,161,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-28)] hover:shadow-[0_14px_28px_rgba(76,108,161,0.1)]";
+
+function toneAccentClassName(tone?: "neutral" | "success" | "warning" | "error" | "info") {
+  if (tone === "success") return "text-[var(--semantic-success)]";
+  if (tone === "warning") return "text-[var(--semantic-warning)]";
+  if (tone === "error") return "text-[var(--semantic-danger)]";
+  if (tone === "info") return "text-[var(--semantic-info)]";
+  return "text-[var(--semantic-neutral)]";
+}
+
+function metricStripeClassName(tone: "neutral" | "success" | "warning" | "error" | "info") {
+  if (tone === "success") return "bg-[var(--semantic-success)]";
+  if (tone === "warning") return "bg-[var(--semantic-warning)]";
+  if (tone === "error") return "bg-[var(--semantic-danger)]";
+  if (tone === "info") return "bg-[var(--semantic-info)]";
+  return "bg-[var(--app-accent-primary)] opacity-45";
+}
+
+function metricSignalLabel(tone: "neutral" | "success" | "warning" | "error" | "info") {
+  if (tone === "success") return "Healthy";
+  if (tone === "warning") return "Review";
+  if (tone === "error") return "Blocked";
+  if (tone === "info") return "Tracked";
+  return "Monitor";
+}
 
 function formatEnvDetails(details?: EnvDetails | null) {
   if (!details) return "";
@@ -623,19 +650,20 @@ function MetricCard({
   tone?: "neutral" | "success" | "warning" | "error" | "info";
 }) {
   return (
-    <div className={compactCardClassName}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">{label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+    <div className="relative min-h-[8.75rem] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white px-4 py-4 shadow-[0_6px_16px_rgba(44,58,86,0.045)]">
+      <span className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${metricStripeClassName(tone)}`} aria-hidden />
+      <div className="flex items-start justify-between gap-3 pl-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">{label}</p>
+          <p className="font-app-display mt-1 text-3xl font-bold leading-tight tracking-tight text-[var(--app-text-strong)]">{value}</p>
         </div>
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--app-accent-surface-14)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]">
           <Icon aria-hidden className="h-5 w-5" />
         </span>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-sm leading-5 text-[var(--app-text)]">{detail}</p>
-        <StatusBadge label={value} tone={tone} />
+      <div className="mt-3 flex items-start justify-between gap-3 pl-2">
+        <p className="text-xs leading-relaxed text-[var(--app-muted)]">{detail}</p>
+        <StatusBadge label={metricSignalLabel(tone)} tone={tone} />
       </div>
     </div>
   );
@@ -669,7 +697,7 @@ function TabButton({
       role="tab"
       aria-selected={isActive}
       onClick={() => onClick(tab)}
-      className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+      className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
         isActive
           ? "bg-[var(--app-accent-primary)] !text-white shadow-[var(--app-shadow-primary-button)]"
           : "text-[var(--app-text)] hover:bg-[var(--app-accent-primary-soft)] hover:text-[var(--app-text-strong)]"
@@ -678,7 +706,7 @@ function TabButton({
       {label}
       {typeof count === "number" ? (
         <span
-          className={`rounded-full px-2 py-0.5 text-xs ${
+          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
             isActive ? "bg-white/18 !text-white" : "bg-[var(--semantic-neutral-bg)] text-[var(--app-muted)]"
           }`}
         >
@@ -1800,62 +1828,80 @@ export default function CompanyUsersPage() {
         ))}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <SectionCard
           title="Command Readiness"
           description={commandCenter.readinessDetail}
           aside={<StatusBadge label={commandCenter.readinessLabel} tone={readinessTone(commandCenter.readiness)} />}
-          tone={commandCenter.readiness === "blocked" ? "attention" : "panel"}
+          tone={commandCenter.readiness === "healthy" ? "elevated" : "attention"}
         >
-          <div className="grid gap-3">
-            <div className={compactCardClassName}>
-              <div className="flex items-start gap-3">
-                {commandCenter.readiness === "healthy" ? (
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-[var(--semantic-success)]" aria-hidden />
-                ) : (
-                  <AlertTriangle className="mt-0.5 h-5 w-5 text-[var(--semantic-warning)]" aria-hidden />
-                )}
-                <div>
-                  <p className="font-semibold text-[var(--app-text-strong)]">
-                    {commandCenter.actionItems.length
-                      ? `${commandCenter.actionItems.length} action item${
-                          commandCenter.actionItems.length === 1 ? "" : "s"
-                        }`
-                      : "No workforce actions waiting"}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
-                    Readiness is based on approvals, stale invites, field-scoped jobsite access, suspended users,
-                    training readiness, and data request review.
-                  </p>
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-white/78 p-4 shadow-[0_8px_18px_rgba(76,108,161,0.045)]">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border bg-white ${commandCenter.readiness === "healthy" ? "border-emerald-200 text-[var(--semantic-success)]" : "border-amber-200 text-[var(--semantic-warning)]"}`}>
+                    {commandCenter.readiness === "healthy" ? (
+                      <CheckCircle2 className="h-5 w-5" aria-hidden />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5" aria-hidden />
+                    )}
+                  </span>
+                  <div>
+                    <p className="font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                      {commandCenter.actionItems.length
+                        ? `${commandCenter.actionItems.length} action item${
+                            commandCenter.actionItems.length === 1 ? "" : "s"
+                          }`
+                        : "Queue clear"}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
+                      Approvals, stale invites, jobsite scope, suspended access, training readiness, and audit requests are checked together.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid min-w-36 grid-cols-3 gap-2 sm:text-center">
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+                    <p className="text-lg font-bold text-[var(--app-text-strong)]">{commandCenter.pendingUsers.length}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Approve</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+                    <p className="text-lg font-bold text-[var(--app-text-strong)]">{commandCenter.assignmentGaps.length + commandCenter.trackedAssignmentGaps.length}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Scope</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+                    <p className="text-lg font-bold text-[var(--app-text-strong)]">{commandCenter.trainingGaps.length}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Train</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {commandCenter.actionItems.slice(0, 5).map((item) => (
-                <div
+                <button
                   key={item.id}
-                  className="flex flex-col gap-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3 sm:flex-row sm:items-center sm:justify-between"
+                  type="button"
+                  onClick={() => handleActionItem(item)}
+                  className={`${actionRowClassName} ${toneAccentClassName(item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info")} text-left`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge
-                        label={item.severity}
-                        tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
-                      />
-                      <p className="font-semibold text-[var(--app-text-strong)]">{item.title}</p>
-                    </div>
-                    <p className="mt-1 text-sm text-[var(--app-text)]">{item.detail}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleActionItem(item)}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--app-border-strong)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
-                  >
-                    <SlidersHorizontal aria-hidden className="h-4 w-4" />
-                    Handle
-                  </button>
-                </div>
+                  <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
+                  <span className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <StatusBadge
+                          label={item.severity}
+                          tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
+                        />
+                        <span className="font-semibold text-[var(--app-text-strong)]">{item.title}</span>
+                      </span>
+                      <span className="mt-1 block text-sm leading-6 text-[var(--app-text)]">{item.detail}</span>
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[var(--app-accent-primary)]">
+                      Handle
+                      <ArrowRight aria-hidden className="h-4 w-4" />
+                    </span>
+                  </span>
+                </button>
               ))}
               {!commandCenter.actionItems.length ? (
                 <EmptyState
@@ -1870,48 +1916,64 @@ export default function CompanyUsersPage() {
         <SectionCard
           title="Invite And Scope"
           description={`Workspace: ${workspace.scopeCompanyName}. Invite portal users here; add no-portal tracked workers from the Tracked Workers tab.`}
+          tone="elevated"
         >
-          <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
-            <input
-              type="email"
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
-              className={fieldClassName}
-              placeholder="employee@example.com"
-              aria-label="Employee email"
-            />
-            <select
-              value={inviteRole}
-              onChange={(event) => setInviteRole(event.target.value)}
-              className={appNativeSelectClassName}
-              aria-label="Invite role"
-            >
-              {roleOptions.map((role) => (
-                <option key={role}>{role}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleInvite}
-              disabled={busyAction === "invite" || !inviteEmail.trim()}
-              className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
-            >
-              <UserPlus aria-hidden className="h-4 w-4" />
-              Invite
-            </button>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Company-wide roles</p>
-              <p className="mt-1 text-sm text-[var(--app-text)]">Admins, operations, and safety managers see all jobsites.</p>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-white/78 p-4 shadow-[0_8px_18px_rgba(76,108,161,0.045)]">
+              <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  className={fieldClassName}
+                  placeholder="employee@example.com"
+                  aria-label="Employee email"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value)}
+                  className={appNativeSelectClassName}
+                  aria-label="Invite role"
+                >
+                  {roleOptions.map((role) => (
+                    <option key={role}>{role}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={busyAction === "invite" || !inviteEmail.trim()}
+                  className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}
+                >
+                  <UserPlus aria-hidden className="h-4 w-4" />
+                  Invite
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Company-wide</p>
+                  <p className="mt-1 text-sm leading-5 text-[var(--app-text)]">Admins, operations, and safety managers see every jobsite.</p>
+                </div>
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Field-scoped</p>
+                  <p className="mt-1 text-sm leading-5 text-[var(--app-text)]">Project, supervisor, foreman, field, and read-only users need site picks.</p>
+                </div>
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Tracked workers</p>
+                  <p className="mt-1 text-sm leading-5 text-[var(--app-text)]">Roster records keep training evidence without using login seats.</p>
+                </div>
+              </div>
             </div>
-            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Field-scoped roles</p>
-              <p className="mt-1 text-sm text-[var(--app-text)]">Project, supervisor, foreman, field, read-only, and company users need jobsite picks.</p>
-            </div>
-            <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Tracked workers</p>
-              <p className="mt-1 text-sm text-[var(--app-text)]">Roster records do not create login access or use a licensed seat.</p>
+            <div className="grid content-start gap-3 rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.72)_0%,_var(--app-panel)_100%)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Access snapshot</span>
+                <ShieldCheck aria-hidden className="h-4 w-4 text-[var(--app-accent-primary)]" />
+              </div>
+              <div className="grid gap-2">
+                <MetricLine label="Portal seats" value={commandCenter.activeUsers.length} />
+                <MetricLine label="Pending access" value={commandCenter.pendingUsers.length + workspace.invites.length} />
+                <MetricLine label="No-portal roster" value={activeTrackedEmployees.length} />
+              </div>
             </div>
           </div>
         </SectionCard>
@@ -1920,8 +1982,9 @@ export default function CompanyUsersPage() {
       <SectionCard
         title="Workforce Command Center"
         description="Switch between action queues, workforce records, tracked workers, and audit evidence."
+        tone="elevated"
         actions={
-          <div role="tablist" aria-label="Workforce views" className="flex flex-wrap gap-1 rounded-lg border border-[var(--app-border)] bg-white p-1">
+          <div role="tablist" aria-label="Workforce views" className="flex flex-wrap gap-1 rounded-2xl border border-[var(--app-border)] bg-white/88 p-1 shadow-[0_8px_18px_rgba(76,108,161,0.045)]">
             <TabButton tab="overview" label="Overview" activeTab={activeTab} onClick={setActiveTab} />
             <TabButton tab="access" label="Access Queue" activeTab={activeTab} count={commandCenter.pendingUsers.length + workspace.invites.length + commandCenter.suspendedUsers.length} onClick={setActiveTab} />
             <TabButton tab="users" label="Workforce" activeTab={activeTab} count={workforceDirectoryRows.length} onClick={setActiveTab} />
@@ -1931,7 +1994,7 @@ export default function CompanyUsersPage() {
         }
       >
         {activeTab === "overview" ? (
-          <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="grid gap-5 xl:grid-cols-[1.06fr_0.94fr]">
             <div className="grid gap-5">
               <ActionQueueSection
                 actionItems={commandCenter.actionItems}
@@ -2079,22 +2142,27 @@ function ActionQueueSection({
         </div>
         <StatusBadge label={String(actionItems.length)} tone={actionItems.length ? "warning" : "success"} />
       </div>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid gap-3">
         {actionItems.slice(0, 8).map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => onHandle(item)}
-            className="flex w-full flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 text-left transition hover:border-[var(--app-accent-border-24)] hover:bg-white sm:flex-row sm:items-center sm:justify-between"
+            className={`${actionRowClassName} ${toneAccentClassName(item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info")} w-full text-left`}
           >
-            <span>
-              <span className="block text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</span>
-              <span className="mt-1 block text-sm text-[var(--app-text)]">{item.detail}</span>
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-current opacity-70" />
+            <span className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</span>
+                <span className="mt-1 block text-sm leading-6 text-[var(--app-text)]">{item.detail}</span>
+              </span>
+              <span className="shrink-0">
+                <StatusBadge
+                  label={item.severity}
+                  tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
+                />
+              </span>
             </span>
-            <StatusBadge
-              label={item.severity}
-              tone={item.severity === "critical" ? "error" : item.severity === "warning" ? "warning" : "info"}
-            />
           </button>
         ))}
         {!actionItems.length ? (
@@ -2124,7 +2192,8 @@ function LeadershipSection({
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {rows.map(({ user, score }) => (
-          <div key={user.id} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+          <div key={user.id} className="relative overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white/78 p-4 shadow-[0_8px_18px_rgba(76,108,161,0.045)]">
+            <span className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${score.score >= 80 ? "bg-[var(--semantic-success)]" : score.score >= 65 ? "bg-[var(--semantic-info)]" : "bg-[var(--semantic-warning)]"}`} aria-hidden />
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-semibold text-[var(--app-text-strong)]">{user.name}</p>
@@ -2132,8 +2201,8 @@ function LeadershipSection({
               </div>
               <StatusBadge label={`Grade ${score.grade}`} tone={score.score >= 80 ? "success" : score.score >= 65 ? "info" : "warning"} />
             </div>
-            <p className="mt-3 text-3xl font-bold text-[var(--app-text-strong)]">{score.score}<span className="text-sm text-[var(--app-muted)]">/100</span></p>
-            <p className="mt-2 text-sm leading-5 text-[var(--app-text)]">{score.coachingPrompt || "Review evidence for coaching focus."}</p>
+            <p className="font-app-display mt-3 text-3xl font-bold tracking-tight text-[var(--app-text-strong)]">{score.score}<span className="text-sm text-[var(--app-muted)]">/100</span></p>
+            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{score.coachingPrompt || "Review evidence for coaching focus."}</p>
           </div>
         ))}
         {!rows.length ? (

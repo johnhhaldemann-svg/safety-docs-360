@@ -292,12 +292,11 @@ describe("training expiration cron delivery", () => {
       failedEmails: 0,
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
-    const safetyEmail = fetcher.mock.calls
+    const safetyEmail = ((fetcher as any).mock.calls as Array<[unknown, { body?: unknown }]>)
       .map((call) => JSON.parse(String(call[1]?.body ?? "{}")) as { html: string })
-      .find((body) => body.html.includes("Safety manager digest"));
-    expect(safetyEmail).toBeTruthy();
-    expect(safetyEmail.html).toContain("Your training renewals");
-    expect(safetyEmail.html).toContain("Safety manager digest");
+      .find((body: { html: string }) => body.html.includes("Safety manager digest"));
+    expect(safetyEmail?.html).toContain("Your training renewals");
+    expect(safetyEmail?.html).toContain("Safety manager digest");
     expect(fake.tables.training_expiration_notification_deliveries.some((row) => row.status === "skipped")).toBe(true);
     expect(fake.tables.company_notifications).toHaveLength(1);
   });
