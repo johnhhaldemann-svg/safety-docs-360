@@ -345,7 +345,7 @@ export async function GET(request: Request) {
       subtitle: [formatSafetyBlueprintDocumentType(text(row.document_type)), row.category, isPurchased ? "Purchased template" : null].map((value) => text(value)).filter(Boolean).join(" | ") || null,
       status: row.status,
       updatedAt: iso(row.updated_at ?? row.created_at),
-      href: `/library?doc=${encodeURIComponent(id)}`,
+      href: `/documents?doc=${encodeURIComponent(id)}`,
       jobsiteName: null,
       sourceTable: "documents",
       fields: [

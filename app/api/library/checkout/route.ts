@@ -304,7 +304,7 @@ export async function POST(request: Request) {
     stripe,
     request,
     invoiceId,
-    successUrl: `${baseUrl}/library?tab=documents&doc=${encodeURIComponent(
+    successUrl: `${baseUrl}/documents?doc=${encodeURIComponent(
       document.id
     )}&checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${baseUrl}/library?tab=marketplace&doc=${encodeURIComponent(

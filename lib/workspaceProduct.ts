@@ -47,7 +47,7 @@ export const csepOnlyCompanySideSections: NavSectionLike[] = [
     title: "Documents",
     items: [
       { href: "/csep", label: CONTRACTOR_SAFETY_BLUEPRINT_NAV_LABEL, short: "DC" },
-      { href: "/library", label: "Completed Documents", short: "LB" },
+      { href: "/documents", label: "Documents", short: "DC" },
       { href: "/search", label: "Search Documents", short: "SR" },
     ],
   },
@@ -71,7 +71,7 @@ const csepReadOnlySideSections: NavSectionLike[] = [
   {
     title: "Documents",
     items: [
-      { href: "/library", label: "Completed Documents", short: "LB" },
+      { href: "/documents", label: "Documents", short: "DC" },
       { href: "/search", label: "Search Documents", short: "SR" },
     ],
   },

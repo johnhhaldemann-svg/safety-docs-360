@@ -184,7 +184,7 @@ describe("library checkout route", () => {
     expect(createAndStoreStripeCheckoutSession).toHaveBeenCalledWith(
       expect.objectContaining({
         invoiceId: "invoice_1",
-        successUrl: expect.stringContaining("/library?tab=documents"),
+        successUrl: expect.stringContaining("/documents?doc="),
       })
     );
   });

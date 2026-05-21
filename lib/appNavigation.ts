@@ -50,7 +50,7 @@ export function flattenNavItemsFromSections(
 
 export const userQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
-  { href: "/library", label: "Library", short: "LB" },
+  { href: "/documents", label: "Documents", short: "DC" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
@@ -189,7 +189,7 @@ export const userSideSections: NavSection[] = [
   {
     title: "Documents",
     items: [
-      { href: "/library", label: "Document Library", short: "LB" },
+      { href: "/documents", label: "Documents", short: "DC" },
       { href: "/submit", label: "Submit for Review", short: "SB" },
       { href: "/upload", label: "Upload Documents", short: "UP" },
       { href: "/search", label: "Search", short: "SR" },
@@ -242,7 +242,7 @@ export const adminSideSections: NavSection[] = [
     items: [
       { href: "/admin/marketplace", label: "Marketplace Admin", short: "MK" },
       { href: "/admin/archive", label: "Archive", short: "AR" },
-      { href: "/library", label: "Library", short: "LB" },
+      { href: "/documents", label: "Documents", short: "DC" },
       { href: "/search", label: "Search", short: "SR" },
     ],
   },

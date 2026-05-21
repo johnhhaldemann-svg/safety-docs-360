@@ -31,7 +31,7 @@ describe("workspaceProduct", () => {
     const flat = readOnly.flatMap((s) => s.items.map((i) => i.href));
     expect(flat).not.toContain("/csep");
     expect(flat).toContain("/dashboard");
-    expect(flat).toContain("/library");
+    expect(flat).toContain("/documents");
   });
 
   it("keeps the CSEP builder grouped with documents for CSEP-only workspaces", () => {

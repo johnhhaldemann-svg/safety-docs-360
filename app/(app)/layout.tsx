@@ -77,6 +77,13 @@ function hasPersistedSupabaseAuthKeys() {
 }
 
 const AGREEMENT_CACHE_PREFIX = "safety360docs:accepted-terms:";
+const PROFILE_SETUP_ALLOWED_ROUTES = [
+  "/documents",
+  "/library",
+  "/search",
+  "/customer/billing",
+  "/profile",
+] as const;
 
 function getAgreementCacheKey(email: string, version: string) {
   return `${AGREEMENT_CACHE_PREFIX}${email.trim().toLowerCase()}:${version}`;
@@ -104,6 +111,12 @@ function writeAcceptedTermsCache(email: string, version: string) {
   } catch {
     // Ignore storage failures; the server still remains the source of truth.
   }
+}
+
+function isProfileSetupAllowedRoute(pathname: string) {
+  return PROFILE_SETUP_ALLOWED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
 }
 
 export default function AppLayout({
@@ -157,6 +170,8 @@ export default function AppLayout({
   const canAccessInternalAdmin = Boolean(permissionMap?.can_access_internal_admin);
   const needsProfileSetup =
     !canAccessInternalAdmin && !isSalesDemoUser && !profileComplete;
+  const profileSetupBlocksCurrentRoute =
+    needsProfileSetup && !isProfileSetupAllowedRoute(pathname);
   const inCompanySetupFlow =
     pathname === "/company-setup" || pathname.startsWith("/company-setup/");
   const needsCompanySetup =
@@ -476,10 +491,8 @@ export default function AppLayout({
       return;
     }
 
-    if (needsProfileSetup) {
-      if (pathname !== "/profile") {
-        router.replace("/profile");
-      }
+    if (profileSetupBlocksCurrentRoute) {
+      router.replace("/profile");
       return;
     }
 
@@ -505,7 +518,7 @@ export default function AppLayout({
 
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/training", "/profile", "/library", "/search", "/customer/billing"];
+          const readOnlyCsepRoutes = ["/dashboard", "/training", "/profile", "/documents", "/library", "/search", "/customer/billing"];
           const gatedReadOnlyCsepRoutes = readOnlyCsepRoutes.filter(canOpenCompanyRoute);
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -539,6 +552,7 @@ export default function AppLayout({
           "/dashboard",
           "/training",
           "/profile",
+          "/documents",
           "/library",
           "/search",
           "/customer/billing",
@@ -688,6 +702,7 @@ export default function AppLayout({
     needsCompanySetup,
     needsProfileSetup,
     pathname,
+    profileSetupBlocksCurrentRoute,
     permissionMap,
     router,
     userRole,
@@ -726,10 +741,10 @@ export default function AppLayout({
 
   const workspaceLabel = showPlatformAdminShell
     ? "Admin Workspace"
-    : needsProfileSetup
+    : profileSetupBlocksCurrentRoute
       ? "Profile Setup"
-    : needsCompanySetup
-      ? "Workspace Setup"
+      : needsCompanySetup
+        ? "Workspace Setup"
       : isCompanyScopedUser
         ? "Company Workspace"
         : "User Workspace";
@@ -987,7 +1002,7 @@ export default function AppLayout({
             onSearchSubmit={handleHeaderSearchSubmit}
             showPlatformAdminShell={showPlatformAdminShell}
             workspaceLabel={workspaceLabel}
-            needsProfileSetup={needsProfileSetup}
+            needsProfileSetup={profileSetupBlocksCurrentRoute}
             needsCompanySetup={needsCompanySetup}
             isCompanyScopedUser={isCompanyScopedUser}
             currentNavSection={currentNavSection}

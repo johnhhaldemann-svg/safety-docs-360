@@ -60,8 +60,8 @@ test.describe("Protected routes (no saved session)", () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 25_000 });
   });
 
-  test("library sends unauthenticated users to login", async ({ page }) => {
-    await page.goto("/library", { waitUntil: "domcontentloaded" });
+  test("documents sends unauthenticated users to login", async ({ page }) => {
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/login/, { timeout: 25_000 });
   });
 });

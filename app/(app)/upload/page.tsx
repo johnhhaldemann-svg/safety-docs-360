@@ -373,7 +373,7 @@ async function confirmOpenFile() {
               disabled={loadingDocs || uploading}
             />
             <Link
-              href="/library"
+              href="/documents"
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Library

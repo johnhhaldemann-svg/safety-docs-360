@@ -3,24 +3,24 @@ import { hasE2ECredentials } from "./helpers/auth";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
 import { CLICKWRAP_LABEL } from "@/lib/legal";
 
-test.describe("Library", () => {
+test.describe("Documents", () => {
   test.beforeEach(() => {
     test.skip(!hasE2ECredentials(), "Requires E2E_USER_EMAIL and E2E_USER_PASSWORD.");
   });
 
   test("loads document center heading", async ({ page }) => {
-    await page.goto("/library", { waitUntil: "domcontentloaded" });
-    await expectAuthenticatedShellUrl(page, "/library");
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
+    await expectAuthenticatedShellUrl(page, "/documents");
     await expect(
       page.getByRole("heading", { name: /Find what you need faster|Open completed company documents/i })
     ).toBeVisible({ timeout: 25_000 });
   });
 
-  test("refresh keeps user on library", async ({ page }) => {
-    await page.goto("/library", { waitUntil: "domcontentloaded" });
-    await expectAuthenticatedShellUrl(page, "/library before reload");
+  test("refresh keeps user on documents", async ({ page }) => {
+    await page.goto("/documents", { waitUntil: "domcontentloaded" });
+    await expectAuthenticatedShellUrl(page, "/documents before reload");
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expectAuthenticatedShellUrl(page, "/library after reload");
+    await expectAuthenticatedShellUrl(page, "/documents after reload");
     await expect(page.locator("body")).toBeVisible();
   });
 });

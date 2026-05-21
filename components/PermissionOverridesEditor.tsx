@@ -17,7 +17,7 @@ type Props = {
 
 function formatPermissionLabel(permission: AppPermission) {
   const labels: Partial<Record<AppPermission, string>> = {
-    can_access_document_library: "Document Library Page",
+    can_access_document_library: "Documents Page",
     can_access_template_marketplace: "Template Marketplace Page",
     can_access_jobsites: "Job Sites Pages",
     can_access_field_audits: "Field Audits Page",
@@ -36,7 +36,7 @@ function formatPermissionLabel(permission: AppPermission) {
 
 function formatPermissionHelp(permission: AppPermission) {
   const help: Partial<Record<AppPermission, string>> = {
-    can_access_document_library: "Controls /library and /search.",
+    can_access_document_library: "Controls /documents and /search.",
     can_access_template_marketplace: "Controls marketplace tabs, purchases, and preview requests.",
     can_access_jobsites: "Controls /jobsites and jobsite detail pages.",
     can_access_field_audits: "Controls /field-audits.",

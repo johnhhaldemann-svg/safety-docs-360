@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -134,8 +134,10 @@ function getSubscriptionTone(status: string) {
 }
 
 function LibraryPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const highlightDocId = searchParams.get("doc");
+  const redirectedLegacyLibraryRef = useRef(false);
   const { value: libraryTab, setValue: setLibraryTab } = useUrlTabState(
     "tab",
     LIBRARY_PRIMARY_TABS,
@@ -168,6 +170,19 @@ function LibraryPageContent() {
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [pendingDownload, setPendingDownload] = useState<PendingDownload | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")?.trim().toLowerCase() ?? "";
+    if (redirectedLegacyLibraryRef.current || (tab && tab !== "documents")) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("tab");
+    const query = nextParams.toString();
+    redirectedLegacyLibraryRef.current = true;
+    router.replace(query ? `/documents?${query}` : "/documents");
+  }, [router, searchParams]);
 
   const getAccessToken = useCallback(async () => {
     const {

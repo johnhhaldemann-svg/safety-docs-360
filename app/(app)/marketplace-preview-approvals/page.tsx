@@ -200,7 +200,7 @@ export default function MarketplacePreviewApprovalsPage() {
                 <p className="mt-2 text-slate-300">
                   Approving a preview removes it from this list on purpose — that preview is now allowed for buyers in the{" "}
                   <Link
-                    href="/library"
+                    href="/documents"
                     className="font-semibold text-sky-300 underline underline-offset-2 hover:text-sky-200"
                   >
                     Library

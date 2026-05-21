@@ -75,7 +75,7 @@ describe("company workspace search helpers", () => {
         type: "marketplace_template",
         title: "Purchased excavation template",
         updatedAt: "2026-05-19T12:00:00.000Z",
-        href: "/library?doc=result-3",
+        href: "/documents?doc=result-3",
         sourceTable: "documents",
       },
     ];

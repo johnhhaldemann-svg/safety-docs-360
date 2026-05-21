@@ -840,10 +840,10 @@ function DocumentsSurface({ payload, jobsiteId }: { payload: Record<string, unkn
                       Download
                     </Link>
                     <Link
-                      href="/library"
+                      href="/documents"
                       className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
                     >
-                      Open library
+                      Open documents
                     </Link>
                   </div>
                 ) : null}

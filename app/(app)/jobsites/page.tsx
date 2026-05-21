@@ -1003,7 +1003,7 @@ export default function JobsitesPage() {
                           </div>
                           <div className="flex items-center gap-3">
                             <StatusBadge label={getDocumentStatusLabel(document.status, Boolean(document.final_file_path))} tone={selectedJobsite.pendingDocuments > 0 ? "warning" : "success"} />
-                            <Link href="/library" className="text-sm font-bold text-[var(--app-accent-primary)] hover:underline">Open</Link>
+                            <Link href="/documents" className="text-sm font-bold text-[var(--app-accent-primary)] hover:underline">Open</Link>
                           </div>
                         </div>
                       ))}

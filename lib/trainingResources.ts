@@ -49,7 +49,7 @@ export const trainingResources: TrainingResource[] = [
       "Understand where PESH and CSEP builders fit in the document workflow.",
     ],
     relatedLinks: [
-      { label: "Document Library", href: "/library" },
+      { label: "Documents", href: "/documents" },
       { label: "Template Marketplace", href: "/library?tab=marketplace" },
       { label: "Upload Documents", href: "/upload" },
       { label: "Submit For Review", href: "/submit" },

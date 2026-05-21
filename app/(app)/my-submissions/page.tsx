@@ -100,7 +100,7 @@ export default function MySubmissionsPage() {
               New Submission
             </Link>
             <Link
-              href="/library"
+              href="/documents"
               className="rounded-xl border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Library
