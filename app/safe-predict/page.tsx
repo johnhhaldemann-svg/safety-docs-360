@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, ClipboardCheck, Download, GraduationCap, MapPin, Minus, Plus, RotateCcw, ShieldAlert, ShieldCheck, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { AlertTriangle, ArrowRight, CalendarDays, ClipboardCheck, Crosshair, Download, Expand, GraduationCap, Layers, MapPin, Minus, Plus, RotateCcw, Shield, ShieldAlert, ShieldCheck, Target, TrendingUp, Users } from "lucide-react";
 import {
   Card,
   ExportButton,
-  ForecastTrendChart,
-  MetricCard,
-  MiniSparkline,
-  PageHeader,
   RiskBadge,
   RiskHeatMap,
   SectionTitle,
@@ -22,52 +18,7 @@ import {
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
-import { hasSafePredictForecastInputs, riskForecastForSite, summarizeSafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
-
-function CompanyLogoPanel({
-  companyName,
-  logoDataUrl,
-}: {
-  companyName: string;
-  logoDataUrl?: string | null;
-}) {
-  return (
-    <Card className="mb-5 p-5">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Company logo</p>
-          <h2 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950">{companyName}</h2>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            This dashboard uses the logo saved on the company profile.
-          </p>
-        </div>
-        <div className="flex min-h-[150px] items-center justify-center rounded-lg border border-slate-200 bg-white p-6">
-          {logoDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Company profile logos are stored as data URLs.
-            <img
-              src={logoDataUrl}
-              alt={`${companyName} logo`}
-              className="max-h-28 w-full max-w-[360px] object-contain"
-            />
-          ) : (
-            <div className="max-w-md text-center">
-              <p className="text-sm font-black text-slate-900">No company logo saved yet</p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                Add a logo to the company profile so it appears here.
-              </p>
-              <Link
-                href="/company-setup"
-                className="mt-4 inline-flex min-h-10 items-center rounded-lg border border-blue-100 bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:border-blue-200 hover:bg-white"
-              >
-                Open company setup
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
+import { hasSafePredictForecastInputs, riskForecastForSite, summarizeSafePredictDataset, type SafePredictDataset, type SafePredictJobsiteRecord } from "@/lib/safePredictData";
 
 type ForecastWindow = 30 | 60 | 90;
 
@@ -178,8 +129,8 @@ type MapPanOffset = {
 };
 
 const TILE_SIZE = 256;
-const REAL_MAP_WIDTH = 820;
-const REAL_MAP_HEIGHT = 500;
+const REAL_MAP_WIDTH = 1080;
+const REAL_MAP_HEIGHT = 560;
 const REAL_MAP_FIT_PADDING = 96;
 const MIN_REAL_MAP_ZOOM = 4;
 const MAX_REAL_MAP_ZOOM = 14;
@@ -212,7 +163,7 @@ function normalizeZipCode(value?: string | null) {
 function normalizeCityStateLookupKey(value?: string | null) {
   const match = String(value ?? "").match(/^\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*$/);
   if (!match) return "";
-  return `${match[2].toLowerCase()}|${match[1].trim().toLowerCase().replace(/\s+/g, "-")}`;
+  return `${match[2].toLowerCase()}|${match[1].trim().toLowerCase().replace(/\s+/g, " ")}`;
 }
 
 async function resolveZipCoordinate(zipCode: string, signal: AbortSignal): Promise<ZipCoordinate | null> {
@@ -400,7 +351,7 @@ function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number,
       const wrappedTileX = ((tileX % tileCount) + tileCount) % tileCount;
       tiles.push({
         key: `${zoom}-${tileX}-${tileY}`,
-        url: `https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png`,
+        url: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${wrappedTileX}`,
         left: tileX * TILE_SIZE - originX,
         top: tileY * TILE_SIZE - originY,
       });
@@ -541,12 +492,12 @@ function JobsiteRiskMap({
   const missingLocationCount = unlocatedMapPoints.length;
   const mapSourceLabel = coordinateBacked
     ? zipBackedCount > 0
-      ? "OpenStreetMap + ZIP"
+      ? "Satellite + ZIP"
       : cityBackedCount > 0
-        ? "OpenStreetMap + city/state"
-        : "OpenStreetMap + saved coordinates"
+        ? "Satellite + city/state"
+        : "Satellite + saved coordinates"
     : missingLocationCount < mapPoints.length
-      ? "OpenStreetMap + partial locations"
+      ? "Satellite + partial locations"
       : "Add ZIP or coordinates";
 
   function endMapDrag(event: PointerEvent<HTMLDivElement>) {
@@ -585,232 +536,197 @@ function JobsiteRiskMap({
   }
 
   return (
-    <Card id="jobsite-source-cards" className="mt-5 scroll-mt-24 p-5">
-      <SectionTitle
-        title="Jobsite Risk Map"
-        hint="Shows active jobsites as clickable map pins. Select a pin to review the jobsite number, risk band, score, workers, and open actions before opening the full command center."
-      />
-      {jobsites.length === 0 ? (
-        <div className="mt-5 grid min-h-[280px] place-items-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
-          <div>
-            <p className="text-sm font-black text-slate-900">No jobsites to map yet</p>
-            <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">
-              Add active jobsites to populate the dashboard map with risk markers.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-5 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50">
-            <div
-              className={cx(
-                "relative overflow-hidden bg-slate-100 select-none",
-                realMapViewport ? (isMapDragging ? "cursor-grabbing" : "cursor-grab") : ""
-              )}
-              onPointerDown={handleMapPointerDown}
-              onPointerMove={handleMapPointerMove}
-              onPointerUp={endMapDrag}
-              onPointerCancel={endMapDrag}
-              style={{ width: REAL_MAP_WIDTH, height: REAL_MAP_HEIGHT, touchAction: "none" }}
-            >
-              {realMapViewport ? (
-                <>
-                  {realMapViewport.tiles.map((tile) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- Real OpenStreetMap tiles are loaded directly and do not use Next image optimization.
-                    <img
-                      key={tile.key}
-                      src={tile.url}
-                      alt=""
-                      aria-hidden="true"
-                      draggable={false}
-                      className="pointer-events-none absolute h-64 w-64 select-none"
-                      style={{ left: tile.left, top: tile.top }}
-                    />
-                  ))}
-                </>
-              ) : (
-                <div className="absolute inset-0 grid place-items-center bg-slate-50 px-6 text-center">
-                  <div>
-                    <p className="text-sm font-black text-slate-900">No mapped locations yet</p>
-                    <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">
-                      Add a ZIP code or saved latitude/longitude to each jobsite to place it on the real map.
-                    </p>
-                  </div>
-                </div>
-              )}
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-slate-900/5" aria-hidden="true" />
-              <div data-map-control="true" className="absolute left-4 top-4 rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500 shadow-sm">
-                {mapSourceLabel}
+    <section className="relative h-[560px] min-w-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.35)]">
+      <div
+        className={cx(
+          "relative h-full overflow-hidden bg-slate-950 select-none",
+          realMapViewport ? (isMapDragging ? "cursor-grabbing" : "cursor-grab") : ""
+        )}
+        onPointerDown={handleMapPointerDown}
+        onPointerMove={handleMapPointerMove}
+        onPointerUp={endMapDrag}
+        onPointerCancel={endMapDrag}
+        style={{ touchAction: "none" }}
+      >
+        <div className="absolute left-1/2 top-1/2 h-[560px] w-[1080px] -translate-x-1/2 -translate-y-1/2">
+          {realMapViewport ? (
+            realMapViewport.tiles.map((tile) => (
+              // eslint-disable-next-line @next/next/no-img-element -- Esri satellite tiles are loaded directly and do not use Next image optimization.
+              <img
+                key={tile.key}
+                src={tile.url}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                className="pointer-events-none absolute h-64 w-64 select-none"
+                style={{ left: tile.left, top: tile.top }}
+              />
+            ))
+          ) : (
+            <div className="absolute inset-0 grid place-items-center bg-slate-900 px-6 text-center">
+              <div>
+                <p className="text-sm font-black text-white">No mapped locations yet</p>
+                <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-300">
+                  Add a ZIP code or saved latitude/longitude to each jobsite to place it on the satellite command map.
+                </p>
               </div>
-              {realMapViewport ? (
-                <div data-map-control="true" className="absolute right-4 top-4 z-40 flex overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-[0_12px_28px_rgba(15,23,42,0.14)]">
-                  <button
-                    type="button"
-                    onClick={() => setMapZoomAdjustment((value) => value - 1)}
-                    disabled={!canZoomOut}
-                    className="grid h-10 w-10 place-items-center text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                    aria-label="Zoom out"
-                    title="Zoom out"
-                  >
-                    <Minus className="h-4 w-4" aria-hidden />
-                  </button>
-                  <div className="grid h-10 min-w-12 place-items-center border-x border-slate-200 px-2 text-xs font-black text-slate-600">
-                    Z{currentMapZoom}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setMapZoomAdjustment((value) => value + 1)}
-                    disabled={!canZoomIn}
-                    className="grid h-10 w-10 place-items-center text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                    aria-label="Zoom in"
-                    title="Zoom in"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapZoomAdjustment(0);
-                      setMapPanOffset({ x: 0, y: 0 });
-                    }}
-                    disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0}
-                    className="inline-flex h-10 items-center gap-2 border-l border-slate-200 px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:text-slate-300"
-                    aria-label="Center map between all jobsites"
-                    title="Center between all jobsites"
-                  >
-                    <RotateCcw className="h-4 w-4" aria-hidden />
-                    Center
-                  </button>
-                </div>
-              ) : null}
-              <div data-map-control="true" className="absolute bottom-4 left-4 max-w-[360px] rounded-lg border border-white/80 bg-white/90 px-3 py-2 text-xs font-bold leading-5 text-slate-600 shadow-sm">
-                Drag to move the map. Real map tiles are shown from OpenStreetMap. Pins use saved coordinates first, then ZIP lookup, then city/state lookup.
-              </div>
-              <div data-map-control="true" className="absolute bottom-4 right-4 rounded bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm">
-                (c) OpenStreetMap contributors
-              </div>
-              {realMapViewport && locatedMapPoints.map((point) => {
-                const isSelected = selectedJobsite?.id === point.jobsite.id;
-                const zipCode = normalizeZipCode(point.jobsite.zipCode);
-                const projected = realMapViewport.project(point);
-                return (
-                  <button
-                    key={point.jobsite.id}
-                    type="button"
-                    onClick={() => onSelectJobsite(point.jobsite.id)}
-                    aria-pressed={isSelected}
-                    aria-label={`${point.jobsite.name}, ${point.jobsite.code}, Risk ${riskLabel(point.jobsite.riskLevel)}`}
-                    className={cx(
-                      "group absolute z-10 -translate-x-1/2 -translate-y-full rounded-full border-2 bg-white p-1 shadow-[0_12px_24px_rgba(15,23,42,0.22)] transition hover:-translate-y-[108%] hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                      isSelected ? "z-30 border-blue-500 ring-4 ring-blue-100" : "border-white"
-                    )}
-                    style={{ left: projected.left, top: projected.top }}
-                  >
-                    <span className={cx("grid h-9 w-9 place-items-center rounded-full border shadow-lg", riskPinClasses(point.jobsite.riskLevel))}>
-                      <MapPin className="h-5 w-5" />
-                    </span>
-                    <span
-                      className={cx(
-                        "pointer-events-none absolute left-1/2 top-full mt-2 w-44 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-[0_14px_30px_rgba(15,23,42,0.18)]",
-                        isSelected ? "block" : "hidden group-hover:block"
-                      )}
-                    >
-                      <span className="block truncate text-xs font-black text-slate-950">{point.jobsite.name}</span>
-                      <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
-                      <span className="mt-1 block text-[10px] font-black text-slate-700">
-                        {zipCode ? `ZIP ${zipCode}` : `Risk ${riskLabel(point.jobsite.riskLevel)}`}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-              {missingLocationCount > 0 ? (
-                <div data-map-control="true" className="absolute right-4 top-20 max-h-[310px] w-60 overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
-                  <p className="text-xs font-black uppercase tracking-wide text-slate-500">Needs location</p>
-                  <div className="mt-2 grid gap-2">
-                    {unlocatedMapPoints.map((point) => (
-                      <button
-                        key={point.jobsite.id}
-                        type="button"
-                        onClick={() => onSelectJobsite(point.jobsite.id)}
-                        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-left transition hover:border-blue-200 hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-                      >
-                        <span className="block truncate text-xs font-black text-slate-900">{point.jobsite.name}</span>
-                        <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{point.jobsite.code}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
-          </div>
-
-          <aside className="grid gap-4 content-start">
-            {selectedJobsite ? (
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Selected jobsite</p>
-                    <h3 className="mt-1 text-xl font-black leading-tight text-slate-950">{selectedJobsite.name}</h3>
-                    <p className="mt-1 text-sm font-semibold text-slate-500">{selectedJobsite.code}</p>
-                  </div>
-                  <RiskBadge level={selectedJobsite.riskLevel} />
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Score</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.riskScore}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Workers</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.workforceCount}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Actions</p>
-                    <p className="mt-1 text-lg font-black text-slate-950">{selectedJobsite.openActions}</p>
-                  </div>
-                </div>
-                <dl className="mt-4 grid gap-2 text-sm">
-                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
-                    <dt className="font-bold text-slate-500">ZIP code</dt>
-                    <dd className="text-right font-semibold text-slate-800">{normalizeZipCode(selectedJobsite.zipCode) || "Not set"}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
-                    <dt className="font-bold text-slate-500">Location</dt>
-                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.cityState}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
-                    <dt className="font-bold text-slate-500">Site lead</dt>
-                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.siteLead}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-3">
-                    <dt className="font-bold text-slate-500">Phase</dt>
-                    <dd className="text-right font-semibold text-slate-800">{selectedJobsite.phase}</dd>
-                  </div>
-                </dl>
-                <Link
-                  href={`/safe-predict/jobsites/${encodeURIComponent(selectedJobsite.id)}`}
-                  className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white transition hover:bg-blue-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+          )}
+          {realMapViewport && locatedMapPoints.map((point) => {
+            const isSelected = selectedJobsite?.id === point.jobsite.id;
+            const projected = realMapViewport.project(point);
+            return (
+              <button
+                key={point.jobsite.id}
+                type="button"
+                onClick={() => onSelectJobsite(point.jobsite.id)}
+                aria-pressed={isSelected}
+                aria-label={`${point.jobsite.name}, ${point.jobsite.code}, Risk ${riskLabel(point.jobsite.riskLevel)}`}
+                className={cx(
+                  "group absolute z-20 -translate-x-1/2 -translate-y-full rounded-full border-2 bg-slate-950/80 p-1 shadow-[0_18px_32px_rgba(0,0,0,0.45)] transition hover:-translate-y-[108%] hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300",
+                  isSelected ? "border-white ring-4 ring-red-500/30" : "border-white/80"
+                )}
+                style={{ left: projected.left, top: projected.top }}
+              >
+                {isSelected ? (
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-400/55 bg-red-500/10 shadow-[0_0_42px_rgba(239,68,68,0.55)]" aria-hidden>
+                    <span className="absolute inset-4 rounded-full border border-red-300/45" />
+                    <span className="absolute inset-8 rounded-full border border-white/35" />
+                    <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/45" />
+                    <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/45" />
+                  </span>
+                ) : null}
+                <span className={cx("relative z-10 grid h-12 w-12 place-items-center rounded-full border shadow-lg", riskPinClasses(point.jobsite.riskLevel))}>
+                  <MapPin className="h-6 w-6" />
+                </span>
+                <span
+                  className={cx(
+                    "pointer-events-none absolute left-1/2 top-full mt-3 w-52 -translate-x-1/2 rounded-lg border border-white/15 bg-slate-950/92 px-3 py-2 text-left text-white shadow-[0_18px_36px_rgba(0,0,0,0.45)] backdrop-blur",
+                    isSelected ? "block" : "hidden group-hover:block"
+                  )}
                 >
-                  Open command center
-                  <ArrowRight className="h-4 w-4" aria-hidden />
-                </Link>
-              </div>
-            ) : null}
+                  <span className="block truncate text-xs font-black">{point.jobsite.name}</span>
+                  <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-300">{point.jobsite.code}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-sm font-black text-slate-900">Risk Level</p>
-              <div className="mt-4 grid gap-3 text-sm font-semibold text-slate-600">
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" /> Low (0-39)</p>
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-400" /> Medium (40-69)</p>
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-orange-500" /> High (70-89)</p>
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-600" /> Critical (90-100)</p>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(248,113,113,0.24),transparent_20%),linear-gradient(90deg,rgba(2,6,23,0.78)_0%,rgba(2,6,23,0.2)_28%,rgba(2,6,23,0.2)_68%,rgba(2,6,23,0.76)_100%)]" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(125,211,252,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(125,211,252,0.07)_1px,transparent_1px)] bg-[length:44px_44px]" aria-hidden />
+
+        <div data-map-control="true" className="absolute left-4 top-4 z-40 flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-950 shadow-lg">
+            Jobsite Risk Map
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300/35 bg-emerald-400/14 px-3 py-2 text-xs font-black text-emerald-100">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" /> Live
+          </span>
+          <span className="rounded-md border border-white/15 bg-slate-950/70 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-200 backdrop-blur">
+            {mapSourceLabel}
+          </span>
+        </div>
+
+        {realMapViewport ? (
+          <div data-map-control="true" className="absolute right-4 top-4 z-40 flex items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-white/15 bg-slate-950/76 text-white shadow-[0_18px_36px_rgba(0,0,0,0.3)] backdrop-blur">
+              <button type="button" onClick={() => setMapZoomAdjustment((value) => value - 1)} disabled={!canZoomOut} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom out" title="Zoom out">
+                <Minus className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="grid h-10 min-w-12 place-items-center border-x border-white/10 px-2 text-xs font-black text-slate-200">Z{currentMapZoom}</div>
+              <button type="button" onClick={() => setMapZoomAdjustment((value) => value + 1)} disabled={!canZoomIn} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom in" title="Zoom in">
+                <Plus className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMapZoomAdjustment(0);
+                  setMapPanOffset({ x: 0, y: 0 });
+                }}
+                disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0}
+                className="grid h-10 w-10 place-items-center border-l border-white/10 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500"
+                aria-label="Center map between all jobsites"
+                title="Center between all jobsites"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+            <span className="hidden h-10 w-10 place-items-center rounded-lg border border-white/15 bg-slate-950/76 text-white backdrop-blur sm:grid">
+              <Layers className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="hidden h-10 w-10 place-items-center rounded-lg border border-white/15 bg-slate-950/76 text-white backdrop-blur sm:grid">
+              <Crosshair className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="hidden h-10 w-10 place-items-center rounded-lg border border-white/15 bg-slate-950/76 text-white backdrop-blur sm:grid">
+              <Expand className="h-4 w-4" aria-hidden />
+            </span>
+          </div>
+        ) : null}
+
+        {selectedJobsite ? (
+          <aside data-map-control="true" className="absolute bottom-4 right-4 top-20 z-30 hidden w-[300px] rounded-lg border border-white/15 bg-slate-950/78 p-4 text-white shadow-[0_24px_56px_rgba(0,0,0,0.48)] backdrop-blur-md xl:block">
+            <div className="flex items-center justify-between gap-3">
+              <span className="rounded-md border border-red-400/50 bg-red-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-red-100">
+                {riskLabel(selectedJobsite.riskLevel)}
+              </span>
+              <div className="flex gap-2 text-slate-400">
+                <Target className="h-4 w-4" aria-hidden />
+                <Shield className="h-4 w-4" aria-hidden />
               </div>
             </div>
+            <h3 className="mt-5 text-2xl font-black leading-tight">{selectedJobsite.name}</h3>
+            <p className="mt-1 text-xs font-semibold text-slate-300">
+              {selectedJobsite.workforceCount} workers / ZIP {normalizeZipCode(selectedJobsite.zipCode) || "Not set"}
+            </p>
+            <div className="relative mx-auto mt-5 grid h-44 w-44 place-items-center rounded-full border border-sky-200/35 bg-[radial-gradient(circle,rgba(239,68,68,0.24)_0%,rgba(14,165,233,0.12)_52%,transparent_70%)]">
+              <span className="absolute inset-3 rounded-full border border-white/20" />
+              <span className="absolute inset-8 rounded-full border border-red-300/55" />
+              <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/25" />
+              <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/25" />
+              <span className="grid h-20 w-20 place-items-center rounded-[1.4rem] border-2 border-red-400 bg-slate-950/84 text-center shadow-[0_0_30px_rgba(239,68,68,0.55)]">
+                <span>
+                  <span className="block text-4xl font-black text-red-400">{selectedJobsite.riskScore}</span>
+                  <span className="text-xs font-black text-white">/100</span>
+                </span>
+              </span>
+            </div>
+            <p className="mt-3 text-center text-xl font-black text-red-400">{riskLabel(selectedJobsite.riskLevel)} Risk</p>
+            <p className="text-center text-xs font-semibold text-slate-300">Live site risk score</p>
+            <Link href={`/safe-predict/jobsites/${encodeURIComponent(selectedJobsite.id)}`} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-black text-white transition hover:bg-blue-500">
+              Open command center
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <dl className="mt-4 grid gap-2 text-xs">
+              <div className="flex justify-between gap-3 border-t border-white/10 pt-2"><dt className="text-slate-400">Location</dt><dd className="text-right font-semibold">{selectedJobsite.cityState}</dd></div>
+              <div className="flex justify-between gap-3 border-t border-white/10 pt-2"><dt className="text-slate-400">Site lead</dt><dd className="text-right font-semibold">{selectedJobsite.siteLead}</dd></div>
+              <div className="flex justify-between gap-3 border-t border-white/10 pt-2"><dt className="text-slate-400">Phase</dt><dd className="text-right font-semibold">{selectedJobsite.phase}</dd></div>
+            </dl>
           </aside>
+        ) : null}
+
+        {missingLocationCount > 0 ? (
+          <div data-map-control="true" className="absolute left-4 top-20 z-40 max-h-[220px] w-60 overflow-y-auto rounded-lg border border-white/15 bg-slate-950/80 p-3 text-white shadow-[0_18px_36px_rgba(0,0,0,0.42)] backdrop-blur">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-300">Needs location</p>
+            <div className="mt-2 grid gap-2">
+              {unlocatedMapPoints.map((point) => (
+                <button key={point.jobsite.id} type="button" onClick={() => onSelectJobsite(point.jobsite.id)} className="rounded-md border border-white/10 bg-white/6 px-3 py-2 text-left transition hover:bg-white/10">
+                  <span className="block truncate text-xs font-black">{point.jobsite.name}</span>
+                  <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">{point.jobsite.code}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div data-map-control="true" className="absolute bottom-4 left-4 z-30 max-w-[360px] rounded-lg border border-white/15 bg-slate-950/78 px-3 py-2 text-xs font-bold leading-5 text-slate-200 shadow-lg backdrop-blur">
+          Drag to move the map. Satellite tiles from Esri World Imagery; pins use saved coordinates first, then ZIP and city/state lookup.
         </div>
-      )}
-    </Card>
+        <div data-map-control="true" className="absolute bottom-4 right-4 z-30 rounded bg-slate-950/78 px-2 py-1 text-[10px] font-bold text-slate-300 shadow-sm backdrop-blur xl:right-[328px]">
+          Imagery (c) Esri, Maxar, Earthstar Geographics, and GIS community
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -822,6 +738,294 @@ function EmptySafePredictPanel({ title, detail }: { title: string; detail: strin
         <p className="mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">{detail}</p>
       </div>
     </div>
+  );
+}
+
+function CommandStatRow({
+  icon,
+  label,
+  value,
+  detail,
+  tone = "text-white",
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  detail: string;
+  tone?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-white/10 py-3 last:border-b-0">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/12 bg-white/6 text-slate-100">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
+        <div className="mt-1 flex items-end gap-3">
+          <p className="text-2xl font-black leading-none text-white">{value}</p>
+          <p className={cx("pb-0.5 text-xs font-black", tone)}>{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompanyCommandPanel({
+  dataset,
+  totals,
+}: {
+  dataset: SafePredictDataset;
+  totals: ReturnType<typeof summarizeSafePredictDataset>;
+}) {
+  return (
+    <aside className="rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#06172a_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Company Account</p>
+      <div className="mt-4 flex items-start gap-4">
+        <div className="grid h-20 w-20 shrink-0 place-items-center rounded-md border border-white/12 bg-white p-3 shadow-xl">
+          {dataset.company.logoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Company logos are stored as data URLs in the workspace profile.
+            <img src={dataset.company.logoDataUrl} alt={`${dataset.company.name} logo`} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <ShieldCheck className="h-12 w-12 text-blue-700" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-xl font-black leading-tight">{dataset.company.name}</h2>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">
+            {dataset.company.industry} workspace based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <span className="inline-flex items-center gap-2 rounded-md border border-emerald-300/20 bg-emerald-400/14 px-3 py-2 text-xs font-black text-emerald-100">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          {dataset.mode === "live" ? "Live data" : "Workspace data"}
+        </span>
+        <span className="rounded-md bg-blue-600 px-3 py-2 text-xs font-black text-white">{totals.jobsites} jobsites</span>
+        <span className="rounded-md bg-emerald-500/18 px-3 py-2 text-xs font-black text-emerald-100">{totals.employees} workers</span>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-white/12 bg-white/5 px-4">
+        <CommandStatRow icon={<Users className="h-6 w-6" />} label="Workforce" value={totals.employees} detail={`${totals.overdueEmployees} overdue`} tone="text-red-400" />
+        <CommandStatRow icon={<ClipboardCheck className="h-6 w-6" />} label="Open Actions" value={totals.openActions} detail="Across all jobsites" tone="text-slate-300" />
+        <CommandStatRow icon={<Shield className="h-6 w-6" />} label="Avg. Site Risk" value={totals.riskScore} detail={dataset.mode === "live" ? "Live score" : "Elevated"} tone="text-red-400" />
+      </div>
+
+      <Link href="/safe-predict/risk-mitigation#prioritized-risk-queue" className="mt-5 inline-flex items-center gap-2 px-2 text-sm font-black uppercase tracking-wide text-blue-300 hover:text-blue-100">
+        View Source
+        <ArrowRight className="h-4 w-4" aria-hidden />
+      </Link>
+    </aside>
+  );
+}
+
+function ActionPriorityRail({ actions }: { actions: SafePredictDataset["actions"] }) {
+  const openActions = actions.filter((action) => action.status !== "Closed");
+  const counts = {
+    high: openActions.filter((action) => action.priority === "critical" || action.priority === "high").length,
+    medium: openActions.filter((action) => action.priority === "medium").length,
+    low: 0,
+  };
+  const rows = [
+    { label: "High Priority", value: counts.high, className: "border-red-300/25 bg-red-500/8 text-red-300", icon: "text-red-400" },
+    { label: "Medium Priority", value: counts.medium, className: "border-orange-300/25 bg-orange-500/8 text-orange-300", icon: "text-orange-400" },
+    { label: "Low Priority", value: counts.low, className: "border-emerald-300/25 bg-emerald-500/8 text-emerald-300", icon: "text-emerald-400" },
+  ];
+
+  return (
+    <aside className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
+      <div className="absolute right-0 top-0 h-full w-6 bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.8)_0_5px,transparent_5px_11px)] opacity-70" aria-hidden />
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Open Actions</p>
+      <p className="mt-2 text-4xl font-black text-red-400">{openActions.length}</p>
+      <div className="mt-4 grid gap-3">
+        {rows.map((row) => (
+          <Link key={row.label} href="/safe-predict/risk-mitigation#corrective-action-tracker" className={cx("group flex items-center gap-3 rounded-lg border p-3 transition hover:bg-white/10", row.className)}>
+            <span className={cx("grid h-10 w-10 place-items-center rounded-lg border border-current/25 bg-slate-950/36", row.icon)}>
+              <ShieldAlert className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-200">{row.label}</span>
+              <span className="mt-1 block text-xl font-black">{row.value}</span>
+            </span>
+            <ArrowRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-white" />
+          </Link>
+        ))}
+      </div>
+      <Link href="/safe-predict/risk-mitigation#corrective-action-tracker" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-300 hover:text-blue-100">
+        View all actions
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+    </aside>
+  );
+}
+
+function CommandSparkline({ data, color = "#ef4444" }: { data: number[]; color?: string }) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const spread = Math.max(1, max - min);
+  const points = data
+    .map((value, index) => {
+      const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * 100;
+      const y = 34 - ((value - min) / spread) * 28;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg viewBox="0 0 100 38" className="h-full w-full" role="img" aria-label="Recent trend sparkline" preserveAspectRatio="none">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function CommandForecastChart({ data }: { data: SafePredictForecastPoint[] }) {
+  const plot = (key: "predictedRisk" | "historicalRisk") =>
+    data
+      .map((point, index) => {
+        const value = point[key];
+        if (typeof value !== "number") return null;
+        const x = data.length <= 1 ? 0 : 36 + (index / (data.length - 1)) * 520;
+        const y = 235 - (value / 100) * 190;
+        return `${x},${y}`;
+      })
+      .filter(Boolean)
+      .join(" ");
+  const predicted = plot("predictedRisk");
+  const historical = plot("historicalRisk");
+  const area = predicted ? `36,235 ${predicted} 556,235` : "";
+
+  return (
+    <svg viewBox="0 0 590 270" className="mt-3 h-[285px] w-full overflow-visible" role="img" aria-label="Predictive risk trend chart">
+      <defs>
+        <linearGradient id="commandForecastRiskBand" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#fecaca" stopOpacity="0.82" />
+          <stop offset="100%" stopColor="#fef3c7" stopOpacity="0.34" />
+        </linearGradient>
+      </defs>
+      {[0, 25, 50, 75, 100].map((tick) => {
+        const y = 235 - (tick / 100) * 190;
+        return (
+          <g key={tick}>
+            <line x1="36" x2="556" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="5 5" />
+            <text x="10" y={y + 4} fill="#64748b" fontSize="11" fontWeight="700">{tick}</text>
+          </g>
+        );
+      })}
+      {area ? <polygon points={area} fill="url(#commandForecastRiskBand)" /> : null}
+      {historical ? <polyline points={historical} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {predicted ? <polyline points={predicted} fill="none" stroke="#f97316" strokeWidth="3" strokeDasharray="5 5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {data.map((point, index) => {
+        const x = data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520;
+        const label = index === 0 ? "Now" : index % 2 === 0 ? `+${index * 3}d` : "";
+        return label ? <text key={`${point.date}-${index}`} x={x} y="258" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="700">{label}</text> : null;
+      })}
+    </svg>
+  );
+}
+
+function CommandKpiStrip({
+  totals,
+  completedInspections,
+  complianceRate,
+  liveWithoutRiskData,
+  liveWithoutForecast,
+  liveWithoutOpenActions,
+  liveWithoutCompletedInspections,
+}: {
+  totals: ReturnType<typeof summarizeSafePredictDataset>;
+  completedInspections: number;
+  complianceRate: number;
+  liveWithoutRiskData: boolean;
+  liveWithoutForecast: boolean;
+  liveWithoutOpenActions: boolean;
+  liveWithoutCompletedInspections: boolean;
+}) {
+  const kpis = [
+    {
+      title: "Overall Site Risk Score",
+      value: totals.riskScore,
+      suffix: "/100",
+      detail: liveWithoutRiskData ? "No Data" : "High Risk",
+      tone: "text-red-400",
+      icon: <ShieldAlert className="h-7 w-7" />,
+      sparkline: liveWithoutRiskData ? undefined : <CommandSparkline data={[42, 47, 58, 44, 46, 56, 54]} />,
+      href: "/safe-predict/risk-mitigation#prioritized-risk-queue",
+      sourceLabel: "Open risk guide",
+    },
+    {
+      title: "Predicted Incident Risk",
+      value: liveWithoutForecast ? "No Data" : "24%",
+      detail: liveWithoutForecast ? "Waiting for forecast" : "High",
+      tone: "text-orange-400",
+      icon: <TrendingUp className="h-7 w-7" />,
+      sparkline: liveWithoutForecast ? undefined : <CommandSparkline data={[20, 22, 31, 28, 35, 38, 47]} color="#f97316" />,
+      href: "/safe-predict/predictive-risk#forecast-drivers",
+      sourceLabel: "Open forecast",
+    },
+    {
+      title: "Open Corrective Actions",
+      value: totals.openActions,
+      detail: liveWithoutOpenActions ? "None Open" : "High Priority",
+      tone: "text-red-400",
+      icon: <ClipboardCheck className="h-7 w-7" />,
+      href: "/safe-predict/risk-mitigation#corrective-action-tracker",
+      sourceLabel: "Open action tracker",
+    },
+    {
+      title: "Completed Inspections",
+      value: completedInspections,
+      detail: liveWithoutCompletedInspections ? "None Completed" : "This Week",
+      tone: "text-emerald-400",
+      icon: <ShieldCheck className="h-7 w-7" />,
+      href: "/safe-predict/inspections",
+      sourceLabel: "Open inspection rows",
+    },
+    {
+      title: "Training Compliance Rate",
+      value: `${complianceRate}%`,
+      detail: "Compliant",
+      tone: "text-emerald-400",
+      icon: <GraduationCap className="h-7 w-7" />,
+      href: "/safe-predict/workforce#training-matrix",
+      sourceLabel: "Open training matrix",
+    },
+  ];
+
+  return (
+    <section className="mt-5 grid overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(90deg,#071d34_0%,#031426_100%)] shadow-[0_24px_60px_rgba(2,6,23,0.24)] md:grid-cols-2 2xl:grid-cols-[repeat(5,minmax(0,1fr))_260px]">
+      {kpis.map((item) => (
+        <Link key={item.title} href={item.href} className="group min-w-0 border-b border-white/10 p-5 text-white transition hover:bg-white/5 md:border-r 2xl:border-b-0">
+          <div className="flex items-start gap-4">
+            <span className={cx("grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-white/6", item.tone)}>
+              {item.icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{item.title}</p>
+              <div className="mt-3 flex items-end gap-2">
+                <p className={cx("text-4xl font-black leading-none", item.tone)}>{item.value}</p>
+                {"suffix" in item && item.suffix ? <p className="pb-1 text-sm font-bold text-slate-300">{item.suffix}</p> : null}
+              </div>
+              <p className={cx("mt-2 text-sm font-black", item.tone)}>{item.detail}</p>
+            </div>
+          </div>
+          {item.sparkline ? <div className="mt-4 h-[44px]">{item.sparkline}</div> : <div className="mt-4 h-[44px]" />}
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-blue-300">
+            {item.sourceLabel}
+            <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+          </span>
+        </Link>
+      ))}
+      <div className="hidden items-center justify-center border-l border-white/10 p-4 2xl:flex">
+        <div className="relative h-full min-h-[150px] w-full overflow-hidden rounded-lg border border-blue-300/15 bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(3,7,18,0.82))] p-5">
+          <p className="relative z-10 mt-8 text-lg font-black text-white">Work safe today.<br />Go home safe.</p>
+          <p className="relative z-10 mt-4 text-xs font-semibold leading-5 text-slate-300">Every action. Every worker. Every day.</p>
+          <div className="absolute bottom-4 right-4 h-24 w-28 border border-blue-300/30 opacity-70" />
+          <div className="absolute bottom-8 right-10 h-24 w-px bg-blue-200/30" />
+          <div className="absolute bottom-8 right-16 h-20 w-px bg-blue-200/30" />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -844,206 +1048,92 @@ export default function SafePredictDashboardPage() {
   const liveWithoutOpenActions = dataset.mode === "live" && totals.openActions === 0;
   const liveWithoutCompletedInspections = dataset.mode === "live" && completedInspections === 0;
   const selectedCommandSite =
-    dataset.jobsites.find((site) => site.id === selectedSiteId) ?? dataset.jobsites[0] ?? null;
+    dataset.jobsites.find((site) => site.id === selectedSiteId) ?? (selectedSiteId === "all" ? highestRiskJobsite(dataset.jobsites) : null) ?? dataset.jobsites[0] ?? null;
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
-      <PageHeader
-        title="Dashboard"
-        subtitle="Executive Overview"
-        actions={
-          <>
-            <SelectShell
-              value={selectedJobsiteId}
-              onChange={setSelectedJobsiteId}
-              options={[
-                { label: "All Sites", value: "all" },
-                ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
-              ]}
-            />
-            <ExportButton
-              fileName="safe-predict-dashboard.json"
-              label="Export dashboard snapshot"
-              payload={{ company: dataset.company, jobsites: dataset.jobsites, employees: dataset.employees, alerts: dataset.alerts, mitigations: safePredictMitigations, actions: dataset.actions, permits: dataset.permits }}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </ExportButton>
-            <span className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm">
-              <CalendarDays className="h-4 w-4" aria-hidden />
-              May 11 - May 17, 2025
-            </span>
-          </>
-        }
-      />
+    <div className="min-h-[calc(100vh-5rem)] bg-[linear-gradient(180deg,#f5f9ff_0%,#eef4fb_58%,#f8fbff_100%)] px-4 pb-8 sm:px-7">
+      <div className="flex flex-col gap-4 py-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-app-display text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl">Dashboard</h1>
+          <p className="mt-2 text-base text-slate-600">Executive Overview</p>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-3 2xl:w-auto 2xl:justify-end">
+          <SelectShell
+            value={selectedJobsiteId}
+            onChange={setSelectedJobsiteId}
+            options={[
+              { label: "All Sites", value: "all" },
+              ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
+            ]}
+            className="2xl:min-w-[360px]"
+          />
+          <span className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm">
+            <CalendarDays className="h-4 w-4" aria-hidden />
+            May 11 - May 17, 2025
+          </span>
+          <ExportButton
+            fileName="safe-predict-dashboard.json"
+            label="Export dashboard snapshot"
+            payload={{ company: dataset.company, jobsites: dataset.jobsites, employees: dataset.employees, alerts: dataset.alerts, mitigations: safePredictMitigations, actions: dataset.actions, permits: dataset.permits }}
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 text-sm font-black text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </ExportButton>
+        </div>
+      </div>
 
-      <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-stretch">
-          <div className="min-w-0 rounded-lg border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
-                    Site Command
-                  </span>
-                  <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Company Account
-                  </span>
-                </div>
-                <h2 className="mt-3 text-2xl font-black leading-tight tracking-tight text-slate-950">{dataset.company.name}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  {dataset.company.industry} tenant based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
-                </p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden />
-                {dataset.mode === "live" ? "Live data" : "Workspace data"}
+      <section className="grid gap-3 2xl:grid-cols-[320px_minmax(0,1fr)_250px]">
+        <CompanyCommandPanel dataset={dataset} totals={totals} />
+        <div className="min-w-0">
+          <JobsiteRiskMap jobsites={dataset.jobsites} selectedJobsiteId={selectedJobsiteId} onSelectJobsite={setSelectedJobsiteId} />
+          <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 shadow-sm xl:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Selected focus</span>
+                <span className="mt-1 block truncate text-base font-black text-slate-950">{selectedCommandSite?.name ?? "No jobsite selected"}</span>
               </span>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {[
-                { title: "Workforce", value: totals.employees, detail: `${totals.overdueEmployees} overdue`, href: "/safe-predict/workforce#employee-roster", tone: "text-red-600", bar: "bg-red-500" },
-                { title: "Open Actions", value: totals.openActions, detail: "Across all jobsites", href: "/safe-predict/risk-mitigation#corrective-action-tracker", tone: "text-blue-700", bar: "bg-blue-600" },
-                { title: "Avg. Site Risk", value: totals.riskScore, detail: dataset.mode === "live" ? "Live score" : "Elevated", href: "/safe-predict/risk-mitigation#prioritized-risk-queue", tone: "text-orange-600", bar: "bg-orange-500" },
-              ].map((item) => (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="group relative block overflow-hidden rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
-                >
-                  <span className={cx("absolute inset-y-0 left-0 w-1", item.bar)} aria-hidden />
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{item.title}</p>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <p className="text-3xl font-black leading-none text-slate-950">{item.value}</p>
-                    <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-600" aria-hidden />
-                  </div>
-                  <p className={cx("mt-2 text-xs font-black", item.tone)}>{item.detail}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_18px_36px_rgba(15,23,42,0.16)]">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200/80">Selected focus</p>
-            <div className="mt-3 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-xl font-black leading-tight tracking-tight">{selectedCommandSite?.name ?? "No jobsite selected"}</h3>
-                <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
-                  {selectedCommandSite ? `${selectedCommandSite.workforceCount} workers / ${selectedCommandSite.openActions} open actions` : "Add active jobsites to populate the command board."}
-                </p>
-              </div>
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border border-white/10 bg-white/8">
-                <span className="text-center">
-                  <span className="block text-2xl font-black text-white">{selectedCommandSite?.riskScore ?? "--"}</span>
-                  <span className="text-[9px] font-black uppercase tracking-wide text-slate-300">Risk</span>
-                </span>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
               {selectedCommandSite ? <RiskBadge level={selectedCommandSite.riskLevel} /> : null}
-              <span className="rounded-md border border-white/10 bg-white/8 px-3 py-2 text-xs font-black text-slate-200">
-                {selectedCommandSite ? "Selected site" : "No site data"}
-              </span>
             </div>
           </div>
         </div>
+        <ActionPriorityRail actions={dataset.actions} />
       </section>
 
-      <JobsiteRiskMap
-        jobsites={dataset.jobsites}
-        selectedJobsiteId={selectedJobsiteId}
-        onSelectJobsite={setSelectedJobsiteId}
+      <CommandKpiStrip
+        totals={totals}
+        completedInspections={completedInspections}
+        complianceRate={complianceRate}
+        liveWithoutRiskData={liveWithoutRiskData}
+        liveWithoutForecast={liveWithoutForecast}
+        liveWithoutOpenActions={liveWithoutOpenActions}
+        liveWithoutCompletedInspections={liveWithoutCompletedInspections}
       />
 
-      <CompanyLogoPanel companyName={dataset.company.name} logoDataUrl={dataset.company.logoDataUrl} />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <MetricCard
-          title="Overall Site Risk Score"
-          value={totals.riskScore}
-          suffix="/100"
-          detail={liveWithoutRiskData ? "No Data" : "High Risk"}
-          trend={liveWithoutRiskData ? "Add jobsites and safety records to calculate a live score" : "Up 8 pts vs. last 7 days"}
-          tone={liveWithoutRiskData ? "blue" : "red"}
-          icon={<ShieldAlert className="h-7 w-7" />}
-          sparkline={liveWithoutRiskData ? undefined : <MiniSparkline data={[42, 47, 58, 44, 46, 56, 54]} />}
-          href="/safe-predict/risk-mitigation#prioritized-risk-queue"
-          sourceLabel="Open risk queue"
-        />
-        <MetricCard
-          title="Predicted Incident Risk"
-          value={liveWithoutForecast ? "No Data" : "24%"}
-          detail={liveWithoutForecast ? "Waiting for forecast" : "High"}
-          trend={liveWithoutForecast ? "Predictive risk appears after live inspections, observations, actions, permits, or workforce records exist" : "Up 6% vs. last 30 days"}
-          tone={liveWithoutForecast ? "blue" : "orange"}
-          icon={<TrendingUp className="h-7 w-7" />}
-          sparkline={liveWithoutForecast ? undefined : <MiniSparkline data={[20, 22, 31, 28, 35, 38, 47]} color="#f97316" />}
-          href="/safe-predict/predictive-risk#forecast-drivers"
-          sourceLabel="Open forecast"
-        />
-        <MetricCard
-          title="Open Corrective Actions"
-          value={totals.openActions}
-          detail={liveWithoutOpenActions ? "None Open" : "High Priority"}
-          trend={liveWithoutOpenActions ? "No corrective actions are currently open" : "Up 5 vs. last 7 days"}
-          tone={liveWithoutOpenActions ? "blue" : "red"}
-          icon={<ClipboardCheck className="h-7 w-7" />}
-          href="/safe-predict/risk-mitigation#corrective-action-tracker"
-          sourceLabel="Open action tracker"
-        />
-        <MetricCard
-          title="Completed Inspections"
-          value={completedInspections}
-          detail={liveWithoutCompletedInspections ? "None Completed" : "This Week"}
-          trend={liveWithoutCompletedInspections ? "Completed inspections will appear after field audits are logged" : "Up 18 vs. last 7 days"}
-          tone={liveWithoutCompletedInspections ? "blue" : "green"}
-          icon={<ShieldCheck className="h-7 w-7" />}
-          href="/safe-predict/inspections"
-          sourceLabel="Open inspection rows"
-        />
-        <MetricCard
-          title="Training Compliance Rate"
-          value={`${complianceRate}%`}
-          detail={dataset.mode === "live" && totals.employees === 0 ? "No workers" : "Compliant"}
-          trend={dataset.mode === "live" && totals.employees === 0 ? "Add workforce records to calculate compliance" : "Up 4% vs. last 7 days"}
-          tone="green"
-          icon={<GraduationCap className="h-7 w-7" />}
-          href="/safe-predict/workforce#training-matrix"
-          sourceLabel="Open training matrix"
-        />
-      </div>
-
-      <div className="mt-5 grid gap-5 2xl:grid-cols-[1.25fr_1fr]">
+      <div className="mt-5 grid gap-4 2xl:grid-cols-[1.18fr_0.9fr_1.05fr_0.78fr]">
         <Card className="p-5">
-          <SectionTitle
-            title="Predictive Risk Trend"
-            action={
-              <div className="hidden rounded-lg border border-slate-200 bg-white p-1 sm:flex">
-                {([30, 60, 90] as const).map((days) => (
-                  <button
-                    key={days}
-                    type="button"
-                    onClick={() => setForecastWindow(days)}
-                    aria-pressed={forecastWindow === days}
-                    className={cx(
-                      "rounded-md px-3 py-1.5 text-xs font-bold",
-                      forecastWindow === days ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
-                    )}
-                  >
-                    {days} Days
-                  </button>
-                ))}
-              </div>
-            }
-          />
+          <div className="flex items-start justify-between gap-3">
+            <SectionTitle title="Predictive Risk Trend" />
+            <div className="hidden rounded-lg border border-slate-200 bg-white p-1 sm:flex">
+              {([30, 60, 90] as const).map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setForecastWindow(days)}
+                  aria-pressed={forecastWindow === days}
+                  className={cx("rounded-md px-3 py-1.5 text-xs font-bold", forecastWindow === days ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50")}
+                >
+                  {days} Days
+                </button>
+              ))}
+            </div>
+          </div>
           {hasForecast ? (
             <>
               <div className="mt-4 inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
                 AI models indicate risk levels will remain elevated over the next {forecastWindow} days.
               </div>
-              <ForecastTrendChart data={displayedForecast} />
+              <CommandForecastChart data={displayedForecast} />
               <div className="mt-2 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">
                 <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 bg-red-500" /> Historical Risk</span>
                 <span className="inline-flex items-center gap-2"><span className="h-0.5 w-5 border-t border-dashed border-orange-500" /> Predicted Risk</span>
@@ -1053,95 +1143,52 @@ export default function SafePredictDashboardPage() {
               </div>
             </>
           ) : (
-            <EmptySafePredictPanel
-              title="No live forecast yet"
-              detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive trend."
-            />
+            <EmptySafePredictPanel title="No live forecast yet" detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive trend." />
           )}
         </Card>
 
         <Card className="p-5">
-          <SectionTitle
-            title="Risk Heat Map by Trade / Area"
-            action={<Link href="/safe-predict/risk-mitigation" className="text-sm font-bold text-blue-600">View Full Map</Link>}
-          />
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_168px]">
+          <SectionTitle title="Risk Heat Map by Trade / Area" action={<Link href="/safe-predict/risk-mitigation" className="text-sm font-bold text-blue-600">View Full Map</Link>} />
+          <div className="mt-4 grid gap-3">
             {dataset.mode === "live" ? <LiveDashboardRiskMap jobsites={dataset.jobsites} /> : <RiskHeatMap />}
-            <div className="rounded-lg border border-slate-200 p-4">
-              <p className="text-sm font-black text-slate-900">Risk Level</p>
-              <div className="mt-4 space-y-4 text-sm font-semibold text-slate-600">
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-500" /> High (70-100)</p>
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-orange-500" /> Medium (40-69)</p>
-                <p className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-500" /> Low (0-39)</p>
-              </div>
+            <div className="grid grid-cols-3 gap-2 text-xs font-bold text-slate-600">
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Low</span>
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Medium</span>
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> High</span>
             </div>
           </div>
         </Card>
-      </div>
 
-      <div className="mt-5 grid gap-5 2xl:grid-cols-[1.35fr_0.85fr]">
         <Card className="overflow-hidden">
           <div className="p-5 pb-2">
             <SectionTitle title="Top Recommended Mitigations" />
           </div>
-          <div className="space-y-3 p-4 pt-2 md:hidden">
-            {safePredictMitigations.map((item) => (
-              <article key={`${item.id}-mobile`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-base font-black leading-snug text-slate-950">{item.recommendation}</p>
-                  <RiskBadge level={item.priority} />
-                </div>
-                <p className="mt-2 text-sm leading-5 text-slate-600">{item.detail}</p>
-                <dl className="mt-3 grid gap-2 text-sm">
-                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2">
-                    <dt className="font-bold text-slate-500">Drivers</dt>
-                    <dd className="text-right font-semibold text-slate-800">{item.drivers.join(", ")}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2">
-                    <dt className="font-bold text-slate-500">Impact</dt>
-                    <dd className="font-semibold text-slate-800">{item.impact}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2">
-                    <dt className="font-bold text-slate-500">Timeline</dt>
-                    <dd className="font-semibold text-slate-800">{item.timeline}</dd>
-                  </div>
-                </dl>
-                <Link href={`/safe-predict/risk-mitigation#${item.id}`} className="mt-4 inline-flex w-full justify-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-600 hover:bg-blue-50">
-                  View Details
-                </Link>
-              </article>
-            ))}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="text-xs font-bold text-slate-500">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-xs">
+              <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                 <tr className="border-b border-slate-200">
                   <th className="px-5 py-3">Priority</th>
                   <th className="px-5 py-3">Recommendation</th>
-                  <th className="px-5 py-3">Risk Drivers</th>
                   <th className="px-5 py-3">Impact</th>
-                  <th className="px-5 py-3">Timeline</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {safePredictMitigations.map((item) => (
+                {safePredictMitigations.slice(0, 3).map((item) => (
                   <tr key={item.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-5 py-4"><RiskBadge level={item.priority} /></td>
                     <td className="px-5 py-4">
                       <p className="font-black text-slate-900">{item.recommendation}</p>
-                      <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+                      <p className="mt-1 text-slate-500">{item.drivers.join(", ")}</p>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">{item.drivers.join(", ")}</td>
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
-                        <span className="h-3 w-3 rounded-sm bg-red-500" />
-                        <span className="h-3 w-3 rounded-sm bg-red-500" />
-                        <span className="h-3 w-3 rounded-sm bg-red-500" />
+                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
                         {item.impact}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">{item.timeline}</td>
                     <td className="px-5 py-4">
                       <Link href={`/safe-predict/risk-mitigation#${item.id}`} className="inline-flex rounded-md border border-blue-500 px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50">
                         View Details
@@ -1153,23 +1200,26 @@ export default function SafePredictDashboardPage() {
             </table>
           </div>
           <div className="border-t border-slate-100 p-5">
-            <Link href="/safe-predict/risk-mitigation" className="font-bold text-blue-600">View All Recommendations</Link>
+            <Link href="/safe-predict/risk-mitigation" className="inline-flex items-center gap-2 font-bold text-blue-600">
+              View All Recommendations
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </Card>
 
         <Card className="p-5">
           <SectionTitle title="Recent Alerts" action={<Link href="/safe-predict/risk-mitigation" className="text-sm font-bold text-blue-600">View All Alerts</Link>} />
-          <div className="mt-5 divide-y divide-slate-100">
-            {dataset.alerts.slice(0, 3).map((alert) => (
-              <Link key={alert.id} href={`/safe-predict/risk-mitigation#${alert.id}`} className="flex items-start gap-4 py-4 first:pt-0 hover:bg-slate-50">
-                <span className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-full", alert.riskLevel === "critical" || alert.riskLevel === "high" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
+          <div className="mt-4 divide-y divide-slate-100">
+            {dataset.alerts.slice(0, 4).map((alert) => (
+              <Link key={alert.id} href={`/safe-predict/risk-mitigation#${alert.id}`} className="flex items-start gap-3 py-4 first:pt-0 hover:bg-slate-50">
+                <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-full", alert.riskLevel === "critical" || alert.riskLevel === "high" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
                   <AlertTriangle className="h-5 w-5" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-black text-slate-900">{alert.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{alert.detail}</p>
-                </div>
-                <span className="text-sm text-slate-500">{alert.timeAgo}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-black text-slate-900">{alert.title}</span>
+                  <span className="mt-1 block truncate text-sm text-slate-600">{alert.site}</span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-slate-500">{alert.timeAgo}</span>
               </Link>
             ))}
           </div>

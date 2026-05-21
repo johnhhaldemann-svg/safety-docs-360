@@ -30,6 +30,13 @@ describe("PredictiveModelView", () => {
     expect(html).toContain("Positive is worsening, negative is improving");
     expect(html).toContain("Share of active risk categories in the selected window.");
     expect(html).toContain("Confidence reflects data and model coverage, not a safety grade.");
+    expect(html).toContain("Safety AI Assessment");
+    expect(html).toContain("Explainable jobsite risk score");
+    expect(html).toContain("Guardrail:");
+    expect(html).toContain("does not guarantee OSHA compliance");
+    expect(html).toContain("Escalation status");
+    expect(html).toContain("Stop-work review");
+    expect(html).toContain("Missing data");
     expect(html).toContain("Human Behavior Risk");
     expect(html).toContain("Coaching and verification guidance");
     expect(html).toContain("Field verification required");

@@ -1,0 +1,140 @@
+import { describe, expect, it } from "vitest";
+import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
+
+describe("assessSafetyRisk", () => {
+  it("returns low for a complete low-risk scenario", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Housekeeping walkthrough",
+      trade: "General",
+      controlEffectiveness: "effective",
+      dataCompleteness: 0.95,
+      signals: [
+        { type: "observation", label: "Positive housekeeping observation", severity: "low", status: "closed" },
+        { type: "corrective_action", label: "Closed minor action", severity: "low", status: "closed" },
+        { type: "incident", label: "No incident pressure", severity: "low", status: "closed" },
+        { type: "high_risk_work", label: "Routine work", severity: "low", highRisk: false, status: "closed" },
+      ],
+    });
+
+    expect(result.level).toBe("low");
+    expect(result.score).toBeGreaterThanOrEqual(0);
+    expect(result.score).toBeLessThanOrEqual(40);
+  });
+
+  it("returns moderate or high when controls are missing", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Elevated work",
+      trade: "Steel",
+      controlEffectiveness: "missing",
+      dataCompleteness: 0.8,
+      signals: [
+        { type: "observation", label: "Open edge observation", severity: "medium", status: "open", controlGap: 5 },
+        { type: "corrective_action", label: "Guardrail action", severity: "medium", status: "open" },
+      ],
+    });
+
+    expect(["moderate", "high"]).toContain(result.level);
+    expect(result.topDrivers.map((driver) => driver.category)).toContain("controls");
+  });
+
+  it("forces critical for fatality potential with missing controls", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Leading edge deck work",
+      trade: "Steel",
+      controlEffectiveness: "missing",
+      dataCompleteness: 0.85,
+      fatalityOrCatastrophicPotential: true,
+      signals: [{ type: "high_risk_work", label: "Leading edge work", severity: "fatal", highRisk: true }],
+    });
+
+    expect(result.level).toBe("critical");
+    expect(result.score).toBeGreaterThanOrEqual(81);
+    expect(result.escalationRequired).toBe(true);
+    expect(result.stopWorkReviewRecommended).toBe(true);
+  });
+
+  it("reduces confidence and reports missing data", () => {
+    const result = assessSafetyRisk({
+      controlEffectiveness: "unknown",
+      signals: [],
+    });
+
+    expect(result.confidence).toBe("low");
+    expect(result.missingData).toEqual(expect.arrayContaining(["jobsite", "task", "trade"]));
+  });
+
+  it("requires escalation for high and critical findings", () => {
+    const high = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Hot work",
+      trade: "Mechanical",
+      controlEffectiveness: "partial",
+      scores: { severity: 4, likelihood: 4, exposureFrequency: 4, controlGap: 4, dataConfidenceConcern: 2 },
+      signals: [{ type: "high_risk_work", label: "Hot work", severity: "high", highRisk: true }],
+    });
+    const critical = assessSafetyRisk({
+      imminentDanger: true,
+      controlEffectiveness: "ineffective",
+      signals: [{ type: "observation", label: "Imminent danger", imminentDanger: true, severity: "critical" }],
+    });
+
+    expect(high.level).toBe("high");
+    expect(high.escalationRequired).toBe(true);
+    expect(critical.level).toBe("critical");
+    expect(critical.escalationRequired).toBe(true);
+  });
+
+  it("orders recommendations by hierarchy of controls", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Critical lift",
+      trade: "Crane",
+      highRiskWorkCategories: ["critical_lift"],
+      controlEffectiveness: "missing",
+      fatalityOrCatastrophicPotential: true,
+      signals: [{ type: "high_risk_work", label: "Critical lift", highRisk: true, severity: "critical" }],
+    });
+
+    expect(result.recommendations.map((item) => item.controlType).slice(0, 5)).toEqual([
+      "elimination",
+      "substitution",
+      "engineering",
+      "administrative",
+      "competent_person_review",
+    ]);
+  });
+
+  it("normalizes scores to 0-100", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "General work",
+      trade: "General",
+      controlEffectiveness: "effective",
+      scores: { severity: 99, likelihood: -3, exposureFrequency: 2, controlGap: 1, dataConfidenceConcern: 1 },
+      signals: [{ type: "observation", label: "General signal", severity: "low" }],
+    });
+
+    expect(result.score).toBeGreaterThanOrEqual(0);
+    expect(result.score).toBeLessThanOrEqual(100);
+  });
+
+  it("includes the main risk drivers and guarded wording in the explanation", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Electrical tie-in",
+      trade: "Electrical",
+      controlEffectiveness: "partial",
+      missingRequiredPermit: true,
+      highRiskWorkCategories: ["energized_electrical"],
+      signals: [{ type: "permit_gap", label: "Missing electrical permit", severity: "high", missingRequiredPermit: true }],
+    });
+
+    expect(result.explanation).toContain("Based on available data");
+    expect(result.explanation).toContain("potential risk");
+    expect(result.explanation).toContain("review recommended");
+    expect(result.explanation).toContain(result.topDrivers[0]?.label ?? "");
+  });
+});

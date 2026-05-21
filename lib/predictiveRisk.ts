@@ -20,6 +20,8 @@ import {
   type BehaviorRiskScheduleItemRow,
   type BehaviorRiskTrainingGapRow,
 } from "@/lib/predictive/behaviorRisk";
+import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
+import type { SafetyAiAssessment, SafetyAiSignal } from "@/lib/safety-ai/types";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -92,6 +94,7 @@ export type PredictiveRiskPayload = {
     dataScope: NonNullable<InjuryWeatherDashboardData["predictabilityDataSource"]>["dataScope"];
   };
   behaviorRisk: BehaviorRiskResult;
+  safetyAiAssessment: SafetyAiAssessment;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -510,6 +513,199 @@ function provenanceNote(data: InjuryWeatherDashboardData, rowCount: number) {
   return `${base} Location rankings use jobsite-aware records in the selected customer window.`;
 }
 
+function signalSeverity(value: string | null | undefined, fallback: string) {
+  const normalized = String(value ?? "").toLowerCase();
+  if (normalized.includes("fatal") || normalized.includes("catastrophic")) return "fatal";
+  if (normalized.includes("critical") || normalized.includes("urgent")) return "critical";
+  if (normalized.includes("high")) return "high";
+  if (normalized.includes("medium") || normalized.includes("moderate")) return "medium";
+  if (normalized.includes("low") || normalized.includes("minor")) return "low";
+  return fallback;
+}
+
+function isNearMiss(row: PredictiveRiskIncidentRow) {
+  const text = `${row.category ?? ""} ${row.title ?? ""} ${row.description ?? ""}`.toLowerCase();
+  return text.includes("near_miss") || text.includes("near miss");
+}
+
+function isPermitGap(row: PredictiveRiskPermitRow) {
+  const status = String(row.status ?? "").toLowerCase();
+  return status.includes("expired") || status.includes("missing") || status.includes("draft") || status.includes("pending");
+}
+
+function isFatalPotentialText(...values: Array<string | null | undefined>) {
+  const text = values.join(" ").toLowerCase();
+  return /fatal|catastrophic|sif|serious injury|life[- ]?threat/.test(text);
+}
+
+function buildSafetyAiSignals(input: {
+  correctiveActions: PredictiveRiskCorrectiveActionRow[];
+  incidents: PredictiveRiskIncidentRow[];
+  permits: PredictiveRiskPermitRow[];
+  jsaActivities: PredictiveRiskJsaActivityRow[];
+  scheduleItems?: PredictiveRiskScheduleItemRow[];
+  observations?: BehaviorRiskObservationRow[];
+  trainingGaps?: BehaviorRiskTrainingGapRow[];
+}): SafetyAiSignal[] {
+  return [
+    ...input.incidents.map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: isNearMiss(row) ? "near_miss" : "incident",
+      label: row.title ?? row.category ?? "Incident signal",
+      hazard: row.category ?? null,
+      severity: signalSeverity(row.severity ?? row.escalation_level, row.sif_flag ? "critical" : "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? row.occurred_at ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      fatalityOrCatastrophicPotential: row.sif_flag || isFatalPotentialText(row.title, row.description, row.category, row.severity),
+    })),
+    ...(input.observations ?? []).map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: String(row.status ?? "").toLowerCase().includes("fail") ? "inspection_failure" : "observation",
+      label: row.description ?? row.category ?? row.hazard_category_code ?? "Safety observation",
+      hazard: row.hazard_category_code ?? row.category ?? row.subcategory ?? null,
+      severity: signalSeverity(row.severity, "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? row.date ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      trade: row.trade ?? null,
+    })),
+    ...input.correctiveActions.map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: "corrective_action",
+      label: row.title ?? row.category ?? "Corrective action",
+      hazard: row.category ?? row.title ?? null,
+      severity: signalSeverity(row.severity ?? row.priority, row.sif_potential ? "critical" : "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      fatalityOrCatastrophicPotential: row.sif_potential || isFatalPotentialText(row.title, row.category, row.severity),
+      overdueCorrectiveAction: overdueWeight(row.due_at) > 0,
+    })),
+    ...input.permits.map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: isPermitGap(row) ? "permit_gap" : "high_risk_work",
+      label: row.title ?? row.permit_type ?? "Permit signal",
+      hazard: row.permit_type ?? row.category ?? null,
+      severity: signalSeverity(row.severity ?? row.escalation_level, row.sif_flag ? "critical" : "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      highRisk: row.sif_flag || signalSeverity(row.severity ?? row.escalation_level, "low") === "high",
+      imminentDanger: String(row.stop_work_status ?? "").toLowerCase().includes("stop_work"),
+      fatalityOrCatastrophicPotential: row.sif_flag || isFatalPotentialText(row.title, row.permit_type, row.category, row.severity),
+      missingRequiredPermit: isPermitGap(row),
+    })),
+    ...input.jsaActivities.map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: "high_risk_work",
+      label: row.activity_name ?? row.hazard_category ?? "JSA activity",
+      hazard: row.hazard_category ?? row.hazard_description ?? null,
+      severity: signalSeverity(row.planned_risk_level ?? row.status, "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? row.work_date ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      trade: row.trade ?? null,
+      task: row.activity_name ?? null,
+      crewSize: row.crew_size ?? null,
+      highRisk: signalSeverity(row.planned_risk_level, "medium") === "high" || signalSeverity(row.planned_risk_level, "medium") === "critical",
+      missingRequiredPermit: Boolean(row.permit_required && !row.permit_type),
+      missingCompetentPersonReview: !/competent person|supervisor|verify|verified|foreman|sign[- ]?off/i.test(row.mitigation ?? ""),
+      controlGap: /use ppe|be careful|watch your surroundings|use caution|stay aware/i.test(row.mitigation ?? "") ? 4 : undefined,
+      fatalityOrCatastrophicPotential: isFatalPotentialText(row.activity_name, row.hazard_category, row.hazard_description, row.planned_risk_level),
+    })),
+    ...(input.scheduleItems ?? []).map((row): SafetyAiSignal => ({
+      id: row.id,
+      type: "high_risk_work",
+      label: row.title ?? "Scheduled work",
+      hazard: row.hazard_categories?.[0] ?? row.permit_triggers?.[0] ?? null,
+      severity: signalSeverity(row.risk_level, row.is_high_risk ? "high" : "medium"),
+      status: row.status ?? null,
+      createdAt: row.created_at ?? row.work_start_date ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      trade: row.trade ?? null,
+      task: row.title ?? null,
+      crewSize: row.crew_size ?? null,
+      highRisk: row.is_high_risk || signalSeverity(row.risk_level, "medium") === "high" || signalSeverity(row.risk_level, "medium") === "critical",
+      missingRequiredPermit: (row.permit_triggers?.length ?? 0) > 0,
+      missingCompetentPersonReview: !row.supervisor_name,
+      controlGap: row.is_high_risk && (row.required_controls?.length ?? 0) === 0 ? 5 : undefined,
+      fatalityOrCatastrophicPotential: isFatalPotentialText(row.title, row.risk_level, ...(row.hazard_categories ?? [])),
+    })),
+    ...(input.trainingGaps ?? []).map((row): SafetyAiSignal => ({
+      id: row.id ?? row.worker_id,
+      type: "training_gap",
+      label: row.requirement ?? row.task_name ?? "Training gap",
+      severity: "high",
+      status: row.status ?? null,
+      createdAt: row.expires_at ?? null,
+      jobsiteId: row.jobsite_id ?? null,
+      trade: row.trade ?? null,
+      task: row.task_name ?? null,
+      missingRequiredTraining: true,
+    })),
+  ];
+}
+
+function buildSafetyAiAssessment(input: {
+  days: number;
+  jobsiteId?: string | null;
+  jobsites: PredictiveRiskJobsiteRow[];
+  correctiveActions: PredictiveRiskCorrectiveActionRow[];
+  incidents: PredictiveRiskIncidentRow[];
+  permits: PredictiveRiskPermitRow[];
+  jsaActivities: PredictiveRiskJsaActivityRow[];
+  scheduleItems?: PredictiveRiskScheduleItemRow[];
+  observations?: BehaviorRiskObservationRow[];
+  trainingGaps?: BehaviorRiskTrainingGapRow[];
+}) {
+  const signals = buildSafetyAiSignals(input);
+  const requestedJobsite = input.jobsiteId
+    ? input.jobsites.find((jobsite) => jobsite.id === input.jobsiteId)
+    : null;
+  const highRiskWorkCategories = signals
+    .filter((signal) => signal.highRisk || signal.type === "high_risk_work")
+    .map((signal) => signal.hazard ?? signal.label)
+    .filter(Boolean)
+    .slice(0, 8) as string[];
+  const missingRequiredPermit = signals.some((signal) => signal.missingRequiredPermit);
+  const missingRequiredTraining = signals.some((signal) => signal.missingRequiredTraining);
+  const missingCompetentPersonReview = signals.some((signal) => signal.missingCompetentPersonReview);
+  const overdueCorrectiveActionForHazard = signals.some((signal) => signal.overdueCorrectiveAction);
+  const openControls = signals.some((signal) => signal.type === "corrective_action" && isOpenStatus(signal.status));
+  const controlEffectiveness =
+    signals.length === 0
+      ? "unknown"
+      : signals.some((signal) => signal.controlGap === 5)
+        ? "missing"
+        : missingRequiredPermit || missingRequiredTraining || missingCompetentPersonReview || openControls
+          ? "partial"
+          : "effective";
+
+  return assessSafetyRisk({
+    jobsiteId: input.jobsiteId ?? null,
+    jobsiteName: requestedJobsite?.name ?? (input.jobsites.length > 1 ? "All visible jobsites" : input.jobsites[0]?.name ?? null),
+    location: requestedJobsite?.location ?? input.jobsites[0]?.location ?? null,
+    taskType: highRiskWorkCategories[0] ?? null,
+    trade: signals.find((signal) => signal.trade)?.trade ?? null,
+    crewExposure: Math.max(0, ...signals.map((signal) => signal.crewSize ?? 0)),
+    highRiskWorkCategories,
+    controlEffectiveness,
+    dataCompleteness: Math.min(1, Math.max(0.15, new Set(signals.map((signal) => signal.type)).size / 5)),
+    signals,
+    missingData: [
+      ...(input.observations == null ? ["safety observations"] : []),
+      ...(input.scheduleItems == null ? ["work schedule"] : []),
+    ],
+    imminentDanger: signals.some((signal) => signal.imminentDanger),
+    fatalityOrCatastrophicPotential: signals.some((signal) => signal.fatalityOrCatastrophicPotential),
+    missingRequiredTraining,
+    missingRequiredPermit,
+    missingCompetentPersonReview,
+    overdueCorrectiveActionForHazard,
+  });
+}
+
 export function buildPredictiveRiskPayload(input: {
   projectId?: string | null;
   days: number;
@@ -538,6 +734,18 @@ export function buildPredictiveRiskPayload(input: {
     observations: input.observations ?? [],
     scheduleItems: input.scheduleItems ?? [],
     trainingGaps: input.trainingGaps ?? [],
+  });
+  const safetyAiAssessment = buildSafetyAiAssessment({
+    days,
+    jobsiteId: input.jobsiteId,
+    jobsites: input.jobsites,
+    correctiveActions: input.correctiveActions,
+    incidents: input.incidents,
+    permits: input.permits,
+    jsaActivities: input.jsaActivities,
+    scheduleItems: input.scheduleItems,
+    observations: input.observations,
+    trainingGaps: input.trainingGaps,
   });
   const accumulators = buildLocationAccumulators({
     rows,
@@ -708,6 +916,7 @@ export function buildPredictiveRiskPayload(input: {
       dataScope: predictabilityDataSource.dataScope,
     },
     behaviorRisk,
+    safetyAiAssessment,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };

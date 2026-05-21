@@ -244,6 +244,8 @@ describe("/api/company/predictive-risk", () => {
     expect(res.status).toBe(200);
     expect(body.locations[0].label).toBe("North Building");
     expect(body.summary.predictedIncidents).toBe(2);
+    expect(body.safetyAiAssessment.score).toBeGreaterThan(0);
+    expect(body.safetyAiAssessment.explanation).toContain("Based on available data");
     expect(getInjuryWeatherDashboardData).toHaveBeenCalledWith(expect.objectContaining({ companyId: "co1", jobsiteId: "j1" }));
     expect(builders.company_corrective_actions.eq).toHaveBeenCalledWith("jobsite_id", "j1");
   });

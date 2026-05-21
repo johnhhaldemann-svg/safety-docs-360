@@ -38,6 +38,26 @@ function behaviorTone(level?: string) {
   return "text-emerald-600";
 }
 
+function safetyLevelTone(level?: string) {
+  if (level === "critical") return "text-red-700";
+  if (level === "high") return "text-red-600";
+  if (level === "moderate") return "text-amber-600";
+  return "text-emerald-600";
+}
+
+function safetyBadgeClass(level?: string) {
+  if (level === "critical") return "border-red-200 bg-red-50 text-red-700";
+  if (level === "high") return "border-orange-200 bg-orange-50 text-orange-700";
+  if (level === "moderate" || level === "medium") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
+function confidenceBadgeClass(confidence?: string) {
+  if (confidence === "high") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (confidence === "medium") return "border-sky-200 bg-sky-50 text-sky-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
 function recommendationStatusTone(status?: string) {
   if (status === "field_used" || status === "resolved") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "accepted" || status === "assigned") return "border-sky-200 bg-sky-50 text-sky-700";
@@ -201,6 +221,136 @@ function ModelExplanationPanel({
               <p>{driverLine}</p>
             </div>
           </details>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SafetyAiAssessmentPanel({ data, loading }: { data: PredictiveRiskPayload | null; loading: boolean }) {
+  const assessment = data?.safetyAiAssessment;
+  const drivers = assessment?.topDrivers.slice(0, 3) ?? [];
+  const recommendations = assessment?.recommendations.slice(0, 4) ?? [];
+  const missingData = assessment?.missingData ?? [];
+  const levelLabel = assessment?.level ?? "pending";
+  const confidenceLabel = assessment?.confidence ?? "low";
+
+  return (
+    <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-teal-700">Safety AI Assessment</p>
+          <h2 className="mt-2 text-lg font-black text-[var(--app-text-strong)]">Explainable jobsite risk score</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-muted)]">
+            Transparent rules score severity, likelihood, exposure, control gaps, and data-confidence concern so leaders can see why a potential risk was flagged.
+          </p>
+        </div>
+        <div className="grid min-w-[260px] grid-cols-2 gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Score</p>
+            <p className={`mt-1 font-app-display text-3xl font-black ${safetyLevelTone(assessment?.level)}`}>
+              {loading ? "-" : assessment?.score ?? 0}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <span className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(assessment?.level)}`}>
+              {levelLabel}
+            </span>
+            <span className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${confidenceBadgeClass(assessment?.confidence)}`}>
+              {confidenceLabel} confidence
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 text-xs leading-5 text-[var(--app-text)]">
+        <span className="font-bold text-[var(--app-text-strong)]">Guardrail:</span>{" "}
+        This rules-based guidance does not guarantee OSHA compliance and does not replace a competent person, safety manager, legal review, or professional judgment.
+      </div>
+
+      {assessment ? (
+        <p className="mt-4 text-sm leading-6 text-[var(--app-text)]">{assessment.explanation}</p>
+      ) : (
+        <p className="mt-4 text-sm leading-6 text-[var(--app-muted)]">Safety AI assessment will appear after the predictive model loads.</p>
+      )}
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Top risk drivers</h3>
+          <div className="mt-3 space-y-2">
+            {drivers.map((driver, index) => (
+              <div key={`${driver.category}-${driver.label}`} className="rounded-lg border border-[var(--app-border)] bg-slate-50/70 px-3 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{index + 1}. {driver.label}</p>
+                  <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(driver.impact)}`}>
+                    {driver.impact}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{driver.explanation}</p>
+              </div>
+            ))}
+            {!loading && drivers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-5 text-center text-sm text-[var(--app-muted)]">
+                No Safety AI drivers available yet.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-5">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Recommended next actions</h3>
+          <div className="mt-3 space-y-2">
+            {recommendations.map((recommendation) => (
+              <div key={`${recommendation.controlType}-${recommendation.title}`} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
+                    {recommendation.controlType.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">
+                    {recommendation.priority} priority
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{recommendation.title}</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{recommendation.reason}</p>
+              </div>
+            ))}
+            {!loading && recommendations.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-5 text-center text-sm text-[var(--app-muted)]">
+                Recommendations appear when safety signals are available.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-3">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Escalation status</h3>
+          <div className="mt-3 space-y-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 text-sm">
+            <p className="flex items-center justify-between gap-3">
+              <span className="font-semibold text-[var(--app-text)]">Escalation</span>
+              <span className={assessment?.escalationRequired ? "font-black text-red-700" : "font-black text-emerald-700"}>
+                {assessment?.escalationRequired ? "Required" : "Not required"}
+              </span>
+            </p>
+            <p className="flex items-center justify-between gap-3">
+              <span className="font-semibold text-[var(--app-text)]">Stop-work review</span>
+              <span className={assessment?.stopWorkReviewRecommended ? "font-black text-red-700" : "font-black text-emerald-700"}>
+                {assessment?.stopWorkReviewRecommended ? "Recommended" : "Not recommended"}
+              </span>
+            </p>
+          </div>
+
+          <h3 className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Missing data</h3>
+          <div className="mt-3 rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            {missingData.length > 0 ? (
+              <ul className="space-y-1 text-xs leading-5 text-[var(--app-text)]">
+                {missingData.slice(0, 6).map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs leading-5 text-[var(--app-muted)]">No major missing data was flagged for this assessment.</p>
+            )}
+          </div>
         </div>
       </div>
     </section>
@@ -521,6 +671,8 @@ export function PredictiveModelView({
         {data?.leadershipTrust ? <TrustSummaryPanel trust={data.leadershipTrust} compact /> : null}
 
         <ModelExplanationPanel data={data} days={days} />
+
+        <SafetyAiAssessmentPanel data={data} loading={loading} />
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard

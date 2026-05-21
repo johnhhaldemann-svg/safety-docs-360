@@ -42,6 +42,17 @@ function predictive(overrides?: Partial<PredictiveRiskPayload>): PredictiveRiskP
       byTrade: [],
       bySupervisor: [],
     },
+    safetyAiAssessment: {
+      score: 0,
+      level: "low",
+      confidence: "low",
+      topDrivers: [],
+      recommendations: [],
+      escalationRequired: false,
+      stopWorkReviewRecommended: false,
+      explanation: "No safety AI signals in test fixture.",
+      missingData: [],
+    },
     leadershipTrust: {
       lastUpdatedAt: "2026-05-20T00:00:00.000Z",
       dateWindowLabel: "Last 30 days",

@@ -158,6 +158,9 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.actions[0]?.target).toBe("North Building");
     expect(payload.behaviorRisk.behaviorRiskScore).toBeGreaterThan(0);
     expect(payload.behaviorRisk.topDrivers.map((driver) => driver.driver)).toContain("weak_jsa_language");
+    expect(payload.safetyAiAssessment.score).toBeGreaterThan(0);
+    expect(payload.safetyAiAssessment.topDrivers.length).toBeGreaterThan(0);
+    expect(payload.safetyAiAssessment.explanation).toContain("Based on available data");
   });
 
   it("falls back to forecast categories when no jobsite-aware rows exist", () => {
@@ -176,6 +179,8 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.summary.averageRiskScore).toBe(61);
     expect(payload.model.provenanceNote).toContain("No jobsite-aware records");
     expect(payload.behaviorRisk.riskLevel).toBe("Low");
+    expect(payload.safetyAiAssessment.confidence).toBe("low");
+    expect(payload.safetyAiAssessment.missingData).toContain("recent safety signals");
   });
 
   it("builds a populated sales demo payload", () => {
@@ -184,5 +189,7 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.summary.confidencePercent).toBe(85);
     expect(payload.actions.length).toBeGreaterThan(0);
     expect(payload.behaviorRisk.behaviorRiskScore).toBeGreaterThan(0);
+    expect(payload.safetyAiAssessment.level).toBe("critical");
+    expect(payload.safetyAiAssessment.stopWorkReviewRecommended).toBe(true);
   });
 });
