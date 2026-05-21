@@ -95,6 +95,8 @@ export async function requestAiResponsesText(params: {
   outputSchemaVersion?: string | null;
   cacheHit?: boolean | null;
   evalFixtureId?: string | null;
+  /** Deterministic server-side tools used before this model call. */
+  toolCallsUsed?: number | null;
   /** Override retry attempts (default 3). Set to 1 to disable retries. */
   maxAttempts?: number;
   /** Optional abort signal for caller-specific timeouts. */
@@ -111,7 +113,12 @@ export async function requestAiResponsesText(params: {
   const promptVersion = params.promptVersion?.trim() || null;
   const outputSchemaVersion = params.outputSchemaVersion?.trim() || null;
   const evalFixtureId = params.evalFixtureId?.trim() || process.env.AI_EVAL_FIXTURE_ID?.trim() || null;
-  const toolCallsUsed = Array.isArray(params.body?.tools) ? params.body.tools.length : 0;
+  const toolCallsUsed =
+    params.toolCallsUsed == null
+      ? Array.isArray(params.body?.tools)
+        ? params.body.tools.length
+        : 0
+      : Math.max(0, Math.round(params.toolCallsUsed));
   const cacheHit = Boolean(params.cacheHit);
 
   if (!apiKey) {
@@ -379,6 +386,7 @@ export async function runStructuredAiJsonTask<T>(params: {
   traceId?: string | null;
   cacheHit?: boolean | null;
   evalFixtureId?: string | null;
+  toolCallsUsed?: number | null;
 }): Promise<{
   parsed: T;
   text: string | null;
@@ -398,6 +406,7 @@ export async function runStructuredAiJsonTask<T>(params: {
     traceId: params.traceId,
     cacheHit: params.cacheHit,
     evalFixtureId: params.evalFixtureId,
+    toolCallsUsed: params.toolCallsUsed,
   });
 
   if (!response.text) {

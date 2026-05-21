@@ -32,6 +32,26 @@ vi.mock("@/lib/superadmin/aiEngineOperations", () => ({
     recommendations: [],
     summary: "Snapshot refreshed.",
   })),
+  validateAiEngineToolNames: vi.fn((tools?: string[] | null) => {
+    const allowed = new Set([
+      "get_ai_metrics",
+      "get_ai_calls",
+      "get_eval_coverage",
+      "get_feedback_signals",
+      "get_visual_job_health",
+      "get_release_gate_snapshot",
+    ]);
+    const invalid = (tools ?? []).filter((tool) => !allowed.has(tool));
+    return invalid.length ? { ok: false, invalid } : { ok: true, tools: tools ?? ["get_ai_metrics"] };
+  }),
+  runAiEngineDiagnostics: vi.fn(async () => ({
+    ok: true,
+    toolResults: [],
+    toolResultsSummary: [{ toolName: "get_ai_metrics", rowCount: 0, evidenceIds: [] }],
+    recommendations: [],
+    summary: "Diagnostics refreshed.",
+    summaryMeta: { toolCallsUsed: 1 },
+  })),
 }));
 
 import { authorizeRequest } from "@/lib/rbac";
@@ -40,6 +60,7 @@ import * as callsRoute from "./calls/route";
 import * as feedbackRoute from "./feedback/route";
 import * as evalsRoute from "./evals/route";
 import * as recommendationsRoute from "./recommendations/route";
+import * as diagnosticsRoute from "./diagnostics/route";
 import * as aiEngineOperations from "@/lib/superadmin/aiEngineOperations";
 
 const mockedAuthorize = vi.mocked(authorizeRequest);
@@ -109,6 +130,14 @@ describe("/api/superadmin/ai-engine", () => {
     await expect(
       recommendationsRoute.GET(new Request("https://example.com/api/superadmin/ai-engine/recommendations"))
     ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      diagnosticsRoute.POST(
+        new Request("https://example.com/api/superadmin/ai-engine/diagnostics", {
+          method: "POST",
+          body: JSON.stringify({ surface: "all", tools: ["get_ai_metrics"] }),
+        })
+      )
+    ).resolves.toMatchObject({ status: 200 });
   });
 
   it("records learning-loop feedback only for super admins", async () => {
@@ -163,5 +192,23 @@ describe("/api/superadmin/ai-engine", () => {
     expect(response.status).toBe(200);
     expect(aiEngineOperations.getAiEngineRecommendationSnapshot).toHaveBeenCalledTimes(1);
     expect(aiEngineOperations.refreshAiEngineRecommendationSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid read-only diagnostic tools", async () => {
+    mockedAuthorize.mockResolvedValue(authForRole("super_admin"));
+
+    const response = expectResponse(
+      await diagnosticsRoute.POST(
+        new Request("https://example.com/api/superadmin/ai-engine/diagnostics", {
+          method: "POST",
+          body: JSON.stringify({ tools: ["drop_database"] }),
+        })
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("Invalid AI Engine tool");
+    expect(aiEngineOperations.runAiEngineDiagnostics).not.toHaveBeenCalled();
   });
 });

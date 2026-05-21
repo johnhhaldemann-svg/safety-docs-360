@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 
 const SURFACES = [
@@ -177,6 +178,23 @@ type Recommendation = {
   source: "deterministic";
 };
 
+type ToolResultSummary = {
+  toolName: string;
+  generatedAt: string;
+  rowCount: number;
+  evidenceIds: string[];
+  filters: {
+    surface: string;
+    since: string;
+    windowDays: number;
+    limit: number;
+    status: string | null;
+    errorType: string | null;
+    traceId: string | null;
+  };
+  summary: Record<string, unknown>;
+};
+
 type RecommendationPayload = {
   snapshot: unknown | null;
   stale: boolean;
@@ -191,8 +209,11 @@ type RecommendationPayload = {
     promptHash: string | null;
     fallbackUsed: boolean;
     fallbackReason: string | null;
+    toolCallsUsed?: number;
+    toolResults?: ToolResultSummary[];
   };
   recommendations: Recommendation[];
+  toolResultsSummary?: ToolResultSummary[];
 };
 
 function formatNumber(value: number | null | undefined) {
@@ -347,6 +368,71 @@ function severityTone(severity: Recommendation["severity"]) {
   return "border-cyan-500/40 bg-cyan-950/35 text-cyan-100";
 }
 
+function toolLabel(name: string) {
+  return name
+    .replace(/^get_/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function ToolContextPanel({
+  payload,
+  refreshing,
+  onRefresh,
+}: {
+  payload: RecommendationPayload | null;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const tools = payload?.toolResultsSummary ?? payload?.summaryMeta.toolResults ?? [];
+  return (
+    <section className="rounded-md border border-slate-800 bg-slate-950/80 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-200">
+            <Wrench className="h-4 w-4" aria-hidden="true" />
+            Read-only tool context
+          </div>
+          <h2 className="mt-1 text-lg font-semibold text-slate-100">Diagnostic Toolbelt</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-300">
+            Advisor-only evidence used to ground AI Engine recommendations. These tools read telemetry and never mutate production state.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-cyan-500/50 bg-cyan-950 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+          Run diagnostic refresh
+        </button>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {tools.map((tool) => (
+          <article key={`${tool.toolName}:${tool.generatedAt}`} className="rounded-md border border-slate-800 bg-slate-900/70 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-100">{toolLabel(tool.toolName)}</h3>
+              <span className="rounded bg-slate-950 px-2 py-0.5 text-xs text-slate-300">{formatNumber(tool.rowCount)} rows</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              {formatDate(tool.generatedAt)} / {tool.filters.surface} / {tool.filters.windowDays}d
+            </div>
+            <div className="mt-2 text-xs text-slate-300">
+              Evidence: {tool.evidenceIds.slice(0, 4).join(", ") || "n/a"}
+            </div>
+          </article>
+        ))}
+        {tools.length === 0 ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-950/25 p-4 text-sm text-amber-100">
+            No read-only tool context has been generated for this snapshot yet.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function RecommendationsPanel({
   payload,
   refreshing,
@@ -460,6 +546,7 @@ export default function SuperadminAiEnginePage() {
   const [recommendations, setRecommendations] = useState<RecommendationPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshingRecommendations, setRefreshingRecommendations] = useState(false);
+  const [refreshingDiagnostics, setRefreshingDiagnostics] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedbackDraft, setFeedbackDraft] = useState({
     surface: "safety-intelligence",
@@ -567,6 +654,38 @@ export default function SuperadminAiEnginePage() {
     }
   }
 
+  async function refreshDiagnostics() {
+    setRefreshingDiagnostics(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/superadmin/ai-engine/diagnostics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surface, windowDays }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Unable to run AI Engine diagnostics.");
+      }
+      setRecommendations({
+        snapshot: null,
+        stale: false,
+        generatedAt: body.generatedAt ?? new Date().toISOString(),
+        snapshotDate: null,
+        surface: body.surface ?? surface,
+        windowDays: body.windowDays ?? windowDays,
+        summary: body.summary ?? "Diagnostics refreshed.",
+        summaryMeta: body.summaryMeta,
+        recommendations: body.recommendations ?? [],
+        toolResultsSummary: body.toolResultsSummary ?? [],
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to run AI Engine diagnostics.");
+    } finally {
+      setRefreshingDiagnostics(false);
+    }
+  }
+
   const summary = metrics?.summary;
   const feedbackSummary = feedback?.summary;
   const alerts = buildAiAlerts(metrics, evals, feedback);
@@ -668,6 +787,12 @@ export default function SuperadminAiEnginePage() {
           payload={recommendations}
           refreshing={refreshingRecommendations}
           onRefresh={() => void refreshRecommendationSnapshot()}
+        />
+
+        <ToolContextPanel
+          payload={recommendations}
+          refreshing={refreshingDiagnostics}
+          onRefresh={() => void refreshDiagnostics()}
         />
 
         <section className="grid gap-4 xl:grid-cols-3">

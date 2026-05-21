@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  AI_ENGINE_READ_ONLY_TOOLS,
   buildAiEngineRecommendationCandidates,
   getAiEngineMetrics,
+  runAiEngineReadOnlyTool,
+  runAiEngineReadOnlyTools,
   sanitizeAiFeedbackSignalMetadata,
 } from "@/lib/superadmin/aiEngineOperations";
 
@@ -272,5 +275,114 @@ describe("AI Engine Operations", () => {
     });
 
     expect(recommendations).toEqual([]);
+  });
+
+  it("registers only read-only AI Engine diagnostic tools", () => {
+    expect(AI_ENGINE_READ_ONLY_TOOLS).toEqual([
+      "get_ai_metrics",
+      "get_ai_calls",
+      "get_eval_coverage",
+      "get_feedback_signals",
+      "get_visual_job_health",
+      "get_release_gate_snapshot",
+    ]);
+    expect(AI_ENGINE_READ_ONLY_TOOLS.join(" ")).not.toMatch(/\b(insert|update|delete|deploy|migration|push)\b/i);
+  });
+
+  it("runs filtered call-log diagnostics with bounded rows and evidence ids", async () => {
+    const client = {
+      from: () =>
+        new Query([
+          {
+            id: "call-1",
+            created_at: new Date().toISOString(),
+            surface: "injury-weather.insights",
+            status: "http_error",
+            error_type: "provider_model_access",
+            trace_id: "trace-1",
+            model: "gpt-4.1",
+            provider: "openai",
+            latency_ms: 1200,
+            fallback_used: true,
+            fallback_reason: "http_error",
+          },
+          {
+            id: "call-2",
+            created_at: new Date().toISOString(),
+            surface: "injury-weather.insights",
+            status: "ok",
+            error_type: null,
+            trace_id: "trace-2",
+            model: "gpt-4o-mini",
+            provider: "openai",
+          },
+        ]),
+    };
+
+    const result = await runAiEngineReadOnlyTool(client, "get_ai_calls", {
+      surface: "injury-weather",
+      status: "http_error",
+      errorType: "provider_model_access",
+      traceId: "trace-1",
+      limit: 500,
+    });
+
+    expect(result.filters.limit).toBe(50);
+    expect(result.rows).toHaveLength(1);
+    expect(result.evidenceIds).toEqual(["call:call-1"]);
+  });
+
+  it("summarizes visual generation job health without mutating rows", async () => {
+    const client = {
+      from: (table: string) =>
+        new Query(
+          table === "ai_visual_generation_jobs"
+            ? [
+                {
+                  id: "job-1",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  surface: "jobsite.site-visual.generate",
+                  status: "running",
+                  progress: 40,
+                  stage: "classify_scene",
+                },
+                {
+                  id: "job-2",
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  surface: "jobsite.site-visual.render.generate",
+                  status: "failed",
+                  progress: 100,
+                  stage: "failed",
+                  error_type: "worker_exception",
+                },
+              ]
+            : []
+        ),
+    };
+
+    const result = await runAiEngineReadOnlyTool(client, "get_visual_job_health", {
+      surface: "jobsite.site-visual",
+      windowDays: 7,
+    });
+
+    expect(result.summary).toMatchObject({
+      totalJobs: 2,
+      activeJobs: 1,
+      failedJobs: 1,
+    });
+    expect(result.evidenceIds).toEqual(["visual-job:job-1", "visual-job:job-2"]);
+  });
+
+  it("rejects unknown diagnostic tools before running the toolbelt", async () => {
+    const result = await runAiEngineReadOnlyTools({ from: () => new Query([]) }, {
+      tools: ["get_ai_metrics", "drop_database"],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 400,
+    });
   });
 });

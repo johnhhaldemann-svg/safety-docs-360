@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { requestAiResponsesText, type AiExecutionMeta } from "@/lib/ai/responses";
 
@@ -139,6 +139,63 @@ export type AiEngineRecommendationSummaryMeta = {
   promptHash: string | null;
   fallbackUsed: boolean;
   fallbackReason: string | null;
+  toolCallsUsed?: number;
+  toolResults?: AiEngineToolResultSummary[];
+};
+
+export type AiEngineToolName =
+  | "get_ai_metrics"
+  | "get_ai_calls"
+  | "get_eval_coverage"
+  | "get_feedback_signals"
+  | "get_visual_job_health"
+  | "get_release_gate_snapshot";
+
+export const AI_ENGINE_READ_ONLY_TOOLS: readonly AiEngineToolName[] = [
+  "get_ai_metrics",
+  "get_ai_calls",
+  "get_eval_coverage",
+  "get_feedback_signals",
+  "get_visual_job_health",
+  "get_release_gate_snapshot",
+] as const;
+
+export type AiEngineToolFilters = {
+  surface?: string | null;
+  since?: string | null;
+  windowDays?: number | null;
+  limit?: number | null;
+  status?: string | null;
+  errorType?: string | null;
+  traceId?: string | null;
+};
+
+export type AiEngineToolResult = {
+  toolName: AiEngineToolName;
+  generatedAt: string;
+  filters: {
+    surface: string;
+    since: string;
+    windowDays: number;
+    limit: number;
+    status: string | null;
+    errorType: string | null;
+    traceId: string | null;
+  };
+  summary: Record<string, unknown>;
+  rows: unknown[];
+  evidenceIds: string[];
+  unavailable?: boolean;
+  reason?: string | null;
+};
+
+export type AiEngineToolResultSummary = {
+  toolName: AiEngineToolName;
+  generatedAt: string;
+  filters: AiEngineToolResult["filters"];
+  rowCount: number;
+  evidenceIds: string[];
+  summary: Record<string, unknown>;
 };
 
 export type AiEngineRecommendationSnapshot = {
@@ -151,6 +208,7 @@ export type AiEngineRecommendationSnapshot = {
   summaryMeta: AiEngineRecommendationSummaryMeta;
   recommendations: AiEngineRecommendation[];
   aggregateSnapshot: Record<string, unknown>;
+  toolResultsSummary?: AiEngineToolResultSummary[];
 };
 
 export type AiEngineReadableClient = {
@@ -184,7 +242,15 @@ type AiEngineInsertBuilder = {
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 1000;
+const TOOL_RESULT_LIMIT = 50;
 const DEFAULT_RECOMMENDATION_MODEL = "gpt-4o-mini";
+const RELEASE_GATE_THRESHOLDS = {
+  criticalEvalPassRate: 0.95,
+  failureRate: 0.02,
+  fallbackRate: 0.05,
+  tokenCostRegression: 0.15,
+  p95LatencyRegression: 0.2,
+};
 
 function toSafeLimit(limit: number | null | undefined) {
   if (!limit || !Number.isFinite(limit)) return DEFAULT_LIMIT;
@@ -207,6 +273,10 @@ function toSinceIso(since: string | null | undefined) {
 function toSafeWindowDays(value: number | null | undefined) {
   if (!value || !Number.isFinite(value)) return 7;
   return Math.min(30, Math.max(1, Math.round(value)));
+}
+
+function toSafeToolLimit(value: number | null | undefined) {
+  return Math.min(TOOL_RESULT_LIMIT, toSafeLimit(value));
 }
 
 function todaySnapshotDate() {
@@ -351,6 +421,66 @@ function normalizeCallRow(row: Record<string, unknown>): AiEngineCallRow {
     tool_calls_used: normalizeNumber(row.tool_calls_used),
     eval_fixture_id: sanitizeNullableText(row.eval_fixture_id, 160),
   };
+}
+
+function sanitizeToolName(value: unknown): AiEngineToolName | null {
+  if (typeof value !== "string") return null;
+  return (AI_ENGINE_READ_ONLY_TOOLS as readonly string[]).includes(value)
+    ? (value as AiEngineToolName)
+    : null;
+}
+
+function normalizeToolNames(input?: string[] | null): AiEngineToolName[] {
+  if (!input || input.length === 0) return [...AI_ENGINE_READ_ONLY_TOOLS];
+  const seen = new Set<AiEngineToolName>();
+  for (const item of input) {
+    const name = sanitizeToolName(item);
+    if (name) seen.add(name);
+  }
+  return Array.from(seen);
+}
+
+export function validateAiEngineToolNames(input?: string[] | null): { ok: true; tools: AiEngineToolName[] } | { ok: false; invalid: string[] } {
+  if (!input || input.length === 0) return { ok: true, tools: [...AI_ENGINE_READ_ONLY_TOOLS] };
+  const invalid = input.filter((item) => !sanitizeToolName(item));
+  if (invalid.length > 0) return { ok: false, invalid };
+  return { ok: true, tools: normalizeToolNames(input) };
+}
+
+function normalizeToolFilters(filters: AiEngineToolFilters = {}): AiEngineToolResult["filters"] {
+  const windowDays = toSafeWindowDays(filters.windowDays);
+  const since =
+    filters.since && !Number.isNaN(new Date(filters.since).getTime())
+      ? new Date(filters.since).toISOString()
+      : (() => {
+          const date = new Date();
+          date.setDate(date.getDate() - windowDays);
+          return date.toISOString();
+        })();
+  return {
+    surface: filters.surface?.trim() || "all",
+    since,
+    windowDays,
+    limit: toSafeToolLimit(filters.limit),
+    status: sanitizeNullableText(filters.status, 80),
+    errorType: sanitizeNullableText(filters.errorType, 80),
+    traceId: sanitizeNullableText(filters.traceId, 120),
+  };
+}
+
+function summarizeToolResult(result: AiEngineToolResult): AiEngineToolResultSummary {
+  return {
+    toolName: result.toolName,
+    generatedAt: result.generatedAt,
+    filters: result.filters,
+    rowCount: result.rows.length,
+    evidenceIds: result.evidenceIds,
+    summary: result.summary,
+  };
+}
+
+function summarizeToolResults(results: AiEngineToolResult[]): AiEngineToolResultSummary[] {
+  return results.map(summarizeToolResult);
 }
 
 type AiEngineMetricGroup = {
@@ -732,6 +862,326 @@ export function getAiEngineEvalSummary() {
   };
 }
 
+function getStructuredAssertionCoverage() {
+  const root = join(process.cwd(), "tests", "ai", "golden");
+  const totals = {
+    fixtures: 0,
+    expectedFields: 0,
+    requiredEvidence: 0,
+    severity: 0,
+    confidenceRange: 0,
+    mustNotSay: 0,
+  };
+  if (!existsSync(root)) return totals;
+  for (const directory of readdirSync(root, { withFileTypes: true })) {
+    if (!directory.isDirectory()) continue;
+    const dirPath = join(root, directory.name);
+    for (const file of readdirSync(dirPath).filter((name) => name.endsWith(".json"))) {
+      try {
+        const json = JSON.parse(readFileSync(join(dirPath, file), "utf8")) as {
+          assertions?: Record<string, unknown>;
+        };
+        const assertions = json.assertions ?? {};
+        totals.fixtures += 1;
+        if (Array.isArray(assertions.expectedFields) && assertions.expectedFields.length > 0) totals.expectedFields += 1;
+        if (Array.isArray(assertions.requiredEvidence) && assertions.requiredEvidence.length > 0) totals.requiredEvidence += 1;
+        if (assertions.severity) totals.severity += 1;
+        if (assertions.confidenceRange) totals.confidenceRange += 1;
+        if (Array.isArray(assertions.mustNotSay) && assertions.mustNotSay.length > 0) totals.mustNotSay += 1;
+      } catch {
+        totals.fixtures += 1;
+      }
+    }
+  }
+  return totals;
+}
+
+function unavailableToolResult(toolName: AiEngineToolName, filters: AiEngineToolResult["filters"], reason: string): AiEngineToolResult {
+  return {
+    toolName,
+    generatedAt: new Date().toISOString(),
+    filters,
+    summary: { unavailable: true, reason },
+    rows: [],
+    evidenceIds: [`${toolName}:unavailable`],
+    unavailable: true,
+    reason,
+  };
+}
+
+async function runAiMetricsTool(client: AiEngineReadableClient | null, filters: AiEngineToolResult["filters"]): Promise<AiEngineToolResult> {
+  const metrics = await getAiEngineMetrics(client, { surface: filters.surface, since: filters.since, limit: MAX_LIMIT });
+  return {
+    toolName: "get_ai_metrics",
+    generatedAt: metrics.generatedAt,
+    filters,
+    summary: {
+      totalCalls: metrics.summary.totalCalls,
+      fallbackRate: metrics.summary.fallbackRate,
+      failureRate: metrics.summary.failureRate,
+      totalTokens: metrics.summary.totalTokens,
+      averageLatencyMs: metrics.summary.averageLatencyMs,
+      p50LatencyMs: metrics.summary.p50LatencyMs,
+      p90LatencyMs: metrics.summary.p90LatencyMs,
+      p95LatencyMs: metrics.summary.p95LatencyMs,
+    },
+    rows: [
+      ...metrics.bySurface.slice(0, 8).map((row) => ({ group: "surface", ...row })),
+      ...metrics.byModel.slice(0, 4).map((row) => ({ group: "model", ...row })),
+      ...metrics.byProvider.slice(0, 4).map((row) => ({ group: "provider", ...row })),
+    ],
+    evidenceIds: [
+      "metrics:summary",
+      ...metrics.bySurface.slice(0, 5).map((row) => `metrics:surface:${row.key}`),
+    ],
+    unavailable: metrics.unavailable,
+    reason: metrics.unavailableReason,
+  };
+}
+
+async function runAiCallsTool(client: AiEngineReadableClient | null, filters: AiEngineToolResult["filters"]): Promise<AiEngineToolResult> {
+  const calls = await getAiEngineCalls(client, { surface: filters.surface, since: filters.since, limit: filters.limit });
+  const rows = calls.rows
+    .filter((row) => !filters.status || row.status === filters.status)
+    .filter((row) => !filters.errorType || row.error_type === filters.errorType)
+    .filter((row) => !filters.traceId || row.trace_id === filters.traceId)
+    .slice(0, filters.limit)
+    .map((row) => ({
+      id: row.id,
+      created_at: row.created_at,
+      surface: row.surface,
+      status: row.status,
+      error_type: row.error_type,
+      trace_id: row.trace_id,
+      model: row.model,
+      provider: row.provider,
+      latency_ms: row.latency_ms,
+      input_tokens: row.input_tokens,
+      output_tokens: row.output_tokens,
+      total_tokens: row.total_tokens,
+      fallback_used: row.fallback_used,
+      fallback_reason: row.fallback_reason,
+    }));
+  const failures = rows.filter((row) => row.status === "http_error" || row.status === "exception").length;
+  return {
+    toolName: "get_ai_calls",
+    generatedAt: new Date().toISOString(),
+    filters,
+    summary: {
+      count: calls.count,
+      returnedRows: rows.length,
+      failures,
+      filteredByStatus: filters.status,
+      filteredByErrorType: filters.errorType,
+      filteredByTraceId: filters.traceId,
+    },
+    rows,
+    evidenceIds: rows.map((row) => `call:${row.id}`).slice(0, 20),
+    unavailable: calls.unavailable,
+    reason: calls.reason,
+  };
+}
+
+function runEvalCoverageTool(filters: AiEngineToolResult["filters"]): AiEngineToolResult {
+  const evals = getAiEngineEvalSummary();
+  const structured = getStructuredAssertionCoverage();
+  const missing = evals.surfaces.filter((row) => row.status !== "covered");
+  const rows = evals.surfaces
+    .filter((row) => filters.surface === "all" || surfaceMatches(row.surface, filters.surface))
+    .map((row) => ({
+      surface: row.surface,
+      fixtures: row.fixtures,
+      status: row.status,
+    }));
+  return {
+    toolName: "get_eval_coverage",
+    generatedAt: evals.generatedAt,
+    filters,
+    summary: {
+      totalFixtures: evals.totalFixtures,
+      rootAvailable: evals.rootAvailable,
+      coveredSurfaces: evals.surfaces.filter((row) => row.status === "covered").length,
+      missingSurfaces: missing.length,
+      structuredAssertions: structured,
+    },
+    rows,
+    evidenceIds: rows.map((row) => `eval:${row.surface}`),
+    unavailable: !evals.rootAvailable,
+    reason: evals.rootAvailable ? null : "golden_fixture_root_unavailable",
+  };
+}
+
+async function runFeedbackSignalsTool(client: AiEngineReadableClient | null, filters: AiEngineToolResult["filters"]): Promise<AiEngineToolResult> {
+  const feedback = await getAiEngineFeedback(client, { surface: filters.surface, since: filters.since, limit: filters.limit });
+  const rows = feedback.summary.bySurface.slice(0, filters.limit).map((row) => ({
+    surface: row.surface,
+    count: row.count,
+    accepted: row.accepted,
+    edited: row.edited,
+    rejected: row.rejected,
+    regenerated: row.regenerated,
+    fieldUsed: row.fieldUsed,
+    negativeRate: row.negativeRate,
+    fieldUsedRate: row.fieldUsedRate,
+  }));
+  return {
+    toolName: "get_feedback_signals",
+    generatedAt: new Date().toISOString(),
+    filters,
+    summary: {
+      count: feedback.count,
+      outcomeCounts: feedback.summary.outcomeCounts,
+      needsReview: feedback.summary.needsReview.slice(0, 8),
+    },
+    rows,
+    evidenceIds: rows.map((row) => `feedback:${row.surface}`),
+    unavailable: feedback.unavailable,
+    reason: feedback.reason,
+  };
+}
+
+async function runVisualJobHealthTool(client: AiEngineReadableClient | null, filters: AiEngineToolResult["filters"]): Promise<AiEngineToolResult> {
+  if (!client) return unavailableToolResult("get_visual_job_health", filters, "supabase_service_role_unavailable");
+  let query = client
+    .from("ai_visual_generation_jobs")
+    .select("id,created_at,updated_at,company_id,jobsite_id,surface,status,progress,stage,error_type,error_message,render_id,site_map_id")
+    .gte("created_at", filters.since)
+    .order("created_at", { ascending: false })
+    .limit(filters.limit);
+  if (filters.surface !== "all") query = query.ilike("surface", `%${filters.surface}%`);
+  const { data, error } = await query;
+  if (error) return unavailableToolResult("get_visual_job_health", filters, error.message ?? "visual_job_table_unavailable");
+  const rows = (Array.isArray(data) ? data : [])
+    .map((raw) => raw as Record<string, unknown>)
+    .filter((row) => !filters.status || sanitizeNullableText(row.status, 80) === filters.status)
+    .slice(0, filters.limit)
+    .map((row) => ({
+      id: row.id,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      surface: sanitizeNullableText(row.surface, 120),
+      status: sanitizeNullableText(row.status, 80),
+      progress: normalizeNumber(row.progress),
+      stage: sanitizeNullableText(row.stage, 120),
+      error_type: sanitizeNullableText(row.error_type, 120),
+      error_message: sanitizeNullableText(row.error_message, 180),
+      hasResult: Boolean(row.render_id || row.site_map_id),
+    }));
+  const statusCounts = rows.reduce<Record<string, number>>((acc, row) => {
+    const status = row.status ?? "unknown";
+    acc[status] = (acc[status] ?? 0) + 1;
+    return acc;
+  }, {});
+  return {
+    toolName: "get_visual_job_health",
+    generatedAt: new Date().toISOString(),
+    filters,
+    summary: {
+      totalJobs: rows.length,
+      statusCounts,
+      activeJobs: (statusCounts.queued ?? 0) + (statusCounts.running ?? 0),
+      failedJobs: statusCounts.failed ?? 0,
+      fallbackReadyJobs: statusCounts.fallback_ready ?? 0,
+    },
+    rows,
+    evidenceIds: rows.map((row) => `visual-job:${row.id}`).slice(0, 20),
+  };
+}
+
+async function runReleaseGateSnapshotTool(client: AiEngineReadableClient | null, filters: AiEngineToolResult["filters"]): Promise<AiEngineToolResult> {
+  const metrics = await getAiEngineMetrics(client, { surface: filters.surface, since: filters.since, limit: MAX_LIMIT });
+  const evals = getAiEngineEvalSummary();
+  const activeSurfaces = evals.surfaces;
+  const covered = activeSurfaces.filter((row) => row.status === "covered").length;
+  const criticalEvalPassRate = activeSurfaces.length > 0 ? covered / activeSurfaces.length : 0;
+  const checks = [
+    {
+      id: "critical_eval_pass_rate",
+      ok: criticalEvalPassRate >= RELEASE_GATE_THRESHOLDS.criticalEvalPassRate,
+      value: criticalEvalPassRate,
+      threshold: RELEASE_GATE_THRESHOLDS.criticalEvalPassRate,
+    },
+    {
+      id: "failure_rate",
+      ok: metrics.summary.failureRate <= RELEASE_GATE_THRESHOLDS.failureRate,
+      value: metrics.summary.failureRate,
+      threshold: RELEASE_GATE_THRESHOLDS.failureRate,
+    },
+    {
+      id: "fallback_rate",
+      ok: metrics.summary.fallbackRate <= RELEASE_GATE_THRESHOLDS.fallbackRate,
+      value: metrics.summary.fallbackRate,
+      threshold: RELEASE_GATE_THRESHOLDS.fallbackRate,
+    },
+    {
+      id: "token_cost_regression",
+      ok: null,
+      value: null,
+      threshold: RELEASE_GATE_THRESHOLDS.tokenCostRegression,
+      reason: "baseline_required",
+    },
+    {
+      id: "p95_latency_regression",
+      ok: null,
+      value: null,
+      threshold: RELEASE_GATE_THRESHOLDS.p95LatencyRegression,
+      reason: "baseline_required",
+    },
+  ];
+  const failed = checks.filter((check) => check.ok === false);
+  const unknown = checks.filter((check) => check.ok === null);
+  const status = failed.length > 0 ? "fail" : unknown.length > 0 ? "needs_baseline" : "pass";
+  return {
+    toolName: "get_release_gate_snapshot",
+    generatedAt: new Date().toISOString(),
+    filters,
+    summary: {
+      status,
+      thresholds: RELEASE_GATE_THRESHOLDS,
+      checks,
+      totalCalls: metrics.summary.totalCalls,
+      activeSurfaceCount: activeSurfaces.length,
+      coveredSurfaceCount: covered,
+    },
+    rows: checks,
+    evidenceIds: checks.map((check) => `release-gate:${check.id}`),
+    unavailable: metrics.unavailable,
+    reason: metrics.unavailableReason,
+  };
+}
+
+export async function runAiEngineReadOnlyTool(
+  client: AiEngineReadableClient | null,
+  toolName: AiEngineToolName,
+  filters: AiEngineToolFilters = {}
+): Promise<AiEngineToolResult> {
+  const normalized = normalizeToolFilters(filters);
+  if (toolName === "get_ai_metrics") return runAiMetricsTool(client, normalized);
+  if (toolName === "get_ai_calls") return runAiCallsTool(client, normalized);
+  if (toolName === "get_eval_coverage") return runEvalCoverageTool(normalized);
+  if (toolName === "get_feedback_signals") return runFeedbackSignalsTool(client, normalized);
+  if (toolName === "get_visual_job_health") return runVisualJobHealthTool(client, normalized);
+  return runReleaseGateSnapshotTool(client, normalized);
+}
+
+export async function runAiEngineReadOnlyTools(
+  client: AiEngineReadableClient | null,
+  filters: AiEngineToolFilters & { tools?: string[] | null } = {}
+) {
+  const validation = validateAiEngineToolNames(filters.tools);
+  if (!validation.ok) {
+    return { ok: false as const, status: 400, error: `Invalid AI Engine tool(s): ${validation.invalid.join(", ")}` };
+  }
+  const toolResults = await Promise.all(
+    validation.tools.map((toolName) => runAiEngineReadOnlyTool(client, toolName, filters))
+  );
+  return {
+    ok: true as const,
+    toolResults,
+    toolResultsSummary: summarizeToolResults(toolResults),
+  };
+}
+
 function fallbackRecommendationSummary(recommendations: AiEngineRecommendation[]) {
   if (recommendations.length === 0) {
     return "No AI Engine recommendations are open for this snapshot. Continue watching fallback rate, failures, latency, feedback, and eval coverage.";
@@ -745,13 +1195,19 @@ function fallbackRecommendationSummary(recommendations: AiEngineRecommendation[]
   return `${lead} Start with ${recommendations[0]?.title ?? "the highest severity recommendation"} before tuning lower-risk surfaces.`;
 }
 
-function summaryMetaFromAi(meta: AiExecutionMeta | null, fallbackReason: string | null): AiEngineRecommendationSummaryMeta {
+function summaryMetaFromAi(
+  meta: AiExecutionMeta | null,
+  fallbackReason: string | null,
+  toolResultsSummary: AiEngineToolResultSummary[] = []
+): AiEngineRecommendationSummaryMeta {
   return {
     model: meta?.model ?? null,
     provider: meta?.provider ?? null,
     promptHash: meta?.promptHash ?? null,
     fallbackUsed: meta?.fallbackUsed ?? true,
     fallbackReason: meta?.fallbackReason ?? fallbackReason,
+    toolCallsUsed: toolResultsSummary.length,
+    toolResults: toolResultsSummary,
   };
 }
 
@@ -964,6 +1420,44 @@ export function buildAiEngineRecommendationCandidates(input: {
   );
 }
 
+async function summarizeAiEngineRecommendationsWithTools(input: {
+  aggregateSnapshot: Record<string, unknown>;
+  recommendations: AiEngineRecommendation[];
+  deterministicSummary: string;
+  toolResultsSummary: AiEngineToolResultSummary[];
+}) {
+  const aiInput = [
+    "Summarize these deterministic AI Engine recommendations for a Superadmin.",
+    "You are using read-only diagnostic tool outputs only; do not imply that you changed production state.",
+    "Do not add, remove, reprioritize, or invent recommendations.",
+    "Use one concise paragraph, mention critical items first, and cite tool names in brackets when describing evidence.",
+    JSON.stringify({
+      aggregateSnapshot: input.aggregateSnapshot,
+      toolResults: input.toolResultsSummary.map((tool) => ({
+        toolName: tool.toolName,
+        rowCount: tool.rowCount,
+        evidenceIds: tool.evidenceIds.slice(0, 8),
+        summary: tool.summary,
+      })),
+      recommendations: input.recommendations.slice(0, 8),
+    }),
+  ].join("\n\n");
+
+  const ai = await requestAiResponsesText({
+    model: process.env.COMPANY_AI_DEFAULT_MODEL?.trim() || process.env.COMPANY_AI_MODEL?.trim() || DEFAULT_RECOMMENDATION_MODEL,
+    input: aiInput,
+    surface: "superadmin.ai-engine.recommendations",
+    promptVersion: "superadmin-ai-engine-toolbelt-v1",
+    maxAttempts: 1,
+    toolCallsUsed: input.toolResultsSummary.length,
+  });
+
+  return {
+    summary: ai.text?.trim() || input.deterministicSummary,
+    summaryMeta: summaryMetaFromAi(ai.meta, ai.meta.fallbackReason ?? null, input.toolResultsSummary),
+  };
+}
+
 function normalizeRecommendationSnapshot(row: Record<string, unknown> | null, surface: string, windowDays: number): AiEngineRecommendationSnapshot | null {
   if (!row) return null;
   const recommendations = Array.isArray(row.recommendations)
@@ -973,6 +1467,15 @@ function normalizeRecommendationSnapshot(row: Record<string, unknown> | null, su
     row.summary_meta && typeof row.summary_meta === "object"
       ? (row.summary_meta as AiEngineRecommendationSummaryMeta)
       : summaryMetaFromAi(null, "missing_summary_meta");
+  const aggregateSnapshot =
+    row.aggregate_snapshot && typeof row.aggregate_snapshot === "object"
+      ? (row.aggregate_snapshot as Record<string, unknown>)
+      : {};
+  const toolResultsSummary = Array.isArray(aggregateSnapshot.toolResultsSummary)
+    ? (aggregateSnapshot.toolResultsSummary as AiEngineToolResultSummary[])
+    : Array.isArray(summaryMeta.toolResults)
+      ? summaryMeta.toolResults
+      : [];
   return {
     id: typeof row.id === "number" || typeof row.id === "string" ? row.id : null,
     generatedAt: typeof row.generated_at === "string" ? row.generated_at : null,
@@ -982,10 +1485,8 @@ function normalizeRecommendationSnapshot(row: Record<string, unknown> | null, su
     summary: typeof row.summary === "string" ? row.summary : fallbackRecommendationSummary(recommendations),
     summaryMeta,
     recommendations,
-    aggregateSnapshot:
-      row.aggregate_snapshot && typeof row.aggregate_snapshot === "object"
-        ? (row.aggregate_snapshot as Record<string, unknown>)
-        : {},
+    aggregateSnapshot,
+    toolResultsSummary,
   };
 }
 
@@ -1008,6 +1509,7 @@ export async function getAiEngineRecommendationSnapshot(
       summary: "Recommendation snapshots are unavailable because runtime telemetry storage is not configured.",
       summaryMeta: summaryMetaFromAi(null, "storage_unavailable"),
       recommendations: [] as AiEngineRecommendation[],
+      toolResultsSummary: [] as AiEngineToolResultSummary[],
       unavailable: true,
       reason: "supabase_service_role_unavailable",
     };
@@ -1039,6 +1541,7 @@ export async function getAiEngineRecommendationSnapshot(
     summary: snapshot?.summary ?? "No AI Engine recommendation snapshot has been generated for this filter yet.",
     summaryMeta: snapshot?.summaryMeta ?? summaryMetaFromAi(null, "snapshot_missing"),
     recommendations: snapshot?.recommendations ?? [],
+    toolResultsSummary: snapshot?.toolResultsSummary ?? [],
     unavailable: false,
     reason: null,
   };
@@ -1070,6 +1573,13 @@ export async function refreshAiEngineRecommendationSnapshot(
     getAiEngineCalls(client, { surface, since, limit: MAX_LIMIT }),
     getAiEngineFeedback(client, { surface, since, limit: MAX_LIMIT }),
   ]);
+  const toolbelt = await runAiEngineReadOnlyTools(client, {
+    surface,
+    windowDays,
+    since,
+    limit: TOOL_RESULT_LIMIT,
+  });
+  const toolResultsSummary = toolbelt.ok ? toolbelt.toolResultsSummary : [];
   const evals = getAiEngineEvalSummary();
   const recommendations = buildAiEngineRecommendationCandidates({
     metrics,
@@ -1107,24 +1617,18 @@ export async function refreshAiEngineRecommendationSnapshot(
       warning: recommendations.filter((item) => item.severity === "warning").length,
       info: recommendations.filter((item) => item.severity === "info").length,
     },
+    toolResultsSummary,
   };
 
-  const aiInput = [
-    "Summarize these deterministic AI Engine recommendations for a Superadmin.",
-    "Do not add, remove, reprioritize, or invent recommendations.",
-    "Use one concise paragraph and mention critical items first.",
-    JSON.stringify({ aggregateSnapshot, recommendations: recommendations.slice(0, 8) }),
-  ].join("\n\n");
-
-  const ai = await requestAiResponsesText({
-    model: process.env.COMPANY_AI_DEFAULT_MODEL?.trim() || process.env.COMPANY_AI_MODEL?.trim() || DEFAULT_RECOMMENDATION_MODEL,
-    input: aiInput,
-    surface: "superadmin.ai-engine.recommendations",
-    maxAttempts: 1,
+  const summaryResult = await summarizeAiEngineRecommendationsWithTools({
+    aggregateSnapshot,
+    recommendations,
+    deterministicSummary,
+    toolResultsSummary,
   });
 
-  const summary = ai.text?.trim() || deterministicSummary;
-  const summaryMeta = summaryMetaFromAi(ai.meta, ai.meta.fallbackReason ?? null);
+  const summary = summaryResult.summary;
+  const summaryMeta = summaryResult.summaryMeta;
   const generatedAt = new Date().toISOString();
   const row = {
     snapshot_date: snapshotDate,
@@ -1161,5 +1665,93 @@ export async function refreshAiEngineRecommendationSnapshot(
     summary,
     summaryMeta,
     recommendations,
+    toolResultsSummary,
+  };
+}
+
+export async function runAiEngineDiagnostics(
+  client: AiEngineReadableClient | null,
+  filters: AiEngineToolFilters & { tools?: string[] | null; generatedBy?: string | null } = {}
+) {
+  const surface = filters.surface?.trim() || "all";
+  const windowDays = toSafeWindowDays(filters.windowDays);
+  if (!client) {
+    return {
+      ok: false,
+      status: 503,
+      error: "Runtime telemetry storage is not configured.",
+    };
+  }
+
+  const since = (() => {
+    const date = new Date();
+    date.setDate(date.getDate() - windowDays);
+    return date.toISOString();
+  })();
+
+  const toolbelt = await runAiEngineReadOnlyTools(client, {
+    ...filters,
+    surface,
+    windowDays,
+    since: filters.since ?? since,
+    limit: filters.limit ?? TOOL_RESULT_LIMIT,
+  });
+  if (!toolbelt.ok) return toolbelt;
+
+  const [metrics, calls, feedback] = await Promise.all([
+    getAiEngineMetrics(client, { surface, since: filters.since ?? since, limit: MAX_LIMIT }),
+    getAiEngineCalls(client, { surface, since: filters.since ?? since, limit: MAX_LIMIT }),
+    getAiEngineFeedback(client, { surface, since: filters.since ?? since, limit: MAX_LIMIT }),
+  ]);
+  const evals = getAiEngineEvalSummary();
+  const recommendations = buildAiEngineRecommendationCandidates({ metrics, calls, feedback, evals, surface });
+  const deterministicSummary = fallbackRecommendationSummary(recommendations);
+  const feedbackSummary =
+    "summary" in feedback && feedback.summary
+      ? feedback.summary
+      : buildFeedbackSummary(feedback.rows);
+  const aggregateSnapshot = {
+    generatedFrom: {
+      surface,
+      windowDays,
+      since: filters.since ?? since,
+      totalCalls: metrics.summary.totalCalls,
+      fallbackRate: metrics.summary.fallbackRate,
+      failureRate: metrics.summary.failureRate,
+      averageLatencyMs: metrics.summary.averageLatencyMs,
+      totalTokens: metrics.summary.totalTokens,
+      feedbackCount: feedback.count,
+      evalFixtures: evals.totalFixtures,
+    },
+    feedback: {
+      outcomeCounts: feedbackSummary.outcomeCounts,
+      bySurface: feedbackSummary.bySurface.slice(0, 12),
+      needsReview: feedbackSummary.needsReview.slice(0, 12),
+    },
+    severityCounts: {
+      critical: recommendations.filter((item) => item.severity === "critical").length,
+      warning: recommendations.filter((item) => item.severity === "warning").length,
+      info: recommendations.filter((item) => item.severity === "info").length,
+    },
+    toolResultsSummary: toolbelt.toolResultsSummary,
+  };
+  const summaryResult = await summarizeAiEngineRecommendationsWithTools({
+    aggregateSnapshot,
+    recommendations,
+    deterministicSummary,
+    toolResultsSummary: toolbelt.toolResultsSummary,
+  });
+
+  return {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    surface,
+    windowDays,
+    toolResults: toolbelt.toolResults,
+    toolResultsSummary: toolbelt.toolResultsSummary,
+    recommendations,
+    summary: summaryResult.summary,
+    summaryMeta: summaryResult.summaryMeta,
+    aggregateSnapshot,
   };
 }
