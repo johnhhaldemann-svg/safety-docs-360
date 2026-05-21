@@ -14,6 +14,8 @@ type JobsiteWeatherRow = {
   company_id: string;
   name: string | null;
   zip_code: string | null;
+  project_manager: string | null;
+  safety_lead: string | null;
   weather_latitude: number | string | null;
   weather_longitude: number | string | null;
 };
@@ -29,6 +31,34 @@ type WeatherSubscriptionRow = {
   event_allowlist: unknown;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
+};
+
+type WeatherUserContact = {
+  userId: string;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+};
+
+type WeatherAssignmentRow = {
+  company_id: string;
+  jobsite_id: string;
+  user_id: string;
+  role: string | null;
+};
+
+type WeatherRoleRow = {
+  company_id: string;
+  user_id: string;
+  role: string | null;
+  account_status: string | null;
+};
+
+type WeatherProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  preferred_name: string | null;
+  phone: string | null;
 };
 
 export type JobsiteWeatherCronResult = {
@@ -93,6 +123,28 @@ function locationKey(latitude: number, longitude: number) {
   return `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
 }
 
+function clean(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function normalizeKey(value: unknown) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeRole(value: unknown) {
+  return normalizeKey(value).replace(/\s+/g, "_");
+}
+
+function isActiveStatus(value: unknown) {
+  const status = normalizeKey(value);
+  return !status || status === "active" || status === "approved";
+}
+
 function normalizeChannels(value: unknown): WeatherNotificationChannel[] {
   if (!Array.isArray(value)) return ["in_app"];
   const allowed = new Set(["in_app", "email", "sms", "push"]);
@@ -112,17 +164,149 @@ function isWithinQuietHours(row: WeatherSubscriptionRow, now = new Date()) {
   return current >= start || current < end;
 }
 
-async function getUserEmailById(supabase: SupabaseClient, userId: string) {
+async function getAuthUserContactById(supabase: SupabaseClient, userId: string) {
   const result = await supabase.auth.admin.getUserById(userId);
-  return result.data.user?.email ?? null;
+  const user = result.data.user;
+  const metadata = user?.user_metadata as Record<string, unknown> | undefined;
+  const metadataName =
+    typeof metadata?.full_name === "string"
+      ? metadata.full_name
+      : typeof metadata?.name === "string"
+        ? metadata.name
+        : null;
+  return {
+    email: user?.email ?? null,
+    name: clean(metadataName) || null,
+  };
 }
 
-async function loadUserEmailMap(supabase: SupabaseClient, userIds: string[]) {
+async function loadUserContactMap(supabase: SupabaseClient, userIds: string[]) {
   const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  const profilesByUserId = new Map<string, WeatherProfileRow>();
+  if (uniqueIds.length > 0) {
+    const profilesResult = await supabase
+      .from("user_profiles")
+      .select("user_id, full_name, preferred_name, phone")
+      .in("user_id", uniqueIds);
+    if (!profilesResult.error) {
+      for (const profile of (profilesResult.data ?? []) as WeatherProfileRow[]) {
+        profilesByUserId.set(profile.user_id, profile);
+      }
+    }
+  }
+
   const entries = await Promise.all(
-    uniqueIds.map(async (userId) => [userId, await getUserEmailById(supabase, userId).catch(() => null)] as const)
+    uniqueIds.map(async (userId) => {
+      const authContact = await getAuthUserContactById(supabase, userId).catch(() => ({ email: null, name: null }));
+      const profile = profilesByUserId.get(userId);
+      const contact: WeatherUserContact = {
+        userId,
+        email: authContact.email,
+        phone: profile?.phone ?? null,
+        name: clean(profile?.preferred_name) || clean(profile?.full_name) || authContact.name,
+      };
+      return [userId, contact] as const;
+    })
   );
   return new Map(entries);
+}
+
+function contactMatchesLabel(contact: WeatherUserContact | null | undefined, label: string | null) {
+  const wanted = normalizeKey(label);
+  if (!wanted || !contact) return false;
+  return [contact.name, contact.email].some((value) => normalizeKey(value) === wanted);
+}
+
+function syntheticWeatherSubscription(jobsite: JobsiteWeatherRow, userId: string): WeatherSubscriptionRow {
+  return {
+    id: `auto-weather-${jobsite.id}-${userId}`,
+    company_id: jobsite.company_id,
+    jobsite_id: jobsite.id,
+    user_id: userId,
+    enabled: true,
+    channels: ["email", "sms"],
+    min_severity: null,
+    event_allowlist: null,
+    quiet_hours_start: null,
+    quiet_hours_end: null,
+  };
+}
+
+async function loadPmAndSiteLeadSubscriptions(params: {
+  supabase: SupabaseClient;
+  jobsites: JobsiteWeatherRow[];
+}) {
+  const jobsiteIds = [...new Set(params.jobsites.map((jobsite) => jobsite.id).filter(Boolean))];
+  const companyIds = [...new Set(params.jobsites.map((jobsite) => jobsite.company_id).filter(Boolean))];
+  const subscriptionsByJobsite = new Map<string, WeatherSubscriptionRow[]>();
+  if (jobsiteIds.length === 0 || companyIds.length === 0) return subscriptionsByJobsite;
+
+  const [assignmentResult, roleResult] = await Promise.all([
+    params.supabase
+      .from("company_jobsite_assignments")
+      .select("company_id, jobsite_id, user_id, role")
+      .in("jobsite_id", jobsiteIds),
+    params.supabase
+      .from("user_roles")
+      .select("company_id, user_id, role, account_status")
+      .in("company_id", companyIds),
+  ]);
+
+  if (assignmentResult.error || roleResult.error) {
+    throw new Error(
+      assignmentResult.error?.message ||
+        roleResult.error?.message ||
+        "Failed to load PM and Site Lead weather recipients."
+    );
+  }
+
+  const assignments = ((assignmentResult.data ?? []) as WeatherAssignmentRow[]).filter((row) => clean(row.user_id));
+  const roles = ((roleResult.data ?? []) as WeatherRoleRow[]).filter((row) => clean(row.user_id));
+  const contactsByUserId = await loadUserContactMap(params.supabase, roles.map((row) => row.user_id));
+  const activeProjectManagers = new Set(
+    roles
+      .filter((row) => normalizeRole(row.role) === "project_manager" && isActiveStatus(row.account_status))
+      .map((row) => row.user_id)
+  );
+  const activeUsersByCompany = new Map<string, string[]>();
+  for (const row of roles) {
+    if (!isActiveStatus(row.account_status)) continue;
+    const rows = activeUsersByCompany.get(row.company_id) ?? [];
+    rows.push(row.user_id);
+    activeUsersByCompany.set(row.company_id, rows);
+  }
+
+  for (const jobsite of params.jobsites) {
+    const recipientIds = new Set<string>();
+    for (const assignment of assignments) {
+      if (
+        assignment.jobsite_id === jobsite.id &&
+        assignment.company_id === jobsite.company_id &&
+        normalizeRole(assignment.role) === "project_manager" &&
+        activeProjectManagers.has(assignment.user_id)
+      ) {
+        recipientIds.add(assignment.user_id);
+      }
+    }
+
+    const siteLeadLabel = clean(jobsite.safety_lead);
+    if (siteLeadLabel) {
+      for (const userId of activeUsersByCompany.get(jobsite.company_id) ?? []) {
+        if (contactMatchesLabel(contactsByUserId.get(userId), siteLeadLabel)) {
+          recipientIds.add(userId);
+        }
+      }
+    }
+
+    if (recipientIds.size > 0) {
+      subscriptionsByJobsite.set(
+        jobsite.id,
+        [...recipientIds].map((userId) => syntheticWeatherSubscription(jobsite, userId))
+      );
+    }
+  }
+
+  return subscriptionsByJobsite;
 }
 
 async function upsertWeatherAlertEvent(params: {
@@ -183,7 +367,7 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
 
   let jobsitesQuery = supabase
     .from("company_jobsites")
-    .select("id, company_id, name, zip_code, weather_latitude, weather_longitude")
+    .select("id, company_id, name, zip_code, project_manager, safety_lead, weather_latitude, weather_longitude")
     .eq("weather_enabled", true)
     .neq("status", "archived")
     .limit(maxJobsites);
@@ -218,11 +402,23 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
   const weatherJobsiteIds = jobsites.map((jobsite) => jobsite.id);
   const subscriptionsByJobsite = new Map<string, WeatherSubscriptionRow[]>();
   if (sendNotifications && weatherJobsiteIds.length > 0) {
-    const subscriptionsResult = await supabase
-      .from("jobsite_weather_subscriptions")
-      .select("id, company_id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end")
-      .in("jobsite_id", weatherJobsiteIds)
-      .eq("enabled", true);
+    let subscriptionsResult: { data?: unknown[] | null; error?: { message?: string | null } | null };
+    let implicitSubscriptions: Map<string, WeatherSubscriptionRow[]>;
+    try {
+      [subscriptionsResult, implicitSubscriptions] = await Promise.all([
+        supabase
+          .from("jobsite_weather_subscriptions")
+          .select("id, company_id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end")
+          .in("jobsite_id", weatherJobsiteIds)
+          .eq("enabled", true),
+        loadPmAndSiteLeadSubscriptions({ supabase, jobsites }),
+      ]);
+    } catch (error) {
+      return emptyResult({
+        ok: false,
+        error: error instanceof Error ? error.message : "Failed to load weather notification recipients.",
+      });
+    }
 
     if (subscriptionsResult.error) {
       return emptyResult({ ok: false, error: subscriptionsResult.error.message || "Failed to load subscriptions." });
@@ -233,14 +429,19 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
       rows.push(subscription);
       subscriptionsByJobsite.set(subscription.jobsite_id, rows);
     }
+    for (const [jobsiteId, subscriptions] of implicitSubscriptions.entries()) {
+      const rows = subscriptionsByJobsite.get(jobsiteId) ?? [];
+      rows.push(...subscriptions);
+      subscriptionsByJobsite.set(jobsiteId, rows);
+    }
   }
 
-  const userEmailMap = sendNotifications
-    ? await loadUserEmailMap(
+  const userContactMap = sendNotifications
+    ? await loadUserContactMap(
         supabase,
         [...subscriptionsByJobsite.values()].flat().map((subscription) => subscription.user_id)
       )
-    : new Map<string, string | null>();
+    : new Map<string, WeatherUserContact>();
 
   const globalMinSeverity = getDefaultWeatherAlertMinSeverity();
   for (const group of jobsitesByLocation.values()) {
@@ -288,6 +489,7 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
       if (!sendNotifications || subscriptions.length === 0) continue;
 
       for (const { alert, alertEventId } of relevantAlerts) {
+        const attemptedRecipientChannels = new Set<string>();
         for (const subscription of subscriptions) {
           if (isWithinQuietHours(subscription)) {
             result.deliveriesSkipped += 1;
@@ -298,11 +500,19 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
           }
 
           for (const channel of normalizeChannels(subscription.channels)) {
+            const recipientChannelKey = `${subscription.user_id}:${channel}`;
+            if (attemptedRecipientChannels.has(recipientChannelKey)) {
+              result.deliveriesSkipped += 1;
+              continue;
+            }
+            attemptedRecipientChannels.add(recipientChannelKey);
+            const contact = userContactMap.get(subscription.user_id);
             const delivery = await deliverWeatherNotification({
               supabase,
               recipient: {
                 userId: subscription.user_id,
-                email: userEmailMap.get(subscription.user_id) ?? null,
+                email: contact?.email ?? null,
+                phone: contact?.phone ?? null,
                 channels: normalizeChannels(subscription.channels),
               },
               channel,
@@ -317,6 +527,7 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
               fetcher: input.fetcher,
             });
             if (delivery.duplicate) result.deliveriesSkipped += 1;
+            else if (delivery.skipped) result.deliveriesSkipped += 1;
             else if (delivery.delivered) result.deliveriesSent += 1;
             else result.deliveriesFailed += 1;
           }

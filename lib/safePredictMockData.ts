@@ -48,6 +48,7 @@ export type SafePredictDemoEmployee = {
   personType?: string;
   name: string;
   email?: string;
+  phone?: string;
   role: string;
   trade: string;
   assignedSiteId: string;

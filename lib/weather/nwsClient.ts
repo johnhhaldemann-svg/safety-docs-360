@@ -10,6 +10,20 @@ export type NwsPointMetadata = {
   relativeLocation: string | null;
 };
 
+export type NwsForecastDay = {
+  date: string;
+  name: string;
+  highTemperature: number | null;
+  lowTemperature: number | null;
+  temperatureUnit: string | null;
+  precipitationChance: number | null;
+  precipitationTypes: string[];
+  shortForecast: string | null;
+  detailedForecast: string | null;
+  windSpeed: string | null;
+  windDirection: string | null;
+};
+
 export type NwsClientOptions = {
   fetcher?: typeof fetch;
   userAgent?: string | null;
@@ -43,6 +57,33 @@ function asString(value: unknown) {
 function asNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function dateOnlyFromNwsTime(value: unknown) {
+  const text = asString(value);
+  if (!text) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+  return match?.[1] ?? null;
+}
+
+function probabilityValue(value: unknown) {
+  const record = asRecord(value);
+  if (!record || record.value === null || record.value === undefined || record.value === "") return null;
+  const parsed = asNumber(record?.value);
+  if (parsed === null) return null;
+  return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+export function detectNwsForecastPrecipitationTypes(...values: Array<string | null | undefined>) {
+  const text = values.filter(Boolean).join(" ").toLowerCase();
+  const types: string[] = [];
+  if (/\b(thunderstorms?|thunder|t-?storms?|lightning)\b/.test(text)) types.push("storm");
+  if (/\b(freezing rain|ice|icy|glaze)\b/.test(text)) types.push("ice");
+  if (/\b(sleet|wintry mix)\b/.test(text)) types.push("sleet");
+  if (/\b(snow|flurries|blizzard)\b/.test(text)) types.push("snow");
+  if (/\b(rain|showers|drizzle)\b/.test(text)) types.push("rain");
+  if (/\b(hail)\b/.test(text)) types.push("hail");
+  return [...new Set(types)];
 }
 
 async function sleep(ms: number) {
@@ -89,6 +130,11 @@ export class NwsClient {
     return features.map(parseNwsAlertFeature).filter((alert): alert is WeatherAlert => Boolean(alert));
   }
 
+  async getForecast(forecastUrl: string, days = 5): Promise<NwsForecastDay[]> {
+    const json = await this.fetchJson(forecastUrl);
+    return parseNwsForecast(json, days);
+  }
+
   private async fetchJson(url: string): Promise<unknown> {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= this.retries; attempt += 1) {
@@ -122,6 +168,106 @@ export class NwsClient {
     });
     throw lastError ?? new Error("NWS request failed.");
   }
+}
+
+type ForecastPeriod = {
+  date: string;
+  name: string | null;
+  isDaytime: boolean;
+  temperature: number | null;
+  temperatureUnit: string | null;
+  precipitationChance: number | null;
+  shortForecast: string | null;
+  detailedForecast: string | null;
+  windSpeed: string | null;
+  windDirection: string | null;
+};
+
+function parseForecastPeriod(period: unknown): ForecastPeriod | null {
+  const record = asRecord(period);
+  if (!record) return null;
+  const date = dateOnlyFromNwsTime(record.startTime);
+  if (!date) return null;
+  return {
+    date,
+    name: asString(record.name),
+    isDaytime: Boolean(record.isDaytime),
+    temperature: asNumber(record.temperature),
+    temperatureUnit: asString(record.temperatureUnit),
+    precipitationChance: probabilityValue(record.probabilityOfPrecipitation),
+    shortForecast: asString(record.shortForecast),
+    detailedForecast: asString(record.detailedForecast),
+    windSpeed: asString(record.windSpeed),
+    windDirection: asString(record.windDirection),
+  };
+}
+
+function betterForecastText(current: string | null, candidate: string | null) {
+  if (!current) return candidate;
+  if (!candidate) return current;
+  return candidate.length > current.length ? candidate : current;
+}
+
+export function parseNwsForecast(payload: unknown, days = 5): NwsForecastDay[] {
+  const properties = asRecord(asRecord(payload)?.properties) ?? {};
+  const periods = Array.isArray(properties.periods) ? properties.periods.map(parseForecastPeriod).filter(Boolean) as ForecastPeriod[] : [];
+  const grouped = new Map<string, ForecastPeriod[]>();
+
+  for (const period of periods) {
+    const rows = grouped.get(period.date) ?? [];
+    rows.push(period);
+    grouped.set(period.date, rows);
+  }
+
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, Math.max(1, days))
+    .map(([date, rows]) => {
+      const daytime = rows.find((row) => row.isDaytime) ?? rows[0];
+      const temperatures = rows.map((row) => row.temperature).filter((value): value is number => value !== null);
+      const daytimeTemperatures = rows
+        .filter((row) => row.isDaytime)
+        .map((row) => row.temperature)
+        .filter((value): value is number => value !== null);
+      const nighttimeTemperatures = rows
+        .filter((row) => !row.isDaytime)
+        .map((row) => row.temperature)
+        .filter((value): value is number => value !== null);
+      const precipitationChances = rows
+        .map((row) => row.precipitationChance)
+        .filter((value): value is number => value !== null);
+      const shortForecast = daytime?.shortForecast ?? rows.find((row) => row.shortForecast)?.shortForecast ?? null;
+      const detailedForecast = rows.reduce<string | null>(
+        (current, row) => betterForecastText(current, row.detailedForecast),
+        null
+      );
+
+      return {
+        date,
+        name: daytime?.name ?? rows[0]?.name ?? date,
+        highTemperature:
+          daytimeTemperatures.length > 0
+            ? Math.max(...daytimeTemperatures)
+            : temperatures.length > 0
+              ? Math.max(...temperatures)
+              : null,
+        lowTemperature:
+          nighttimeTemperatures.length > 0
+            ? Math.min(...nighttimeTemperatures)
+            : temperatures.length > 0
+              ? Math.min(...temperatures)
+              : null,
+        temperatureUnit: rows.find((row) => row.temperatureUnit)?.temperatureUnit ?? null,
+        precipitationChance: precipitationChances.length > 0 ? Math.max(...precipitationChances) : null,
+        precipitationTypes: detectNwsForecastPrecipitationTypes(
+          ...rows.flatMap((row) => [row.shortForecast, row.detailedForecast])
+        ),
+        shortForecast,
+        detailedForecast,
+        windSpeed: daytime?.windSpeed ?? rows.find((row) => row.windSpeed)?.windSpeed ?? null,
+        windDirection: daytime?.windDirection ?? rows.find((row) => row.windDirection)?.windDirection ?? null,
+      };
+    });
 }
 
 export function parseNwsAlertFeature(feature: unknown): WeatherAlert | null {

@@ -5,7 +5,7 @@ import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { isAdminRole, normalizeAppRole, authorizeRequest } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { normalizeZipCode, resolveWeatherLocationWithNwsPoint, type WeatherLocationInput } from "@/lib/weather/locationResolver";
-import { NwsClient } from "@/lib/weather/nwsClient";
+import { NwsClient, type NwsForecastDay } from "@/lib/weather/nwsClient";
 import { checkJobsiteWeatherAlerts } from "@/lib/weather/checkJobsiteWeatherAlerts";
 import { normalizeWeatherEventAllowlist, normalizeWeatherSeverityThreshold } from "@/lib/weather/alertFiltering";
 
@@ -166,9 +166,10 @@ async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
 async function loadWeatherOverviewPayload(
   supabase: SupabaseClient,
   jobsiteId: string,
-  jobsite: Record<string, unknown>
+  jobsite: Record<string, unknown>,
+  nwsClient = new NwsClient()
 ) {
-  const [subscriptions, alerts, deliveries] = await Promise.all([
+  const [subscriptions, alerts, deliveries, forecast] = await Promise.all([
     supabase
       .from("jobsite_weather_subscriptions")
       .select("id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end, created_at, updated_at")
@@ -186,6 +187,7 @@ async function loadWeatherOverviewPayload(
       .eq("jobsite_id", jobsiteId)
       .order("created_at", { ascending: false })
       .limit(20),
+    loadForecastForJobsite(jobsite, nwsClient),
   ]);
 
   if (subscriptions.error || alerts.error || deliveries.error) {
@@ -201,11 +203,47 @@ async function loadWeatherOverviewPayload(
   return {
     payload: {
       jobsite,
+      forecast,
       subscriptions: subscriptions.data ?? [],
       alerts: alerts.data ?? [],
       deliveries: deliveries.data ?? [],
     },
   } as const;
+}
+
+async function loadForecastForJobsite(
+  jobsite: Record<string, unknown>,
+  nwsClient: NwsClient
+): Promise<{ days: NwsForecastDay[]; sourceUrl: string | null; error: string | null }> {
+  const savedForecastUrl = cleanString(jobsite.nws_forecast_url);
+  let forecastUrl = savedForecastUrl || null;
+
+  if (!forecastUrl) {
+    const latitude = hasWeatherCoordinate(jobsite.weather_latitude) ? Number(jobsite.weather_latitude) : Number.NaN;
+    const longitude = hasWeatherCoordinate(jobsite.weather_longitude) ? Number(jobsite.weather_longitude) : Number.NaN;
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      try {
+        const point = await nwsClient.getPointMetadata(latitude, longitude);
+        forecastUrl = point.forecastUrl;
+      } catch {
+        return { days: [], sourceUrl: null, error: "Forecast location could not be resolved with NWS." };
+      }
+    }
+  }
+
+  if (!forecastUrl) {
+    return { days: [], sourceUrl: null, error: null };
+  }
+
+  try {
+    return {
+      days: await nwsClient.getForecast(forecastUrl, 5),
+      sourceUrl: forecastUrl,
+      error: null,
+    };
+  } catch {
+    return { days: [], sourceUrl: forecastUrl, error: "NWS forecast is temporarily unavailable." };
+  }
 }
 
 export async function GET(
@@ -227,6 +265,14 @@ export async function POST(
 ) {
   const resolved = await resolveScopedJobsite(request, params);
   if ("authError" in resolved) return resolved.authError;
+
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration for manual weather refresh." },
+      { status: 500 }
+    );
+  }
 
   let jobsite = resolved.jobsite;
   if (!jobsite.weather_enabled) {
@@ -257,7 +303,7 @@ export async function POST(
       updateValues.nws_forecast_hourly_url = resolvedLocation.nwsPoint.forecastHourlyUrl;
     }
 
-    const enabledJobsite = await resolved.auth.supabase
+    const enabledJobsite = await adminClient
       .from("company_jobsites")
       .update(updateValues)
       .eq("id", resolved.jobsiteId)
@@ -277,14 +323,6 @@ export async function POST(
     return NextResponse.json(
       { error: "The jobsite weather location has not been resolved yet. Save a ZIP, full address, or manual coordinates first." },
       { status: 400 }
-    );
-  }
-
-  const adminClient = createSupabaseAdminClient();
-  if (!adminClient) {
-    return NextResponse.json(
-      { error: "Missing Supabase service role configuration for manual weather refresh." },
-      { status: 500 }
     );
   }
 

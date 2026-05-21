@@ -96,6 +96,7 @@ type TrackedEmployee = {
   external_employee_id?: string | null;
   full_name: string;
   email?: string | null;
+  phone?: string | null;
   job_title?: string | null;
   trade_specialty?: string | null;
   readiness_status?: string | null;
@@ -108,6 +109,7 @@ type TrackedEmployeeForm = {
   employee_id: string;
   full_name: string;
   email: string;
+  phone: string;
   job_title: string;
   trade_specialty: string;
   readiness_status: string;
@@ -171,6 +173,7 @@ const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
   employee_id: "",
   full_name: "",
   email: "",
+  phone: "",
   job_title: "",
   trade_specialty: "",
   readiness_status: "ready",
@@ -844,6 +847,7 @@ export default function CompanyUsersPage() {
       employee_id: employee.external_employee_id ?? "",
       full_name: employee.full_name,
       email: employee.email ?? "",
+      phone: employee.phone ?? "",
       job_title: employee.job_title ?? "",
       trade_specialty: employee.trade_specialty ?? "",
       readiness_status: employee.readiness_status ?? "ready",
@@ -1140,6 +1144,7 @@ export default function CompanyUsersPage() {
               external_employee_id: row.externalEmployeeId,
               full_name: row.fullName,
               email: row.email,
+              phone: row.phone,
               job_title: row.jobTitle,
               trade_specialty: row.tradeSpecialty,
               readiness_status: row.readinessStatus,
@@ -1192,6 +1197,7 @@ export default function CompanyUsersPage() {
           external_employee_id: trackedEmployeeForm.employee_id || null,
           full_name: trackedEmployeeForm.full_name,
           email: trackedEmployeeForm.email || null,
+          phone: trackedEmployeeForm.phone || null,
           job_title: trackedEmployeeForm.job_title || null,
           trade_specialty: trackedEmployeeForm.trade_specialty || null,
           readiness_status: trackedEmployeeForm.readiness_status,
@@ -2128,6 +2134,7 @@ function TrainingOnlyView({
           <div className="grid gap-3 sm:grid-cols-2">
             <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} className={fieldClassName} placeholder="Full name" />
             <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={fieldClassName} placeholder="Email (optional)" />
+            <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className={fieldClassName} placeholder="Phone (optional)" />
             <input value={form.employee_id} onChange={(event) => setForm((current) => ({ ...current, employee_id: event.target.value }))} className={fieldClassName} placeholder="Employee ID" />
             <select value={form.readiness_status} onChange={(event) => setForm((current) => ({ ...current, readiness_status: event.target.value }))} className={appNativeSelectClassName}>
               <option value="ready">Ready</option>
@@ -2171,6 +2178,7 @@ function TrainingOnlyView({
                   <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
                 </div>
                 <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "No email on file"}</p>
+                <p className="mt-1 truncate text-xs text-[var(--app-muted)]">{employee.phone || "No phone on file"}</p>
                 <p className="mt-1 text-sm text-[var(--app-text)]">{employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}</p>
               </div>
               <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">

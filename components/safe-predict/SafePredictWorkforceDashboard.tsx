@@ -15,7 +15,9 @@ import {
   Flame,
   ImageUp,
   Loader2,
+  Mail,
   MapPin,
+  Phone,
   Plus,
   RefreshCw,
   Save,
@@ -119,6 +121,11 @@ type TrainingRecordForm = {
   source: string;
 };
 
+type EmployeeContactForm = {
+  email: string;
+  phone: string;
+};
+
 const emptyTrainingRecordForm: TrainingRecordForm = {
   title: "",
   completedOn: "",
@@ -126,6 +133,11 @@ const emptyTrainingRecordForm: TrainingRecordForm = {
   provider: "",
   notes: "",
   source: "manual",
+};
+
+const emptyEmployeeContactForm: EmployeeContactForm = {
+  email: "",
+  phone: "",
 };
 
 type TrainingRecordPhotoDraft = Omit<TrainingRecordForm, "source"> & {
@@ -1628,6 +1640,9 @@ function EmployeeProfileDrawer({
   const [recordForm, setRecordForm] = useState<TrainingRecordForm>(emptyTrainingRecordForm);
   const [photoExtracting, setPhotoExtracting] = useState(false);
   const [photoExtraction, setPhotoExtraction] = useState<Pick<TrainingRecordPhotoDraft, "confidence" | "warnings"> | null>(null);
+  const [contactForm, setContactForm] = useState<EmployeeContactForm>(emptyEmployeeContactForm);
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactMessage, setContactMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   const loadTrainingRecords = useCallback(async () => {
     if (!trackedEmployeeId) {
@@ -1666,6 +1681,8 @@ function EmployeeProfileDrawer({
       setRecordForm(emptyTrainingRecordForm);
       setRecordMessage(null);
       setPhotoExtraction(null);
+      setContactForm({ email: employee?.email ?? "", phone: employee?.phone ?? "" });
+      setContactMessage(null);
       if (trackedEmployeeId) {
         void loadTrainingRecords();
       } else {
@@ -1673,13 +1690,47 @@ function EmployeeProfileDrawer({
       }
     }, 0);
     return () => window.clearTimeout(handle);
-  }, [loadTrainingRecords, trackedEmployeeId]);
+  }, [employee?.email, employee?.phone, loadTrainingRecords, trackedEmployeeId]);
 
   if (!employee) return null;
 
   const jobsite = jobsiteForId(jobsites, employee.assignedSiteId);
-  const profileRows: Array<[string, string]> = [["Employee ID", employee.id], ["Supervisor", employee.supervisor], ["Shift", `${employee.shift} shift`], ["Assigned jobsite", jobsite?.name ?? "Unassigned"], ["Project phase", jobsite?.phase ?? "No active assignment"], ["Last activity", employee.lastActivity]];
+  const profileRows: Array<[string, string]> = [["Employee ID", employee.id], ["Email", employee.email || "Not on file"], ["Phone", employee.phone || "Not on file"], ["Supervisor", employee.supervisor], ["Shift", `${employee.shift} shift`], ["Assigned jobsite", jobsite?.name ?? "Unassigned"], ["Project phase", jobsite?.phase ?? "No active assignment"], ["Last activity", employee.lastActivity]];
   const isTrackedEmployee = Boolean(trackedEmployeeId);
+
+  async function saveContactDetails() {
+    if (!trackedEmployeeId) return;
+    setContactSaving(true);
+    setContactMessage(null);
+    try {
+      const token = await safePredictAccessToken();
+      const response = await fetch(`/api/company/tracked-employees/${encodeURIComponent(trackedEmployeeId)}`, {
+        method: "PATCH",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: contactForm.email,
+          phone: contactForm.phone,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setContactMessage({ tone: "error", text: data?.error || "Contact details could not be saved." });
+        return;
+      }
+      setContactMessage({ tone: "success", text: "Contact details saved." });
+      onTrainingRecordsChanged();
+    } catch (error) {
+      setContactMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Contact details could not be saved.",
+      });
+    } finally {
+      setContactSaving(false);
+    }
+  }
 
   async function saveTrainingRecord() {
     if (!trackedEmployeeId) return;
@@ -1829,6 +1880,31 @@ function EmployeeProfileDrawer({
         </div>
         <div className="flex-1 space-y-5 p-5">
           <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><UserRound className="h-4 w-4 text-blue-600" />Profile details</h3><dl className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200">{profileRows.map(([label, value]) => <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[140px_1fr] sm:gap-4"><dt className="text-xs font-bold uppercase text-slate-500">{label}</dt><dd className="text-sm font-semibold text-slate-800">{value}</dd></div>)}</dl></section>
+          {isTrackedEmployee ? (
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><Mail className="h-4 w-4 text-blue-600" />Contact details</h3>
+              <div className="mt-3 grid gap-3">
+                <label className="grid gap-1">
+                  <span className="text-xs font-bold uppercase text-slate-500">Email</span>
+                  <input type="email" value={contactForm.email} onChange={(event) => setContactForm((current) => ({ ...current, email: event.target.value }))} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="worker@example.com" />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-xs font-bold uppercase text-slate-500">Phone</span>
+                  <div className="relative">
+                    <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input type="tel" value={contactForm.phone} onChange={(event) => setContactForm((current) => ({ ...current, phone: event.target.value }))} className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="(555) 010-1234" />
+                  </div>
+                </label>
+                {contactMessage ? (
+                  <p className={cx("rounded-lg px-3 py-2 text-xs font-black", contactMessage.tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>{contactMessage.text}</p>
+                ) : null}
+                <button type="button" onClick={() => void saveContactDetails()} disabled={contactSaving} className="inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                  {contactSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Contact
+                </button>
+              </div>
+            </section>
+          ) : null}
           <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-600" />Credentials</h3><div className="mt-3 flex flex-wrap gap-2">{employee.credentials.map((credential) => <span key={credential} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{credential}</span>)}</div></section>
           {isTrackedEmployee ? (
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { NwsClient, parseNwsAlertFeature } from "@/lib/weather/nwsClient";
+import { NwsClient, parseNwsAlertFeature, parseNwsForecast } from "@/lib/weather/nwsClient";
 
 describe("NWS client", () => {
   it("parses /points metadata", async () => {
@@ -55,6 +55,67 @@ describe("NWS client", () => {
       eventName: "Severe Thunderstorm Warning",
       severity: "Severe",
       instruction: "Secure loose materials.",
+    });
+  });
+
+  it("parses 5-day forecast periods with temperatures and precipitation", () => {
+    const forecast = parseNwsForecast(
+      {
+        properties: {
+          periods: [
+            {
+              name: "Today",
+              startTime: "2026-05-21T06:00:00-05:00",
+              isDaytime: true,
+              temperature: 71,
+              temperatureUnit: "F",
+              probabilityOfPrecipitation: { value: 65 },
+              shortForecast: "Showers and thunderstorms likely",
+              detailedForecast: "Rain showers and thunderstorms likely.",
+              windSpeed: "10 mph",
+              windDirection: "S",
+            },
+            {
+              name: "Tonight",
+              startTime: "2026-05-21T18:00:00-05:00",
+              isDaytime: false,
+              temperature: 43,
+              temperatureUnit: "F",
+              probabilityOfPrecipitation: { value: 20 },
+              shortForecast: "Chance showers",
+              detailedForecast: "A chance of rain showers.",
+            },
+            {
+              name: "Friday",
+              startTime: "2026-05-22T06:00:00-05:00",
+              isDaytime: true,
+              temperature: 31,
+              temperatureUnit: "F",
+              probabilityOfPrecipitation: { value: null },
+              shortForecast: "Snow likely",
+              detailedForecast: "Snow likely before noon.",
+            },
+          ],
+        },
+      },
+      5
+    );
+
+    expect(forecast[0]).toMatchObject({
+      date: "2026-05-21",
+      highTemperature: 71,
+      lowTemperature: 43,
+      precipitationChance: 65,
+      precipitationTypes: ["storm", "rain"],
+      windSpeed: "10 mph",
+      windDirection: "S",
+    });
+    expect(forecast[1]).toMatchObject({
+      date: "2026-05-22",
+      highTemperature: 31,
+      lowTemperature: 31,
+      precipitationChance: null,
+      precipitationTypes: ["snow"],
     });
   });
 });

@@ -50,6 +50,7 @@ export const PUBLIC_ROUTES = [
 export const AUTH_APP_STATIC_ROUTES = [
   "/dashboard",
   "/documents",
+  "/library",
   "/submit",
   "/upload",
   "/search",
@@ -104,6 +105,7 @@ export const AUTH_APP_DYNAMIC_ROUTES = [
   `/jobsites/${id}/overview`,
   `/jobsites/${id}/analytics`,
   `/jobsites/${id}/schedule`,
+  `/jobsites/${id}/site-visual`,
   `/jobsites/${id}/documents`,
   `/jobsites/${id}/contractor-training`,
   `/jobsites/${id}/jsa`,

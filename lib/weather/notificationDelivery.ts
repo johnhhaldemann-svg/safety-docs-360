@@ -7,6 +7,7 @@ export type WeatherNotificationChannel = "in_app" | "email" | "sms" | "push";
 export type WeatherNotificationRecipient = {
   userId: string;
   email?: string | null;
+  phone?: string | null;
   channels: WeatherNotificationChannel[];
 };
 
@@ -41,6 +42,17 @@ function formatTime(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function normalizeSmsPhoneNumber(value?: string | null) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (raw.startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
 }
 
 export function createWeatherDeliveryDedupeKey(params: {
@@ -120,6 +132,62 @@ export async function sendWeatherAlertEmail(params: {
   return { sent: true, error: null };
 }
 
+export async function sendWeatherAlertSms(params: {
+  toPhone: string;
+  context: WeatherNotificationContext;
+  fetcher?: typeof fetch;
+}) {
+  const accountSid = readEnv("TWILIO_ACCOUNT_SID");
+  const authToken = readEnv("TWILIO_AUTH_TOKEN");
+  const fromNumber = readEnv("TWILIO_FROM_NUMBER");
+  const messagingServiceSid = readEnv("TWILIO_MESSAGING_SERVICE_SID");
+  const toPhone = normalizeSmsPhoneNumber(params.toPhone);
+
+  if (!accountSid || !authToken || (!fromNumber && !messagingServiceSid)) {
+    return {
+      sent: false,
+      error:
+        "Weather SMS delivery is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID.",
+    };
+  }
+  if (!toPhone) {
+    return {
+      sent: false,
+      error: "No valid SMS phone number is available for this user.",
+    };
+  }
+
+  const content = buildWeatherNotificationText(params.context);
+  const form = new URLSearchParams({
+    To: toPhone,
+    Body: content.text,
+  });
+  if (messagingServiceSid) {
+    form.set("MessagingServiceSid", messagingServiceSid);
+  } else if (fromNumber) {
+    form.set("From", fromNumber);
+  }
+
+  const response = await (params.fetcher ?? fetch)(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    return { sent: false, error: body.trim() || "Weather SMS provider rejected the message." };
+  }
+
+  return { sent: true, error: null };
+}
+
 export async function deliverWeatherNotification(params: {
   supabase: SupabaseClient;
   recipient: WeatherNotificationRecipient;
@@ -151,14 +219,14 @@ export async function deliverWeatherNotification(params: {
   if (inserted.error) {
     const message = (inserted.error.message ?? "").toLowerCase();
     if (inserted.error.code === "23505" || message.includes("duplicate")) {
-      return { delivered: false, duplicate: true, error: null };
+      return { delivered: false, duplicate: true, skipped: false, error: null };
     }
-    return { delivered: false, duplicate: false, error: inserted.error.message ?? "Delivery insert failed." };
+    return { delivered: false, duplicate: false, skipped: false, error: inserted.error.message ?? "Delivery insert failed." };
   }
 
   const deliveryId = (inserted.data as { id?: string } | null)?.id;
   if (!deliveryId) {
-    return { delivered: false, duplicate: false, error: "Delivery insert did not return an id." };
+    return { delivered: false, duplicate: false, skipped: false, error: "Delivery insert did not return an id." };
   }
 
   if (params.channel === "in_app") {
@@ -184,7 +252,7 @@ export async function deliverWeatherNotification(params: {
         nwsAlertId: params.context.alert.id,
       },
     });
-    return { delivered: true, duplicate: false, error: null };
+    return { delivered: true, duplicate: false, skipped: false, error: null };
   }
 
   if (params.channel === "email") {
@@ -193,7 +261,7 @@ export async function deliverWeatherNotification(params: {
         .from("weather_notification_deliveries")
         .update({ status: "skipped", error_message: "No email address is available for this user." })
         .eq("id", deliveryId);
-      return { delivered: false, duplicate: false, error: "No email address is available for this user." };
+      return { delivered: false, duplicate: false, skipped: true, error: "No email address is available for this user." };
     }
 
     const result = await sendWeatherAlertEmail({
@@ -209,12 +277,37 @@ export async function deliverWeatherNotification(params: {
         error_message: result.error,
       })
       .eq("id", deliveryId);
-    return { delivered: result.sent, duplicate: false, error: result.error };
+    return { delivered: result.sent, duplicate: false, skipped: false, error: result.error };
+  }
+
+  if (params.channel === "sms") {
+    if (!params.recipient.phone) {
+      await params.supabase
+        .from("weather_notification_deliveries")
+        .update({ status: "skipped", error_message: "No phone number is available for this user." })
+        .eq("id", deliveryId);
+      return { delivered: false, duplicate: false, skipped: true, error: "No phone number is available for this user." };
+    }
+
+    const result = await sendWeatherAlertSms({
+      toPhone: params.recipient.phone,
+      context: params.context,
+      fetcher: params.fetcher,
+    });
+    await params.supabase
+      .from("weather_notification_deliveries")
+      .update({
+        status: result.sent ? "sent" : "failed",
+        sent_at: result.sent ? new Date().toISOString() : null,
+        error_message: result.error,
+      })
+      .eq("id", deliveryId);
+    return { delivered: result.sent, duplicate: false, skipped: false, error: result.error };
   }
 
   await params.supabase
     .from("weather_notification_deliveries")
     .update({ status: "skipped", error_message: `${params.channel} delivery is not implemented yet.` })
     .eq("id", deliveryId);
-  return { delivered: false, duplicate: false, error: `${params.channel} delivery is not implemented yet.` };
+  return { delivered: false, duplicate: false, skipped: true, error: `${params.channel} delivery is not implemented yet.` };
 }

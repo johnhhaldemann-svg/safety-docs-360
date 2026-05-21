@@ -196,6 +196,7 @@ export type SafePredictTrainingMatrixRow = SafePredictLiveRecordRow & {
   personType?: string;
   name?: string;
   email?: string;
+  phone?: string;
   role?: string;
   status?: string;
   cells?: Record<string, SafePredictTrainingCellState | string>;
@@ -826,6 +827,7 @@ function normalizeTrainingMatrixRow(row: SafePredictLiveRecordRow, index: number
     personType: textValue(row, ["personType", "person_type"]) || undefined,
     name: textValue(row, ["name", "email"], "Unnamed worker"),
     email: textValue(row, ["email"]),
+    phone: textValue(row, ["phone"]),
     role: textValue(row, ["role"], "Worker"),
     status: textValue(row, ["status"], "Active"),
     cells,
@@ -897,6 +899,7 @@ export function normalizeLiveEmployees(rows: SafePredictLiveRecordRow[], jobsite
         personType: textValue(row, ["personType", "person_type"]) || undefined,
         name: textValue(row, ["name", "email"], "Unnamed worker"),
         email: textValue(row, ["email"]),
+        phone: textValue(row, ["phone"]),
         role: textValue(profile, ["jobTitle"], textValue(row, ["role"], "Worker")),
         trade: textValue(profile, ["tradeSpecialty"], "General Construction"),
         assignedSiteId: assignedSite,

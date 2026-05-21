@@ -1033,6 +1033,7 @@ async function getTrainingMatrix(request: Request) {
       trackedEmployeeId: employee.id,
       name: employee.full_name,
       email: employee.email ?? employee.external_employee_id ?? "",
+      phone: employee.phone ?? "",
       role: TRACKED_EMPLOYEE_SOURCE_LABEL,
       status: employee.status === "inactive" ? "Inactive" : "Active",
       cells,

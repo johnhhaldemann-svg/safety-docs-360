@@ -225,8 +225,29 @@ type JobsiteWeatherSettingsSummary = {
   nws_forecast_url?: string | null;
 };
 
+type JobsiteWeatherForecastDay = {
+  date?: string | null;
+  name?: string | null;
+  highTemperature?: number | null;
+  lowTemperature?: number | null;
+  temperatureUnit?: string | null;
+  precipitationChance?: number | null;
+  precipitationTypes?: string[] | null;
+  shortForecast?: string | null;
+  detailedForecast?: string | null;
+  windSpeed?: string | null;
+  windDirection?: string | null;
+};
+
+type JobsiteWeatherForecastSummary = {
+  days?: JobsiteWeatherForecastDay[];
+  sourceUrl?: string | null;
+  error?: string | null;
+};
+
 type JobsiteWeatherOverviewData = {
   jobsite?: JobsiteWeatherSettingsSummary | null;
+  forecast?: JobsiteWeatherForecastSummary | null;
   alerts?: JobsiteWeatherAlertSummary[];
   error?: string | null;
 };
@@ -536,6 +557,27 @@ function weatherSeverityClasses(severity?: string | null) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
+function formatWeatherForecastDay(value?: string | null) {
+  if (!value) return "Day";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(parsed);
+}
+
+function weatherPrecipitationLabel(day: JobsiteWeatherForecastDay) {
+  const types = (day.precipitationTypes ?? []).filter(Boolean);
+  const chance = typeof day.precipitationChance === "number" ? `${day.precipitationChance}%` : null;
+  const typeLabel = types.length > 0 ? types.map((type) => formatTitleCase(type)).join("/") : "No precip";
+  return chance ? `${chance} ${typeLabel}` : typeLabel;
+}
+
+function weatherTemperatureLabel(day: JobsiteWeatherForecastDay) {
+  const unit = day.temperatureUnit || "F";
+  const high = typeof day.highTemperature === "number" ? `${day.highTemperature}°${unit}` : "--";
+  const low = typeof day.lowTemperature === "number" ? `${day.lowTemperature}°${unit}` : "--";
+  return `${high} / ${low}`;
+}
+
 function controlList(value: string) {
   return value
     .split(",")
@@ -557,6 +599,11 @@ function jobsiteWeatherFromSite(site: SafePredictJobsiteRecord): JobsiteWeatherO
       weather_last_checked_at: site.weatherLastCheckedAt ?? null,
       nws_forecast_url: site.weatherForecastUrl ?? null,
     },
+    forecast: {
+      days: [],
+      sourceUrl: site.weatherForecastUrl ?? null,
+      error: null,
+    },
     alerts: [],
   };
 }
@@ -571,6 +618,11 @@ function mergeJobsiteWeatherOverview(
     jobsite: {
       ...(fallbackWeather.jobsite ?? {}),
       ...(payload?.jobsite ?? {}),
+    },
+    forecast: {
+      ...(fallbackWeather.forecast ?? {}),
+      ...(payload?.forecast ?? {}),
+      days: Array.isArray(payload?.forecast?.days) ? payload.forecast.days : fallbackWeather.forecast?.days ?? [],
     },
     alerts: Array.isArray(payload?.alerts) ? payload.alerts : fallbackWeather.alerts ?? [],
   };
@@ -589,11 +641,13 @@ function JobsiteWeatherOverviewCard({
 }) {
   const jobsiteWeather = weather?.jobsite ?? jobsiteWeatherFromSite(site).jobsite;
   const alerts = weather?.alerts ?? [];
+  const forecast = weather?.forecast;
+  const forecastDays = forecast?.days ?? [];
   const enabled = Boolean(jobsiteWeather?.weather_enabled);
   const zipCode = jobsiteWeather?.zip_code || site.zipCode || "";
   const sourceLabel = weatherLocationSourceLabel(jobsiteWeather?.weather_location_source ?? site.weatherLocationSource);
   const confidence = jobsiteWeather?.weather_location_confidence ?? site.weatherLocationConfidence;
-  const forecastUrl = jobsiteWeather?.nws_forecast_url ?? site.weatherForecastUrl;
+  const forecastUrl = forecast?.sourceUrl ?? jobsiteWeather?.nws_forecast_url ?? site.weatherForecastUrl;
   const canAttemptRefresh =
     enabled ||
     Boolean(zipCode) ||
@@ -646,6 +700,37 @@ function JobsiteWeatherOverviewCard({
       </div>
       {weather?.error ? (
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{weather.error}</p>
+      ) : null}
+      {forecast?.error ? (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{forecast.error}</p>
+      ) : null}
+      {forecastDays.length > 0 ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {forecastDays.slice(0, 5).map((day, index) => (
+            <div key={day.date ?? `${day.name ?? "forecast"}-${index}`} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">{formatWeatherForecastDay(day.date)}</p>
+                  <p className="mt-1 text-lg font-black leading-none text-slate-950">{weatherTemperatureLabel(day)}</p>
+                </div>
+                <span className={cx(
+                  "max-w-28 rounded-full border px-2 py-0.5 text-center text-[10px] font-black uppercase leading-tight tracking-wide",
+                  (day.precipitationTypes ?? []).some((type) => ["storm", "ice", "sleet", "snow"].includes(type))
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-blue-100 bg-blue-50 text-blue-700"
+                )}>
+                  {weatherPrecipitationLabel(day)}
+                </span>
+              </div>
+              <p className="mt-3 min-h-10 text-xs font-bold leading-5 text-slate-700">{day.shortForecast || "Forecast pending"}</p>
+              {(day.windSpeed || day.windDirection) ? (
+                <p className="mt-2 text-[11px] font-semibold text-slate-500">Wind {day.windDirection ? `${day.windDirection} ` : ""}{day.windSpeed}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : enabled ? (
+        <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600">5-day NWS forecast will appear after the weather location is resolved.</p>
       ) : null}
       {alerts.length > 0 ? (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -1738,15 +1823,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         ) {
           weatherAutoEnableAttemptsRef.current.add(autoEnableKey);
           const activateResponse = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/weather`, {
-            method: "PATCH",
+            method: "POST",
             headers: {
-              "Content-Type": "application/json",
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({
-              weatherEnabled: true,
-              zipCode: savedZip,
-            }),
           });
           const activatePayload = (await activateResponse.json().catch(() => null)) as JobsiteWeatherOverviewData | null;
           if (cancelled) return;

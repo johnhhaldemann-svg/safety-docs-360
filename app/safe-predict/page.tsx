@@ -1459,7 +1459,7 @@ export default function SafePredictDashboardPage() {
         liveWithoutCompletedInspections={liveWithoutCompletedInspections}
       />
 
-      <div className="mt-5 grid gap-4 2xl:grid-cols-[1.18fr_0.9fr_1.05fr_0.78fr]">
+      <div className="mt-5 grid gap-4 xl:grid-cols-2 min-[1900px]:grid-cols-[1.18fr_0.9fr_1.05fr_0.78fr]">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-3">
             <SectionTitle title="Predictive Risk Trend" />
@@ -1517,41 +1517,33 @@ export default function SafePredictDashboardPage() {
           <div className="p-5 pb-2">
             <SectionTitle title="Top Recommended Mitigations" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-xs">
-              <thead className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                <tr className="border-b border-slate-200">
-                  <th className="px-5 py-3">Priority</th>
-                  <th className="px-5 py-3">Recommendation</th>
-                  <th className="px-5 py-3">Impact</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {safePredictMitigations.slice(0, 3).map((item) => (
-                  <tr key={item.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-5 py-4"><RiskBadge level={item.priority} /></td>
-                    <td className="px-5 py-4">
-                      <p className="font-black text-slate-900">{item.recommendation}</p>
-                      <p className="mt-1 text-slate-500">{item.drivers.join(", ")}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
-                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
-                        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
-                        {item.impact}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <Link href={`/safe-predict/risk-mitigation#${item.id}`} className="inline-flex rounded-md border border-blue-500 px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50">
-                        View Details
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="px-5 pb-2">
+            <div className="grid grid-cols-[82px_minmax(0,1fr)_92px_72px] gap-3 border-b border-slate-200 py-3 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              <span>Priority</span>
+              <span>Recommendation</span>
+              <span>Impact</span>
+              <span />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {safePredictMitigations.slice(0, 3).map((item) => (
+                <div key={item.id} className="grid grid-cols-[82px_minmax(0,1fr)_92px_72px] items-center gap-3 py-4 text-xs">
+                  <RiskBadge level={item.priority} />
+                  <span className="min-w-0">
+                    <span className="block font-black leading-snug text-slate-900">{item.recommendation}</span>
+                    <span className="mt-1 block text-slate-500">{item.drivers.join(", ")}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                    <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                    <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                    <span className="truncate">{item.impact}</span>
+                  </span>
+                  <Link href={`/safe-predict/risk-mitigation#${item.id}`} className="inline-flex min-h-9 items-center justify-center rounded-md border border-blue-500 px-2 text-xs font-bold text-blue-600 hover:bg-blue-50">
+                    Details
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="border-t border-slate-100 p-5">
             <Link href="/safe-predict/risk-mitigation" className="inline-flex items-center gap-2 font-bold text-blue-600">

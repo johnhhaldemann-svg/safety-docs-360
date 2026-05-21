@@ -53,7 +53,8 @@ This project is organized by company-scoped modules and jobsite surfaces.
 - `/jobsites/[jobsiteId]/inductions`
 - `/jobsites/[jobsiteId]/safety-forms`
 - `/jobsites/[jobsiteId]/live-view`
-- `/daps`
+- `/jobsites/[jobsiteId]/site-visual`
+- `/library`
 - `/field-id-exchange`
 - `/permits`
 - `/incidents`

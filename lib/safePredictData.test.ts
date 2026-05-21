@@ -125,7 +125,7 @@ describe("safePredictData", () => {
       liveIncidents: [{ id: "inc-1", jobsite_id: "live-site-1", title: "Near miss at stair tower", status: "open", severity: "high", incident_type: "near_miss" }],
       liveObservations: [{ id: "obs-1", jobsite_id: "live-site-1", title: "Material in walkway", status: "open", severity: "medium", category: "housekeeping" }],
       livePermits: [{ id: "permit-1", jobsite_id: "live-site-1", permit_type: "Hot Work", status: "expired" }],
-      liveEmployees: [{ userId: "worker-1", name: "Sam Rivera", role: "foreman", cells: ["compliant"], profileFields: { tradeSpecialty: "Steel", jobTitle: "Foreman" } }],
+      liveEmployees: [{ userId: "worker-1", name: "Sam Rivera", email: "sam.rivera@example.com", phone: "555-0101", role: "foreman", cells: ["compliant"], profileFields: { tradeSpecialty: "Steel", jobTitle: "Foreman" } }],
       liveUsers: [{ id: "worker-2", name: "Alicia Moore", role: "field_supervisor", status: "Active", jobsite_id: "live-site-1" }],
       liveInspections: [{ id: "audit-1", jobsite_id: "live-site-1", title: "Daily walk", status: "failed", failed_items: 2 }],
       liveReports: [{ id: "report-1", jobsite_id: "live-site-1", title: "Weekly risk summary", status: "published" }],
@@ -142,7 +142,7 @@ describe("safePredictData", () => {
     expect(siteScoped(dataset.permits, "live-site-1")[0]?.status).toBe("Expired");
     expect(siteScoped(dataset.inspections, "live-site-1")[0]?.status).toBe("Failed Check");
     expect(siteScoped(dataset.reports, "live-site-1")[0]?.status).toBe("Ready");
-    expect(dataset.employees[0]).toMatchObject({ name: "Sam Rivera", assignedSiteId: "live-site-1" });
+    expect(dataset.employees[0]).toMatchObject({ name: "Sam Rivera", email: "sam.rivera@example.com", phone: "555-0101", assignedSiteId: "live-site-1" });
     expect(dataset.employees.some((employee) => employee.name === "Alicia Moore")).toBe(true);
     expect(siteScoped(dataset.documents, "live-site-1")[0]).toMatchObject({ title: "North Pier JSA", type: "JSA", status: "Approved" });
     expect(hasSafePredictForecastInputs(dataset, "live-site-1")).toBe(true);
