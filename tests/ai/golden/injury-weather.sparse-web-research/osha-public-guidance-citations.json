@@ -1,0 +1,33 @@
+{
+  "name": "osha-public-guidance-citations",
+  "surface": "injury-weather.sparse-web-research",
+  "input": {
+    "summary": {
+      "riskSignalCount": 2,
+      "dataConfidence": "LOW",
+      "forecastMode": "baseline_only",
+      "likelyInjuryInsight": { "hasData": false },
+      "month": "2026-05"
+    },
+    "location": {
+      "displayName": "Texas",
+      "stateCode": "TX"
+    },
+    "tradeForecasts": [
+      { "trade": "Roofing" },
+      { "trade": "Electrical" }
+    ]
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "bullets", "type": "array", "nonEmpty": true },
+      { "path": "citations", "type": "array", "nonEmpty": true },
+      { "path": "disclaimer", "type": "string", "nonEmpty": true }
+    ],
+    "requiredEvidence": [
+      { "path": "bullets", "terms": ["fall", "heat", "electrical", "roof"], "minMatches": 1 },
+      { "path": "citations", "terms": ["osha", "cdc", "niosh", "labor"], "minMatches": 1 }
+    ],
+    "mustNotSay": ["confirmed company incident", "guaranteed injury", "citation issued"]
+  }
+}

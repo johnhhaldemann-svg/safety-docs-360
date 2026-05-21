@@ -27,6 +27,10 @@ const ALLOWED_SURFACE_PREFIXES = [
   "gc-review",
   "csep-review",
   "injury-weather",
+  "training-records.photo-extract",
+  "field-audits.ai-review",
+  "jobsite.site-visual.generate",
+  "jobsite.site-visual.render.generate",
 ];
 
 const RAW_BODY_FIELDS = new Set([
@@ -115,6 +119,7 @@ export async function POST(request: Request) {
   const signalMetadata = sanitizeAiFeedbackSignalMetadata({
     ...metadata,
     ...(reasonCode ? { reasonCode } : {}),
+    userRole: auth.role ?? null,
   });
 
   const adminClient = createSupabaseAdminClient() as unknown as AiEngineReadableClient | null;

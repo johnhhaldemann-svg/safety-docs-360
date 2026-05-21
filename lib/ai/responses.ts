@@ -1,5 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { buildAiPromptHash, getAiApiBaseUrl, resolveAiModelId, resolveAiProvider } from "@/lib/ai/platform";
-import { extractResponsesApiUsage, recordAiCall, type AiCallUsage } from "@/lib/ai/callLog";
+import {
+  classifyAiCallError,
+  extractResponsesApiUsage,
+  recordAiCall,
+  type AiCallErrorType,
+  type AiCallUsage,
+} from "@/lib/ai/callLog";
 
 export type AiFallbackReason =
   | "no_openai_api_key"
@@ -13,12 +20,20 @@ export type AiExecutionMeta = {
   model: string | null;
   provider: string | null;
   promptHash: string | null;
+  traceId?: string | null;
+  promptVersion?: string | null;
+  outputSchemaVersion?: string | null;
   fallbackUsed: boolean;
   fallbackReason: AiFallbackReason;
+  errorType?: AiCallErrorType | null;
   attempts: number;
+  retryCount?: number;
   latencyMs: number;
   usage: AiCallUsage | null;
   surface: string | null;
+  cacheHit?: boolean;
+  toolCallsUsed?: number;
+  evalFixtureId?: string | null;
 };
 
 export function extractResponsesApiOutputText(json: unknown): string | null {
@@ -75,6 +90,11 @@ export async function requestAiResponsesText(params: {
   body?: Record<string, unknown>;
   /** Logical AI surface (e.g. "risk-memory.llm", "permit.copilot") for telemetry. */
   surface?: string;
+  traceId?: string | null;
+  promptVersion?: string | null;
+  outputSchemaVersion?: string | null;
+  cacheHit?: boolean | null;
+  evalFixtureId?: string | null;
   /** Override retry attempts (default 3). Set to 1 to disable retries. */
   maxAttempts?: number;
   /** Optional abort signal for caller-specific timeouts. */
@@ -87,30 +107,51 @@ export async function requestAiResponsesText(params: {
   const surface = params.surface?.trim() || "ai.unspecified";
   const startedAt = Date.now();
   const apiKey = params.apiKey ?? process.env.OPENAI_API_KEY?.trim() ?? "";
+  const traceId = params.traceId?.trim() || randomUUID();
+  const promptVersion = params.promptVersion?.trim() || null;
+  const outputSchemaVersion = params.outputSchemaVersion?.trim() || null;
+  const evalFixtureId = params.evalFixtureId?.trim() || process.env.AI_EVAL_FIXTURE_ID?.trim() || null;
+  const toolCallsUsed = Array.isArray(params.body?.tools) ? params.body.tools.length : 0;
+  const cacheHit = Boolean(params.cacheHit);
 
   if (!apiKey) {
     const meta: AiExecutionMeta = {
       model: null,
       provider: null,
       promptHash: null,
+      traceId,
+      promptVersion,
+      outputSchemaVersion,
       fallbackUsed: true,
       fallbackReason: "no_openai_api_key",
+      errorType: "provider_auth",
       attempts: 0,
+      retryCount: 0,
       latencyMs: 0,
       usage: null,
       surface,
+      cacheHit,
+      toolCallsUsed,
+      evalFixtureId,
     };
     recordAiCall({
       surface,
       model: null,
       provider: null,
       promptHash: null,
+      traceId,
+      promptVersion,
+      outputSchemaVersion,
       latencyMs: 0,
       status: "fallback",
       attempts: 0,
       fallbackUsed: true,
       fallbackReason: "no_openai_api_key",
+      errorType: "provider_auth",
       errorMessage: "no_openai_api_key",
+      cacheHit,
+      toolCallsUsed,
+      evalFixtureId,
     });
     return { text: null, json: null, meta };
   }
@@ -155,25 +196,44 @@ export async function requestAiResponsesText(params: {
           model,
           provider,
           promptHash,
+          traceId,
+          promptVersion,
+          outputSchemaVersion,
           fallbackUsed: true,
           fallbackReason: "http_error",
+          errorType: classifyAiCallError({
+            httpStatus: response.status,
+            fallbackReason: "http_error",
+            errorMessage: errText,
+          }),
           attempts: attempt,
+          retryCount: Math.max(0, attempt - 1),
           latencyMs: Date.now() - startedAt,
           usage: null,
           surface,
+          cacheHit,
+          toolCallsUsed,
+          evalFixtureId,
         };
         recordAiCall({
           surface,
           model,
           provider,
           promptHash,
+          traceId,
+          promptVersion,
+          outputSchemaVersion,
           latencyMs: meta.latencyMs,
           status: "http_error",
           httpStatus: response.status,
           attempts: attempt,
           fallbackUsed: true,
           fallbackReason: "http_error",
+          errorType: meta.errorType,
           errorMessage: errText.slice(0, 500) || `http_${response.status}`,
+          cacheHit,
+          toolCallsUsed,
+          evalFixtureId,
         });
         return { text: null, json: null, meta };
       }
@@ -188,26 +248,41 @@ export async function requestAiResponsesText(params: {
         model,
         provider,
         promptHash,
+        traceId,
+        promptVersion,
+        outputSchemaVersion,
         fallbackUsed,
         fallbackReason: fallbackUsed ? "empty_output_text" : null,
+        errorType: fallbackUsed ? "empty_output" : null,
         attempts: attempt,
+        retryCount: Math.max(0, attempt - 1),
         latencyMs,
         usage,
         surface,
+        cacheHit,
+        toolCallsUsed,
+        evalFixtureId,
       };
       recordAiCall({
         surface,
         model,
         provider,
         promptHash,
+        traceId,
+        promptVersion,
+        outputSchemaVersion,
         latencyMs,
         status: fallbackUsed ? "fallback" : "ok",
         httpStatus: response.status,
         attempts: attempt,
         fallbackUsed,
         fallbackReason: fallbackUsed ? "empty_output_text" : null,
+        errorType: meta.errorType,
         usage,
         errorMessage: fallbackUsed ? "empty_output_text" : null,
+        cacheHit,
+        toolCallsUsed,
+        evalFixtureId,
       });
 
       return { text, json, meta };
@@ -221,25 +296,44 @@ export async function requestAiResponsesText(params: {
         model,
         provider,
         promptHash,
+        traceId,
+        promptVersion,
+        outputSchemaVersion,
         fallbackUsed: true,
         fallbackReason: "exception",
+        errorType: classifyAiCallError({
+          httpStatus: lastHttpStatus,
+          fallbackReason: "exception",
+          errorMessage: lastErrorMessage,
+        }),
         attempts: attempt,
+        retryCount: Math.max(0, attempt - 1),
         latencyMs: Date.now() - startedAt,
         usage: null,
         surface,
+        cacheHit,
+        toolCallsUsed,
+        evalFixtureId,
       };
       recordAiCall({
         surface,
         model,
         provider,
         promptHash,
+        traceId,
+        promptVersion,
+        outputSchemaVersion,
         latencyMs: meta.latencyMs,
         status: "exception",
         httpStatus: lastHttpStatus,
         attempts: attempt,
         fallbackUsed: true,
         fallbackReason: "exception",
+        errorType: meta.errorType,
         errorMessage: lastErrorMessage?.slice(0, 240) ?? "unknown_exception",
+        cacheHit,
+        toolCallsUsed,
+        evalFixtureId,
       });
       return { text: null, json: null, meta };
     }
@@ -250,12 +344,20 @@ export async function requestAiResponsesText(params: {
     model,
     provider,
     promptHash,
+    traceId,
+    promptVersion,
+    outputSchemaVersion,
     fallbackUsed: true,
     fallbackReason: "exception",
+    errorType: "unknown",
     attempts: attempt,
+    retryCount: Math.max(0, attempt - 1),
     latencyMs: Date.now() - startedAt,
     usage: null,
     surface,
+    cacheHit,
+    toolCallsUsed,
+    evalFixtureId,
   };
   return { text: null, json: null, meta };
 }
@@ -272,6 +374,11 @@ export async function runStructuredAiJsonTask<T>(params: {
   /** Logical AI surface (e.g. "safety-intelligence.review") for telemetry. */
   surface?: string;
   maxAttempts?: number;
+  promptVersion?: string | null;
+  outputSchemaVersion?: string | null;
+  traceId?: string | null;
+  cacheHit?: boolean | null;
+  evalFixtureId?: string | null;
 }): Promise<{
   parsed: T;
   text: string | null;
@@ -286,6 +393,11 @@ export async function runStructuredAiJsonTask<T>(params: {
     body: params.body,
     surface: params.surface,
     maxAttempts: params.maxAttempts,
+    promptVersion: params.promptVersion,
+    outputSchemaVersion: params.outputSchemaVersion,
+    traceId: params.traceId,
+    cacheHit: params.cacheHit,
+    evalFixtureId: params.evalFixtureId,
   });
 
   if (!response.text) {
@@ -306,6 +418,7 @@ export async function runStructuredAiJsonTask<T>(params: {
         ...response.meta,
         fallbackUsed: false,
         fallbackReason: null,
+        errorType: null,
       },
     };
   } catch {
@@ -317,6 +430,7 @@ export async function runStructuredAiJsonTask<T>(params: {
         ...response.meta,
         fallbackUsed: true,
         fallbackReason: "invalid_json",
+        errorType: "invalid_json",
       },
     };
   }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
@@ -122,6 +122,16 @@ async function buildDeterministicRenderImage(
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
+async function updateRenderJob(jobId: string | null | undefined, row: Record<string, unknown>) {
+  if (!jobId) return;
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  await admin
+    .from("ai_visual_generation_jobs")
+    .update({ ...row, updated_at: new Date().toISOString() })
+    .eq("id", jobId);
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ jobsiteId: string }> }
@@ -147,8 +157,15 @@ export async function POST(
     return NextResponse.json({ error: `Too many detailed visual generations. Retry in ${rl.retryAfterSec}s.` }, { status: 429 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const runSynchronously = searchParams.get("sync") === "1";
   const { jobsiteId } = await params;
-  const body = (await request.json().catch(() => null)) as { blueprintId?: string | null; siteMapId?: string | null } | null;
+  const body = (await request.json().catch(() => null)) as {
+    blueprintId?: string | null;
+    siteMapId?: string | null;
+    jobId?: string | null;
+  } | null;
+  const jobId = typeof body?.jobId === "string" && body.jobId.trim() ? body.jobId.trim() : null;
   const companyScope = await resolveCompanyScope(auth);
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
@@ -182,6 +199,7 @@ export async function POST(
   if (!mapResult.data) {
     return NextResponse.json({ error: "Generate the editable site map before creating a detailed visual." }, { status: 400 });
   }
+  const siteMapId = String(mapResult.data.id);
 
   let blueprintQuery = auth.supabase
     .from("company_jobsite_site_blueprints")
@@ -209,7 +227,7 @@ export async function POST(
     .select(ZONE_SELECT)
     .eq("company_id", companyScope.companyId)
     .eq("jobsite_id", jobsiteId)
-    .eq("site_map_id", mapResult.data.id)
+    .eq("site_map_id", siteMapId)
     .order("created_at", { ascending: true });
   if (zonesResult.error) {
     return NextResponse.json({ error: zonesResult.error.message || "Failed to load visual zones." }, { status: 500 });
@@ -241,6 +259,107 @@ export async function POST(
   };
   const prompt = buildSiteVisualRenderPrompt(promptInput, overlay);
   const promptHash = siteVisualRenderPromptHash(promptInput, overlay);
+  const contextHash = promptHash;
+
+  if (!runSynchronously) {
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return NextResponse.json({ error: "Missing Supabase service role env configuration." }, { status: 500 });
+    }
+    const insertJob = await admin
+      .from("ai_visual_generation_jobs")
+      .insert({
+        company_id: companyScope.companyId,
+        jobsite_id: jobsiteId,
+        site_map_id: siteMapId,
+        blueprint_id: blueprint.id,
+        surface: "jobsite.site-visual.render.generate",
+        status: "queued",
+        progress: 5,
+        stage: "queued",
+        prompt_hash: promptHash,
+        context_hash: contextHash,
+        token_budget: 12000,
+        input_snapshot: {
+          siteMapId,
+          blueprintId: blueprint.id,
+          zoneCount: scene.zones.length,
+          overlapCount: scene.overlaps.length,
+          stagedWorkflow: ["classify_scene", "identify_risks", "generate_recommendation", "render_final_response"],
+        },
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      })
+      .select("id,created_at,status,progress,stage")
+      .single();
+    if (insertJob.error) {
+      return NextResponse.json({ error: insertJob.error.message || "Failed to queue detailed visual." }, { status: 500 });
+    }
+
+    const syncUrl = new URL(request.url);
+    syncUrl.searchParams.set("sync", "1");
+    const authorization = request.headers.get("authorization") ?? "";
+    const cookie = request.headers.get("cookie") ?? "";
+    const queuedJobId = String(insertJob.data.id);
+    after(async () => {
+      try {
+        const response = await fetch(syncUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authorization ? { Authorization: authorization } : {}),
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          body: JSON.stringify({
+            blueprintId: blueprint.id,
+            siteMapId,
+            jobId: queuedJobId,
+          }),
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          await updateRenderJob(queuedJobId, {
+            status: "failed",
+            progress: 100,
+            stage: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: failure?.error ?? `Detailed visual worker returned HTTP ${response.status}.`,
+          });
+        }
+      } catch (error) {
+        await updateRenderJob(queuedJobId, {
+          status: "failed",
+          progress: 100,
+          stage: "failed",
+          completed_at: new Date().toISOString(),
+          error_type: "worker_exception",
+          error_message: error instanceof Error ? error.message : "Detailed visual worker failed.",
+        });
+      }
+    });
+
+    return NextResponse.json(
+      {
+        job: {
+          id: queuedJobId,
+          status: "queued",
+          progress: 5,
+          stage: "queued",
+          statusUrl: `/api/company/jobsites/${jobsiteId}/site-visual/render/jobs/${queuedJobId}`,
+        },
+      },
+      { status: 202 }
+    );
+  }
+
+  await updateRenderJob(jobId, {
+    status: "running",
+    progress: 20,
+    stage: "render_final_response",
+    started_at: new Date().toISOString(),
+  });
+
   const model = resolveAiModelId(process.env.JOBSITE_VISUAL_RENDER_MODEL?.trim() || "gpt-5");
   const provider = resolveAiProvider(model);
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -332,7 +451,7 @@ export async function POST(
       id: renderId,
       company_id: companyScope.companyId,
       jobsite_id: jobsiteId,
-      site_map_id: mapResult.data.id,
+      site_map_id: siteMapId,
       blueprint_id: blueprint.id,
       render_status: "ready",
       prompt_hash: promptHash,
@@ -345,6 +464,8 @@ export async function POST(
         model,
         provider,
         promptHash,
+        promptVersion: "jobsite-site-visual-render-v1",
+        outputSchemaVersion: "site-visual-render-image-v1",
         latencyMs,
         usage,
         revisedPrompt,
@@ -363,6 +484,33 @@ export async function POST(
     }
     return NextResponse.json({ error: insert.error.message || "Failed to save detailed visual record." }, { status: 500 });
   }
+
+  await updateRenderJob(jobId, {
+    status: fallbackUsed ? "fallback_ready" : "ready",
+    progress: 100,
+    stage: fallbackUsed ? "fallback_ready" : "ready",
+    completed_at: new Date().toISOString(),
+    render_id: insert.data.id,
+    prompt_hash: promptHash,
+    context_hash: contextHash,
+    ai_meta: {
+      model,
+      provider,
+      promptHash,
+      latencyMs,
+      usage,
+      fallbackUsed,
+      upstreamError,
+    },
+    result_snapshot: {
+      renderId: insert.data.id,
+      imagePath,
+      thumbnailPath,
+      fallbackUsed,
+    },
+    error_type: fallbackUsed ? "provider_image_generation" : null,
+    error_message: fallbackUsed ? upstreamError : null,
+  });
 
   return NextResponse.json({
     render: await dbRenderToPayload(insert.data as Record<string, unknown>),

@@ -789,9 +789,13 @@ export async function generateInjuryWeatherAiInsights(
   try {
     const response = await requestAiResponsesText({
       apiKey,
-      model: "gpt-4.1",
+      model: process.env.INJURY_WEATHER_AI_MODEL?.trim() || "gpt-4o-mini",
       input: prompt,
       surface: "injury-weather.insights",
+      promptVersion: "injury-weather-insights-v2",
+      outputSchemaVersion: requestForecastOverride
+        ? "injury-weather-insights-with-override-v2"
+        : "injury-weather-insights-v2",
       body: {
         text: {
           format: {

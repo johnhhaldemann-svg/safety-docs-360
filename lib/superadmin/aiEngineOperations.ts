@@ -9,6 +9,10 @@ export const AI_ENGINE_SURFACES = [
   "csep-review",
   "gc-review",
   "injury-weather",
+  "training-records.photo-extract",
+  "field-audits.ai-review",
+  "jobsite.site-visual.generate",
+  "jobsite.site-visual.render.generate",
   "embeddings",
 ] as const;
 
@@ -26,16 +30,26 @@ export type AiEngineCallRow = {
   surface: string;
   model: string | null;
   provider: string | null;
+  trace_id: string | null;
+  prompt_version: string | null;
+  output_schema_version: string | null;
   latency_ms: number | null;
   status: string;
+  error_type: string | null;
   http_status: number | null;
   attempts: number | null;
+  retry_count: number | null;
   fallback_used: boolean | null;
   fallback_reason: string | null;
   prompt_tokens: number | null;
   completion_tokens: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   total_tokens: number | null;
   error_message: string | null;
+  cache_hit: boolean | null;
+  tool_calls_used: number | null;
+  eval_fixture_id: string | null;
 };
 
 export type AiEngineFeedbackOutcome =
@@ -65,6 +79,15 @@ export type AiEngineFeedbackSignalMetadata = {
   documentType?: string;
   reasonCode?: string;
   fallbackUsed?: boolean;
+  userRole?: string;
+  model?: string;
+  promptVersion?: string;
+  outputSchemaVersion?: string;
+  latencyMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  errorType?: string;
+  changedFieldIds?: string[];
 };
 
 export type AiEngineFeedbackSummarySurface = {
@@ -219,6 +242,15 @@ const SAFE_SIGNAL_METADATA_KEYS = new Set([
   "documentType",
   "reasonCode",
   "fallbackUsed",
+  "userRole",
+  "model",
+  "promptVersion",
+  "outputSchemaVersion",
+  "latencyMs",
+  "inputTokens",
+  "outputTokens",
+  "errorType",
+  "changedFieldIds",
 ]);
 
 export function sanitizeAiFeedbackSignalMetadata(input: unknown): AiEngineFeedbackSignalMetadata {
@@ -255,11 +287,37 @@ export function sanitizeAiFeedbackSignalMetadata(input: unknown): AiEngineFeedba
       continue;
     }
 
+    if (key === "latencyMs" || key === "inputTokens" || key === "outputTokens") {
+      const normalized = normalizeNumber(value);
+      if (normalized != null) {
+        const bounded = Math.min(10_000_000, Math.max(0, Math.round(normalized)));
+        if (key === "latencyMs") sanitized.latencyMs = bounded;
+        if (key === "inputTokens") sanitized.inputTokens = bounded;
+        if (key === "outputTokens") sanitized.outputTokens = bounded;
+      }
+      continue;
+    }
+
+    if (key === "changedFieldIds") {
+      if (Array.isArray(value)) {
+        sanitized.changedFieldIds = value
+          .map((item) => sanitizeNullableText(item, 80))
+          .filter((item): item is string => Boolean(item))
+          .slice(0, 20);
+      }
+      continue;
+    }
+
     const text = sanitizeNullableText(value, 80);
     if (!text) continue;
     if (key === "workflowStep") sanitized.workflowStep = text;
     if (key === "documentType") sanitized.documentType = text;
     if (key === "reasonCode") sanitized.reasonCode = text;
+    if (key === "userRole") sanitized.userRole = text;
+    if (key === "model") sanitized.model = text;
+    if (key === "promptVersion") sanitized.promptVersion = text;
+    if (key === "outputSchemaVersion") sanitized.outputSchemaVersion = text;
+    if (key === "errorType") sanitized.errorType = text;
   }
 
   return sanitized;
@@ -272,38 +330,81 @@ function normalizeCallRow(row: Record<string, unknown>): AiEngineCallRow {
     surface: sanitizeNullableText(row.surface, 120) ?? "unknown",
     model: sanitizeNullableText(row.model, 120),
     provider: sanitizeNullableText(row.provider, 80),
+    trace_id: sanitizeNullableText(row.trace_id, 80),
+    prompt_version: sanitizeNullableText(row.prompt_version, 80),
+    output_schema_version: sanitizeNullableText(row.output_schema_version, 80),
     latency_ms: normalizeNumber(row.latency_ms),
     status: sanitizeNullableText(row.status, 40) ?? "unknown",
+    error_type: sanitizeNullableText(row.error_type, 80),
     http_status: normalizeNumber(row.http_status),
     attempts: normalizeNumber(row.attempts),
+    retry_count: normalizeNumber(row.retry_count),
     fallback_used: typeof row.fallback_used === "boolean" ? row.fallback_used : null,
     fallback_reason: sanitizeNullableText(row.fallback_reason, 120),
     prompt_tokens: normalizeNumber(row.prompt_tokens),
     completion_tokens: normalizeNumber(row.completion_tokens),
+    input_tokens: normalizeNumber(row.input_tokens) ?? normalizeNumber(row.prompt_tokens),
+    output_tokens: normalizeNumber(row.output_tokens) ?? normalizeNumber(row.completion_tokens),
     total_tokens: normalizeNumber(row.total_tokens),
     error_message: sanitizeNullableText(row.error_message, 240),
+    cache_hit: typeof row.cache_hit === "boolean" ? row.cache_hit : null,
+    tool_calls_used: normalizeNumber(row.tool_calls_used),
+    eval_fixture_id: sanitizeNullableText(row.eval_fixture_id, 160),
   };
 }
 
+type AiEngineMetricGroup = {
+  key: string;
+  calls: number;
+  fallbacks: number;
+  failures: number;
+  tokens: number;
+  p50LatencyMs?: number | null;
+  p90LatencyMs?: number | null;
+  p95LatencyMs?: number | null;
+  latencies?: number[];
+};
+
 function incrementGroup(
-  groups: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }>,
+  groups: Record<string, AiEngineMetricGroup>,
   key: string | null,
   row: AiEngineCallRow
 ) {
   const groupKey = key || "unknown";
   const existing =
     groups[groupKey] ??
-    (groups[groupKey] = { key: groupKey, calls: 0, fallbacks: 0, failures: 0, tokens: 0 });
+    (groups[groupKey] = { key: groupKey, calls: 0, fallbacks: 0, failures: 0, tokens: 0, latencies: [] });
   existing.calls += 1;
   if (row.fallback_used || row.status === "fallback") existing.fallbacks += 1;
   if (row.status === "http_error" || row.status === "exception") existing.failures += 1;
   existing.tokens += row.total_tokens ?? 0;
+  if (row.latency_ms != null) existing.latencies?.push(row.latency_ms);
 }
 
-function sortedGroups(
-  groups: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }>
-) {
-  return Object.values(groups).sort((a, b) => b.calls - a.calls || a.key.localeCompare(b.key));
+function percentile(sortedValues: number[], p: number): number | null {
+  if (sortedValues.length === 0) return null;
+  if (sortedValues.length === 1) return sortedValues[0];
+  const index = (sortedValues.length - 1) * p;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sortedValues[lower];
+  const weight = index - lower;
+  return Math.round(sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight);
+}
+
+function sortedGroups(groups: Record<string, AiEngineMetricGroup>) {
+  return Object.values(groups)
+    .map((group) => {
+      const latencies = [...(group.latencies ?? [])].sort((a, b) => a - b);
+      const { latencies: _omit, ...rest } = group;
+      return {
+        ...rest,
+        p50LatencyMs: percentile(latencies, 0.5),
+        p90LatencyMs: percentile(latencies, 0.9),
+        p95LatencyMs: percentile(latencies, 0.95),
+      };
+    })
+    .sort((a, b) => b.calls - a.calls || a.key.localeCompare(b.key));
 }
 
 function emptyOutcomeCounts(): Record<AiEngineFeedbackOutcome, number> {
@@ -416,7 +517,7 @@ export async function getAiEngineCalls(
   let query = client
     .from("ai_call_log")
     .select(
-      "id,created_at,surface,model,provider,latency_ms,status,http_status,attempts,fallback_used,fallback_reason,prompt_tokens,completion_tokens,total_tokens,error_message",
+      "id,created_at,surface,model,provider,trace_id,prompt_version,output_schema_version,latency_ms,status,error_type,http_status,attempts,retry_count,fallback_used,fallback_reason,prompt_tokens,completion_tokens,input_tokens,output_tokens,total_tokens,error_message,cache_hit,tool_calls_used,eval_fixture_id",
       { count: "exact" }
     )
     .gte("created_at", since)
@@ -450,18 +551,21 @@ export async function getAiEngineMetrics(
   const fallbackCalls = rows.filter((row) => row.fallback_used || row.status === "fallback").length;
   const failedCalls = rows.filter((row) => row.status === "http_error" || row.status === "exception").length;
   const totalTokens = rows.reduce((sum, row) => sum + (row.total_tokens ?? 0), 0);
-  const latencies = rows.map((row) => row.latency_ms).filter((n): n is number => n != null);
+  const latencies = rows
+    .map((row) => row.latency_ms)
+    .filter((n): n is number => n != null)
+    .sort((a, b) => a - b);
   const averageLatencyMs =
     latencies.length > 0
       ? Math.round(latencies.reduce((sum, n) => sum + n, 0) / latencies.length)
       : null;
+  const p50LatencyMs = percentile(latencies, 0.5);
+  const p90LatencyMs = percentile(latencies, 0.9);
+  const p95LatencyMs = percentile(latencies, 0.95);
 
-  const bySurface: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }> =
-    {};
-  const byModel: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }> =
-    {};
-  const byProvider: Record<string, { key: string; calls: number; fallbacks: number; failures: number; tokens: number }> =
-    {};
+  const bySurface: Record<string, AiEngineMetricGroup> = {};
+  const byModel: Record<string, AiEngineMetricGroup> = {};
+  const byProvider: Record<string, AiEngineMetricGroup> = {};
 
   for (const row of rows) {
     incrementGroup(bySurface, row.surface, row);
@@ -482,6 +586,9 @@ export async function getAiEngineMetrics(
       failureRate: totalCalls > 0 ? failedCalls / totalCalls : 0,
       totalTokens,
       averageLatencyMs,
+      p50LatencyMs,
+      p90LatencyMs,
+      p95LatencyMs,
     },
     bySurface: sortedGroups(bySurface),
     byModel: sortedGroups(byModel),

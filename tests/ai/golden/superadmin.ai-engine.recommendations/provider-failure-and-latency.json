@@ -1,0 +1,72 @@
+{
+  "name": "provider-failure-and-latency",
+  "surface": "superadmin.ai-engine.recommendations",
+  "input": {
+    "surface": "all",
+    "metrics": {
+      "unavailable": false,
+      "summary": {
+        "totalCalls": 24,
+        "successes": 18,
+        "failures": 4,
+        "fallbacks": 4,
+        "fallbackRate": 0.1667,
+        "failureRate": 0.1667,
+        "averageLatencyMs": 12800,
+        "p50LatencyMs": 4200,
+        "p90LatencyMs": 60000,
+        "p95LatencyMs": 112800,
+        "totalTokens": 154141,
+        "averageTokens": 6422
+      },
+      "bySurface": [
+        { "key": "jobsite.site-visual.generate", "calls": 6, "successes": 6, "failures": 0, "fallbacks": 0, "fallbackRate": 0, "failureRate": 0, "averageLatencyMs": 92022, "p50LatencyMs": 87000, "p90LatencyMs": 110000, "p95LatencyMs": 112800, "totalTokens": 154141, "averageTokens": 25690 },
+        { "key": "injury-weather.insights", "calls": 2, "successes": 0, "failures": 2, "fallbacks": 2, "fallbackRate": 1, "failureRate": 1, "averageLatencyMs": 1399, "p50LatencyMs": 1399, "p90LatencyMs": 1399, "p95LatencyMs": 1399, "totalTokens": 0, "averageTokens": 0 }
+      ],
+      "byProvider": [
+        { "key": "openai", "calls": 24, "successes": 18, "failures": 4, "fallbacks": 4, "fallbackRate": 0.1667, "failureRate": 0.1667, "averageLatencyMs": 12800, "p50LatencyMs": 4200, "p90LatencyMs": 60000, "p95LatencyMs": 112800, "totalTokens": 154141, "averageTokens": 6422 }
+      ],
+      "byModel": []
+    },
+    "calls": {
+      "unavailable": false,
+      "rows": [
+        { "provider": "openai", "model": "gpt-4.1", "status": "http_error", "error_type": "provider_model_access" },
+        { "provider": "openai", "model": "gpt-4o", "status": "http_error", "error_type": "provider_model_access" },
+        { "provider": "openai", "model": "gpt-4o-mini", "status": "ok" }
+      ],
+      "count": 3
+    },
+    "feedback": {
+      "unavailable": false,
+      "rows": [],
+      "count": 0,
+      "summary": {
+        "outcomeCounts": { "accepted": 0, "edited": 0, "rejected": 0, "regenerated": 0, "field_used": 0 },
+        "bySurface": [],
+        "needsReview": []
+      }
+    },
+    "evals": {
+      "totalFixtures": 4,
+      "coveredSurfaces": 4,
+      "surfaces": [
+        { "surface": "jobsite.site-visual.generate", "status": "covered", "fixtures": 1 },
+        { "surface": "injury-weather.insights", "status": "covered", "fixtures": 1 }
+      ]
+    }
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "recommendations", "type": "array", "nonEmpty": true },
+      { "path": "recommendations.0.severity", "type": "string", "nonEmpty": true },
+      { "path": "recommendations.0.evidence", "type": "string", "nonEmpty": true },
+      { "path": "recommendations.0.suggestedAction", "type": "string", "nonEmpty": true }
+    ],
+    "requiredEvidence": [
+      { "path": "recommendations", "terms": ["failure", "fallback", "latency", "tokens"], "minMatches": 2 }
+    ],
+    "severity": { "path": "recommendations.0.severity", "allowed": ["critical", "warning"] },
+    "mustNotSay": ["ignore provider failures", "disable telemetry"]
+  }
+}

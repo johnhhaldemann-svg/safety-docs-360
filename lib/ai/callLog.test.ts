@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractResponsesApiUsage } from "@/lib/ai/callLog";
+import { classifyAiCallError, extractResponsesApiUsage } from "@/lib/ai/callLog";
 
 describe("extractResponsesApiUsage", () => {
   it("returns null when payload has no usage block", () => {
@@ -42,5 +42,24 @@ describe("extractResponsesApiUsage", () => {
 
   it("returns null when all fields are missing or non-numeric", () => {
     expect(extractResponsesApiUsage({ usage: { foo: "bar" } })).toBeNull();
+  });
+});
+
+describe("classifyAiCallError", () => {
+  it("classifies inaccessible model errors for routing diagnostics", () => {
+    expect(
+      classifyAiCallError({
+        httpStatus: 403,
+        fallbackReason: "http_error",
+        errorMessage: "Project does not have access to model `gpt-4.1`; code model_not_found",
+      })
+    ).toBe("provider_model_access");
+  });
+
+  it("classifies common provider and output failures", () => {
+    expect(classifyAiCallError({ httpStatus: 429, fallbackReason: "http_error" })).toBe("provider_rate_limit");
+    expect(classifyAiCallError({ httpStatus: 503, fallbackReason: "http_error" })).toBe("provider_server_error");
+    expect(classifyAiCallError({ fallbackReason: "empty_output_text" })).toBe("empty_output");
+    expect(classifyAiCallError({ fallbackReason: "invalid_json" })).toBe("invalid_json");
   });
 });

@@ -22,6 +22,9 @@ const SURFACES = [
   { value: "csep-review", label: "CSEP review" },
   { value: "gc-review", label: "GC review" },
   { value: "injury-weather", label: "Injury/weather" },
+  { value: "training-records.photo-extract", label: "Training photo extract" },
+  { value: "field-audits.ai-review", label: "Field audit review" },
+  { value: "jobsite.site-visual", label: "Jobsite visual" },
   { value: "embeddings", label: "Embeddings" },
 ];
 
@@ -49,6 +52,9 @@ type MetricsPayload = {
     failureRate: number;
     totalTokens: number;
     averageLatencyMs: number | null;
+    p50LatencyMs?: number | null;
+    p90LatencyMs?: number | null;
+    p95LatencyMs?: number | null;
   };
   bySurface: Array<GroupMetric>;
   byModel: Array<GroupMetric>;
@@ -62,6 +68,9 @@ type GroupMetric = {
   fallbacks: number;
   failures: number;
   tokens: number;
+  p50LatencyMs?: number | null;
+  p90LatencyMs?: number | null;
+  p95LatencyMs?: number | null;
 };
 
 type CallRow = {
@@ -70,14 +79,24 @@ type CallRow = {
   surface: string;
   model: string | null;
   provider: string | null;
+  trace_id?: string | null;
+  prompt_version?: string | null;
+  output_schema_version?: string | null;
   latency_ms: number | null;
   status: string;
+  error_type?: string | null;
   http_status: number | null;
   attempts: number | null;
+  retry_count?: number | null;
   fallback_used: boolean | null;
   fallback_reason: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
   total_tokens: number | null;
   error_message: string | null;
+  cache_hit?: boolean | null;
+  tool_calls_used?: number | null;
+  eval_fixture_id?: string | null;
 };
 
 type CallsPayload = {
@@ -196,6 +215,41 @@ function formatMaybeDate(value: string | null | undefined) {
   return value ? formatDate(value) : "Not generated";
 }
 
+function buildAiAlerts(metrics: MetricsPayload | null, evals: EvalPayload | null, feedback: FeedbackPayload | null) {
+  const alerts: Array<{ level: "critical" | "warning"; title: string; detail: string }> = [];
+  const summary = metrics?.summary;
+  if (summary && summary.failureRate > 0.05) {
+    alerts.push({ level: "critical", title: "Failure rate above gate", detail: `${formatPercent(summary.failureRate)} over selected window.` });
+  }
+  if (summary && summary.fallbackRate > 0.1) {
+    alerts.push({ level: "critical", title: "Fallback rate above alert threshold", detail: `${formatPercent(summary.fallbackRate)} over selected window.` });
+  }
+  const failedSurface = metrics?.bySurface.find((row) => row.calls > 0 && row.failures === row.calls);
+  if (failedSurface) {
+    alerts.push({ level: "critical", title: "Surface has 100% failures", detail: failedSurface.key });
+  }
+  const providerFailures = metrics?.byProvider.find((row) => row.failures > 3);
+  if (providerFailures) {
+    alerts.push({ level: "critical", title: "Provider failures above threshold", detail: `${providerFailures.key}: ${providerFailures.failures} failures.` });
+  }
+  const slowSurface = metrics?.bySurface.find((row) => (row.p95LatencyMs ?? 0) > 30_000);
+  if (slowSurface) {
+    alerts.push({ level: "warning", title: "p95 latency above target", detail: `${slowSurface.key}: ${formatNumber(slowSurface.p95LatencyMs)} ms.` });
+  }
+  const expensiveSurface = metrics?.bySurface.find((row) => row.tokens > 100_000);
+  if (expensiveSurface) {
+    alerts.push({ level: "warning", title: "Token usage above budget", detail: `${expensiveSurface.key}: ${formatNumber(expensiveSurface.tokens)} tokens.` });
+  }
+  const missingEval = evals?.surfaces.find((row) => row.status !== "covered");
+  if (missingEval) {
+    alerts.push({ level: "warning", title: "Active surface missing eval fixtures", detail: missingEval.surface });
+  }
+  if (feedback?.summary && feedback.summary.total === 0) {
+    alerts.push({ level: "warning", title: "Feedback capture is zero", detail: "No accepted, edited, rejected, regenerated, or field-used signals in this window." });
+  }
+  return alerts;
+}
+
 function formatMetadata(row: FeedbackRow) {
   const metadata = row.signal_metadata;
   if (!metadata) return row.reason ?? "n/a";
@@ -259,6 +313,7 @@ function GroupTable({ title, rows }: { title: string; rows: GroupMetric[] }) {
               <th className="py-2 pr-4 font-semibold">Fallbacks</th>
               <th className="py-2 pr-4 font-semibold">Failures</th>
               <th className="py-2 pr-4 font-semibold">Tokens</th>
+              <th className="py-2 pr-4 font-semibold">p95</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -269,11 +324,12 @@ function GroupTable({ title, rows }: { title: string; rows: GroupMetric[] }) {
                 <td className="py-2 pr-4">{formatNumber(row.fallbacks)}</td>
                 <td className="py-2 pr-4">{formatNumber(row.failures)}</td>
                 <td className="py-2 pr-4">{formatNumber(row.tokens)}</td>
+                <td className="py-2 pr-4">{formatNumber(row.p95LatencyMs)} ms</td>
               </tr>
             ))}
             {rows.length === 0 ? (
               <tr>
-                <td className="py-4 text-slate-400" colSpan={5}>
+                <td className="py-4 text-slate-400" colSpan={6}>
                   No rows in this window.
                 </td>
               </tr>
@@ -513,6 +569,7 @@ export default function SuperadminAiEnginePage() {
 
   const summary = metrics?.summary;
   const feedbackSummary = feedback?.summary;
+  const alerts = buildAiAlerts(metrics, evals, feedback);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
@@ -583,6 +640,30 @@ export default function SuperadminAiEnginePage() {
           <Stat icon={Database} label="Tokens" value={formatNumber(summary?.totalTokens)} tone="green" />
         </section>
 
+        <section className="grid gap-3 md:grid-cols-3">
+          <Stat icon={BarChart3} label="p50 latency" value={`${formatNumber(summary?.p50LatencyMs)} ms`} />
+          <Stat icon={BarChart3} label="p90 latency" value={`${formatNumber(summary?.p90LatencyMs)} ms`} />
+          <Stat icon={BarChart3} label="p95 latency" value={`${formatNumber(summary?.p95LatencyMs)} ms`} tone="amber" />
+        </section>
+
+        {alerts.length > 0 ? (
+          <section className="grid gap-3 md:grid-cols-2">
+            {alerts.slice(0, 6).map((alert) => (
+              <div
+                key={`${alert.level}:${alert.title}:${alert.detail}`}
+                className={`rounded-md border p-3 text-sm ${
+                  alert.level === "critical"
+                    ? "border-red-500/50 bg-red-950/35 text-red-100"
+                    : "border-amber-500/50 bg-amber-950/35 text-amber-100"
+                }`}
+              >
+                <div className="font-semibold">{alert.title}</div>
+                <div className="mt-1 text-xs opacity-85">{alert.detail}</div>
+              </div>
+            ))}
+          </section>
+        ) : null}
+
         <RecommendationsPanel
           payload={recommendations}
           refreshing={refreshingRecommendations}
@@ -607,7 +688,17 @@ export default function SuperadminAiEnginePage() {
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Model</th>
                     <th className="py-2 pr-4">Provider</th>
+                    <th className="py-2 pr-4">Error</th>
+                    <th className="py-2 pr-4">HTTP</th>
+                    <th className="py-2 pr-4">Retries</th>
                     <th className="py-2 pr-4">Fallback</th>
+                    <th className="py-2 pr-4">Tokens</th>
+                    <th className="py-2 pr-4">Cache</th>
+                    <th className="py-2 pr-4">Trace</th>
+                    <th className="py-2 pr-4">Prompt</th>
+                    <th className="py-2 pr-4">Schema</th>
+                    <th className="py-2 pr-4">Tools</th>
+                    <th className="py-2 pr-4">Eval fixture</th>
                     <th className="py-2 pr-4">Latency</th>
                   </tr>
                 </thead>
@@ -619,13 +710,25 @@ export default function SuperadminAiEnginePage() {
                       <td className="py-2 pr-4">{row.status}</td>
                       <td className="py-2 pr-4">{row.model ?? "n/a"}</td>
                       <td className="py-2 pr-4">{row.provider ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{row.error_type ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{formatNumber(row.http_status)}</td>
+                      <td className="py-2 pr-4">{formatNumber(row.retry_count ?? Math.max(0, (row.attempts ?? 1) - 1))}</td>
                       <td className="py-2 pr-4">{row.fallback_used ? row.fallback_reason ?? "used" : "no"}</td>
+                      <td className="py-2 pr-4">
+                        {formatNumber(row.input_tokens)} / {formatNumber(row.output_tokens)}
+                      </td>
+                      <td className="py-2 pr-4">{row.cache_hit ? "yes" : "no"}</td>
+                      <td className="max-w-[11rem] truncate py-2 pr-4" title={row.trace_id ?? undefined}>{row.trace_id ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{row.prompt_version ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{row.output_schema_version ?? "n/a"}</td>
+                      <td className="py-2 pr-4">{formatNumber(row.tool_calls_used)}</td>
+                      <td className="py-2 pr-4">{row.eval_fixture_id ?? "n/a"}</td>
                       <td className="py-2 pr-4">{formatNumber(row.latency_ms)} ms</td>
                     </tr>
                   ))}
                   {(calls?.rows ?? []).length === 0 ? (
                     <tr>
-                      <td className="py-4 text-slate-400" colSpan={7}>
+                      <td className="py-4 text-slate-400" colSpan={18}>
                         No calls in this window.
                       </td>
                     </tr>

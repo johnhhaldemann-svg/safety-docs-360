@@ -16,6 +16,7 @@
     "test:links": "vitest run --configLoader native --pool=threads lib/brokenLinkChecker.test.ts",
     "test:inductions": "vitest run --configLoader native --pool=threads app/api/company/inductions lib/inductions/evaluateAccess.test.ts",
     "test:ai-eval": "vitest run --configLoader native --pool=threads --config vitest.config.ai-eval.ts",
+    "ai:release-gate": "node scripts/ai-release-gate.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

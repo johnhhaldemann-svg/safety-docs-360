@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
@@ -130,6 +130,16 @@ async function resolveCompanyScope(auth: {
   });
 }
 
+async function updateGenerationJob(jobId: string | null | undefined, row: Record<string, unknown>) {
+  if (!jobId) return;
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  await admin
+    .from("ai_visual_generation_jobs")
+    .update({ ...row, updated_at: new Date().toISOString() })
+    .eq("id", jobId);
+}
+
 async function safeData<T>(
   query: PromiseLike<{ data: T | null; error: { message?: string | null } | null }>
 ) {
@@ -240,8 +250,11 @@ export async function POST(
     return NextResponse.json({ error: `Too many site visual generations. Retry in ${rl.retryAfterSec}s.` }, { status: 429 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const runSynchronously = searchParams.get("sync") === "1";
   const { jobsiteId } = await params;
-  const body = (await request.json().catch(() => null)) as { blueprintId?: string | null } | null;
+  const body = (await request.json().catch(() => null)) as { blueprintId?: string | null; jobId?: string | null } | null;
+  const jobId = typeof body?.jobId === "string" && body.jobId.trim() ? body.jobId.trim() : null;
   const companyScope = await resolveCompanyScope(auth);
   if (!companyScope.companyId) {
     return NextResponse.json({ error: "This account is not linked to a company workspace yet." }, { status: 400 });
@@ -330,6 +343,105 @@ export async function POST(
 
   const fallback = buildFallbackSiteVisualScene(input);
   const userPrompt = buildSiteVisualAiPrompt(input);
+  const promptHash = siteVisualPromptHash(input);
+  const contextHash = promptHash;
+
+  if (!runSynchronously) {
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return NextResponse.json({ error: "Missing Supabase service role env configuration." }, { status: 500 });
+    }
+    const insertJob = await admin
+      .from("ai_visual_generation_jobs")
+      .insert({
+        company_id: companyScope.companyId,
+        jobsite_id: jobsiteId,
+        blueprint_id: blueprintResult.blueprint?.id ?? null,
+        surface: "jobsite.site-visual.generate",
+        status: "queued",
+        progress: 5,
+        stage: "queued",
+        prompt_hash: promptHash,
+        context_hash: contextHash,
+        token_budget: 8000,
+        input_snapshot: {
+          blueprintId: blueprintResult.blueprint?.id ?? null,
+          workItemCount: items.length,
+          hasCompressedBlueprintPreview: Boolean(blueprintResult.signedPreviewUrl),
+          stagedWorkflow: ["classify_scene", "identify_risks", "generate_recommendation", "render_final_response"],
+        },
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      })
+      .select("id,created_at,status,progress,stage")
+      .single();
+    if (insertJob.error) {
+      return NextResponse.json({ error: insertJob.error.message || "Failed to queue site visual generation." }, { status: 500 });
+    }
+
+    const syncUrl = new URL(request.url);
+    syncUrl.searchParams.set("sync", "1");
+    const authorization = request.headers.get("authorization") ?? "";
+    const cookie = request.headers.get("cookie") ?? "";
+    const queuedJobId = String(insertJob.data.id);
+    after(async () => {
+      try {
+        const response = await fetch(syncUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authorization ? { Authorization: authorization } : {}),
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          body: JSON.stringify({
+            blueprintId: blueprintResult.blueprint?.id ?? null,
+            jobId: queuedJobId,
+          }),
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          await updateGenerationJob(queuedJobId, {
+            status: "failed",
+            progress: 100,
+            stage: "failed",
+            completed_at: new Date().toISOString(),
+            error_message: failure?.error ?? `Site visual worker returned HTTP ${response.status}.`,
+          });
+        }
+      } catch (error) {
+        await updateGenerationJob(queuedJobId, {
+          status: "failed",
+          progress: 100,
+          stage: "failed",
+          completed_at: new Date().toISOString(),
+          error_type: "worker_exception",
+          error_message: error instanceof Error ? error.message : "Site visual worker failed.",
+        });
+      }
+    });
+
+    return NextResponse.json(
+      {
+        job: {
+          id: queuedJobId,
+          status: "queued",
+          progress: 5,
+          stage: "queued",
+          statusUrl: `/api/company/jobsites/${jobsiteId}/site-visual/jobs/${queuedJobId}`,
+        },
+      },
+      { status: 202 }
+    );
+  }
+
+  await updateGenerationJob(jobId, {
+    status: "running",
+    progress: 20,
+    stage: "classify_scene",
+    started_at: new Date().toISOString(),
+  });
+
   const inputOverride = blueprintResult.signedPreviewUrl
     ? [
         {
@@ -359,6 +471,8 @@ export async function POST(
     inputOverride,
     fallback,
     surface: "jobsite.site-visual.generate",
+    promptVersion: "jobsite-site-visual-generate-v1",
+    outputSchemaVersion: "site-visual-scene-v1",
     maxAttempts: 2,
     body: {
       text: {
@@ -392,7 +506,7 @@ export async function POST(
       company_id: companyScope.companyId,
       jobsite_id: jobsiteId,
       generation_status: ai.meta.fallbackUsed ? "fallback" : "ready",
-      prompt_hash: siteVisualPromptHash(input),
+      prompt_hash: promptHash,
       ai_meta: aiMeta,
       scene_json: scene,
       blueprint_id: blueprintResult.blueprint?.id ?? null,
@@ -438,6 +552,25 @@ export async function POST(
     .update({ scene_json: savedScene, updated_by: auth.user.id })
     .eq("id", insertMap.data.id)
     .eq("company_id", companyScope.companyId);
+
+  await updateGenerationJob(jobId, {
+    status: ai.meta.fallbackUsed ? "fallback_ready" : "ready",
+    progress: 100,
+    stage: ai.meta.fallbackUsed ? "fallback_ready" : "ready",
+    completed_at: new Date().toISOString(),
+    site_map_id: insertMap.data.id,
+    prompt_hash: promptHash,
+    context_hash: contextHash,
+    ai_meta: aiMeta,
+    result_snapshot: {
+      siteMapId: insertMap.data.id,
+      blueprintId: insertMap.data.blueprint_id ?? null,
+      zoneCount: zones.length,
+      fallbackUsed: ai.meta.fallbackUsed,
+    },
+    error_type: ai.meta.errorType ?? null,
+    error_message: ai.meta.fallbackReason ?? null,
+  });
 
   return NextResponse.json({
     jobsite: jobsiteResult.data,

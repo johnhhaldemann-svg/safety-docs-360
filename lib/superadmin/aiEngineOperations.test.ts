@@ -109,14 +109,20 @@ describe("AI Engine Operations", () => {
       join(root, "supabase", "migrations", "20260430170000_ai_feedback_signal_metadata.sql"),
       "utf8"
     );
+    const observabilityMigration = readFileSync(
+      join(root, "supabase", "migrations", "20260521010144_ai_reliability_observability_jobs.sql"),
+      "utf8"
+    );
 
-    for (const sql of [callLogMigration, feedbackMigration, recommendationMigration]) {
+    for (const sql of [callLogMigration, feedbackMigration, recommendationMigration, observabilityMigration]) {
       expect(sql).toContain("revoke all");
       expect(sql).toContain("from authenticated");
       expect(sql).toContain("from anon");
       expect(sql).toContain("using (false)");
     }
     expect(feedbackMetadataMigration).toContain("signal_metadata jsonb");
+    expect(observabilityMigration).toContain("trace_id uuid");
+    expect(observabilityMigration).toContain("ai_visual_generation_jobs");
   });
 
   it("sanitizes learning-loop metadata without retaining raw text fields", () => {

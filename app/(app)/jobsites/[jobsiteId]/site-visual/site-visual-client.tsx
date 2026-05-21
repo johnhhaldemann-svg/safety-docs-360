@@ -96,6 +96,21 @@ type SiteVisualRender = {
   updatedAt?: string | null;
 };
 
+type SiteVisualRenderJob = {
+  id: string;
+  status: "queued" | "running" | "ready" | "failed" | "fallback_ready" | string;
+  progress: number;
+  stage: string;
+  statusUrl?: string;
+  errorType?: string | null;
+  errorMessage?: string | null;
+  renderId?: string | null;
+};
+
+type SiteVisualMapJob = SiteVisualRenderJob & {
+  siteMapId?: string | null;
+};
+
 type VisualZone = {
   id: string;
   label: string;
@@ -894,6 +909,8 @@ export function JobsiteSiteVisualClient({
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [renderingDetailed, setRenderingDetailed] = useState(false);
+  const [renderJob, setRenderJob] = useState<SiteVisualRenderJob | null>(null);
+  const [mapJob, setMapJob] = useState<SiteVisualMapJob | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [payload, setPayload] = useState<SiteVisualPayload | null>(null);
@@ -1049,7 +1066,29 @@ export function JobsiteSiteVisualClient({
         headers,
         body: JSON.stringify({ blueprintId: activeBlueprint?.processingStatus === "ready" ? activeBlueprint.id : null }),
       });
-      const data = (await response.json().catch(() => null)) as SiteVisualPayload | null;
+      const data = (await response.json().catch(() => null)) as (SiteVisualPayload & { job?: SiteVisualMapJob }) | null;
+      if (response.status === 202 && data?.job) {
+        setMapJob(data.job);
+        setMessage("Site visual generation queued. You can keep working while the map finishes.");
+        setMessageTone("neutral");
+        const completed = await pollSiteVisualJob(data.job);
+        if (completed) {
+          setPayload(completed);
+          setSelectedZoneId(completed.scene?.zones?.[0]?.id ?? null);
+          setMessage(
+            completed.siteMap?.generationStatus === "fallback"
+              ? "Generated a deterministic fallback map."
+              : completed.siteMap?.blueprintId
+                ? "AI site visual generated from the blueprint."
+                : "AI site visual generated."
+          );
+          setMessageTone(completed.siteMap?.generationStatus === "fallback" ? "warning" : "success");
+          setGenerating(false);
+          return completed;
+        }
+        setGenerating(false);
+        return null;
+      }
       if (!response.ok) throw new Error(data?.error || "Failed to generate site visual.");
       setPayload(data ?? {});
       setSelectedZoneId(data?.scene?.zones?.[0]?.id ?? null);
@@ -1068,6 +1107,31 @@ export function JobsiteSiteVisualClient({
       setMessageTone("error");
     }
     setGenerating(false);
+    return null;
+  }
+
+  async function pollSiteVisualJob(job: SiteVisualMapJob) {
+    const statusUrl = job.statusUrl ?? `/api/company/jobsites/${jobsiteId}/site-visual/jobs/${job.id}`;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt < 4 ? 1500 : 3000));
+      const headers = await getAuthHeaders();
+      const response = await fetch(statusUrl, { headers, cache: "no-store" });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; job?: SiteVisualMapJob; payload?: SiteVisualPayload | null }
+        | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to check site visual status.");
+      if (data?.job) {
+        setMapJob(data.job);
+        setMessage(`Site visual ${data.job.stage.replaceAll("_", " ")} (${Math.round(data.job.progress)}%).`);
+        setMessageTone("neutral");
+        if (data.job.status === "ready" || data.job.status === "fallback_ready") {
+          return data.payload ?? null;
+        }
+        if (data.job.status === "failed") {
+          throw new Error(data.job.errorMessage || "Site visual generation failed.");
+        }
+      }
+    }
     return null;
   }
 
@@ -1095,8 +1159,35 @@ export function JobsiteSiteVisualClient({
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { error?: string; warning?: string | null; render?: SiteVisualRender; scene?: VisualScene | null; zones?: VisualZone[] }
+        | {
+            error?: string;
+            warning?: string | null;
+            render?: SiteVisualRender;
+            scene?: VisualScene | null;
+            zones?: VisualZone[];
+            job?: SiteVisualRenderJob;
+          }
         | null;
+      if (response.status === 202 && data?.job) {
+        setRenderJob(data.job);
+        setMessage("Detailed visual queued. You can keep working while the render finishes.");
+        setMessageTone("neutral");
+        const completed = await pollDetailedVisualJob(data.job);
+        if (completed) {
+          setPayload((current) => ({
+            ...(current ?? {}),
+            render: completed.render ?? current?.render ?? null,
+          }));
+          setVisualSurfaceMode(completed.render ? "detailed" : "schematic");
+          setMessage(
+            completed.render
+              ? "Detailed isometric visual generated. Click a numbered activity to inspect task impact."
+              : "Detailed visual is still processing."
+          );
+          setMessageTone(completed.render ? "success" : "neutral");
+        }
+        return;
+      }
       if (!response.ok || !data?.render) throw new Error(data?.error || "Failed to generate detailed visual.");
       setPayload((current) => ({
         ...(current ?? {}),
@@ -1113,6 +1204,31 @@ export function JobsiteSiteVisualClient({
       setVisualSurfaceMode("schematic");
     }
     setRenderingDetailed(false);
+  }
+
+  async function pollDetailedVisualJob(job: SiteVisualRenderJob) {
+    const statusUrl = job.statusUrl ?? `/api/company/jobsites/${jobsiteId}/site-visual/render/jobs/${job.id}`;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt < 4 ? 1500 : 3000));
+      const headers = await getAuthHeaders();
+      const response = await fetch(statusUrl, { headers, cache: "no-store" });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; job?: SiteVisualRenderJob; render?: SiteVisualRender | null }
+        | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to check detailed visual status.");
+      if (data?.job) {
+        setRenderJob(data.job);
+        setMessage(`Detailed visual ${data.job.stage.replaceAll("_", " ")} (${Math.round(data.job.progress)}%).`);
+        setMessageTone("neutral");
+        if (data.job.status === "ready" || data.job.status === "fallback_ready") {
+          return { job: data.job, render: data.render ?? null };
+        }
+        if (data.job.status === "failed") {
+          throw new Error(data.job.errorMessage || "Detailed visual generation failed.");
+        }
+      }
+    }
+    return null;
   }
 
   async function saveBlueprintTransform(transform: BlueprintTransform) {
@@ -1295,6 +1411,16 @@ export function JobsiteSiteVisualClient({
       )}
 
       {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+      {mapJob && ["queued", "running"].includes(mapJob.status) ? (
+        <InlineMessage tone="neutral">
+          Site visual job {mapJob.stage.replaceAll("_", " ")} - {Math.round(mapJob.progress)}%
+        </InlineMessage>
+      ) : null}
+      {renderJob && ["queued", "running"].includes(renderJob.status) ? (
+        <InlineMessage tone="neutral">
+          Detailed visual job {renderJob.stage.replaceAll("_", " ")} - {Math.round(renderJob.progress)}%
+        </InlineMessage>
+      ) : null}
 
       <SectionCard
         title="Blueprint Underlay"

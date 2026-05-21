@@ -1,0 +1,47 @@
+{
+  "name": "fall-protection-finding",
+  "surface": "field-audits.ai-review",
+  "input": {
+    "auditId": "eval-audit-1",
+    "jobsiteName": "North Tower",
+    "auditDate": "2026-05-20",
+    "auditors": "Alex Rivera",
+    "selectedTrade": "roofing",
+    "hoursBilled": 1.5,
+    "scoreSummary": {
+      "total": 3,
+      "pass": 2,
+      "fail": 1,
+      "na": 0,
+      "compliancePercent": 67,
+      "photoCount": 1
+    },
+    "observations": [
+      {
+        "sourceKey": "fall-guardrail-1",
+        "itemLabel": "Guardrails installed at roof edge",
+        "categoryLabel": "Fall protection",
+        "categoryCode": "fall_protection",
+        "tradeCode": "roofing",
+        "status": "fail",
+        "severity": "high",
+        "notes": "North parapet opening had missing midrail.",
+        "correctiveActionRequired": "Install midrail and verify edge protection before roofing work resumes.",
+        "photoCount": 1,
+        "riskMemory": null
+      }
+    ]
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "review.overallStatus", "type": "string", "equals": "needs_admin_attention" },
+      { "path": "review.correctedFindings", "type": "array", "nonEmpty": true },
+      { "path": "review.emailSummary.findingHighlights", "type": "array", "nonEmpty": true }
+    ],
+    "requiredEvidence": [
+      { "path": "review", "terms": ["midrail", "roof", "fall"], "minMatches": 2 }
+    ],
+    "severity": { "path": "review.correctedFindings.0.severity", "expected": "high" },
+    "mustNotSay": ["approved by osha", "citation issued", "work completed"]
+  }
+}

@@ -17,6 +17,8 @@ export type AiEvalAssertions = {
   mustContain?: string[];
   /** Lowercased substrings the stringified output MUST NOT contain. */
   mustNotContain?: string[];
+  /** Alias for mustNotContain, named for release-gate readability. */
+  mustNotSay?: string[];
   /**
    * Dotted JSON paths that must exist on the output object. A trailing `[]`
    * marks "must be a non-empty array". Examples:
@@ -25,6 +27,40 @@ export type AiEvalAssertions = {
    *   "drafts[]"
    */
   schemaShape?: string[];
+  /** Required JSON fields, with optional type/value/range checks. */
+  expectedFields?: Array<
+    | string
+    | {
+        path: string;
+        type?: "string" | "number" | "boolean" | "array" | "object";
+        nonEmpty?: boolean;
+        equals?: unknown;
+        oneOf?: unknown[];
+        min?: number;
+        max?: number;
+      }
+  >;
+  /** Required citations/evidence terms, checked against a path or the full output. */
+  requiredEvidence?: Array<
+    | string
+    | {
+        path?: string;
+        terms: string[];
+        minMatches?: number;
+      }
+  >;
+  /** Severity classification check. */
+  severity?: {
+    path: string;
+    expected?: string;
+    allowed?: string[];
+  };
+  /** Numeric confidence range check, commonly 0..1. */
+  confidenceRange?: {
+    path: string;
+    min: number;
+    max: number;
+  };
 };
 
 export type AiEvalFixture = {

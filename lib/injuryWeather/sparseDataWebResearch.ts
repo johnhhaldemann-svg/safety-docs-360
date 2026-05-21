@@ -142,9 +142,10 @@ export async function injuryWeatherWebResearchSupplement(
   try {
     const response = await requestAiResponsesText({
       apiKey,
-      model: process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o",
+      model: process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() || "gpt-4o-mini",
       input,
       surface: "injury-weather.sparse-web-research",
+      promptVersion: "injury-weather-sparse-web-research-v1",
       body: {
         tools: [{ type: "web_search_preview" }],
         tool_choice: "auto",
@@ -168,7 +169,7 @@ export async function injuryWeatherWebResearchSupplement(
 
     return {
       triggeredBySparseData: sparseWorkspace,
-      model: response.meta.model ?? process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() ?? "gpt-4o",
+      model: response.meta.model ?? process.env.INJURY_WEATHER_WEB_RESEARCH_MODEL?.trim() ?? "gpt-4o-mini",
       querySummary: `Public safety context for ${month} · ${state} · ${trades}`,
       bullets,
       citations,

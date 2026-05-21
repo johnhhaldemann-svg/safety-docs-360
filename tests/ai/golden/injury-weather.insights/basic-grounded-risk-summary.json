@@ -1,0 +1,33 @@
+{
+  "name": "basic-grounded-risk-summary",
+  "surface": "injury-weather.insights",
+  "input": {
+    "system": "You are a construction safety analyst. Return strict JSON only.",
+    "user": "Summarize a May 2026 injury-weather risk snapshot. Structured inputs: 18 weighted safety signals, 6 high-severity signals, top trade Roofing, top hazard Falls, weather note Heat index elevated. Do not invent incidents or OSHA citations. Return {\"headline\", \"severity\", \"confidence\", \"evidence\", \"actions\"}.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headline": { "type": "string" },
+        "severity": { "type": "string", "enum": ["LOW", "MODERATE", "HIGH", "CRITICAL"] },
+        "confidence": { "type": "number" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 5 },
+        "actions": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 5 }
+      },
+      "required": ["headline", "severity", "confidence", "evidence", "actions"]
+    }
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "parsed.headline", "type": "string", "nonEmpty": true },
+      { "path": "parsed.evidence", "type": "array", "nonEmpty": true },
+      { "path": "parsed.actions", "type": "array", "nonEmpty": true }
+    ],
+    "requiredEvidence": [
+      { "path": "parsed.evidence", "terms": ["18", "roofing", "falls"], "minMatches": 2 }
+    ],
+    "severity": { "path": "parsed.severity", "allowed": ["MODERATE", "HIGH", "CRITICAL"] },
+    "confidenceRange": { "path": "parsed.confidence", "min": 0.35, "max": 0.95 },
+    "mustNotSay": ["osha citation", "fatality", "confirmed incident"]
+  }
+}

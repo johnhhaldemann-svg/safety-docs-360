@@ -1,0 +1,20 @@
+{
+  "name": "osha-card-visible-text",
+  "surface": "training-records.photo-extract",
+  "input": {
+    "visibleText": "OSHA 10-Hour Construction Safety and Health. Provider: Lone Star Safety Training. Student: Jordan Lee. Completion Date: 2026-04-12. Card number: 10-1234567. No expiration date shown."
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "parsed.title", "type": "string", "nonEmpty": true },
+      { "path": "parsed.provider", "type": "string", "nonEmpty": true },
+      { "path": "parsed.completedOn", "type": "string", "equals": "2026-04-12" },
+      { "path": "parsed.expiresOn", "type": "string" }
+    ],
+    "requiredEvidence": [
+      { "path": "parsed.evidence", "terms": ["OSHA 10", "Completion Date"], "minMatches": 1 }
+    ],
+    "confidenceRange": { "path": "parsed.confidence", "min": 0.5, "max": 1 },
+    "mustNotSay": ["2027", "expiration 2026", "certificate of completion"]
+  }
+}

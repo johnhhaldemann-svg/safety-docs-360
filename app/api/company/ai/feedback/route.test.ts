@@ -110,12 +110,13 @@ describe("/api/company/ai/feedback", () => {
         outcome: "accepted",
         rating: 5,
         reason: "field_ready",
-        signalMetadata: {
+        signalMetadata: expect.objectContaining({
           workflowStep: "safety_intelligence_document_generation",
           documentType: "jsa",
           reasonCode: "field_ready",
           usedInField: true,
-        },
+          userRole: "safety_manager",
+        }),
       })
     );
   });

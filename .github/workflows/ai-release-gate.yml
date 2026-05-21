@@ -1,0 +1,24 @@
+name: AI release gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      metrics_json:
+        description: "Release metrics JSON with eval pass rate, failure/fallback rates, token regression, and p95 latency regression."
+        required: true
+        type: string
+
+jobs:
+  ai-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+      - run: npm ci
+      - name: Run blocking AI release gate
+        run: npm run ai:release-gate
+        env:
+          AI_RELEASE_GATE_METRICS_JSON: ${{ inputs.metrics_json }}
