@@ -1989,6 +1989,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         };
       } | null;
       const firstError = payload?.result?.results?.find((item) => item.status === "failed" && item.error)?.error;
+      const skippedDetails = payload?.result?.results
+        ?.filter((item) => item.status === "skipped" && item.error)
+        .map((item) => `${item.channel?.toUpperCase() ?? "Channel"}: ${item.error}`)
+        .filter((message, index, messages) => messages.indexOf(message) === index);
       if (!response.ok) {
         setWeatherTestTone("error");
         setWeatherTestMessage(firstError || payload?.message || payload?.error || "Weather test notification could not be sent.");
@@ -1996,10 +2000,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       }
 
       setWeatherTestTone("success");
-      setWeatherTestMessage(
+      const successMessage =
         payload?.message ||
-          `Weather test notification sent to ${payload?.result?.recipientsSeen ?? 0} recipient${payload?.result?.recipientsSeen === 1 ? "" : "s"}.`
-      );
+        `Weather test notification sent to ${payload?.result?.recipientsSeen ?? 0} recipient${payload?.result?.recipientsSeen === 1 ? "" : "s"}.`;
+      setWeatherTestMessage(skippedDetails?.length ? `${successMessage} ${skippedDetails.join(" ")}` : successMessage);
     } catch (error) {
       setWeatherTestTone("error");
       setWeatherTestMessage(error instanceof Error ? error.message : "Weather test notification could not be sent.");

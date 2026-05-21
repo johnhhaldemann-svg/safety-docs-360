@@ -21,6 +21,8 @@ export type WeatherNotificationContext = {
   alert: WeatherAlert;
 };
 
+const WEATHER_ALERT_EMAIL_DISPLAY_NAME = "Urgent Safety Notification";
+
 function readEnv(name: string) {
   const value = process.env[name]?.trim();
   return value || null;
@@ -43,6 +45,12 @@ function formatTime(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatWeatherAlertFromEmail(value: string) {
+  if (value.includes("<") && value.includes(">")) return value;
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value)) return value;
+  return `${WEATHER_ALERT_EMAIL_DISPLAY_NAME} <${value}>`;
 }
 
 function normalizeSmsPhoneNumber(value?: string | null) {
@@ -73,9 +81,9 @@ export function buildWeatherNotificationText(context: WeatherNotificationContext
     context.alert.instruction?.trim() ||
     "Check site conditions, secure loose materials, and notify the site supervisor.";
   return {
-    subject: `Weather Alert: ${context.alert.eventName}`,
+    subject: `${WEATHER_ALERT_EMAIL_DISPLAY_NAME}: ${context.alert.eventName}`,
     text: [
-      `${context.alert.eventName} near ${context.jobsiteName}.`,
+      `${WEATHER_ALERT_EMAIL_DISPLAY_NAME}: ${context.alert.eventName} near ${context.jobsiteName}.`,
       context.zipCode ? `ZIP: ${context.zipCode}` : null,
       `Expires: ${expires}`,
       instruction,
@@ -83,7 +91,7 @@ export function buildWeatherNotificationText(context: WeatherNotificationContext
     html: `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;padding:24px;">
         <div style="border:1px solid #fecaca;border-radius:20px;padding:28px;background:#ffffff;">
-          <p style="font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#b91c1c;font-weight:700;margin:0 0 12px;">Jobsite Weather Alert</p>
+          <p style="font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#b91c1c;font-weight:700;margin:0 0 12px;">${WEATHER_ALERT_EMAIL_DISPLAY_NAME}</p>
           <h1 style="font-size:26px;line-height:1.2;margin:0 0 16px;">${escapeHtml(context.alert.eventName)}</h1>
           <p style="margin:0 0 8px;"><strong>Jobsite:</strong> ${escapeHtml(context.jobsiteName)}</p>
           ${context.zipCode ? `<p style="margin:0 0 8px;"><strong>ZIP:</strong> ${escapeHtml(context.zipCode)}</p>` : ""}
@@ -103,8 +111,8 @@ export async function sendWeatherAlertEmail(params: {
   fetcher?: typeof fetch;
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
-  const fromEmail = readEnv("WEATHER_ALERT_FROM_EMAIL") ?? readEnv("RESEND_FROM_EMAIL");
-  if (!resendApiKey || !fromEmail) {
+  const configuredFromEmail = readEnv("WEATHER_ALERT_FROM_EMAIL");
+  if (!resendApiKey || !configuredFromEmail) {
     return {
       sent: false,
       error: "Weather email delivery is not configured. Add RESEND_API_KEY and WEATHER_ALERT_FROM_EMAIL.",
@@ -112,6 +120,7 @@ export async function sendWeatherAlertEmail(params: {
   }
 
   const content = buildWeatherNotificationText(params.context);
+  const fromEmail = formatWeatherAlertFromEmail(configuredFromEmail);
   const response = await (params.fetcher ?? fetch)("https://api.resend.com/emails", {
     method: "POST",
     headers: {

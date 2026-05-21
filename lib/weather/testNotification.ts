@@ -44,18 +44,35 @@ function normalizeChannels(value: unknown): WeatherNotificationChannel[] {
   return channels.length > 0 ? [...new Set(channels)] : ["email", "sms"];
 }
 
+function readEnv(name: string) {
+  const value = process.env[name]?.trim();
+  return value || null;
+}
+
+function isEmailConfigured() {
+  return Boolean(readEnv("RESEND_API_KEY") && readEnv("WEATHER_ALERT_FROM_EMAIL"));
+}
+
+function isSmsConfigured() {
+  return Boolean(
+    readEnv("TWILIO_ACCOUNT_SID") &&
+      readEnv("TWILIO_AUTH_TOKEN") &&
+      (readEnv("TWILIO_FROM_NUMBER") || readEnv("TWILIO_MESSAGING_SERVICE_SID"))
+  );
+}
+
 function buildTestAlert(): WeatherAlert {
   const now = new Date();
   const expires = new Date(now.getTime() + 60 * 60 * 1000);
   return {
     id: `test-weather-notification-${now.getTime()}`,
-    eventName: "Test Weather Notification",
+    eventName: "Urgent Safety Notification Test",
     severity: "Test",
     urgency: "Expected",
     certainty: "Likely",
-    headline: "SafetyDocs360 weather notification test.",
-    description: "This is a test weather notification. No action is required.",
-    instruction: "No action required. This confirms weather alert email and SMS delivery setup.",
+    headline: "SafetyDocs360 urgent safety notification test.",
+    description: "This is a test urgent safety notification. No action is required.",
+    instruction: "No action required. This confirms urgent safety notification email and SMS delivery setup.",
     effectiveAt: now.toISOString(),
     expiresAt: expires.toISOString(),
     status: "Test",
@@ -93,10 +110,24 @@ export async function sendJobsiteWeatherTestNotification(params: {
     deliveriesSkipped: 0,
     results: [],
   };
+  const emailConfigured = isEmailConfigured();
+  const smsConfigured = isSmsConfigured();
 
   for (const recipient of recipients) {
     for (const channel of requestedChannels) {
       if (channel === "email") {
+        if (!emailConfigured) {
+          result.deliveriesSkipped += 1;
+          result.results.push({
+            recipientName: recipient.name,
+            userId: recipient.userId,
+            employeeId: recipient.employeeId,
+            channel,
+            status: "skipped",
+            error: "Weather email provider is not configured.",
+          });
+          continue;
+        }
         if (!recipient.email) {
           result.deliveriesSkipped += 1;
           result.results.push({
@@ -128,6 +159,18 @@ export async function sendJobsiteWeatherTestNotification(params: {
       }
 
       if (channel === "sms") {
+        if (!smsConfigured) {
+          result.deliveriesSkipped += 1;
+          result.results.push({
+            recipientName: recipient.name,
+            userId: recipient.userId,
+            employeeId: recipient.employeeId,
+            channel,
+            status: "skipped",
+            error: "Weather SMS provider is not configured.",
+          });
+          continue;
+        }
         if (!recipient.phone) {
           result.deliveriesSkipped += 1;
           result.results.push({

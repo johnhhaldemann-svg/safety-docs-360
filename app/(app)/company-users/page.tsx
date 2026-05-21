@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -55,6 +56,16 @@ import {
   type WorkforceReadiness,
   type WorkspaceLoadState,
 } from "./workforce-logic";
+import {
+  WorkerProfileDrawer,
+  buildWorkerProfileFromDirectoryRow,
+  buildWorkerProfileFromMatrixRow,
+  mergeWorkerProfiles,
+  workerProfileIdForDirectoryRow,
+  type WorkerProfileRecord,
+  type WorkerProfileTab,
+  type WorkerProfileMatrixRow,
+} from "@/components/workforce/WorkerProfileDrawer";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -269,6 +280,10 @@ function loginAccessLabel(status?: string | null): WorkforceDirectoryRow["loginA
   if (status === "Pending") return "Invited User";
   if (status === "Suspended" || status === "Inactive") return "Disabled User";
   return "Active User";
+}
+
+function readWorkerProfileTab(value: string | null): WorkerProfileTab {
+  return value === "training" || value === "permits" || value === "access" ? value : "summary";
 }
 
 function getProfileHref(userId: string) {
@@ -614,6 +629,9 @@ function TabButton({
 }
 
 export default function CompanyUsersPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [workspace, setWorkspace] = useState<WorkspaceData>(emptyWorkspace);
   const [loadState, setLoadState] = useState<WorkspaceLoadState>(emptyLoadState);
   const [message, setMessage] = useState("");
@@ -645,6 +663,8 @@ export default function CompanyUsersPage() {
   const [assigningTrackedEmployee, setAssigningTrackedEmployee] = useState<TrackedEmployee | null>(null);
   const [trackedEditAssignments, setTrackedEditAssignments] = useState<string[]>([]);
   const [trackedRosterRowErrors, setTrackedRosterRowErrors] = useState<ImportRowError[]>([]);
+  const [matrixProfiles, setMatrixProfiles] = useState<WorkerProfileRecord[]>([]);
+  const [matrixProfilesLoading, setMatrixProfilesLoading] = useState(false);
 
   const loadWorkspace = useCallback(async (options?: { preserveMessage?: boolean }) => {
     setLoadState((current) => ({ ...current, loading: true }));
@@ -742,6 +762,20 @@ export default function CompanyUsersPage() {
     });
   }, [loadWorkspace]);
 
+  const loadMatrixProfiles = useCallback(async () => {
+    if (matrixProfilesLoading || matrixProfiles.length > 0) return;
+    setMatrixProfilesLoading(true);
+    try {
+      const token = await getAccessToken();
+      const data = await fetchJson<{ rows?: WorkerProfileMatrixRow[] }>("/api/company/training-matrix", token);
+      setMatrixProfiles((data.rows ?? []).map(buildWorkerProfileFromMatrixRow));
+    } catch {
+      setMatrixProfiles([]);
+    } finally {
+      setMatrixProfilesLoading(false);
+    }
+  }, [matrixProfiles.length, matrixProfilesLoading]);
+
   const activeJobsiteCount = useMemo(
     () => workspace.jobsites.filter((jobsite) => jobsite.status !== "archived").length,
     [workspace.jobsites]
@@ -789,8 +823,7 @@ export default function CompanyUsersPage() {
     () => workspace.trackedEmployees.filter((employee) => employee.status !== "archived"),
     [workspace.trackedEmployees]
   );
-  const workforceDirectoryRows = useMemo<WorkforceDirectoryRow[]>(() => {
-    const query = searchTerm.trim().toLowerCase();
+  const allWorkforceDirectoryRows = useMemo<WorkforceDirectoryRow[]>(() => {
     const userRows: WorkforceDirectoryRow[] = workspace.users
       .filter((user) => user.status === "Active" || user.status === "Suspended" || user.status === "Pending")
       .map((user) => {
@@ -836,7 +869,11 @@ export default function CompanyUsersPage() {
         trackedEmployee: employee,
       };
     });
-    const rows = [...userRows, ...trackedRows];
+    return [...userRows, ...trackedRows];
+  }, [activeTrackedEmployees, jobsiteNameById, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
+  const workforceDirectoryRows = useMemo<WorkforceDirectoryRow[]>(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const rows = allWorkforceDirectoryRows;
     if (!query) return rows;
     return rows.filter((row) =>
       [
@@ -855,7 +892,51 @@ export default function CompanyUsersPage() {
         .toLowerCase()
         .includes(query)
     );
-  }, [activeTrackedEmployees, jobsiteNameById, searchTerm, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
+  }, [allWorkforceDirectoryRows, searchTerm]);
+  const selectedWorkerId = searchParams.get("workerId") ?? "";
+  const selectedWorkerTab = readWorkerProfileTab(searchParams.get("workerTab"));
+  const selectedDirectoryProfile = useMemo(() => {
+    const row = allWorkforceDirectoryRows.find((item) => workerProfileIdForDirectoryRow(item) === selectedWorkerId);
+    return row
+      ? buildWorkerProfileFromDirectoryRow({
+          ...row,
+          email: row.user?.email ?? row.trackedEmployee?.email ?? null,
+          role: row.user?.role ?? row.trackedEmployee?.job_title ?? null,
+          status: row.user?.status ?? row.trackedEmployee?.status ?? null,
+        })
+      : null;
+  }, [allWorkforceDirectoryRows, selectedWorkerId]);
+  const selectedMatrixProfile = useMemo(
+    () => matrixProfiles.find((profile) => profile.id === selectedWorkerId) ?? null,
+    [matrixProfiles, selectedWorkerId]
+  );
+  const selectedWorkerProfile = useMemo(
+    () => mergeWorkerProfiles(selectedDirectoryProfile, selectedMatrixProfile),
+    [selectedDirectoryProfile, selectedMatrixProfile]
+  );
+  const updateWorkerProfileQuery = useCallback(
+    (workerId: string | null, tab: WorkerProfileTab = selectedWorkerTab) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (workerId) {
+        next.set("workerId", workerId);
+        next.set("workerTab", tab);
+      } else {
+        next.delete("workerId");
+        next.delete("workerTab");
+      }
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams, selectedWorkerTab]
+  );
+
+  useEffect(() => {
+    if (!selectedWorkerId) return;
+    const timer = window.setTimeout(() => {
+      void loadMatrixProfiles();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadMatrixProfiles, selectedWorkerId]);
   const _filteredUsers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     const users = workspace.users.filter((user) => user.status === "Active" || user.status === "Suspended");
@@ -1792,6 +1873,7 @@ export default function CompanyUsersPage() {
             onManage={openUserManager}
             onEditTracked={openTrackedEmployeeEditor}
             onAssignTracked={openTrackedAssignmentManager}
+            onOpenProfile={(row) => updateWorkerProfileQuery(workerProfileIdForDirectoryRow(row), "summary")}
           />
         ) : null}
 
@@ -1870,6 +1952,13 @@ export default function CompanyUsersPage() {
           onSave={() => void handleSaveTrackedAssignments()}
         />
       ) : null}
+
+      <WorkerProfileDrawer
+        profile={selectedWorkerProfile}
+        activeTab={selectedWorkerTab}
+        onTabChange={(tab) => updateWorkerProfileQuery(selectedWorkerId, tab)}
+        onClose={() => updateWorkerProfileQuery(null)}
+      />
     </div>
   );
 }
@@ -2094,6 +2183,7 @@ function WorkforceDirectoryView({
   onManage,
   onEditTracked,
   onAssignTracked,
+  onOpenProfile,
 }: {
   loading: boolean;
   rows: WorkforceDirectoryRow[];
@@ -2103,6 +2193,7 @@ function WorkforceDirectoryView({
   onManage: (user: CompanyUser) => void;
   onEditTracked: (employee: TrackedEmployee) => void;
   onAssignTracked: (employee: TrackedEmployee) => void;
+  onOpenProfile: (row: WorkforceDirectoryRow) => void;
 }) {
   if (loading) return <InlineMessage>Loading workforce directory...</InlineMessage>;
   return (
@@ -2166,6 +2257,7 @@ function WorkforceDirectoryView({
                   <div className="flex flex-wrap gap-2">
                     {row.source === "tracked" && row.trackedEmployee ? (
                       <>
+                        <button type="button" onClick={() => onOpenProfile(row)} className="text-xs font-bold text-[var(--app-accent-primary)]">View profile</button>
                         <button type="button" onClick={() => onEditTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Edit worker</button>
                         <button type="button" onClick={() => onAssignTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Assign responsible manager</button>
                         <button type="button" onClick={() => onAssignTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Approve site access</button>
@@ -2174,7 +2266,7 @@ function WorkforceDirectoryView({
                       </>
                     ) : row.user ? (
                       <>
-                        <Link href={getProfileHref(row.user.id)} className="text-xs font-bold text-[var(--app-accent-primary)]">View profile</Link>
+                        <button type="button" onClick={() => onOpenProfile(row)} className="text-xs font-bold text-[var(--app-accent-primary)]">View profile</button>
                         <Link href="/training-matrix" className="text-xs font-bold text-[var(--app-accent-primary)]">Assign training</Link>
                         <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Upload evidence</button>
                         <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>

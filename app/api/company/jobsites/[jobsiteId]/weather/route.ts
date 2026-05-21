@@ -267,6 +267,22 @@ async function loadForecastForJobsite(
   }
 }
 
+function describeWeatherTestNotificationResult(result: Awaited<ReturnType<typeof sendJobsiteWeatherTestNotification>>) {
+  if (result.recipientsSeen === 0) {
+    return "No PM, Site Lead, or workforce jobsite recipient could be resolved for this jobsite.";
+  }
+
+  const sentLabel = `${result.deliveriesSent} delivery${result.deliveriesSent === 1 ? "" : "ies"} sent`;
+  const skippedLabel = result.deliveriesSkipped > 0 ? `, ${result.deliveriesSkipped} skipped` : "";
+  const failedLabel = result.deliveriesFailed > 0 ? `, ${result.deliveriesFailed} failed` : "";
+
+  if (result.ok) {
+    return `Weather test notification complete: ${sentLabel}${skippedLabel}.`;
+  }
+
+  return `Weather test notification incomplete: ${sentLabel}${skippedLabel}${failedLabel}.`;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<Params> }
@@ -319,11 +335,7 @@ export async function POST(
     return NextResponse.json(
       {
         result,
-        message: result.ok
-          ? "Weather test notification sent."
-          : result.recipientsSeen === 0
-            ? "No PM, Site Lead, or workforce jobsite recipient could be resolved for this jobsite."
-            : "Weather test notification could not be fully sent.",
+        message: describeWeatherTestNotificationResult(result),
       },
       { status }
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Minus, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -36,6 +36,12 @@ import type {
   Stage1TrainingStatus,
   Stage1TrainingSummary,
 } from "@/lib/trainingMatrixStage1";
+import {
+  WorkerProfileDrawer,
+  buildWorkerProfileFromMatrixRow,
+  type WorkerProfileRecord,
+  type WorkerProfileTab,
+} from "@/components/workforce/WorkerProfileDrawer";
 import {
   applyAiReviewToReadinessRows,
   buildEmployeeReadinessRow,
@@ -454,11 +460,6 @@ function matchesStage1StatusFilter(row: MatrixRow, filter: Stage1StatusFilter): 
   return true;
 }
 
-function stage1WorkerHref(row: MatrixRow): string {
-  if (row.personType === "tracked_employee") return "/company-users";
-  return `/profile?userId=${encodeURIComponent(row.userId)}&returnTo=${encodeURIComponent("/training-matrix")}`;
-}
-
 type Stage1CourseRollup = {
   requirement: Requirement;
   requiredWorkers: number;
@@ -489,6 +490,10 @@ function buildStage1CourseRollups(rows: MatrixRow[], requirements: Requirement[]
   });
 }
 
+function readWorkerProfileTab(value: string | null): WorkerProfileTab {
+  return value === "training" || value === "permits" || value === "access" ? value : "summary";
+}
+
 function Stage1ComplianceGrid({
   rows,
   requirements,
@@ -498,6 +503,7 @@ function Stage1ComplianceGrid({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  onOpenProfile,
 }: {
   rows: MatrixRow[];
   requirements: Requirement[];
@@ -507,6 +513,7 @@ function Stage1ComplianceGrid({
   onSearchChange: (value: string) => void;
   statusFilter: Stage1StatusFilter;
   onStatusFilterChange: (value: Stage1StatusFilter) => void;
+  onOpenProfile: (workerId: string) => void;
 }) {
   const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
@@ -670,7 +677,7 @@ function Stage1ComplianceGrid({
                       <td className="px-3 py-3">{summary?.nextDueDate ?? "No upcoming due date"}</td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
-                          <Link href={stage1WorkerHref(row)} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">View profile</Link>
+                          <button type="button" onClick={() => onOpenProfile(row.userId)} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">View profile</button>
                           <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Assign training</button>
                           {row.loginAccessStatus === "No Portal Access" ? (
                             <>
@@ -1671,6 +1678,8 @@ function ReadinessMatrixPanel({
 }
 
 export default function TrainingMatrixPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const isOfflineDemoUi = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -1733,6 +1742,27 @@ export default function TrainingMatrixPage() {
   const [editRenewalMonths, setEditRenewalMonths] = useState("");
 
   const { density, setDensity, isCompact } = useTableDensity();
+  const selectedWorkerId = searchParams.get("workerId") ?? "";
+  const selectedWorkerTab = readWorkerProfileTab(searchParams.get("workerTab"));
+  const selectedWorkerProfile = useMemo<WorkerProfileRecord | null>(() => {
+    const row = rows.find((item) => item.userId === selectedWorkerId);
+    return row ? buildWorkerProfileFromMatrixRow(row) : null;
+  }, [rows, selectedWorkerId]);
+  const updateWorkerProfileQuery = useCallback(
+    (workerId: string | null, tab: WorkerProfileTab = selectedWorkerTab) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (workerId) {
+        next.set("workerId", workerId);
+        next.set("workerTab", tab);
+      } else {
+        next.delete("workerId");
+        next.delete("workerTab");
+      }
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams, selectedWorkerTab]
+  );
 
   useEffect(() => {
     try {
@@ -2584,6 +2614,7 @@ export default function TrainingMatrixPage() {
         onSearchChange={setStage1Search}
         statusFilter={stage1StatusFilter}
         onStatusFilterChange={setStage1StatusFilter}
+        onOpenProfile={(workerId) => updateWorkerProfileQuery(workerId, "summary")}
       />
 
       {canMutate ? (
@@ -3145,6 +3176,12 @@ export default function TrainingMatrixPage() {
         </div>
         )}
       </ComplianceCommandCenter>
+      <WorkerProfileDrawer
+        profile={selectedWorkerProfile}
+        activeTab={selectedWorkerTab}
+        onTabChange={(tab) => updateWorkerProfileQuery(selectedWorkerId, tab)}
+        onClose={() => updateWorkerProfileQuery(null)}
+      />
     </div>
   );
 }
