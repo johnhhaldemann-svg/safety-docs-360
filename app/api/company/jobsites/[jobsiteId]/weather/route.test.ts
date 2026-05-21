@@ -139,6 +139,7 @@ describe("jobsite weather route", () => {
     expect(response.status).toBe(200);
     expect(body.forecast).toMatchObject({
       sourceUrl: "https://api.weather.gov/gridpoints/MKX/81,73/forecast",
+      publicUrl: "https://forecast.weather.gov/MapClick.php?lat=43.2286&lon=-88.1246",
       error: null,
       days: [
         {

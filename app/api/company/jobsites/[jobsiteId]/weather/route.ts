@@ -96,6 +96,22 @@ function weatherCoordinateInput(value: unknown) {
   return null;
 }
 
+function numericWeatherCoordinate(value: unknown) {
+  if (!hasWeatherCoordinate(value)) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function publicNwsForecastUrl(jobsite: Record<string, unknown>) {
+  const latitude = numericWeatherCoordinate(jobsite.weather_latitude);
+  const longitude = numericWeatherCoordinate(jobsite.weather_longitude);
+  if (latitude === null || longitude === null) return null;
+  const url = new URL("https://forecast.weather.gov/MapClick.php");
+  url.searchParams.set("lat", latitude.toFixed(4));
+  url.searchParams.set("lon", longitude.toFixed(4));
+  return url.toString();
+}
+
 function addressFromJobsite(jobsite: Record<string, unknown>): WeatherLocationInput {
   return {
     zipCode: normalizeZipCode(String(jobsite.zip_code ?? "")),
@@ -214,35 +230,37 @@ async function loadWeatherOverviewPayload(
 async function loadForecastForJobsite(
   jobsite: Record<string, unknown>,
   nwsClient: NwsClient
-): Promise<{ days: NwsForecastDay[]; sourceUrl: string | null; error: string | null }> {
+): Promise<{ days: NwsForecastDay[]; sourceUrl: string | null; publicUrl: string | null; error: string | null }> {
   const savedForecastUrl = cleanString(jobsite.nws_forecast_url);
   let forecastUrl = savedForecastUrl || null;
+  const publicUrl = publicNwsForecastUrl(jobsite);
 
   if (!forecastUrl) {
-    const latitude = hasWeatherCoordinate(jobsite.weather_latitude) ? Number(jobsite.weather_latitude) : Number.NaN;
-    const longitude = hasWeatherCoordinate(jobsite.weather_longitude) ? Number(jobsite.weather_longitude) : Number.NaN;
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    const latitude = numericWeatherCoordinate(jobsite.weather_latitude);
+    const longitude = numericWeatherCoordinate(jobsite.weather_longitude);
+    if (latitude !== null && longitude !== null) {
       try {
         const point = await nwsClient.getPointMetadata(latitude, longitude);
         forecastUrl = point.forecastUrl;
       } catch {
-        return { days: [], sourceUrl: null, error: "Forecast location could not be resolved with NWS." };
+        return { days: [], sourceUrl: null, publicUrl, error: "Forecast location could not be resolved with NWS." };
       }
     }
   }
 
   if (!forecastUrl) {
-    return { days: [], sourceUrl: null, error: null };
+    return { days: [], sourceUrl: null, publicUrl, error: null };
   }
 
   try {
     return {
       days: await nwsClient.getForecast(forecastUrl, 5),
       sourceUrl: forecastUrl,
+      publicUrl,
       error: null,
     };
   } catch {
-    return { days: [], sourceUrl: forecastUrl, error: "NWS forecast is temporarily unavailable." };
+    return { days: [], sourceUrl: forecastUrl, publicUrl, error: "NWS forecast is temporarily unavailable." };
   }
 }
 

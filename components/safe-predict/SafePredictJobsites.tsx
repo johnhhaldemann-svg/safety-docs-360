@@ -242,6 +242,7 @@ type JobsiteWeatherForecastDay = {
 type JobsiteWeatherForecastSummary = {
   days?: JobsiteWeatherForecastDay[];
   sourceUrl?: string | null;
+  publicUrl?: string | null;
   error?: string | null;
 };
 
@@ -578,6 +579,15 @@ function weatherTemperatureLabel(day: JobsiteWeatherForecastDay) {
   return `${high} / ${low}`;
 }
 
+function publicNwsForecastUrlFromSite(site: SafePredictJobsiteRecord) {
+  if (typeof site.weatherLatitude !== "number" || typeof site.weatherLongitude !== "number") return null;
+  const params = new URLSearchParams({
+    lat: site.weatherLatitude.toFixed(4),
+    lon: site.weatherLongitude.toFixed(4),
+  });
+  return `https://forecast.weather.gov/MapClick.php?${params.toString()}`;
+}
+
 function controlList(value: string) {
   return value
     .split(",")
@@ -602,6 +612,7 @@ function jobsiteWeatherFromSite(site: SafePredictJobsiteRecord): JobsiteWeatherO
     forecast: {
       days: [],
       sourceUrl: site.weatherForecastUrl ?? null,
+      publicUrl: publicNwsForecastUrlFromSite(site),
       error: null,
     },
     alerts: [],
@@ -647,7 +658,7 @@ function JobsiteWeatherOverviewCard({
   const zipCode = jobsiteWeather?.zip_code || site.zipCode || "";
   const sourceLabel = weatherLocationSourceLabel(jobsiteWeather?.weather_location_source ?? site.weatherLocationSource);
   const confidence = jobsiteWeather?.weather_location_confidence ?? site.weatherLocationConfidence;
-  const forecastUrl = forecast?.sourceUrl ?? jobsiteWeather?.nws_forecast_url ?? site.weatherForecastUrl;
+  const forecastUrl = forecast?.publicUrl ?? publicNwsForecastUrlFromSite(site);
   const canAttemptRefresh =
     enabled ||
     Boolean(zipCode) ||
