@@ -12,6 +12,7 @@ import {
   type SafePredictDataMode,
   type SafePredictDataset,
   type SafePredictHazardRecord,
+  type SafePredictIncidentRecord,
   type SafePredictLiveJobsiteRow,
   type SafePredictLiveRecordRow,
   type SafePredictPermitRecord,
@@ -80,6 +81,16 @@ type SafePredictDataContextValue = {
     dueDate: string;
     description?: string;
   }) => SafePredictHazardRecord;
+  addDraftIncident: (input: {
+    title: string;
+    siteId: string;
+    type: SafePredictIncidentRecord["type"];
+    severity: SafePredictIncidentRecord["severity"];
+    status?: SafePredictIncidentRecord["status"];
+    reportedBy?: string;
+    reportedAt?: string;
+    detail?: string;
+  }) => SafePredictIncidentRecord;
   addDraftPermit: (input: {
     title: string;
     siteId: string;
@@ -128,6 +139,7 @@ const SafePredictDataContext = createContext<SafePredictDataContextValue | null>
 
 const actionStorageKey = "safe-predict-live-beta-actions-v1";
 const hazardStorageKey = "safe-predict-live-beta-hazards-v1";
+const incidentStorageKey = "safe-predict-live-beta-incidents-v1";
 const permitStorageKey = "safe-predict-live-beta-permits-v1";
 const jobsiteStorageKey = "safe-predict-live-beta-jobsites-v1";
 const actionStatusStorageKey = "safe-predict-action-status-overrides-v1";
@@ -155,6 +167,15 @@ function normalizeActionRows(value: unknown): SafePredictActionRecord[] | null {
 function normalizeHazardRows(value: unknown): SafePredictHazardRecord[] | null {
   if (!Array.isArray(value)) return null;
   const rows = value.filter((row): row is SafePredictHazardRecord => {
+    if (!isRecord(row)) return false;
+    return typeof row.id === "string" && typeof row.title === "string" && typeof row.siteId === "string";
+  });
+  return rows.length > 0 ? rows : null;
+}
+
+function normalizeIncidentRows(value: unknown): SafePredictIncidentRecord[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows = value.filter((row): row is SafePredictIncidentRecord => {
     if (!isRecord(row)) return false;
     return typeof row.id === "string" && typeof row.title === "string" && typeof row.siteId === "string";
   });
@@ -281,6 +302,14 @@ function loadInitialHazards(scope: string) {
   }
 }
 
+function loadInitialIncidents(scope: string) {
+  try {
+    return normalizeIncidentRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(incidentStorageKey, scope)) || "null"))?.filter((incident) => incident.id.startsWith("draft-incident-")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function loadInitialPermits(scope: string) {
   try {
     return normalizePermitRows(JSON.parse(window.localStorage.getItem(scopedStorageKey(permitStorageKey, scope)) || "null")) ?? [];
@@ -319,6 +348,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const [baseDataset, setBaseDataset] = useState<SafePredictDataset>(() => buildSafePredictDataset({ mode: "live" }));
   const [draftActions, setDraftActions] = useState<SafePredictActionRecord[]>([]);
   const [draftHazards, setDraftHazards] = useState<SafePredictHazardRecord[]>([]);
+  const [draftIncidents, setDraftIncidents] = useState<SafePredictIncidentRecord[]>([]);
   const [draftPermits, setDraftPermits] = useState<SafePredictPermitRecord[]>([]);
   const [draftJobsites, setDraftJobsites] = useState<SafePredictJobsiteRecord[]>([]);
   const [actionStatuses, setActionStatuses] = useState<Record<string, SafePredictActionStatus>>({});
@@ -345,6 +375,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         setStorageScope(scope);
         setDraftActions(loadInitialActions(scope));
         setDraftHazards(loadInitialHazards(scope));
+        setDraftIncidents(loadInitialIncidents(scope));
         setDraftPermits(loadInitialPermits(scope));
         setDraftJobsites(loadInitialJobsites(scope));
         setActionStatuses(loadInitialActionStatuses(scope));
@@ -489,6 +520,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       ...baseDataset,
       jobsites: [...draftJobsites, ...baseDataset.jobsites],
       hazards: [...draftHazards, ...baseDataset.hazards],
+      incidents: [...draftIncidents, ...baseDataset.incidents],
       permits: mergePermitRecords(baseDataset.permits, draftPermits),
       actions: [
         ...draftActions,
@@ -502,7 +534,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         }),
       ],
     }),
-    [actionStatuses, baseDataset, draftActions, draftHazards, draftJobsites, draftPermits]
+    [actionStatuses, baseDataset, draftActions, draftHazards, draftIncidents, draftJobsites, draftPermits]
   );
 
   const refreshLiveData = useCallback(() => {
@@ -542,6 +574,11 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
   const persistDraftHazards = useCallback((nextHazards: SafePredictHazardRecord[]) => {
     setDraftHazards(nextHazards);
     window.localStorage.setItem(scopedStorageKey(hazardStorageKey, storageScope), JSON.stringify(nextHazards));
+  }, [storageScope]);
+
+  const persistDraftIncidents = useCallback((nextIncidents: SafePredictIncidentRecord[]) => {
+    setDraftIncidents(nextIncidents);
+    window.localStorage.setItem(scopedStorageKey(incidentStorageKey, storageScope), JSON.stringify(nextIncidents));
   }, [storageScope]);
 
   const persistDraftPermits = useCallback((nextPermits: SafePredictPermitRecord[]) => {
@@ -814,6 +851,34 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
     [draftHazards, liveToken, mode, persistDraftHazards]
   );
 
+  const addDraftIncident = useCallback(
+    (input: {
+      title: string;
+      siteId: string;
+      type: SafePredictIncidentRecord["type"];
+      severity: SafePredictIncidentRecord["severity"];
+      status?: SafePredictIncidentRecord["status"];
+      reportedBy?: string;
+      reportedAt?: string;
+      detail?: string;
+    }) => {
+      const draft: SafePredictIncidentRecord = {
+        id: `draft-incident-${Date.now()}`,
+        siteId: input.siteId,
+        title: input.title,
+        type: input.type,
+        severity: input.severity,
+        status: input.status ?? "Open Review",
+        reportedBy: input.reportedBy || "Field Team",
+        reportedAt: input.reportedAt || "Just now",
+        detail: input.detail || "Incident queued from the SafePredict workspace.",
+      };
+      persistDraftIncidents([draft, ...draftIncidents]);
+      return draft;
+    },
+    [draftIncidents, persistDraftIncidents]
+  );
+
   const addDraftPermit = useCallback(
     (input: {
       title: string;
@@ -1070,6 +1135,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         addDraftAction,
         createCorrectiveAction,
         addDraftHazard,
+        addDraftIncident,
         addDraftPermit,
         updatePermit,
         addDraftJobsite,

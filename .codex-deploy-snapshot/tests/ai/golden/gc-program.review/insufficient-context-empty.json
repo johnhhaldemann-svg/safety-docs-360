@@ -1,0 +1,21 @@
+{
+  "name": "insufficient-context-empty",
+  "surface": "gc-program.review",
+  "notes": "Almost-empty submission. Should NOT invent OSHA citations and should mark overallAssessment 'insufficient_context' (or otherwise admit limited evidence).",
+  "input": {
+    "documentText": "TBD",
+    "documentTitle": "Untitled Submission",
+    "fileName": "draft.docx",
+    "companyName": "Subcontractor X",
+    "additionalGcContext": ""
+  },
+  "assertions": {
+    "mustNotContain": ["29 cfr 1926.501", "29 cfr 1910.146", "i'm sorry"],
+    "schemaShape": [
+      "review.executiveSummary",
+      "review.oshaRelatedGapsOrRisks[]",
+      "review.recommendedFollowUps[]",
+      "review.overallAssessment"
+    ]
+  }
+}

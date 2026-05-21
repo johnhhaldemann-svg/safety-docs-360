@@ -33,12 +33,12 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   Card,
-  ExportButton,
   PageHeader,
   SectionTitle,
   StatusIcon,
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
+import { triggerBrowserDownload } from "@/lib/browserDownload";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import {
   type SafePredictDemoEmployee,
@@ -48,6 +48,10 @@ import {
 } from "@/lib/safePredictMockData";
 import type { SafePredictJobsiteRecord, SafePredictPermitRecord } from "@/lib/safePredictData";
 import type { SafePredictTrainingMatrix } from "@/lib/safePredictData";
+import {
+  generateSafePredictWorkforceReportPdf,
+  type SafePredictWorkforceReportKind,
+} from "@/lib/safePredictWorkforceReportPdf";
 import {
   buildSafePredictTrainingTradeGroups,
   type SafePredictTrainingRequirementGroup,
@@ -514,6 +518,7 @@ export function SafePredictWorkforceDashboard() {
   const [query, setQuery] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [workflowStatuses, setWorkflowStatuses] = useState<Record<string, WorkflowStatus>>({});
+  const [exportingReportKind, setExportingReportKind] = useState<SafePredictWorkforceReportKind | null>(null);
   const employees = dataset.employees;
   const jobsites = dataset.jobsites;
   const trades = dataset.tradeReadiness.length > 0 ? dataset.tradeReadiness : tradeReadinessFromEmployees(employees);
@@ -662,6 +667,26 @@ export function SafePredictWorkforceDashboard() {
     }
   }
 
+  async function exportWorkforceReportPdf(kind: SafePredictWorkforceReportKind) {
+    setExportingReportKind(kind);
+    try {
+      const report = await generateSafePredictWorkforceReportPdf({
+        kind,
+        company: dataset.company,
+        workforce,
+        permits,
+        employees,
+        jobsites,
+        trades: trainingGroups,
+        permitGroups,
+        workflowItems,
+      });
+      triggerBrowserDownload(new Blob([report.bytes as BlobPart], { type: "application/pdf" }), report.filename);
+    } finally {
+      setExportingReportKind(null);
+    }
+  }
+
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
@@ -685,15 +710,16 @@ export function SafePredictWorkforceDashboard() {
               <Users className="h-4 w-4" />
               Manage Team Access
             </Link>
-            <ExportButton
-              fileName="safe-predict-workforce-readiness.json"
-              label="Export workforce readiness report"
-              payload={{ company: dataset.company, workforce, permits, employees, jobsites, trades, permitRows, workflowItems }}
+            <button
+              type="button"
+              onClick={() => void exportWorkforceReportPdf("command")}
+              disabled={exportingReportKind !== null}
+              aria-label="Export workforce readiness report as PDF"
               className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
             >
-              <Download className="h-4 w-4" />
-              Export Report
-            </ExportButton>
+              {exportingReportKind === "command" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exportingReportKind === "command" ? "Preparing PDF" : "Export PDF"}
+            </button>
           </>
         }
       />
@@ -854,14 +880,14 @@ export function SafePredictWorkforceDashboard() {
           ) : null}
           {activeTab === "reports" ? (
             <ReportsTab
-              dataset={dataset}
-              employees={employees}
               jobsites={jobsites}
               permitGroups={permitGroups}
               permits={permits}
               trades={trainingGroups}
               workflowItems={workflowItems}
               workforce={workforce}
+              exportingReportKind={exportingReportKind}
+              onExportReport={exportWorkforceReportPdf}
             />
           ) : null}
         </section>
@@ -1466,23 +1492,23 @@ function ForecastActionsTab({ items, statuses, onCreate }: { items: WorkforceWor
 }
 
 function ReportsTab({
-  dataset,
-  employees,
   jobsites,
   permitGroups,
   permits,
   trades,
   workflowItems,
   workforce,
+  exportingReportKind,
+  onExportReport,
 }: {
-  dataset: ReturnType<typeof useSafePredictData>["dataset"];
-  employees: SafePredictDemoEmployee[];
   jobsites: SafePredictJobsiteRecord[];
   permitGroups: PermitCategoryGroup[];
   permits: { active: number; expiringSoon: number; expired: number };
   trades: TrainingGroup[];
   workflowItems: WorkforceWorkflowItem[];
   workforce: ReturnType<typeof workforceTotalsFromEmployees>;
+  exportingReportKind: SafePredictWorkforceReportKind | null;
+  onExportReport: (kind: SafePredictWorkforceReportKind) => Promise<void>;
 }) {
   const cards = [
     { title: "Executive Readiness Export", detail: `${workforce.workers} workers, ${permits.expiringSoon + permits.expired} permit exceptions, ${workflowItems.length} AI actions.` },
@@ -1503,17 +1529,33 @@ function ReportsTab({
           ))}
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
-          <ExportButton
-            fileName="safe-predict-workforce-command-center.json"
-            label="Export workforce command center report"
-            payload={{ company: dataset.company, workforce, permits, employees, jobsites, trades, permitGroups, workflowItems }}
-            className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+          <button
+            type="button"
+            onClick={() => void onExportReport("command")}
+            disabled={exportingReportKind !== null}
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:bg-slate-300 disabled:shadow-none"
           >
-            <Download className="h-4 w-4" />
-            Export Command Report
-          </ExportButton>
-          <Link href="/safe-predict/training" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Training report <ArrowRight className="h-4 w-4" /></Link>
-          <Link href="/safe-predict/permits" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700">Permit report <ArrowRight className="h-4 w-4" /></Link>
+            {exportingReportKind === "command" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exportingReportKind === "command" ? "Preparing PDF" : "Export Command PDF"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void onExportReport("training")}
+            disabled={exportingReportKind !== null}
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {exportingReportKind === "training" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Training PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => void onExportReport("permit")}
+            disabled={exportingReportKind !== null}
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {exportingReportKind === "permit" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Permit PDF
+          </button>
         </div>
       </Card>
     </div>

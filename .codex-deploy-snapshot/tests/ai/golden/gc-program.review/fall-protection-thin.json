@@ -1,0 +1,25 @@
+{
+  "name": "fall-protection-thin",
+  "surface": "gc-program.review",
+  "notes": "Bare-bones fall-protection program. Should produce strengths/gaps with fall protection mentioned and overallAssessment of needs_work or insufficient_context.",
+  "input": {
+    "documentText": "Fall Protection Program. All work above 6 feet requires personal fall arrest. Use harness, lanyard, and anchor point. Inspect equipment daily. Report defects to the foreman.",
+    "documentTitle": "Fall Protection Program",
+    "fileName": "fall-protection.docx",
+    "companyName": "Test Subcontractor",
+    "additionalGcContext": "GC requires 100% tie-off above 4 feet, daily DAS sign-off, and a documented rescue plan."
+  },
+  "assertions": {
+    "mustContain": ["fall"],
+    "mustNotContain": ["I cannot", "I'm sorry", "as an ai"],
+    "schemaShape": [
+      "review.executiveSummary",
+      "review.alignmentWithGcSiteRequirements",
+      "review.oshaRelatedStrengths[]",
+      "review.oshaRelatedGapsOrRisks[]",
+      "review.recommendedFollowUps[]",
+      "review.overallAssessment",
+      "disclaimer"
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing (reports may contain screenshots, traces, and error context with sensitive data)
+/coverage
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.auth/*.json
+/.codex-reference-render/training-previews/
+
+# next.js
+/.next/
+/out/
+
+# Electron desktop installer output (see scripts/desktop-electron-out-dir.mjs)
+/dist-desktop/
+/dist-electron-out/
+/dist-desktop.orphan-*/
+/dist-electron-out.orphan-*/
+
+# production
+/build
+
+# misc
+/.cursor/
+/.codex_tmp/
+.DS_Store
+*.pem
+/.npm-cache/
+
+# Python (Streamlit local runs)
+**/__pycache__/
+*.py[cod]
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.codex-next-dev.*.log
+.codex-next-*.log
+.codex-microsoft-project-app-dev*.log
+.codex-demo-mode-dev*.log
+.codex-*-dev*.log
+.codex-*-dev.*.log
+.codex-*.log
+.codex-*.out.log
+.codex-*.err.log
+.codex-*.combined.log
+.next-dev.log
+
+# local Codex worktrees and generated scratch output
+/.codex_worktrees/
+/.codex-docx-review/
+/.codex-prod-deploy/
+/.codex-reference-render/
+/annotated_pictures/
+/docx_work/
+/output/
+/repaired-docs/
+/tmp/
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+.env.vercel.sync.tmp
+
+# Expo mobile app
+/safety-mobile/node_modules/
+/safety-mobile/.expo/
+/safety-mobile/dist/
+/safety-mobile/.env
+/safety-mobile/.expo-start*.log
+
+# vercel
+.vercel
+
+# Local IPA workbooks for Streamlit OSHA lab (optional; do not commit large/sensitive sheets)
+/streamlit/*.xlsx
+!/streamlit/sample_ipa_demo.xlsx
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Supabase CLI local cache (not migration history)
+supabase/.temp/
+
+.vercel

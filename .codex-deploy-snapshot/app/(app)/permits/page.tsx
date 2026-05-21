@@ -1,0 +1,918 @@
+﻿"use client";
+
+import Link from "next/link";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
+import { PermitCopilotPanel } from "@/components/permits/PermitCopilotPanel";
+import { useTableDensity } from "@/hooks/useTableDensity";
+import { listSectionDensity } from "@/lib/tableDensityLayout";
+import {
+  EmptyState,
+  InlineMessage,
+  MetricTile,
+  PageHero,
+  SectionCard,
+  StatusBadge,
+  appButtonPrimaryClassName,
+  appButtonSecondaryClassName,
+  appNativeSelectClassName,
+} from "@/components/WorkspacePrimitives";
+import {
+  demoCompanyJobsiteRows,
+  demoJsaActivities,
+  demoPermitRows,
+} from "@/lib/demoWorkspace";
+
+const supabase = getSupabaseBrowserClient();
+
+type PermitRow = {
+  id: string;
+  title: string;
+  permit_type: string;
+  status: string;
+  severity: string;
+  category: string;
+  jobsite_id: string | null;
+  owner_user_id: string | null;
+  due_at: string | null;
+  sif_flag: boolean;
+  escalation_level: string;
+  escalation_reason: string | null;
+  stop_work_status: string;
+  stop_work_reason: string | null;
+  dap_activity_id: string | null;
+  observation_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type JobsiteRow = {
+  id: string;
+  name: string;
+  project_number: string | null;
+  location: string | null;
+  status: string;
+};
+
+type JsaActivityRow = {
+  id: string;
+  jsa_id: string;
+  jobsite_id: string | null;
+  activity_name: string;
+  trade: string | null;
+  area: string | null;
+  permit_required: boolean | null;
+  permit_type: string | null;
+  planned_risk_level: string | null;
+};
+
+type PermitForm = {
+  title: string;
+  permitType: string;
+  severity: string;
+  category: string;
+  jobsiteId: string;
+  ownerUserId: string;
+  dueAt: string;
+  sifFlag: boolean;
+  escalationLevel: string;
+  escalationReason: string;
+  stopWorkStatus: string;
+  stopWorkReason: string;
+  jsaActivityId: string;
+  observationId: string;
+};
+
+const PERMIT_TYPES = [
+  ["hot_work", "Hot Work"],
+  ["confined_space", "Confined Space"],
+  ["electrical", "Electrical"],
+  ["excavation", "Excavation"],
+  ["work_at_heights", "Work at Heights"],
+  ["lockout_tagout", "Lockout / Tagout"],
+] as const;
+const SEVERITY_OPTIONS = ["low", "medium", "high", "critical"] as const;
+const CATEGORIES = [
+  ["corrective_action", "Corrective Action"],
+  ["safety", "Safety"],
+  ["operations", "Operations"],
+  ["maintenance", "Maintenance"],
+  ["environmental", "Environmental"],
+] as const;
+const ESCALATION_OPTIONS = ["none", "monitor", "urgent", "critical"] as const;
+const STOP_WORK_OPTIONS = ["normal", "stop_work_requested", "stop_work_active", "cleared"] as const;
+
+const permitOperationButtonClassName =
+  "rounded-lg border border-[var(--app-border-strong)] bg-white/82 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] transition hover:bg-[var(--app-accent-primary-soft)]";
+const permitStopWorkButtonClassName =
+  "rounded-lg border border-[rgba(217,164,65,0.34)] bg-[var(--semantic-warning-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--semantic-warning)] transition hover:bg-[#fdeabf]";
+
+function isActiveJobsite(jobsite: JobsiteRow) {
+  const status = jobsite.status.trim().toLowerCase();
+  return !["archived", "closed", "completed", "inactive"].includes(status);
+}
+
+function buildEmptyForm(jobsiteId = ""): PermitForm {
+  return {
+    title: "",
+    permitType: "hot_work",
+    severity: "medium",
+    category: "corrective_action",
+    jobsiteId,
+    ownerUserId: "",
+    dueAt: "",
+    sifFlag: false,
+    escalationLevel: "none",
+    escalationReason: "",
+    stopWorkStatus: "normal",
+    stopWorkReason: "",
+    jsaActivityId: "",
+    observationId: "",
+  };
+}
+
+async function getAuthHeaders() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error("Missing auth token.");
+  }
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+  };
+}
+
+async function isSalesDemoRequest(headers: HeadersInit) {
+  const response = await fetch("/api/auth/me", { headers });
+  const data = (await response.json().catch(() => null)) as
+    | { user?: { role?: string | null } }
+    | null;
+  return response.ok && data?.user?.role === "sales_demo";
+}
+
+function labelize(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Not set";
+  return raw
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Not set";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+}
+
+function getPermitStatusTone(status: string): "neutral" | "success" | "warning" | "error" | "info" {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "active") return "success";
+  if (normalized === "closed") return "neutral";
+  if (normalized === "expired") return "warning";
+  return "info";
+}
+
+export default function PermitsPage() {
+  const searchParams = useSearchParams();
+  const [permits, setPermits] = useState<PermitRow[]>([]);
+  const [jobsites, setJobsites] = useState<JobsiteRow[]>([]);
+  const [jsaActivities, setJsaActivities] = useState<JsaActivityRow[]>([]);
+  const [form, setForm] = useState<PermitForm>(buildEmptyForm());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [demoMode, setDemoMode] = useState(false);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const isDemo = await isSalesDemoRequest(headers);
+      setDemoMode(isDemo);
+      if (isDemo) {
+        setPermits(
+          statusFilter === "all"
+            ? demoPermitRows
+            : demoPermitRows.filter((permit) => permit.status === statusFilter)
+        );
+        setJobsites(demoCompanyJobsiteRows);
+        setJsaActivities(demoJsaActivities);
+        setLoading(false);
+        return;
+      }
+      const permitsQuery = statusFilter === "all" ? "" : `?status=${encodeURIComponent(statusFilter)}`;
+      const [permitsResponse, jobsitesResponse, activitiesResponse] = await Promise.all([
+        fetch(`/api/company/permits${permitsQuery}`, { headers }),
+        fetch("/api/company/jobsites", { headers }),
+        fetch("/api/company/jsa-activities", { headers }),
+      ]);
+
+      const permitsData = (await permitsResponse.json().catch(() => null)) as {
+        permits?: PermitRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+      const jobsitesData = (await jobsitesResponse.json().catch(() => null)) as {
+        jobsites?: JobsiteRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+      const activitiesData = (await activitiesResponse.json().catch(() => null)) as {
+        activities?: JsaActivityRow[];
+        error?: string;
+        warning?: string;
+      } | null;
+
+      if (!permitsResponse.ok) {
+        throw new Error(permitsData?.error || permitsData?.warning || "Failed to load permits.");
+      }
+
+      setPermits(permitsData?.permits ?? []);
+      setJobsites(jobsitesData?.jobsites ?? []);
+      setJsaActivities(activitiesData?.activities ?? []);
+
+      if (!jobsitesResponse.ok) {
+        const warning = jobsitesData?.error || jobsitesData?.warning || "Jobsites could not be loaded.";
+        setMessageTone("warning");
+        setMessage(warning);
+      }
+      if (!activitiesResponse.ok) {
+        const warning = activitiesData?.error || activitiesData?.warning || "JSA activities could not be loaded.";
+        setMessageTone((current) => (current === "error" ? current : "warning"));
+        setMessage(warning);
+      }
+    } catch (error) {
+      setPermits([]);
+      setJobsites([]);
+      setJsaActivities([]);
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to load permits.");
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    const jsaActivityId = searchParams.get("jsaActivityId")?.trim() ?? "";
+    const jobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
+    const observationId = searchParams.get("observationId")?.trim() ?? "";
+    setForm((current) => ({
+      ...current,
+      ...(jsaActivityId ? { jsaActivityId } : {}),
+      ...(jobsiteId ? { jobsiteId } : {}),
+      ...(observationId ? { observationId } : {}),
+    }));
+    void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, searchParams]);
+
+  const jobsiteById = useMemo(
+    () => new Map(jobsites.map((jobsite) => [jobsite.id, jobsite])),
+    [jobsites]
+  );
+  const activeJobsites = useMemo(() => jobsites.filter(isActiveJobsite), [jobsites]);
+  const activityById = useMemo(
+    () => new Map(jsaActivities.map((activity) => [activity.id, activity])),
+    [jsaActivities]
+  );
+
+  useEffect(() => {
+    if (!form.jobsiteId && activeJobsites.length === 1) {
+      setForm((current) => ({ ...current, jobsiteId: activeJobsites[0].id }));
+    }
+  }, [activeJobsites, form.jobsiteId]);
+  const selectedActivity = useMemo(
+    () => (form.jsaActivityId ? activityById.get(form.jsaActivityId) ?? null : null),
+    [form.jsaActivityId, activityById]
+  );
+  const selectedJobsite = useMemo(
+    () => {
+      const derivedJobsiteId = selectedActivity?.jobsite_id ?? "";
+      if (derivedJobsiteId) {
+        return jobsiteById.get(derivedJobsiteId) ?? null;
+      }
+      return form.jsaActivityId ? null : form.jobsiteId ? jobsiteById.get(form.jobsiteId) ?? null : null;
+    },
+    [form.jobsiteId, form.jsaActivityId, jobsiteById, selectedActivity?.jobsite_id]
+  );
+  const permitRows = useMemo(
+    () =>
+      permits.map((permit) => ({
+        ...permit,
+        jobsite: permit.jobsite_id ? jobsiteById.get(permit.jobsite_id) ?? null : null,
+      })),
+    [permits, jobsiteById]
+  );
+  const counts = useMemo(
+    () => ({
+      total: permits.length,
+      active: permits.filter((item) => item.status === "active").length,
+      stopWork: permits.filter((item) => item.stop_work_status === "stop_work_active").length,
+      sif: permits.filter((item) => item.sif_flag).length,
+    }),
+    [permits]
+  );
+
+  useEffect(() => {
+    if (!selectedActivity) return;
+    setForm((current) => {
+      const next: PermitForm = { ...current };
+      if (selectedActivity.jobsite_id) {
+        next.jobsiteId = selectedActivity.jobsite_id;
+      }
+      if (selectedActivity.permit_type) {
+        next.permitType = selectedActivity.permit_type;
+      }
+      if (!current.title.trim() && selectedActivity.activity_name.trim()) {
+        next.title = `${selectedActivity.activity_name} permit`;
+      }
+      return next;
+    });
+  }, [selectedActivity]);
+
+  async function createPermit() {
+    const hasLinkedJsa = Boolean(form.jsaActivityId.trim());
+    const hasJobsite = Boolean(form.jobsiteId.trim());
+    if (!form.title.trim() || (!hasLinkedJsa && !hasJobsite)) {
+      setMessageTone("warning");
+      setMessage("Enter a permit title and choose an active jobsite or linked JSA step.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      const activity = activityById.get(form.jsaActivityId.trim()) ?? null;
+      if (demoMode) {
+        const nowIso = new Date().toISOString();
+        setPermits((current) => [
+          {
+            id: `demo-permit-${Date.now()}`,
+            title: form.title,
+            permit_type: form.permitType,
+            status: "draft",
+            severity: form.severity,
+            category: form.category,
+            jobsite_id: form.jobsiteId || activity?.jobsite_id || null,
+            owner_user_id: form.ownerUserId || null,
+            due_at: form.dueAt || null,
+            sif_flag: form.sifFlag,
+            escalation_level: form.escalationLevel,
+            escalation_reason: form.escalationReason || null,
+            stop_work_status: form.stopWorkStatus,
+            stop_work_reason: form.stopWorkReason || null,
+            dap_activity_id: form.jsaActivityId || null,
+            observation_id: form.observationId || null,
+            created_at: nowIso,
+            updated_at: nowIso,
+          },
+          ...current,
+        ]);
+        setForm((current) => buildEmptyForm(current.jobsiteId));
+        setMessageTone("success");
+        setMessage("Demo permit created locally for this session.");
+        setSaving(false);
+        return;
+      }
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/permits", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: form.title,
+          permitType: form.permitType,
+          severity: form.severity,
+          category: form.category,
+          jobsiteId: form.jobsiteId || activity?.jobsite_id || null,
+          ownerUserId: form.ownerUserId || null,
+          dueAt: form.dueAt || null,
+          sifFlag: form.sifFlag,
+          escalationLevel: form.escalationLevel,
+          escalationReason: form.escalationReason,
+          stopWorkStatus: form.stopWorkStatus,
+          stopWorkReason: form.stopWorkReason,
+          jsaActivityId: form.jsaActivityId || null,
+          observationId: form.observationId || null,
+          status: "draft",
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to create permit.");
+      setForm((current) => buildEmptyForm(current.jobsiteId));
+      setMessageTone("success");
+      setMessage("Permit created.");
+      await loadData();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to create permit.");
+    }
+    setSaving(false);
+  }
+
+  async function updateRiskState(permit: PermitRow, updates: Record<string, unknown>) {
+    if (demoMode) {
+      setPermits((current) =>
+        current.map((item) =>
+          item.id === permit.id
+            ? { ...item, ...updates, updated_at: new Date().toISOString() }
+            : item
+        )
+      );
+      setMessageTone("success");
+      setMessage("Demo permit updated locally for this session.");
+      return;
+    }
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/permits", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ id: permit.id, ...updates }),
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to update permit.");
+      await loadData();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to update permit.");
+    }
+  }
+
+  const { density, setDensity, isCompact } = useTableDensity();
+  const listDensity = useMemo(() => listSectionDensity(isCompact), [isCompact]);
+
+  return (
+    <div className="space-y-8">
+      <PageHero
+        eyebrow="Safety Modules"
+        title="Permits"
+        description="Manage permit lifecycle, SIF flags, escalation, and stop-work controls."
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <TableDensityToggle value={density} onChange={setDensity} disabled={loading} />
+            <Link href="/dashboard" className={appButtonSecondaryClassName}>
+              Back to Dashboard
+            </Link>
+          </div>
+        }
+      />
+
+      {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Permit summary">
+        <MetricTile
+          eyebrow="Permit board"
+          title="Total"
+          value={String(counts.total)}
+          detail="All permits in the current view."
+        />
+        <MetricTile
+          eyebrow="Lifecycle"
+          title="Active"
+          value={String(counts.active)}
+          detail="Permits currently released to work."
+          tone={counts.active > 0 ? "attention" : "panel"}
+        />
+        <MetricTile
+          eyebrow="Critical risk"
+          title="SIF Flagged"
+          value={String(counts.sif)}
+          detail="Serious injury or fatality controls."
+          tone={counts.sif > 0 ? "attention" : "panel"}
+        />
+        <MetricTile
+          eyebrow="Controls"
+          title="Stop Work"
+          value={String(counts.stopWork)}
+          detail="Active stop-work conditions."
+          tone={counts.stopWork > 0 ? "attention" : "panel"}
+        />
+      </section>
+
+      <SectionCard title="Create Permit" description="Capture the jobsite, controls, and risk context so the permit appears in the right board.">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="permit-title"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Permit title
+                </label>
+                <input
+                  id="permit-title"
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                  placeholder="Permit title"
+                  className="app-form-input"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Linked JSA step</label>
+                <select
+                  value={form.jsaActivityId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jsaActivityId: event.target.value }))}
+                  className="app-form-input"
+                >
+                  <option value="">No linked JSA step</option>
+                  {jsaActivities.map((activity) => {
+                    const jobsite = activity.jobsite_id ? jobsiteById.get(activity.jobsite_id) : null;
+                    return (
+                      <option key={activity.id} value={activity.id}>
+                        {activity.activity_name}
+                        {activity.trade ? ` - ${activity.trade}` : ""}
+                        {jobsite ? ` - ${jobsite.name}` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Optional. When selected, the permit inherits its jobsite and permit type from the JSA step.
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Active jobsite</label>
+                <select
+                  value={form.jobsiteId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jobsiteId: event.target.value }))}
+                  disabled={Boolean(selectedActivity?.jobsite_id)}
+                  className="app-form-input disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="">Choose an active jobsite</option>
+                  {activeJobsites.map((jobsite) => (
+                    <option key={jobsite.id} value={jobsite.id}>
+                      {jobsite.name}
+                      {jobsite.project_number ? ` - ${jobsite.project_number}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedActivity?.jobsite_id
+                    ? "Inherited from the linked JSA step."
+                    : "Required for standalone permits."}
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Permit type</label>
+                <select
+                  value={form.permitType}
+                  onChange={(event) => setForm((prev) => ({ ...prev, permitType: event.target.value }))}
+                  disabled={Boolean(selectedActivity?.permit_type)}
+                  className="app-form-input disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  {PERMIT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedActivity?.permit_type
+                    ? "This value is inherited from the linked JSA step."
+                    : "Set the permit type if the linked JSA step does not already define it."}
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Severity</label>
+                <select
+                  value={form.severity}
+                  onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
+                  className="app-form-input"
+                >
+                  {SEVERITY_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Category</label>
+                <select
+                  value={form.category}
+                  onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
+                  className="app-form-input"
+                >
+                  {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="permit-due-date"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Due date
+                </label>
+                <input
+                  id="permit-due-date"
+                  type="datetime-local"
+                  value={form.dueAt}
+                  onChange={(event) => setForm((prev) => ({ ...prev, dueAt: event.target.value }))}
+                  className="app-form-input"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="permit-owner-user-id"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Owner user id
+                </label>
+                <input
+                  id="permit-owner-user-id"
+                  value={form.ownerUserId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, ownerUserId: event.target.value }))}
+                  placeholder="Optional owner user id"
+                  className="app-form-input"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Escalation level</label>
+                <select
+                  value={form.escalationLevel}
+                  onChange={(event) => setForm((prev) => ({ ...prev, escalationLevel: event.target.value }))}
+                  className="app-form-input"
+                >
+                  {ESCALATION_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Stop work status</label>
+                <select
+                  value={form.stopWorkStatus}
+                  onChange={(event) => setForm((prev) => ({ ...prev, stopWorkStatus: event.target.value }))}
+                  className="app-form-input"
+                >
+                  {STOP_WORK_OPTIONS.map((value) => <option key={value} value={value}>{labelize(value)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Escalation reason</label>
+                <textarea
+                  value={form.escalationReason}
+                  onChange={(event) => setForm((prev) => ({ ...prev, escalationReason: event.target.value }))}
+                  placeholder="Why this permit should escalate, if needed"
+                  className="app-form-input min-h-28"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Stop work reason</label>
+                <textarea
+                  value={form.stopWorkReason}
+                  onChange={(event) => setForm((prev) => ({ ...prev, stopWorkReason: event.target.value }))}
+                  placeholder="Why this permit should stop work, if needed"
+                  className="app-form-input min-h-28"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">JSA link</label>
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                  <div className="text-sm font-semibold text-[var(--app-text-strong)]">
+                    {selectedActivity ? selectedActivity.activity_name : "No JSA step selected"}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--app-muted)]">
+                    {selectedActivity
+                      ? `${labelize(selectedActivity.permit_type)}${selectedActivity.trade ? ` · ${selectedActivity.trade}` : ""}${
+                          selectedActivity.area ? ` · ${selectedActivity.area}` : ""
+                        }`
+                      : "Pick the JSA step that requires the permit."}
+                  </div>
+                  <div className="mt-2 text-xs text-[var(--app-muted)]">
+                    {selectedActivity
+                      ? `Jobsite: ${
+                          selectedActivity.jobsite_id
+                            ? jobsiteById.get(selectedActivity.jobsite_id)?.name ?? selectedActivity.jobsite_id
+                            : "Not assigned"
+                        }`
+                      : "Standalone permits can be saved when an active jobsite is selected."}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="permit-observation-id"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-[0.25em] text-slate-500"
+                >
+                  Observation id
+                </label>
+                <input
+                  id="permit-observation-id"
+                  value={form.observationId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, observationId: event.target.value }))}
+                  placeholder="Observation id (optional)"
+                  className="app-form-input"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm text-[var(--app-text)]">
+                <input type="checkbox" checked={form.sifFlag} onChange={(event) => setForm((prev) => ({ ...prev, sifFlag: event.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-[var(--app-accent-primary)]" />
+                SIF flag
+              </label>
+              <button type="button" onClick={() => void createPermit()} disabled={saving || !form.title.trim() || (!form.jobsiteId.trim() && !form.jsaActivityId.trim())} className={`${appButtonPrimaryClassName} disabled:pointer-events-none disabled:opacity-60`}>
+                {saving ? "Creating..." : "Create Permit"}
+              </button>
+            </div>
+
+            <PermitCopilotPanel
+              key={selectedActivity?.id ?? "no-jsa"}
+              selectedActivity={selectedActivity}
+              selectedJobsiteName={selectedJobsite?.name ?? null}
+              currentDraft={{
+                title: form.title,
+                permitType: form.permitType,
+                severity: form.severity,
+                category: form.category,
+                escalationLevel: form.escalationLevel,
+                escalationReason: form.escalationReason,
+                stopWorkStatus: form.stopWorkStatus,
+                stopWorkReason: form.stopWorkReason,
+                dueAt: form.dueAt,
+                ownerUserId: form.ownerUserId,
+                jsaActivityId: form.jsaActivityId,
+                observationId: form.observationId,
+              }}
+              onApply={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-white p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--app-muted)]">Permit snapshot</div>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <div className="text-xs text-[var(--app-muted)]">Jobsite</div>
+                  <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
+                    {selectedJobsite ? selectedJobsite.name : form.jobsiteId ? "Selected jobsite" : "Company-wide / unassigned"}
+                  </div>
+                  {selectedJobsite ? (
+                    <div className="mt-1 text-xs text-[var(--app-muted)]">
+                      {selectedJobsite.project_number ? `${selectedJobsite.project_number} · ` : ""}
+                      {selectedJobsite.location ?? "No location listed"}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Type</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{PERMIT_TYPES.find(([value]) => value === form.permitType)?.[1] ?? form.permitType}</div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Severity</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.severity)}</div>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Escalation</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.escalationLevel)}</div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3">
+                    <div className="text-xs text-[var(--app-muted)]">Stop work</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{labelize(form.stopWorkStatus)}</div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] p-3 text-sm text-[var(--app-text)]">
+                  <div>JSA activity: {selectedActivity?.activity_name ?? "Not linked"}</div>
+                  <div className="mt-1">Observation: {form.observationId.trim() || "Not linked"}</div>
+                </div>
+              </div>
+            </div>
+            <InlineMessage tone="neutral">Standalone permits use the active jobsite you select. JSA-linked permits inherit their jobsite from the selected JSA step.</InlineMessage>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Permit Operations"
+        description="Track permit status and high-risk controls."
+        aside={
+          <StatusBadge
+            label={`${loading ? "-" : permitRows.length} visible`}
+            tone={permitRows.length > 0 ? "info" : "neutral"}
+          />
+        }
+        actions={
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={appNativeSelectClassName}>
+            <option value="all">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="active">Active</option>
+            <option value="closed">Closed</option>
+            <option value="expired">Expired</option>
+          </select>
+        }
+      >
+        {loading ? (
+          <InlineMessage>Loading permits...</InlineMessage>
+        ) : permitRows.length === 0 ? (
+          <EmptyState title="No permits yet" description="Create your first permit to start high-risk controls." />
+        ) : (
+          <div className={listDensity.stackGap}>
+            {permitRows.map((permit) => (
+              <div key={permit.id} className={listDensity.card}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className={listDensity.cardTitle}>{permit.title}</div>
+                    <div className={listDensity.cardMeta}>
+                      {labelize(permit.permit_type)} · {labelize(permit.category)}
+                    </div>
+                    <div className={listDensity.cardMeta}>
+                      Jobsite: {permit.jobsite?.name ?? "Company-wide / unassigned"}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge label={labelize(permit.status)} tone={getPermitStatusTone(permit.status)} />
+                    <StatusBadge label={labelize(permit.escalation_level)} tone={permit.escalation_level === "critical" ? "warning" : "info"} />
+                    <StatusBadge label={labelize(permit.stop_work_status)} tone={permit.stop_work_status === "stop_work_active" || permit.stop_work_status === "stop_work_requested" ? "warning" : "neutral"} />
+                    {permit.sif_flag ? <StatusBadge label="SIF" tone="warning" /> : null}
+                  </div>
+                </div>
+
+                <div className={listDensity.statGrid}>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Severity</div>
+                    <div className={listDensity.statValue}>{labelize(permit.severity)}</div>
+                  </div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Due</div>
+                    <div className={listDensity.statValue}>{formatDateTime(permit.due_at)}</div>
+                  </div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Owner</div>
+                    <div className={listDensity.statValue}>{permit.owner_user_id ?? "Not assigned"}</div>
+                  </div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Created</div>
+                    <div className={listDensity.statValue}>{formatDateTime(permit.created_at)}</div>
+                  </div>
+                </div>
+
+                <div
+                  className={
+                    isCompact
+                      ? "mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+                      : "mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
+                  }
+                >
+                  <div className={isCompact ? "grid gap-2 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-2"}>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Linked JSA activity</div>
+                      <div className={listDensity.statValue}>{permit.dap_activity_id ?? "Not linked"}</div>
+                    </div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Linked observation</div>
+                      <div className={listDensity.statValue}>{permit.observation_id ?? "Not linked"}</div>
+                    </div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Updated</div>
+                      <div className={listDensity.statValue}>{formatDateTime(permit.updated_at)}</div>
+                    </div>
+                    <div className={listDensity.statCell}>
+                      <div className={listDensity.statLabel}>Jobsite scope</div>
+                      <div className={listDensity.statValue}>{permit.jobsite?.location ?? "No location listed"}</div>
+                    </div>
+                  </div>
+                  <div className={listDensity.statCell}>
+                    <div className={listDensity.statLabel}>Control notes</div>
+                    <div
+                      className={
+                        isCompact ? "mt-1.5 space-y-1.5 text-xs text-[var(--app-text)]" : "mt-2 space-y-2 text-sm text-[var(--app-text)]"
+                      }
+                    >
+                      <p>Escalation reason: {permit.escalation_reason ?? "Not provided"}</p>
+                      <p>Stop work reason: {permit.stop_work_reason ?? "Not provided"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void updateRiskState(permit, { status: permit.status === "active" ? "closed" : "active" })} className={permitOperationButtonClassName}>
+                    {permit.status === "active" ? "Close" : "Activate"}
+                  </button>
+                  <button type="button" onClick={() => void updateRiskState(permit, { sifFlag: !permit.sif_flag })} className={permitOperationButtonClassName}>
+                    {permit.sif_flag ? "Unset SIF" : "Set SIF"}
+                  </button>
+                  <button type="button" onClick={() => void updateRiskState(permit, { escalationLevel: permit.escalation_level === "none" ? "urgent" : "none" })} className={permitOperationButtonClassName}>
+                    {permit.escalation_level === "none" ? "Escalate" : "Clear Escalation"}
+                  </button>
+                  <button type="button" onClick={() => void updateRiskState(permit, permit.stop_work_status === "stop_work_active" ? { stopWorkStatus: "cleared", stopWorkReason: "Cleared by manager." } : { stopWorkStatus: "stop_work_active", stopWorkReason: "High-risk condition detected." })} className={permitStopWorkButtonClassName}>
+                    {permit.stop_work_status === "stop_work_active" ? "Clear Stop Work" : "Stop Work"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  );
+}

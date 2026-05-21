@@ -1,0 +1,242 @@
+type SupabaseLikeClient = {
+  from: (table: string) => unknown;
+};
+
+function normalizeTeamName(team?: string | null) {
+  return team?.trim() || "General";
+}
+
+/** UUIDs are case-insensitive; normalize for comparisons with URL params. */
+export function normalizeWorkspaceUuid(value: string) {
+  return value.trim().toLowerCase();
+}
+
+/** Safe UUID normalization when value may be null/undefined (e.g. DB rows vs JWT). */
+export function normalizeUuid(value: string | null | undefined): string | null {
+  if (value == null || typeof value !== "string") return null;
+  const t = value.trim().toLowerCase();
+  return t.length > 0 ? t : null;
+}
+
+/** Compare two UUID strings case-insensitively; false if either side is missing. */
+export function uuidMatches(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const na = normalizeUuid(a);
+  const nb = normalizeUuid(b);
+  return na !== null && nb !== null && na === nb;
+}
+
+export async function getCompanyScope(params: {
+  supabase: SupabaseLikeClient;
+  userId: string;
+  fallbackTeam?: string | null;
+  /** Deprecated during the legacy RBAC cutover. Metadata is no longer trusted for company scope. */
+  authUser?: unknown;
+}) {
+  const { supabase, userId, fallbackTeam } = params;
+  const safeTeam = normalizeTeamName(fallbackTeam);
+
+  // Prefer `user_roles.company_id` first. Admin subscription + billing are keyed off that company;
+  // if we only looked at `company_memberships` with limit(1), we could pick a different workspace
+  // and read the wrong `company_subscriptions` row (inactive / missing).
+  const roleRowResult = await (
+    supabase.from("user_roles") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+        };
+      };
+    }
+  )
+    .select("company_id, team")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (
+    !roleRowResult.error &&
+    roleRowResult.data &&
+    typeof roleRowResult.data === "object"
+  ) {
+    const row = roleRowResult.data as {
+      company_id?: string | null;
+      team?: string | null;
+    };
+
+    if (row.company_id) {
+      const normalizedCompanyId = normalizeUuid(row.company_id);
+      if (normalizedCompanyId) {
+        const companyLookup = await (
+          supabase.from("companies") as {
+            select: (columns: string) => {
+              eq: (column: string, value: string) => {
+                maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+              };
+            };
+          }
+        )
+          .select("id, name")
+          .eq("id", row.company_id)
+          .maybeSingle();
+
+        const companyData = (companyLookup.data ?? null) as { name?: string | null } | null;
+
+        return {
+          companyId: normalizedCompanyId,
+          companyName: companyData?.name?.trim() || normalizeTeamName(row.team) || safeTeam,
+          source: "role_row" as const,
+        };
+      }
+    }
+  }
+
+  const membershipResult = await (
+    supabase.from("company_memberships") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          order: (
+            column: string,
+            options?: { ascending?: boolean }
+          ) => {
+            limit: (n: number) => {
+              maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select("company_id, status, companies(id, name)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    !membershipResult.error &&
+    membershipResult.data &&
+    typeof membershipResult.data === "object"
+  ) {
+    const row = membershipResult.data as {
+      company_id?: string | null;
+      companies?: { id?: string | null; name?: string | null } | null;
+    };
+
+    const companyId = row.company_id ?? row.companies?.id ?? null;
+    const companyName = row.companies?.name?.trim() || safeTeam;
+    const normalizedMembershipCompanyId = normalizeUuid(companyId);
+
+    if (normalizedMembershipCompanyId) {
+      return {
+        companyId: normalizedMembershipCompanyId,
+        companyName,
+        source: "membership" as const,
+      };
+    }
+  }
+
+  return {
+    companyId: null,
+    companyName: safeTeam,
+    source: "team_fallback" as const,
+  };
+}
+
+export async function ensureCompanyScope(params: {
+  supabase: SupabaseLikeClient;
+  userId: string;
+  fallbackTeam?: string | null;
+  role?: string | null;
+  actorUserId?: string | null;
+}) {
+  const { supabase, userId, fallbackTeam, role, actorUserId } = params;
+  const safeTeam = normalizeTeamName(fallbackTeam);
+
+  const existing = await getCompanyScope({
+    supabase,
+    userId,
+    fallbackTeam: safeTeam,
+  });
+
+  if (existing.companyId) {
+    return existing;
+  }
+
+  const upsertCompany = await (
+    supabase.from("companies") as {
+      upsert: (
+        values: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => {
+        select: (columns: string) => {
+          single: () => PromiseLike<{ data: unknown; error: { message?: string | null } | null }>;
+        };
+      };
+    }
+  ).upsert(
+    {
+      name: safeTeam,
+      team_key: safeTeam,
+      created_by: actorUserId ?? userId,
+      updated_by: actorUserId ?? userId,
+    },
+    {
+      onConflict: "team_key",
+      ignoreDuplicates: false,
+    }
+  )
+    .select("id, name")
+    .single();
+
+  if (upsertCompany.error || !upsertCompany.data || typeof upsertCompany.data !== "object") {
+    return existing;
+  }
+
+  const company = upsertCompany.data as { id?: string | null; name?: string | null };
+
+  if (!company.id) {
+    return existing;
+  }
+
+  await (
+    supabase.from("company_memberships") as {
+      upsert: (
+        values: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => PromiseLike<{ error: { message?: string | null } | null }>;
+    }
+  ).upsert(
+    {
+      user_id: userId,
+      company_id: company.id,
+      role: role ?? "company_user",
+      status: "active",
+      created_by: actorUserId ?? userId,
+      updated_by: actorUserId ?? userId,
+    },
+    {
+      onConflict: "user_id,company_id",
+    }
+  );
+
+  await (
+    supabase.from("user_roles") as {
+      update: (values: Record<string, unknown>) => {
+        eq: (column: string, value: string) => PromiseLike<{ error: { message?: string | null } | null }>;
+      };
+    }
+  )
+    .update({
+      company_id: company.id,
+      team: safeTeam,
+      updated_by: actorUserId ?? userId,
+    })
+    .eq("user_id", userId);
+
+  return {
+    companyId: normalizeUuid(company.id),
+    companyName: company.name?.trim() || safeTeam,
+    source: "team_fallback" as const,
+  };
+}

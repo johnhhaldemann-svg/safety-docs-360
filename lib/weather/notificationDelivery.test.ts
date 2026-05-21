@@ -3,6 +3,7 @@ import {
   buildWeatherNotificationText,
   createWeatherDeliveryDedupeKey,
   deliverWeatherNotification,
+  normalizeSmsPhoneNumber,
   sendWeatherAlertEmail,
 } from "@/lib/weather/notificationDelivery";
 
@@ -17,6 +18,13 @@ describe("weather notification delivery helpers", () => {
     TWILIO_FROM_NUMBER: process.env.TWILIO_FROM_NUMBER,
     TWILIO_MESSAGING_SERVICE_SID: process.env.TWILIO_MESSAGING_SERVICE_SID,
   };
+
+  it("normalizes U.S. SMS numbers to E.164 before provider delivery", () => {
+    expect(normalizeSmsPhoneNumber("262-290-1309")).toBe("+12622901309");
+    expect(normalizeSmsPhoneNumber("(262) 290-1309")).toBe("+12622901309");
+    expect(normalizeSmsPhoneNumber("1-262-290-1309")).toBe("+12622901309");
+    expect(normalizeSmsPhoneNumber("12345")).toBeNull();
+  });
 
   afterEach(() => {
     process.env.RESEND_API_KEY = originalEnv.RESEND_API_KEY;
@@ -209,6 +217,7 @@ describe("weather notification delivery helpers", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ "Content-Type": "application/x-www-form-urlencoded" }),
+        body: expect.stringContaining("To=%2B15552223333"),
       })
     );
     expect(insert).toHaveBeenCalledWith(

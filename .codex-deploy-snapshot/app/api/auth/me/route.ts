@@ -1,0 +1,754 @@
+import { NextResponse } from "next/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getCompanyScope } from "@/lib/companyScope";
+import {
+  authorizeRequest,
+  formatAppRole,
+  getUserRoleContext,
+  isAdminRole,
+} from "@/lib/rbac";
+import { linkedContractorIdFromUser } from "@/lib/dashboardOverviewAccess";
+import {
+  TERMS_VERSION,
+  getDefaultAgreementConfig,
+  getUserAgreementRecord,
+} from "@/lib/legal";
+import { getAgreementConfig } from "@/lib/legalSettings";
+import {
+  createSupabaseAdminClient,
+  getSupabaseAnonKey,
+  getSupabaseServerUrl,
+} from "@/lib/supabaseAdmin";
+import { normalizeCompanySubscriptionStatus } from "@/lib/companySeats";
+import { planNameToWorkspaceProduct, type WorkspaceProduct } from "@/lib/workspaceProduct";
+import {
+  applyCompanyFeatureEntitlementsToPermissionMap,
+  normalizeFeatureKeys,
+} from "@/lib/platformPricing";
+import { serverLog } from "@/lib/serverLog";
+import { demoCompanyProfile } from "@/lib/demoWorkspace";
+import { isOfflineDesktopEnabled } from "@/lib/offlineDesktopSession";
+
+export const runtime = "nodejs";
+
+type UserProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  preferred_name: string | null;
+  job_title: string | null;
+  trade_specialty: string | null;
+  years_experience: number | null;
+  phone: string | null;
+  city: string | null;
+  state_region: string | null;
+  readiness_status: string | null;
+  certifications: string[] | null;
+  specialties: string[] | null;
+  equipment: string[] | null;
+  bio: string | null;
+  photo_url: string | null;
+  photo_path: string | null;
+  profile_complete: boolean | null;
+};
+
+type CompanyInviteLookupRow = {
+  id: string;
+  role: string;
+  team: string;
+  company_id: string;
+  account_status: string;
+};
+
+type CompanySignupRequestLookupRow = {
+  id: string;
+  company_name: string | null;
+  primary_contact_email: string | null;
+  owner_user_id: string | null;
+  status: string | null;
+  account_status: string | null;
+  created_at: string | null;
+};
+
+function createRequestScopedSupabaseClient(request: Request) {
+  const supabaseUrl = getSupabaseServerUrl();
+  const supabaseAnonKey = getSupabaseAnonKey();
+  const authorization = request.headers.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+
+  if (!supabaseUrl || !supabaseAnonKey || !token) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+async function applyPendingCompanyInvite(params: {
+  supabase: {
+    from: (table: string) => unknown;
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
+  };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  if (!normalizedEmail) return;
+
+  let invite: CompanyInviteLookupRow | null = null;
+
+  if (params.adminClient) {
+    const inviteLookupResult = await (
+      params.adminClient.from("company_invites") as unknown as {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            is: (column: string, value: null) => {
+              order: (
+                column: string,
+                options?: Record<string, unknown>
+              ) => {
+                limit: (count: number) => {
+                  maybeSingle: () => Promise<{
+                    data: unknown;
+                    error: { message?: string | null } | null;
+                  }>;
+                };
+              };
+            };
+          };
+        };
+      }
+    )
+      .select("id, role, team, company_id, account_status")
+      .eq("email", normalizedEmail)
+      .is("consumed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    invite = !inviteLookupResult.error
+      ? ((inviteLookupResult.data as CompanyInviteLookupRow | null) ?? null)
+      : null;
+  } else {
+    const inviteLookupResult = await params.supabase.rpc("lookup_company_invite", {
+      invite_email: normalizedEmail,
+    });
+    invite =
+      ((inviteLookupResult.data as CompanyInviteLookupRow[] | null) ?? [])[0] ?? null;
+  }
+
+  if (!invite) {
+    return;
+  }
+
+  if (!params.adminClient) {
+    await params.supabase.rpc("consume_company_invite", {
+      invite_email: normalizedEmail,
+      invited_user_id: params.userId,
+    });
+    return;
+  }
+
+  const membershipStatus =
+    invite.account_status === "pending" || invite.account_status === "suspended"
+      ? invite.account_status
+      : "active";
+  const nowIso = new Date().toISOString();
+
+  await Promise.all([
+    (
+      params.adminClient.from("user_roles") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        role: invite.role,
+        team: invite.team,
+        company_id: invite.company_id,
+        account_status: invite.account_status,
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id" }
+    ),
+    (
+      params.adminClient.from("company_memberships") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        company_id: invite.company_id,
+        role: invite.role,
+        status: membershipStatus,
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id,company_id" }
+    ),
+    (
+      params.adminClient.from("company_invites") as unknown as {
+        update: (values: Record<string, unknown>) => {
+          eq: (column: string, value: string) => Promise<{ error: { message?: string | null } | null }>;
+        };
+      }
+    )
+      .update({
+        consumed_at: nowIso,
+        consumed_by: params.userId,
+        updated_at: nowIso,
+        updated_by: params.userId,
+      })
+      .eq("id", invite.id),
+  ]);
+}
+
+async function applyApprovedCompanyOwnerLink(params: {
+  supabase: {
+    from: (table: string) => unknown;
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>
+    ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
+  };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+}) {
+  const normalizedEmail = params.email.trim().toLowerCase();
+  if (!normalizedEmail) return;
+
+  if (!params.adminClient) {
+    await params.supabase.rpc("claim_approved_company_owner", {
+      approved_email: normalizedEmail,
+      approved_user_id: params.userId,
+    });
+    return;
+  }
+
+  const companyLookup = await (
+    params.adminClient.from("companies") as unknown as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select("id, name, status")
+    .eq("primary_contact_email", normalizedEmail)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const companyRow =
+    (((companyLookup.data as Array<{ id?: string | null; name?: string | null }> | null) ??
+      [])[0] ??
+      null);
+
+  if (companyLookup.error || !companyRow?.id) {
+    return;
+  }
+
+  await Promise.all([
+    (
+      params.adminClient.from("user_roles") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        role: "company_admin",
+        team: companyRow.name?.trim() || "Company Workspace",
+        company_id: companyRow.id,
+        account_status: "active",
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id" }
+    ),
+    (
+      params.adminClient.from("company_memberships") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<{ error: { message?: string | null } | null }>;
+      }
+    ).upsert(
+      {
+        user_id: params.userId,
+        company_id: companyRow.id,
+        role: "company_admin",
+        status: "active",
+        created_by: params.userId,
+        updated_by: params.userId,
+      },
+      { onConflict: "user_id,company_id" }
+    ),
+  ]);
+}
+
+async function getPendingCompanySignupRequest(params: {
+  supabase: {
+    from: (table: string) => unknown;
+    rpc?: (
+      fn: string,
+      args?: Record<string, unknown>
+    ) => Promise<{ data?: unknown; error: { message?: string | null } | null }>;
+  };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+}) {
+  const lookupClient = params.adminClient ?? params.supabase;
+  const normalizedEmail = params.email.trim().toLowerCase();
+
+  if (!params.adminClient && params.supabase.rpc) {
+    const rpcResult = await params.supabase.rpc("lookup_my_company_signup_request");
+    const rpcRow =
+      ((rpcResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+
+    if (!rpcResult.error && rpcRow) {
+      return rpcRow;
+    }
+  }
+
+  const ownerResult = await (
+    lookupClient.from("company_signup_requests") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select(
+      "id, company_name, primary_contact_email, owner_user_id, status, account_status, created_at"
+    )
+    .eq("owner_user_id", params.userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const ownerRow =
+    ((ownerResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+
+  if (!ownerResult.error && ownerRow) {
+    return ownerRow;
+  }
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const emailResult = await (
+    lookupClient.from("company_signup_requests") as {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            order: (
+              column: string,
+              options?: Record<string, unknown>
+            ) => {
+              limit: (count: number) => Promise<{
+                data: unknown;
+                error: { message?: string | null } | null;
+              }>;
+            };
+          };
+        };
+      };
+    }
+  )
+    .select(
+      "id, company_name, primary_contact_email, owner_user_id, status, account_status, created_at"
+    )
+    .eq("primary_contact_email", normalizedEmail)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  return ((emailResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
+}
+
+function getFallbackFullName(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) {
+  const metadataFullName =
+    typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : "";
+
+  return metadataFullName.trim() || user.email?.split("@")[0] || "";
+}
+
+async function signedProfilePhotoUrl(params: {
+  storageClient: SupabaseClient;
+  profile: UserProfileRow | null;
+}) {
+  const photoPath = params.profile?.photo_path?.trim();
+  if (!photoPath) return params.profile?.photo_url?.trim() || "";
+
+  const { data, error } = await params.storageClient.storage
+    .from("profile-photos")
+    .createSignedUrl(photoPath, 60 * 60);
+
+  return error ? params.profile?.photo_url?.trim() || "" : data?.signedUrl || "";
+}
+
+export async function GET(request: Request) {
+  try {
+    return await handleAuthMeGet(request);
+  } catch (error) {
+    serverLog("error", "auth_me_get_unhandled", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Could not load session profile." },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleAuthMeGet(request: Request) {
+  const auth = await authorizeRequest(request, {
+    allowPending: true,
+    allowSuspended: true,
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  if (isOfflineDesktopEnabled()) {
+    return NextResponse.json(
+      {
+        user: {
+          id: auth.user.id,
+          email: auth.user.email ?? "demo@safety360docs.com",
+          linkedContractorId: null,
+          role: auth.role,
+          roleLabel: formatAppRole(auth.role),
+          team: auth.team,
+          companyId: "demo-company",
+          companyName: demoCompanyProfile.name ?? "Summit Ridge Constructors",
+          workspaceProduct: "full",
+          subscriptionStatus: normalizeCompanySubscriptionStatus("active"),
+          profile: {
+            userId: auth.user.id,
+            fullName: "SafetyDocs360 Demo",
+            preferredName: "Demo",
+            jobTitle: "Demo Account",
+            tradeSpecialty: "General Construction",
+            yearsExperience: 12,
+            phone: "",
+            city: "Austin",
+            stateRegion: "TX",
+            readinessStatus: "ready",
+            certifications: [],
+            specialties: [],
+            equipment: [],
+            bio: "Offline demo session",
+            photoUrl: "",
+            photoPath: "",
+          },
+          profileComplete: true,
+          companyProfile: demoCompanyProfile,
+          isAdmin: isAdminRole(auth.role),
+          permissions: auth.permissions,
+          permissionMap: auth.permissionMap,
+          accountStatus: "active",
+          pendingCompanySignupRequest: null,
+          acceptedTerms: true,
+          acceptedTermsAt: new Date().toISOString(),
+          termsVersion: TERMS_VERSION,
+          agreementCurrent: true,
+          requiredTermsVersion: TERMS_VERSION,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=15, stale-while-revalidate=45",
+        },
+      }
+    );
+  }
+
+  const initialCompanyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+    authUser: auth.user,
+  });
+  const adminClient = createSupabaseAdminClient();
+  const requestScopedSupabase = createRequestScopedSupabaseClient(request);
+
+  const shouldAutoResolveCompanyAccess =
+    !initialCompanyScope.companyId &&
+    !isAdminRole(auth.role) &&
+    !auth.permissionMap.can_access_internal_admin;
+
+  if (shouldAutoResolveCompanyAccess) {
+    try {
+      await applyPendingCompanyInvite({
+        supabase: (requestScopedSupabase ?? auth.supabase) as never,
+        adminClient,
+        userId: auth.user.id,
+        email: auth.user.email ?? "",
+      });
+      await applyApprovedCompanyOwnerLink({
+        supabase: (requestScopedSupabase ?? auth.supabase) as never,
+        adminClient,
+        userId: auth.user.id,
+        email: auth.user.email ?? "",
+      });
+    } catch (error) {
+      serverLog("error", "auth_me_company_access_resolve_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        userId: auth.user.id,
+      });
+    }
+  }
+
+  const authSliceRoleContext = {
+    role: auth.role,
+    team: auth.team,
+    accountStatus: auth.accountStatus,
+    permissions: auth.permissions,
+    permissionMap: auth.permissionMap,
+    companyId: null as string | null,
+  };
+
+  let refreshedRoleContext;
+  if (shouldAutoResolveCompanyAccess) {
+    try {
+      refreshedRoleContext = await getUserRoleContext({
+        supabase: auth.supabase,
+        user: auth.user,
+      });
+    } catch (error) {
+      serverLog("error", "auth_me_role_context_refresh_failed", {
+        message: error instanceof Error ? error.message : String(error),
+        userId: auth.user.id,
+      });
+      refreshedRoleContext = authSliceRoleContext;
+    }
+  } else {
+    refreshedRoleContext = authSliceRoleContext;
+  }
+
+  const agreementConfigPromise = getAgreementConfig(auth.supabase).catch(() =>
+    getDefaultAgreementConfig()
+  );
+  const [agreementResult, agreementConfig] = await Promise.all([
+    getUserAgreementRecord(
+      auth.supabase,
+      auth.user.id,
+      auth.user.user_metadata ?? undefined
+    ),
+    agreementConfigPromise,
+  ]);
+  const companyScope = shouldAutoResolveCompanyAccess
+    ? await getCompanyScope({
+        supabase: auth.supabase,
+        userId: auth.user.id,
+        fallbackTeam: auth.team,
+        authUser: auth.user,
+      })
+    : initialCompanyScope;
+  const pendingCompanySignupRequest =
+    !companyScope.companyId && !isAdminRole(refreshedRoleContext.role)
+      ? await getPendingCompanySignupRequest({
+          supabase: (requestScopedSupabase ?? auth.supabase) as never,
+          adminClient,
+          userId: auth.user.id,
+          email: auth.user.email ?? "",
+        })
+      : null;
+  const companyProfile =
+    companyScope.companyId
+      ? await auth.supabase
+          .from("companies")
+          .select(
+            "id, name, team_key, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, logo_data_url, logo_file_name, status, pilot_trial_ends_at, pilot_converted_at"
+          )
+          .eq("id", companyScope.companyId)
+          .maybeSingle()
+      : null;
+  const userProfileResult = await auth.supabase
+    .from("user_profiles")
+    .select("user_id, full_name, preferred_name, job_title, trade_specialty, photo_url, photo_path, profile_complete")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+  const userProfile = !userProfileResult.error
+    ? ((userProfileResult.data as UserProfileRow | null) ?? null)
+    : null;
+  const profilePhotoUrl = await signedProfilePhotoUrl({
+    storageClient: adminClient ?? auth.supabase,
+    profile: userProfile,
+  });
+  const fallbackFullName = getFallbackFullName(auth.user);
+  const effectiveAccountStatus =
+    pendingCompanySignupRequest && refreshedRoleContext.accountStatus === "active"
+      ? "pending"
+      : refreshedRoleContext.accountStatus;
+  const effectiveCompanyName =
+    companyScope.companyName ||
+    pendingCompanySignupRequest?.company_name?.trim() ||
+    "";
+  const acceptedTerms = Boolean(
+    agreementResult.data?.accepted_terms &&
+      (agreementResult.data?.terms_version ?? "") === agreementConfig.version
+  );
+
+  let workspaceProduct: WorkspaceProduct = "full";
+  let subscriptionStatus = normalizeCompanySubscriptionStatus(null);
+  let effectivePermissionMap = refreshedRoleContext.permissionMap;
+  let effectivePermissions = refreshedRoleContext.permissions;
+
+  if (companyScope.companyId) {
+    const admin = createSupabaseAdminClient();
+    const subscriptionClient = admin ?? auth.supabase;
+    const subscriptionResult = await subscriptionClient
+      .from("company_subscriptions")
+      .select("plan_name, status, enabled_feature_keys")
+      .eq("company_id", companyScope.companyId)
+      .maybeSingle();
+
+    if (!subscriptionResult.error && subscriptionResult.data) {
+      const row = subscriptionResult.data as {
+        plan_name?: string | null;
+        status?: string | null;
+        enabled_feature_keys?: unknown;
+      };
+      workspaceProduct = planNameToWorkspaceProduct(row.plan_name);
+      subscriptionStatus = normalizeCompanySubscriptionStatus(row.status ?? null);
+      if (!isAdminRole(refreshedRoleContext.role)) {
+        effectivePermissionMap = applyCompanyFeatureEntitlementsToPermissionMap(
+          refreshedRoleContext.permissionMap,
+          normalizeFeatureKeys(row.enabled_feature_keys ?? null)
+        );
+        effectivePermissions = refreshedRoleContext.permissions.filter(
+          (permission) => effectivePermissionMap[permission]
+        );
+      }
+    }
+  } else {
+    const { data: userSubscription } = await auth.supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+    subscriptionStatus = normalizeCompanySubscriptionStatus(
+      (userSubscription as { status?: string | null } | null)?.status ?? null
+    );
+  }
+
+  return NextResponse.json(
+    {
+      user: {
+        id: auth.user.id,
+        email: auth.user.email ?? "",
+        linkedContractorId: linkedContractorIdFromUser(auth.user),
+        role: refreshedRoleContext.role,
+        roleLabel: formatAppRole(refreshedRoleContext.role),
+        team: refreshedRoleContext.team,
+        companyId: companyScope.companyId,
+        companyName: effectiveCompanyName,
+        workspaceProduct,
+        subscriptionStatus,
+        profile: {
+        userId: auth.user.id,
+        fullName: userProfile?.full_name?.trim() || fallbackFullName,
+        preferredName: userProfile?.preferred_name?.trim() || "",
+        jobTitle: userProfile?.job_title?.trim() || "",
+        tradeSpecialty: userProfile?.trade_specialty?.trim() || "",
+        yearsExperience: userProfile?.years_experience ?? null,
+        phone: userProfile?.phone?.trim() || "",
+        city: userProfile?.city?.trim() || "",
+        stateRegion: userProfile?.state_region?.trim() || "",
+        readinessStatus: userProfile?.readiness_status?.trim() || "ready",
+        certifications: userProfile?.certifications ?? [],
+        specialties: userProfile?.specialties ?? [],
+        equipment: userProfile?.equipment ?? [],
+        bio: userProfile?.bio?.trim() || "",
+        photoUrl: profilePhotoUrl,
+        photoPath: userProfile?.photo_path?.trim() || "",
+      },
+      profileComplete: Boolean(userProfile?.profile_complete),
+      companyProfile:
+        companyProfile && !companyProfile.error ? companyProfile.data ?? null : null,
+      isAdmin: isAdminRole(refreshedRoleContext.role),
+      permissions: effectivePermissions,
+      permissionMap: effectivePermissionMap,
+      accountStatus: effectiveAccountStatus,
+      pendingCompanySignupRequest:
+        pendingCompanySignupRequest && !companyScope.companyId
+          ? {
+              id: pendingCompanySignupRequest.id,
+              companyName: pendingCompanySignupRequest.company_name?.trim() || "",
+              status: pendingCompanySignupRequest.status?.trim() || "pending",
+            }
+          : null,
+      acceptedTerms,
+      acceptedTermsAt: agreementResult.data?.accepted_at ?? null,
+      termsVersion: agreementResult.data?.terms_version ?? TERMS_VERSION,
+      agreementCurrent:
+        (agreementResult.data?.terms_version ?? "") === agreementConfig.version,
+      requiredTermsVersion: agreementConfig.version,
+    },
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=15, stale-while-revalidate=45",
+      },
+    }
+  );
+}

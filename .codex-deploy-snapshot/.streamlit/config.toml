@@ -1,0 +1,10 @@
+# Used when running `npm run streamlit:osha` from repo root (cwd = project root).
+# Relaxes XSRF for embedding the app in Next.js on another origin during local dev.
+# Tighten or remove for production Streamlit deployments.
+
+[server]
+headless = true
+address = "127.0.0.1"
+port = 8501
+enableCORS = true
+enableXsrfProtection = false

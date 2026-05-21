@@ -58,8 +58,10 @@ import {
   siteScoped,
   summarizeSafePredictDataset,
   type SafePredictDataset,
+  type SafePredictIncidentRecord,
   type SafePredictJobsiteRecord,
   type SafePredictJobsiteStatus,
+  type SafePredictObservationRecord,
 } from "@/lib/safePredictData";
 import { SAFE_PREDICT_RISK_INDEX_HELPER, type SafePredictRiskLevel } from "@/lib/safePredictMockData";
 import { permitReadinessLabel as permitFormReadinessLabel } from "@/lib/safePredictPermitForms";
@@ -69,6 +71,14 @@ import {
   type ScheduleHazardPredictionResponse,
 } from "@/lib/scheduleHazardPrediction";
 import { formatTitleCase } from "@/lib/formatTitleCase";
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from "@/lib/incidents/bodyPart";
+import {
+  EXPOSURE_EVENT_TYPES,
+  EXPOSURE_EVENT_TYPE_LABELS,
+  type ExposureEventType,
+} from "@/lib/incidents/exposureEventType";
+import { INCIDENT_SOURCES, INCIDENT_SOURCE_LABELS, type IncidentSource } from "@/lib/incidents/incidentSource";
+import { INJURY_TYPES, INJURY_TYPE_LABELS, type InjuryType } from "@/lib/incidents/injuryType";
 import {
   parseScheduleTemplateFile,
   scheduleTemplateAccept,
@@ -138,6 +148,65 @@ const scheduleWorkAreaOptions = [
   "Warehouse aisle",
   "Other work area",
 ];
+
+const incidentObservationSeverityOptions: SafePredictRiskLevel[] = ["low", "medium", "high", "critical"];
+
+const observationCategoryOptions = [
+  { value: "hazard", label: "Hazard" },
+  { value: "unsafe_condition", label: "Unsafe condition" },
+  { value: "near_miss", label: "Near miss observation" },
+  { value: "positive", label: "Positive observation" },
+  { value: "corrective_action", label: "Corrective action" },
+  { value: "housekeeping", label: "Housekeeping" },
+];
+
+const observationTypeOptions = [
+  { value: "negative", label: "Needs correction" },
+  { value: "positive", label: "Positive observation" },
+  { value: "near_miss", label: "Near miss / good catch" },
+] as const;
+
+const incidentCategoryOptions = [
+  { value: "incident", label: "Injury incident" },
+  { value: "near_miss", label: "Near miss" },
+  { value: "first_aid", label: "First aid" },
+  { value: "property_damage", label: "Property damage" },
+];
+
+type IncidentObservationLogForm = {
+  recordType: "observation" | "incident";
+  title: string;
+  description: string;
+  severity: SafePredictRiskLevel;
+  observationCategory: string;
+  observationType: (typeof observationTypeOptions)[number]["value"];
+  incidentCategory: string;
+  eventType: ExposureEventType | "";
+  source: IncidentSource | "";
+  injuryType: InjuryType | "";
+  bodyPart: BodyPart | "";
+  sifPotential: boolean;
+};
+
+type IncidentObservationLogChange = <K extends keyof IncidentObservationLogForm>(
+  key: K,
+  value: IncidentObservationLogForm[K]
+) => void;
+
+const defaultIncidentObservationLogForm: IncidentObservationLogForm = {
+  recordType: "observation",
+  title: "",
+  description: "",
+  severity: "medium",
+  observationCategory: "hazard",
+  observationType: "negative",
+  incidentCategory: "near_miss",
+  eventType: "",
+  source: "",
+  injuryType: "",
+  bodyPart: "",
+  sifPotential: false,
+};
 
 type DetailTableAction = {
   label: string;
@@ -1774,6 +1843,12 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [weatherTestSending, setWeatherTestSending] = useState(false);
   const [weatherTestMessage, setWeatherTestMessage] = useState<string | null>(null);
   const [weatherTestTone, setWeatherTestTone] = useState<"success" | "error" | "neutral">("neutral");
+  const [incidentObservationForm, setIncidentObservationForm] = useState<IncidentObservationLogForm>(defaultIncidentObservationLogForm);
+  const [incidentObservationSaving, setIncidentObservationSaving] = useState(false);
+  const [incidentObservationMessage, setIncidentObservationMessage] = useState<string | null>(null);
+  const [incidentObservationTone, setIncidentObservationTone] = useState<"success" | "error" | "warning" | "neutral">("neutral");
+  const [localIncidentLogs, setLocalIncidentLogs] = useState<SafePredictIncidentRecord[]>([]);
+  const [localObservationLogs, setLocalObservationLogs] = useState<SafePredictObservationRecord[]>([]);
   const weatherAutoEnableAttemptsRef = useRef<Set<string>>(new Set());
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
@@ -1822,6 +1897,8 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const siteInspections = siteScoped(dataset.inspections, site.id);
   const siteIncidents = siteScoped(dataset.incidents, site.id);
   const siteObservations = siteScoped(dataset.observations, site.id);
+  const displayedSiteIncidents = [...localIncidentLogs, ...siteIncidents];
+  const displayedSiteObservations = [...localObservationLogs, ...siteObservations];
   const siteHazards = siteScoped(dataset.hazards, site.id);
   const sitePermits = siteScoped(dataset.permits, site.id);
   const siteDocuments = siteScoped(dataset.documents, site.id);
@@ -1991,6 +2068,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             status?: string;
             recipientName?: string | null;
             contact?: string | null;
+            normalizedContact?: string | null;
           }>;
         };
       } | null;
@@ -1999,8 +2077,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         ?.filter((item) => item.status === "sent" && item.contact)
         .map((item) => {
           const channel = item.channel?.toUpperCase() ?? "Channel";
+          const contact = item.channel === "sms" ? item.normalizedContact || item.contact : item.contact;
+          const channelLabel = item.channel === "sms" ? "SMS accepted by provider" : channel;
           const recipient = item.recipientName ? ` (${item.recipientName})` : "";
-          return `${channel}: ${item.contact}${recipient}`;
+          return `${channelLabel}: ${contact}${recipient}`;
         })
         .filter((message, index, messages) => messages.indexOf(message) === index);
       const skippedDetails = payload?.result?.results
@@ -2265,13 +2345,193 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     Schedule: upcomingRiskEvents.length,
     Permits: blockedSchedulePermitItems.length || sitePermits.length || site.activePermits,
     Inspections: siteInspections.filter((inspection) => inspection.failedItems > 0 || inspection.status === "Overdue" || inspection.status === "Failed Check").length || site.inspectionGaps,
-    "Incidents & Observations": siteIncidents.length + siteObservations.length,
+    "Incidents & Observations": displayedSiteIncidents.length + displayedSiteObservations.length,
     "Documents & Reports": siteDocuments.length + siteReports.length,
     "Activity Timeline": siteEvents.length || dataset.events.length,
   };
 
   function updateScheduleTaskForm<K extends keyof ScheduleTaskForm>(key: K, value: ScheduleTaskForm[K]) {
     setScheduleTaskForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateIncidentObservationForm<K extends keyof IncidentObservationLogForm>(key: K, value: IncidentObservationLogForm[K]) {
+    setIncidentObservationForm((current) => ({ ...current, [key]: value }));
+  }
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setLocalIncidentLogs([]);
+      setLocalObservationLogs([]);
+      setIncidentObservationMessage(null);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [site.id, mode]);
+
+  async function logIncidentOrObservation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = incidentObservationForm.title.trim();
+    const description = incidentObservationForm.description.trim();
+    if (!title) {
+      setIncidentObservationTone("warning");
+      setIncidentObservationMessage("Add a short title so the site team can find this record later.");
+      return;
+    }
+
+    const isIncident = incidentObservationForm.recordType === "incident";
+    if (isIncident && !incidentObservationForm.eventType) {
+      setIncidentObservationTone("warning");
+      setIncidentObservationMessage("Select the event / exposure type before logging an incident or near miss.");
+      return;
+    }
+    if (isIncident && !incidentObservationForm.source) {
+      setIncidentObservationTone("warning");
+      setIncidentObservationMessage("Select the equipment or object involved before logging an incident or near miss.");
+      return;
+    }
+    if (isIncident && incidentObservationForm.incidentCategory === "incident" && !incidentObservationForm.injuryType) {
+      setIncidentObservationTone("warning");
+      setIncidentObservationMessage("Select an injury type for injury incidents.");
+      return;
+    }
+    if (isIncident && incidentObservationForm.incidentCategory === "incident" && !incidentObservationForm.bodyPart) {
+      setIncidentObservationTone("warning");
+      setIncidentObservationMessage("Select the affected body part for injury incidents.");
+      return;
+    }
+
+    setIncidentObservationSaving(true);
+    setIncidentObservationMessage(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const isHighSignal = incidentObservationForm.severity === "critical" || incidentObservationForm.severity === "high";
+      const shouldFlagSif = incidentObservationForm.sifPotential || isHighSignal;
+
+      if (mode === "live" && token) {
+        const response = await fetch(isIncident ? "/api/company/incidents" : "/api/company/observations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(
+            isIncident
+              ? {
+                  title,
+                  description: description || null,
+                  category: incidentObservationForm.incidentCategory,
+                  severity: incidentObservationForm.severity,
+                  status: "open",
+                  jobsiteId: site.id,
+                  escalationLevel: "none",
+                  stopWorkStatus: "normal",
+                  stopWorkReason:
+                    incidentObservationForm.severity === "critical"
+                      ? "Critical incident logged from the jobsite page; immediate review and possible stop-work evaluation required."
+                      : null,
+                  sifFlag: shouldFlagSif,
+                  eventType: incidentObservationForm.eventType,
+                  source: incidentObservationForm.source,
+                  ...(incidentObservationForm.incidentCategory === "incident"
+                    ? { injuryType: incidentObservationForm.injuryType, bodyPart: incidentObservationForm.bodyPart }
+                    : {}),
+                  occurredAt: new Date().toISOString(),
+                }
+              : {
+                  title,
+                  description: description || null,
+                  severity: incidentObservationForm.severity,
+                  category: incidentObservationForm.observationCategory,
+                  status: "open",
+                  jobsiteId: site.id,
+                  observationType: incidentObservationForm.observationType,
+                  sifPotential: shouldFlagSif,
+                  sifCategory: shouldFlagSif ? incidentObservationForm.observationCategory : null,
+                }
+          ),
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error || `Could not log this ${isIncident ? "incident" : "observation"}.`);
+        }
+        setIncidentObservationTone("success");
+        setIncidentObservationMessage(
+          isIncident
+            ? "Incident logged to this jobsite and the company incident register."
+            : "Observation logged to this jobsite and the company observation/action register."
+        );
+        setIncidentObservationForm({ ...defaultIncidentObservationLogForm, recordType: incidentObservationForm.recordType });
+        refreshLiveData();
+        router.refresh();
+        return;
+      }
+
+      const now = new Date();
+      const loggedAt = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const localId = `local-${isIncident ? "incident" : "observation"}-${Date.now()}`;
+      if (isIncident) {
+        setLocalIncidentLogs((current) => [
+          {
+            id: localId,
+            siteId: site.id,
+            title,
+            type:
+              incidentObservationForm.incidentCategory === "near_miss"
+                ? "Near Miss"
+                : incidentObservationForm.incidentCategory === "first_aid"
+                  ? "First Aid"
+                  : incidentObservationForm.incidentCategory === "property_damage"
+                    ? "Property Damage"
+                    : "Incident",
+            severity: incidentObservationForm.severity,
+            status: "Open Review",
+            reportedBy: "Current user",
+            reportedAt: loggedAt,
+            detail: description || "Logged from the jobsite page.",
+          },
+          ...current,
+        ]);
+      } else {
+        setLocalObservationLogs((current) => [
+          {
+            id: localId,
+            siteId: site.id,
+            title,
+            category: incidentObservationForm.observationCategory,
+            status: "Open",
+            submittedBy: "Current user",
+            submittedAt: loggedAt,
+            riskLevel: incidentObservationForm.severity,
+            detail: description || "Logged from the jobsite page.",
+          },
+          ...current,
+        ]);
+      }
+      addDraftAction({
+        title: `${isIncident ? "Investigate" : "Resolve"} ${title.toLowerCase()}`,
+        linkedRiskId: localId,
+        linkedRisk: title,
+        siteId: site.id,
+        priority: incidentObservationForm.severity === "low" ? "medium" : incidentObservationForm.severity,
+        createdFrom: isIncident ? "Manual" : "Observation",
+        description: description || `Created from jobsite ${isIncident ? "incident" : "observation"} log.`,
+        category: isIncident ? "incident_followup" : incidentObservationForm.observationCategory,
+        observationType: isIncident ? "near_miss" : incidentObservationForm.observationType,
+        sifPotential: shouldFlagSif,
+        persistLive: false,
+      });
+      setIncidentObservationTone("success");
+      setIncidentObservationMessage("Logged locally for this session and added to site corrective actions.");
+      setIncidentObservationForm({ ...defaultIncidentObservationLogForm, recordType: incidentObservationForm.recordType });
+    } catch (error) {
+      setIncidentObservationTone("error");
+      setIncidentObservationMessage(error instanceof Error ? error.message : "Could not log this record.");
+    } finally {
+      setIncidentObservationSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -2722,6 +2982,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <button type="button" onClick={() => setActiveTab("Documents & Reports")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               Files & reports
             </button>
+            <button type="button" onClick={() => setActiveTab("Incidents & Observations")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100">
+              <AlertTriangle className="h-4 w-4" />
+              Log incident / observation
+            </button>
             {mode === "live" ? (
               <AiEngineRefreshButton
                 days={30}
@@ -2738,7 +3002,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <ExportButton
               fileName={`safe-predict-${site.id}-jobsite-report.json`}
               label={`Export ${site.name} report`}
-              payload={{ site, actions: siteActions, alerts: siteAlerts, inspections: siteInspections, incidents: siteIncidents, observations: siteObservations, permits: sitePermits, reports: siteReports }}
+              payload={{ site, actions: siteActions, alerts: siteAlerts, inspections: siteInspections, incidents: displayedSiteIncidents, observations: displayedSiteObservations, permits: sitePermits, reports: siteReports }}
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm"
             >
               Export report
@@ -3061,25 +3325,33 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       ) : null}
 
       {activeTab === "Incidents & Observations" ? (
-        <div className="grid gap-5 2xl:grid-cols-2">
-          <DataTable
-            title="Incidents"
-            rows={siteIncidents.map((incident) => [incident.title, incident.type, incident.status, incident.reportedBy, incident.reportedAt])}
-            headers={["Incident", "Type", "Status", "Reported By", "Date", "Action"]}
-            actions={siteIncidents.map((incident) => ({ label: "Create action", onClick: () => createActionForSignal({ id: incident.id, title: incident.title, riskLevel: incident.severity, createdFrom: "Manual" }) }))}
-            emptyTitle="No incidents reported"
-            emptyDetail="Incidents and near misses will appear here for investigation, corrective action, and trend review."
-            emptyAction={{ label: "Report incident", href: "/safe-predict/incidents" }}
+        <div className="space-y-5">
+          <IncidentObservationLogPanel
+            form={incidentObservationForm}
+            saving={incidentObservationSaving}
+            message={incidentObservationMessage}
+            messageTone={incidentObservationTone}
+            onSubmit={logIncidentOrObservation}
+            onChange={updateIncidentObservationForm}
           />
-          <DataTable
-            title="Observations"
-            rows={siteObservations.map((observation) => [observation.title, observation.category, observation.status, observation.submittedBy, observation.submittedAt])}
-            headers={["Observation", "Category", "Status", "Submitted By", "Date", "Action"]}
-            actions={siteObservations.map((observation) => ({ label: "Convert", onClick: () => createActionForSignal({ id: observation.id, title: observation.title, riskLevel: observation.riskLevel, createdFrom: "Observation" }) }))}
-            emptyTitle="No observations captured"
-            emptyDetail="Capture good catches, unsafe conditions, and positive observations to feed the jobsite risk model."
-            emptyAction={{ label: "Add observation", href: "/safe-predict/observations" }}
-          />
+          <div className="grid gap-5 2xl:grid-cols-2">
+            <DataTable
+              title="Incidents"
+              rows={displayedSiteIncidents.map((incident) => [incident.title, incident.type, incident.status, incident.reportedBy, incident.reportedAt])}
+              headers={["Incident", "Type", "Status", "Reported By", "Date", "Action"]}
+              actions={displayedSiteIncidents.map((incident) => ({ label: "Create action", onClick: () => createActionForSignal({ id: incident.id, title: incident.title, riskLevel: incident.severity, createdFrom: "Manual" }) }))}
+              emptyTitle="No incidents reported"
+              emptyDetail="Incidents and near misses will appear here for investigation, corrective action, and trend review."
+            />
+            <DataTable
+              title="Observations"
+              rows={displayedSiteObservations.map((observation) => [observation.title, observation.category, observation.status, observation.submittedBy, observation.submittedAt])}
+              headers={["Observation", "Category", "Status", "Submitted By", "Date", "Action"]}
+              actions={displayedSiteObservations.map((observation) => ({ label: "Convert", onClick: () => createActionForSignal({ id: observation.id, title: observation.title, riskLevel: observation.riskLevel, createdFrom: "Observation" }) }))}
+              emptyTitle="No observations captured"
+              emptyDetail="Capture good catches, unsafe conditions, and positive observations to feed the jobsite risk model."
+            />
+          </div>
         </div>
       ) : null}
 
@@ -3683,6 +3955,214 @@ function PermitReadinessBoard({
         )}
       </div>
     </div>
+  );
+}
+
+function IncidentObservationLogPanel({
+  form,
+  saving,
+  message,
+  messageTone,
+  onSubmit,
+  onChange,
+}: {
+  form: IncidentObservationLogForm;
+  saving: boolean;
+  message: string | null;
+  messageTone: "success" | "error" | "warning" | "neutral";
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onChange: IncidentObservationLogChange;
+}) {
+  const isIncident = form.recordType === "incident";
+  const messageClassName =
+    messageTone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : messageTone === "error"
+        ? "border-red-200 bg-red-50 text-red-800"
+        : messageTone === "warning"
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-blue-100 bg-blue-50 text-blue-800";
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <SectionTitle title="Log Incident Or Observation" hint="Records saved here stay tied to this jobsite and flow into the company registers." />
+        <div className="inline-flex w-full rounded-lg border border-slate-200 bg-slate-50 p-1 sm:w-auto">
+          {(["observation", "incident"] as const).map((type) => {
+            const active = form.recordType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => onChange("recordType", type)}
+                className={cx(
+                  "inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-xs font-black transition sm:flex-none",
+                  active ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:bg-white/70"
+                )}
+              >
+                {type === "incident" ? <AlertTriangle className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
+                {type === "incident" ? "Incident" : "Observation"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="mt-5 grid gap-4">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
+          <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+            Title
+            <input
+              value={form.title}
+              onChange={(event) => onChange("title", event.target.value)}
+              placeholder={isIncident ? "Near miss at stair tower" : "Blocked access at loading zone"}
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+            Severity
+            <select
+              value={form.severity}
+              onChange={(event) => onChange("severity", event.target.value as SafePredictRiskLevel)}
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              {incidentObservationSeverityOptions.map((severity) => (
+                <option key={severity} value={severity}>{riskText(severity)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+            {isIncident ? "Incident Type" : "Observation Type"}
+            <select
+              value={isIncident ? form.incidentCategory : form.observationType}
+              onChange={(event) => {
+                if (isIncident) onChange("incidentCategory", event.target.value);
+                else onChange("observationType", event.target.value as IncidentObservationLogForm["observationType"]);
+              }}
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              {(isIncident ? incidentCategoryOptions : observationTypeOptions).map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {!isIncident ? (
+          <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500 lg:max-w-md">
+            Category
+            <select
+              value={form.observationCategory}
+              onChange={(event) => onChange("observationCategory", event.target.value)}
+              className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              {observationCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+              Event / Exposure
+              <select
+                value={form.eventType}
+                onChange={(event) => onChange("eventType", event.target.value as ExposureEventType | "")}
+                className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Select event</option>
+                {EXPOSURE_EVENT_TYPES.map((type) => (
+                  <option key={type} value={type}>{EXPOSURE_EVENT_TYPE_LABELS[type]}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+              Source
+              <select
+                value={form.source}
+                onChange={(event) => onChange("source", event.target.value as IncidentSource | "")}
+                className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Select source</option>
+                {INCIDENT_SOURCES.map((source) => (
+                  <option key={source} value={source}>{INCIDENT_SOURCE_LABELS[source]}</option>
+                ))}
+              </select>
+            </label>
+            {form.incidentCategory === "incident" ? (
+              <>
+                <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+                  Injury Type
+                  <select
+                    value={form.injuryType}
+                    onChange={(event) => onChange("injuryType", event.target.value as InjuryType | "")}
+                    className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">Select injury</option>
+                    {INJURY_TYPES.map((type) => (
+                      <option key={type} value={type}>{INJURY_TYPE_LABELS[type]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+                  Body Part
+                  <select
+                    value={form.bodyPart}
+                    onChange={(event) => onChange("bodyPart", event.target.value as BodyPart | "")}
+                    className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">Select body part</option>
+                    {BODY_PARTS.map((part) => (
+                      <option key={part} value={part}>{BODY_PART_LABELS[part]}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
+          </div>
+        )}
+
+        <label className="grid gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+          Notes
+          <textarea
+            value={form.description}
+            onChange={(event) => onChange("description", event.target.value)}
+            placeholder="What happened, where, and what immediate controls were taken?"
+            rows={3}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+
+        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-start gap-3 text-sm font-bold text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.sifPotential}
+              onChange={(event) => onChange("sifPotential", event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-sm font-black text-slate-900">SIF potential / escalation signal</span>
+              <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500">High and critical severity records are escalated conservatively.</span>
+            </span>
+          </label>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
+          >
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {saving ? "Logging..." : isIncident ? "Log incident" : "Log observation"}
+          </button>
+        </div>
+      </form>
+
+      {message ? (
+        <p className={cx("mt-4 rounded-lg border px-3 py-2 text-sm font-bold", messageClassName)}>
+          {message}
+        </p>
+      ) : null}
+    </Card>
   );
 }
 

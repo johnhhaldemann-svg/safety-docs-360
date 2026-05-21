@@ -1,0 +1,41 @@
+# Speed up `vercel deploy` (CLI) by skipping files the Next.js build never reads.
+# Git-based deployments clone the full repo; this still helps local CLI uploads.
+
+# E2E / Playwright (not part of `next build`)
+playwright/
+playwright.config.ts
+playwright-global-setup.ts
+playwright-report/
+test-results/
+
+# Local installs and generated build artifacts
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Desktop/Electron packaging output is local-only
+dist-desktop/
+dist-electron-out/
+dist-desktop.orphan-*/
+dist-electron-out.orphan-*/
+
+# Docs and automation (not bundled into the app)
+docs/
+.github/
+scripts/
+tmp_*.docx
+
+# Supabase SQL — applied with `supabase db push`, not at Vercel build time
+supabase/migrations/
+supabase/seed.sql
+
+# Local secrets — use Vercel Project Environment Variables instead
+.env
+.env.*
+!.env.example
+.codex-next-*.log
+.codex-*.log
+.codex_tmp/

@@ -26,6 +26,7 @@ export type JobsiteWeatherTestNotificationResult = {
     userId: string | null;
     employeeId: string | null;
     contact: string | null;
+    normalizedContact?: string | null;
     channel: WeatherNotificationChannel;
     status: "sent" | "failed" | "skipped";
     error: string | null;
@@ -205,6 +206,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
           userId: recipient.userId,
           employeeId: recipient.employeeId,
           contact: recipient.phone,
+          normalizedContact: sent.toPhone ?? null,
           channel,
           status: sent.sent ? "sent" : "failed",
           error: sent.error,

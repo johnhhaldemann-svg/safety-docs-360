@@ -1,0 +1,58 @@
+{
+  "name": "overlapping-roof-and-electrical",
+  "surface": "jobsite.site-visual.generate",
+  "input": {
+    "jobsite": {
+      "id": "jobsite-eval-1",
+      "name": "North Tower",
+      "location": "Austin, TX",
+      "projectNumber": "NT-100",
+      "jobsiteNumber": "J-100"
+    },
+    "items": [
+      {
+        "id": "schedule-1",
+        "sourceType": "schedule",
+        "title": "Roof membrane install",
+        "trade": "Roofing",
+        "workArea": "Level 5 roof",
+        "workStartDate": "2026-05-22",
+        "workEndDate": "2026-05-22",
+        "shiftStartTime": "08:00",
+        "shiftEndTime": "12:00",
+        "riskLevel": "high",
+        "controls": ["guardrails", "controlled access zone"],
+        "hazardCategories": ["falls"],
+        "permitTriggers": []
+      },
+      {
+        "id": "schedule-2",
+        "sourceType": "schedule",
+        "title": "Temporary power relocation",
+        "trade": "Electrical",
+        "workArea": "Level 5 roof",
+        "workStartDate": "2026-05-22",
+        "workEndDate": "2026-05-22",
+        "shiftStartTime": "09:00",
+        "shiftEndTime": "11:00",
+        "riskLevel": "critical",
+        "controls": ["LOTO", "spotter"],
+        "hazardCategories": ["electrical"],
+        "permitTriggers": ["energized work review"]
+      }
+    ]
+  },
+  "assertions": {
+    "expectedFields": [
+      { "path": "levels", "type": "array", "nonEmpty": true },
+      { "path": "areas", "type": "array", "nonEmpty": true },
+      { "path": "zones", "type": "array", "nonEmpty": true },
+      { "path": "overlaps", "type": "array" }
+    ],
+    "requiredEvidence": [
+      { "path": "zones", "terms": ["Roof", "Electrical"], "minMatches": 1 }
+    ],
+    "severity": { "path": "zones.1.riskLevel", "allowed": ["high", "critical"] },
+    "mustNotSay": ["bim accurate", "engineering drawing"]
+  }
+}

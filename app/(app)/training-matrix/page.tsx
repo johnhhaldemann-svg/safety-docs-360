@@ -1730,6 +1730,7 @@ export default function TrainingMatrixPage() {
   const [aiReview, setAiReview] = useState<ReadinessAiReview | null>(null);
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [aiReviewMessage, setAiReviewMessage] = useState<string | null>(null);
+  const [notificationTestLoading, setNotificationTestLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
     "neutral"
@@ -2052,6 +2053,58 @@ export default function TrainingMatrixPage() {
     setSelectedSubTradeFilter(value);
     setSelectedTaskCodeFilter("");
   }, []);
+
+  const sendTrainingExpirationTest = useCallback(async () => {
+    if (isOfflineDemoUi) {
+      setMessageTone("warning");
+      setMessage("Email notification tests are not available in offline demo mode.");
+      return;
+    }
+
+    setNotificationTestLoading(true);
+    setMessage("");
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/company/training-expiration-notifications/test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            status?: "sent" | "skipped" | "failed";
+            realExpirationItemsSeen?: number;
+            warning?: string | null;
+          }
+        | null;
+      if (!res.ok) {
+        setMessageTone("error");
+        setMessage(sanitizeApiErrorMessage(data?.error || "Training notification test failed."));
+        return;
+      }
+
+      const itemCount =
+        typeof data?.realExpirationItemsSeen === "number"
+          ? ` Current real expiration candidates: ${data.realExpirationItemsSeen}.`
+          : "";
+      setMessageTone(data?.status === "sent" ? "success" : "warning");
+      setMessage(
+        sanitizeApiErrorMessage(
+          `${data?.message || data?.warning || "Training notification test complete."}${itemCount}`
+        )
+      );
+    } catch (e) {
+      setMessageTone("error");
+      setMessage(
+        sanitizeApiErrorMessage(
+          e instanceof Error ? e.message : "Training notification test failed."
+        )
+      );
+    } finally {
+      setNotificationTestLoading(false);
+    }
+  }, [isOfflineDemoUi]);
 
   const runAiReadinessReview = useCallback(async () => {
     if (readinessRows.length === 0) {
@@ -2428,6 +2481,16 @@ export default function TrainingMatrixPage() {
             >
               Import roster/training
             </Link>
+            {canMutate ? (
+              <button
+                type="button"
+                onClick={() => void sendTrainingExpirationTest()}
+                disabled={notificationTestLoading}
+                className={`${appButtonSecondaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                {notificationTestLoading ? "Sending test..." : "Send test email"}
+              </button>
+            ) : null}
             <Link
               href="/dashboard"
               className={appButtonSecondaryClassName}

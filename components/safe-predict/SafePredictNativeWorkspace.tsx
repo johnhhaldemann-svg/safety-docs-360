@@ -66,6 +66,14 @@ import {
   type PredictabilityDataMode,
   type PredictabilitySettings,
 } from "@/lib/predictability/settings";
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from "@/lib/incidents/bodyPart";
+import {
+  EXPOSURE_EVENT_TYPES,
+  EXPOSURE_EVENT_TYPE_LABELS,
+  type ExposureEventType,
+} from "@/lib/incidents/exposureEventType";
+import { INCIDENT_SOURCES, INCIDENT_SOURCE_LABELS, type IncidentSource } from "@/lib/incidents/incidentSource";
+import { INJURY_TYPES, INJURY_TYPE_LABELS, type InjuryType } from "@/lib/incidents/injuryType";
 import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
 import { permitReadinessLabel } from "@/lib/safePredictPermitForms";
 
@@ -127,6 +135,23 @@ type CorrectiveActionDraft = {
   sifCategory: string;
 };
 
+type IncidentDraft = {
+  title: string;
+  description: string;
+  siteId: string;
+  category: "incident" | "near_miss" | "first_aid" | "property_damage";
+  severity: SafePredictRiskLevel;
+  eventType: ExposureEventType | "";
+  source: IncidentSource | "";
+  injuryType: InjuryType | "";
+  bodyPart: BodyPart | "";
+  recordable: boolean;
+  lostTime: boolean;
+  fatality: boolean;
+  idlhFlag: boolean;
+  occurredAt: string;
+};
+
 function permitTypeApiValue(type: string) {
   return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
@@ -170,6 +195,25 @@ function buildEmptyCorrectiveActionDraft(siteId: string): CorrectiveActionDraft 
     observationType: "negative",
     sifPotential: "no",
     sifCategory: "",
+  };
+}
+
+function buildEmptyIncidentDraft(siteId: string): IncidentDraft {
+  return {
+    title: "",
+    description: "",
+    siteId,
+    category: "incident",
+    severity: "medium",
+    eventType: "",
+    source: "",
+    injuryType: "",
+    bodyPart: "",
+    recordable: false,
+    lostTime: false,
+    fatality: false,
+    idlhFlag: false,
+    occurredAt: "",
   };
 }
 
@@ -518,13 +562,14 @@ function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): Tr
 }
 
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
-  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, refreshLiveData, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftPermit, updatePermit } = useSafePredictData();
+  const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, refreshLiveData, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftIncident, addDraftPermit, updatePermit } = useSafePredictData();
   const router = useRouter();
   const config = safePredictWorkspaceConfigs[workspace];
   const [query, setQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState(selectedJobsiteId === "all" ? "all" : selectedJobsiteId);
   const [riskFilter, setRiskFilter] = useState<SafePredictRiskLevel | "all">("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showIncidentComposer, setShowIncidentComposer] = useState(false);
   const [showHazardComposer, setShowHazardComposer] = useState(false);
   const [showCorrectiveComposer, setShowCorrectiveComposer] = useState(false);
   const [showPermitComposer, setShowPermitComposer] = useState(false);
@@ -533,7 +578,12 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [correctiveMessage, setCorrectiveMessage] = useState("");
   const [correctiveSubmitting, setCorrectiveSubmitting] = useState(false);
   const [permitMessage, setPermitMessage] = useState("");
+  const [incidentMessage, setIncidentMessage] = useState("");
+  const [incidentSubmitting, setIncidentSubmitting] = useState(false);
   const [permitSubmitting, setPermitSubmitting] = useState(false);
+  const [incidentDraft, setIncidentDraft] = useState(() =>
+    buildEmptyIncidentDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
+  );
   const [correctiveDraft, setCorrectiveDraft] = useState(() =>
     buildEmptyCorrectiveActionDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
   );
@@ -692,6 +742,125 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     window.setTimeout(() => {
       document.getElementById(draft.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 50);
+  }
+
+  function openIncidentComposer() {
+    const nextSiteId = siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "";
+    setIncidentMessage("");
+    setShowIncidentComposer(true);
+    setIncidentDraft((current) => ({ ...current, siteId: current.siteId || nextSiteId }));
+    window.setTimeout(() => {
+      document.getElementById("safe-predict-incident-composer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
+  function incidentRecordType(category: IncidentDraft["category"]) {
+    if (category === "near_miss") return "Near Miss" as const;
+    if (category === "first_aid") return "First Aid" as const;
+    if (category === "property_damage") return "Property Damage" as const;
+    return "Incident" as const;
+  }
+
+  async function saveIncident() {
+    const title = incidentDraft.title.trim();
+    const siteId = incidentDraft.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "");
+    if (!title) {
+      setIncidentMessage("Add an incident title before logging the record.");
+      return;
+    }
+    if (!siteId) {
+      setIncidentMessage("Choose an active jobsite before logging the incident.");
+      return;
+    }
+    if (!incidentDraft.eventType) {
+      setIncidentMessage("Choose an event / exposure type before logging the incident.");
+      return;
+    }
+    if (!incidentDraft.source) {
+      setIncidentMessage("Choose the equipment or object source before logging the incident.");
+      return;
+    }
+    if (incidentDraft.category === "incident" && !incidentDraft.injuryType) {
+      setIncidentMessage("Choose an injury type for injury incidents.");
+      return;
+    }
+    if (incidentDraft.category === "incident" && !incidentDraft.bodyPart) {
+      setIncidentMessage("Choose a body part for injury incidents.");
+      return;
+    }
+
+    setIncidentSubmitting(true);
+    setIncidentMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const sifFlag =
+        incidentDraft.category === "incident" &&
+        (incidentDraft.severity === "critical" || incidentDraft.severity === "high" || incidentDraft.fatality || incidentDraft.idlhFlag);
+      const stopWorkStatus = incidentDraft.severity === "critical" || incidentDraft.fatality || incidentDraft.idlhFlag
+        ? "stop_work_requested"
+        : "normal";
+
+      if (mode === "live" && token) {
+        const response = await fetch("/api/company/incidents", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title,
+            description: incidentDraft.description.trim(),
+            category: incidentDraft.category,
+            severity: incidentDraft.severity,
+            status: "open",
+            jobsiteId: siteId,
+            eventType: incidentDraft.eventType,
+            source: incidentDraft.source,
+            injuryType: incidentDraft.category === "incident" ? incidentDraft.injuryType : undefined,
+            bodyPart: incidentDraft.category === "incident" ? incidentDraft.bodyPart : undefined,
+            recordable: incidentDraft.recordable,
+            lostTime: incidentDraft.lostTime,
+            fatality: incidentDraft.fatality,
+            idlhFlag: incidentDraft.idlhFlag,
+            sifFlag,
+            stopWorkStatus,
+            stopWorkReason: stopWorkStatus === "normal" ? null : "SafePredict incident logging flagged immediate safety review.",
+            occurredAt: incidentDraft.occurredAt ? new Date(incidentDraft.occurredAt).toISOString() : null,
+          }),
+        });
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          setIncidentMessage(data?.error || "Could not log the incident.");
+          return;
+        }
+        refreshLiveData();
+      } else {
+        addDraftIncident({
+          title,
+          siteId,
+          type: incidentRecordType(incidentDraft.category),
+          severity: incidentDraft.severity,
+          detail: incidentDraft.description.trim() || "Incident queued from the SafePredict workspace.",
+        });
+      }
+
+      setSiteFilter(siteId);
+      setSelectedJobsiteId(siteId);
+      setStatusFilter("all");
+      setRiskFilter("all");
+      setQuery("");
+      setIncidentDraft(buildEmptyIncidentDraft(siteId));
+      setShowIncidentComposer(false);
+      setIncidentMessage(mode === "live" && token ? "Incident logged to the company register." : "Incident queued locally in SafePredict.");
+    } catch (error) {
+      setIncidentMessage(error instanceof Error ? error.message : "Could not log the incident.");
+    } finally {
+      setIncidentSubmitting(false);
+    }
   }
 
   function openPermitComposer(siteId?: string, permit?: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode = "create") {
@@ -1046,7 +1215,16 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               SOR Template
             </Link>
           ) : null}
-          {workspace === "permits" ? (
+          {workspace === "incidents" ? (
+            <button
+              type="button"
+              onClick={openIncidentComposer}
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+            >
+              <Plus className="h-4 w-4" />
+              {config.primaryAction}
+            </button>
+          ) : workspace === "permits" ? (
             <button
               type="button"
               onClick={() => openPermitComposer()}
@@ -1091,6 +1269,175 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           )}
         </div>
       </div>
+
+      {workspace === "incidents" && (showIncidentComposer || incidentMessage) ? (
+        <Card id="safe-predict-incident-composer" className="mb-5 p-5">
+          <SectionTitle
+            title="Log Incident"
+            action={
+              <button
+                type="button"
+                onClick={() => setShowIncidentComposer((current) => !current)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700 shadow-sm"
+              >
+                {showIncidentComposer ? "Hide" : "Show"}
+              </button>
+            }
+            hint="Create a structured incident or near-miss record with enough context for risk scoring and follow-up."
+          />
+          {incidentMessage ? (
+            <div className={cx("mt-4 rounded-lg border px-4 py-3 text-sm font-bold", incidentMessage.includes("logged") || incidentMessage.includes("queued") ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900")}>
+              {incidentMessage}
+            </div>
+          ) : null}
+          {showIncidentComposer ? (
+            <div className="mt-4 grid gap-3 lg:grid-cols-4">
+              <label className="block lg:col-span-2">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Title</span>
+                <input
+                  value={incidentDraft.title}
+                  onChange={(event) => setIncidentDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Short incident title"
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              <SelectShell
+                label="Jobsite"
+                value={incidentDraft.siteId || (siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? "")}
+                onChange={(value) => setIncidentDraft((current) => ({ ...current, siteId: value }))}
+                options={dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))}
+              />
+              <SelectShell
+                label="Severity"
+                value={incidentDraft.severity}
+                onChange={(value) => setIncidentDraft((current) => ({ ...current, severity: value as SafePredictRiskLevel }))}
+                options={[
+                  { label: "Low", value: "low" },
+                  { label: "Medium", value: "medium" },
+                  { label: "High", value: "high" },
+                  { label: "Critical", value: "critical" },
+                ]}
+              />
+              <SelectShell
+                label="Type"
+                value={incidentDraft.category}
+                onChange={(value) =>
+                  setIncidentDraft((current) => ({
+                    ...current,
+                    category: value as IncidentDraft["category"],
+                    injuryType: value === "incident" ? current.injuryType : "",
+                    bodyPart: value === "incident" ? current.bodyPart : "",
+                  }))
+                }
+                options={[
+                  { label: "Incident", value: "incident" },
+                  { label: "Near Miss", value: "near_miss" },
+                  { label: "First Aid", value: "first_aid" },
+                  { label: "Property Damage", value: "property_damage" },
+                ]}
+              />
+              <SelectShell
+                label="Event / Exposure"
+                value={incidentDraft.eventType}
+                onChange={(value) => setIncidentDraft((current) => ({ ...current, eventType: value as ExposureEventType }))}
+                options={[
+                  { label: "Select event", value: "" },
+                  ...EXPOSURE_EVENT_TYPES.map((value) => ({ label: EXPOSURE_EVENT_TYPE_LABELS[value], value })),
+                ]}
+              />
+              <SelectShell
+                label="Source"
+                value={incidentDraft.source}
+                onChange={(value) => setIncidentDraft((current) => ({ ...current, source: value as IncidentSource }))}
+                options={[
+                  { label: "Select source", value: "" },
+                  ...INCIDENT_SOURCES.map((value) => ({ label: INCIDENT_SOURCE_LABELS[value], value })),
+                ]}
+              />
+              <label className="block">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Occurred</span>
+                <input
+                  type="datetime-local"
+                  value={incidentDraft.occurredAt}
+                  onChange={(event) => setIncidentDraft((current) => ({ ...current, occurredAt: event.target.value }))}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              {incidentDraft.category === "incident" ? (
+                <>
+                  <SelectShell
+                    label="Injury Type"
+                    value={incidentDraft.injuryType}
+                    onChange={(value) => setIncidentDraft((current) => ({ ...current, injuryType: value as InjuryType }))}
+                    options={[
+                      { label: "Select injury type", value: "" },
+                      ...INJURY_TYPES.map((value) => ({ label: INJURY_TYPE_LABELS[value], value })),
+                    ]}
+                  />
+                  <SelectShell
+                    label="Body Part"
+                    value={incidentDraft.bodyPart}
+                    onChange={(value) => setIncidentDraft((current) => ({ ...current, bodyPart: value as BodyPart }))}
+                    options={[
+                      { label: "Select body part", value: "" },
+                      ...BODY_PARTS.map((value) => ({ label: BODY_PART_LABELS[value], value })),
+                    ]}
+                  />
+                </>
+              ) : null}
+              <label className="block lg:col-span-4">
+                <span className="mb-1 block text-xs font-bold text-slate-600">Description</span>
+                <textarea
+                  value={incidentDraft.description}
+                  onChange={(event) => setIncidentDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="What happened, immediate controls, and who was notified"
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                />
+              </label>
+              <div className="flex flex-wrap gap-3 lg:col-span-4">
+                {[
+                  ["recordable", "OSHA recordable"],
+                  ["lostTime", "Lost time"],
+                  ["fatality", "Fatality"],
+                  ["idlhFlag", "IDLH / life safety"],
+                ].map(([key, label]) => (
+                  <label key={key} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(incidentDraft[key as keyof IncidentDraft])}
+                      onChange={(event) => setIncidentDraft((current) => ({ ...current, [key]: event.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-3 lg:col-span-4">
+                <button
+                  type="button"
+                  onClick={() => void saveIncident()}
+                  disabled={incidentSubmitting}
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Plus className="h-4 w-4" />
+                  {incidentSubmitting ? "Logging..." : "Log Incident"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncidentDraft(buildEmptyIncidentDraft(siteFilter !== "all" ? siteFilter : dataset.jobsites[0]?.id ?? ""));
+                    setIncidentMessage("");
+                  }}
+                  className="inline-flex h-11 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {workspace === "permits" && (showPermitComposer || permitMessage) ? (
         <Card id="safe-predict-permit-composer" className="mb-5 p-5">

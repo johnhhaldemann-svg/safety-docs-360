@@ -119,7 +119,7 @@ describe("weather test notification", () => {
     expect(result.results).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ channel: "email", status: "sent", contact: "morgan@example.com" }),
-        expect.objectContaining({ channel: "sms", status: "sent", contact: "5552221309" }),
+        expect.objectContaining({ channel: "sms", status: "sent", contact: "5552221309", normalizedContact: "+15552221309" }),
       ])
     );
 

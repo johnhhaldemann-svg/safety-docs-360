@@ -1,0 +1,658 @@
+import { NextResponse } from "next/server";
+import {
+  authorizeRequest,
+  isCompanyRole,
+  isCrossWorkspaceAdminRole,
+  normalizeAccountStatus,
+  normalizeAppRole,
+  normalizePermissionOverrides,
+} from "@/lib/rbac";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
+
+type UpdatePayload = {
+  role?: string;
+  team?: string;
+  accountStatus?: string;
+  companyId?: string | null;
+  permissionOverrides?: unknown;
+};
+
+type CompanyLookupRow = {
+  id: string;
+  name: string | null;
+  status: string | null;
+};
+
+type ActionPayload = {
+  action?: string;
+};
+
+function formatRoleConstraintError(message?: string | null) {
+  if ((message ?? "").includes("company_memberships_role_check")) {
+    return "The database membership role constraint has not been updated yet. Run the latest Supabase migration to allow current company-scoped roles in company memberships.";
+  }
+
+  if ((message ?? "").includes("user_roles_role_check")) {
+    return "The database role constraint has not been updated yet. Run the latest Supabase migration to allow the current company-scoped roles.";
+  }
+
+  return message || "Role update failed.";
+}
+
+function trimText(value?: string | null) {
+  return (value ?? "").trim();
+}
+
+async function resolveCompanyAssignment(params: {
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  currentUser?: unknown;
+  userId: string;
+  team: string;
+  role: string;
+  actorUserId: string;
+  /** Set when the client included `companyId` in the PATCH body (string or null). Omit for legacy resolution. */
+  explicitCompanyId?: string | null;
+  canAssignCompanyWorkspace: boolean;
+}) {
+  const {
+    adminClient,
+    userId,
+    team,
+    role,
+    actorUserId,
+    explicitCompanyId,
+    canAssignCompanyWorkspace,
+  } = params;
+
+  if (!adminClient) {
+    return { companyId: null, companyName: null, error: null as string | null };
+  }
+
+  const companyIdExplicitlyProvided = explicitCompanyId !== undefined;
+  const normalizedRequestedCompanyId =
+    explicitCompanyId === undefined || explicitCompanyId === null
+      ? ""
+      : trimText(String(explicitCompanyId));
+
+  if (companyIdExplicitlyProvided) {
+    if (!normalizedRequestedCompanyId) {
+      if (!isCompanyRole(role)) {
+        return { companyId: null, companyName: null, error: null as string | null };
+      }
+      if (!canAssignCompanyWorkspace) {
+        return {
+          companyId: null,
+          companyName: null,
+          error:
+            "Only a Super Admin or Platform Admin can move a user between company workspaces.",
+        };
+      }
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Select a company workspace for company-scoped roles.",
+      };
+    }
+  }
+
+  if (normalizedRequestedCompanyId) {
+    if (!canAssignCompanyWorkspace) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Only a Super Admin or Platform Admin can assign a user to a specific company workspace.",
+      };
+    }
+
+    if (!isCompanyRole(role)) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Choose a company-scoped role when assigning a user to a company workspace.",
+      };
+    }
+
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name, status")
+      .eq("id", normalizedRequestedCompanyId)
+      .maybeSingle();
+
+    if (companyLookup.error) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: companyLookup.error.message || "Failed to load the selected company.",
+      };
+    }
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+
+    if (!company?.id) {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "The selected company workspace could not be found.",
+      };
+    }
+
+    if ((company.status ?? "approved").trim().toLowerCase() === "archived") {
+      return {
+        companyId: null,
+        companyName: null,
+        error: "Restore that company workspace before assigning users to it.",
+      };
+    }
+
+    return {
+      companyId: company.id,
+      companyName: company.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  if (!isCompanyRole(role)) {
+    return { companyId: null, companyName: null, error: null as string | null };
+  }
+
+  const { data: existingRoleRow } = await adminClient
+    .from("user_roles")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const existingRoleCompanyId =
+    existingRoleRow &&
+    typeof existingRoleRow === "object" &&
+    "company_id" in existingRoleRow &&
+    typeof existingRoleRow.company_id === "string"
+      ? existingRoleRow.company_id
+      : null;
+
+  if (existingRoleCompanyId) {
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name")
+      .eq("id", existingRoleCompanyId)
+      .maybeSingle();
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+    return {
+      companyId: existingRoleCompanyId,
+      companyName: company?.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  const { data: existingMembership } = await adminClient
+    .from("company_memberships")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const existingCompanyId =
+    existingMembership &&
+    typeof existingMembership === "object" &&
+    "company_id" in existingMembership &&
+    typeof existingMembership.company_id === "string"
+      ? existingMembership.company_id
+      : null;
+
+  if (existingCompanyId) {
+    const companyLookup = await adminClient
+      .from("companies")
+      .select("id, name")
+      .eq("id", existingCompanyId)
+      .maybeSingle();
+
+    const company = companyLookup.data as CompanyLookupRow | null;
+    return {
+      companyId: existingCompanyId,
+      companyName: company?.name?.trim() || team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  if (canAssignCompanyWorkspace) {
+    return {
+      companyId: null,
+      companyName: null,
+      error: "Select a company workspace for company-scoped roles.",
+    };
+  }
+
+  const { data: existingCompany } = await adminClient
+    .from("companies")
+    .select("id")
+    .eq("team_key", team)
+    .maybeSingle();
+
+  if (
+    existingCompany &&
+    typeof existingCompany === "object" &&
+    "id" in existingCompany &&
+    typeof existingCompany.id === "string"
+  ) {
+    return {
+      companyId: existingCompany.id,
+      companyName: team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  const { data: createdCompany } = await adminClient
+    .from("companies")
+    .upsert(
+      {
+        name: team,
+        team_key: team,
+        created_by: actorUserId,
+        updated_by: actorUserId,
+      },
+      {
+        onConflict: "team_key",
+        ignoreDuplicates: false,
+      }
+    )
+    .select("id")
+    .single();
+
+  if (
+    createdCompany &&
+    typeof createdCompany === "object" &&
+    "id" in createdCompany &&
+    typeof createdCompany.id === "string"
+  ) {
+    return {
+      companyId: createdCompany.id,
+      companyName: team || "Company Workspace",
+      error: null as string | null,
+    };
+  }
+
+  return { companyId: null, companyName: null, error: null as string | null };
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_access_internal_admin",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { id } = await context.params;
+  const body = (await request.json()) as UpdatePayload;
+  const role = normalizeAppRole(body.role);
+  const team = body.team?.trim() || "General";
+  const accountStatus = normalizeAccountStatus(body.accountStatus);
+  const companyIdInBody = Object.prototype.hasOwnProperty.call(body, "companyId");
+  const explicitCompanyId = companyIdInBody
+    ? body.companyId === null || body.companyId === undefined
+      ? ""
+      : trimText(String(body.companyId))
+    : undefined;
+  const canAssignCompanyWorkspace = isCrossWorkspaceAdminRole(auth.role);
+
+  if (!adminClient) {
+    const currentRoleRow = await auth.supabase
+      .from("user_roles")
+      .select("permission_overrides")
+      .eq("user_id", id)
+      .maybeSingle();
+    const existingPermissionOverrides = normalizePermissionOverrides(
+      currentRoleRow.data && typeof currentRoleRow.data === "object"
+        ? (currentRoleRow.data as { permission_overrides?: unknown }).permission_overrides ?? null
+        : null
+    );
+    const nextPermissionOverrides = Object.prototype.hasOwnProperty.call(
+      body,
+      "permissionOverrides"
+    )
+      ? normalizePermissionOverrides(body.permissionOverrides ?? null)
+      : existingPermissionOverrides;
+
+    const { error: roleError } = await auth.supabase.from("user_roles").upsert(
+      {
+        user_id: id,
+        role,
+        team,
+        account_status: accountStatus,
+        permission_overrides: nextPermissionOverrides,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
+
+    if (roleError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(roleError.message) },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      role,
+      team,
+      accountStatus,
+      warning:
+        "Role was updated in the workspace RBAC table, but company membership sync requires the Supabase service role key.",
+    });
+  }
+
+  const { data: currentUser, error: getError } =
+    await adminClient.auth.admin.getUserById(id);
+
+  if (getError || !currentUser.user) {
+    return NextResponse.json(
+      { error: getError?.message || "User not found." },
+      { status: 404 }
+    );
+  }
+
+  const companyAssignment = await resolveCompanyAssignment({
+    adminClient,
+    currentUser: currentUser.user,
+    userId: id,
+    team,
+    role,
+    actorUserId: auth.user.id,
+    explicitCompanyId,
+    canAssignCompanyWorkspace,
+  });
+
+  if (companyAssignment.error) {
+    return NextResponse.json({ error: companyAssignment.error }, { status: 400 });
+  }
+
+  const { data: currentRoleRow } = await adminClient
+    .from("user_roles")
+    .select("permission_overrides")
+    .eq("user_id", id)
+    .maybeSingle();
+  const existingPermissionOverrides = normalizePermissionOverrides(
+    currentRoleRow && typeof currentRoleRow === "object"
+      ? (currentRoleRow as { permission_overrides?: unknown }).permission_overrides ?? null
+      : null
+  );
+  const nextPermissionOverrides = Object.prototype.hasOwnProperty.call(
+    body,
+    "permissionOverrides"
+  )
+    ? normalizePermissionOverrides(body.permissionOverrides ?? null)
+    : existingPermissionOverrides;
+
+  const { error: roleError } = await adminClient.from("user_roles").upsert(
+    {
+      user_id: id,
+      role,
+      team: companyAssignment.companyName || team,
+      company_id: companyAssignment.companyId,
+      account_status: accountStatus,
+      permission_overrides: nextPermissionOverrides,
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
+    },
+    {
+      onConflict: "user_id",
+    }
+  );
+
+  if (roleError) {
+    return NextResponse.json(
+      { error: formatRoleConstraintError(roleError.message) },
+      { status: 500 }
+    );
+  }
+
+  const { error: membershipDeleteError } = await adminClient
+    .from("company_memberships")
+    .delete()
+    .eq("user_id", id);
+
+  if (membershipDeleteError) {
+    return NextResponse.json(
+      {
+        error:
+          membershipDeleteError.message || "Failed to reset company membership records.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (companyAssignment.companyId) {
+    const { error: membershipError } = await adminClient.from("company_memberships").upsert(
+      {
+        user_id: id,
+        company_id: companyAssignment.companyId,
+        role: isCompanyRole(role) ? role : "company_user",
+        status: accountStatus,
+        created_by: auth.user.id,
+        updated_by: auth.user.id,
+      },
+      {
+        onConflict: "user_id,company_id",
+      }
+    );
+
+    if (membershipError) {
+      return NextResponse.json(
+        { error: formatRoleConstraintError(membershipError.message) },
+        { status: 500 }
+      );
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    role,
+    team: companyAssignment.companyName || team,
+    companyId: companyAssignment.companyId,
+    accountStatus,
+  });
+}
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_access_internal_admin",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { id } = await context.params;
+  const body = (await request.json()) as ActionPayload;
+  const action = (body.action ?? "").trim().toLowerCase();
+
+  if (!adminClient) {
+    const actionMessage =
+      action === "password_reset"
+        ? "Password reset emails require the Supabase service role to be available in this deployment."
+        : action === "force_sign_out"
+          ? "Force sign-out requires the Supabase service role to be available in this deployment."
+          : action === "resend_invite"
+            ? "Resending invites requires the Supabase service role to be available in this deployment."
+            : "This admin action requires the Supabase service role to be available in this deployment.";
+
+    return NextResponse.json({ error: actionMessage }, { status: 500 });
+  }
+
+  const { data: currentUser, error: getError } =
+    await adminClient.auth.admin.getUserById(id);
+
+  if (getError || !currentUser.user) {
+    return NextResponse.json(
+      { error: getError?.message || "User not found." },
+      { status: 404 }
+    );
+  }
+
+  const email = currentUser.user.email?.trim().toLowerCase() ?? "";
+
+  if (!email) {
+    return NextResponse.json(
+      { error: "User does not have a valid email address." },
+      { status: 400 }
+    );
+  }
+
+  const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_VERCEL_URL ?? ""}`.trim();
+  const normalizedRedirectTo = redirectTo
+    ? redirectTo.startsWith("http")
+      ? redirectTo
+      : `https://${redirectTo}`
+    : undefined;
+
+  if (action === "resend_invite") {
+    const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      ...(normalizedRedirectTo ? { redirectTo: normalizedRedirectTo } : {}),
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: "resend_invite",
+    });
+  }
+
+  if (action === "password_reset") {
+    const { data, error } = await adminClient.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: normalizedRedirectTo
+        ? {
+            redirectTo: normalizedRedirectTo,
+          }
+        : undefined,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: "password_reset",
+      emailSentTo: email,
+      properties: data.properties,
+    });
+  }
+
+  if (action === "force_sign_out") {
+    const { error } = await adminClient.auth.admin.updateUserById(id, {
+      ban_duration: "1m",
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: "force_sign_out",
+      note: "Refresh-based sessions were invalidated. Access tokens may remain valid until they expire.",
+    });
+  }
+
+  return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_access_internal_admin",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  if (auth.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Only a Super Admin can permanently delete user accounts." },
+      { status: 403 }
+    );
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { id } = await context.params;
+
+  if (id === auth.user.id) {
+    return NextResponse.json(
+      { error: "You cannot permanently delete your own account." },
+      { status: 400 }
+    );
+  }
+
+  if (!adminClient) {
+    return NextResponse.json(
+      {
+        error:
+          "Permanent user deletion requires the Supabase service role to be available in this deployment.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const { data: currentUser, error: getError } =
+    await adminClient.auth.admin.getUserById(id);
+
+  if (getError || !currentUser.user) {
+    return NextResponse.json(
+      { error: getError?.message || "User not found." },
+      { status: 404 }
+    );
+  }
+
+  const { error: membershipsError } = await adminClient
+    .from("company_memberships")
+    .delete()
+    .eq("user_id", id);
+
+  if (membershipsError) {
+    return NextResponse.json(
+      { error: membershipsError.message || "Failed to delete company memberships." },
+      { status: 500 }
+    );
+  }
+
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(id);
+
+  if (deleteError) {
+    return NextResponse.json(
+      { error: deleteError.message || "Failed to permanently delete user." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    deletedUserId: id,
+    deletedEmail: currentUser.user.email ?? null,
+    message: "User account deleted permanently.",
+  });
+}

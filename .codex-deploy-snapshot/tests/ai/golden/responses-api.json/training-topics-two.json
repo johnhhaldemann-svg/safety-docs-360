@@ -1,0 +1,17 @@
+{
+  "name": "training-topics-two",
+  "surface": "responses-api.json",
+  "notes": "Second generic Responses-API JSON probe: array + enum-shaped string. Catches regressions where runStructuredAiJsonTask stops parsing arrays or strips parsed keys.",
+  "input": {
+    "system": "You are a construction training planner. Return strict JSON with keys 'topics' (array of 2-3 short strings) and 'priority' (string: one of high, medium, low). No markdown or code fences.",
+    "user": "{\"trade\":\"ironworker\",\"focus\":\"tie-off at height\"}",
+    "fallbackModel": "gpt-4o-mini",
+    "fallback": { "topics": ["fallback-topic"], "priority": "high" },
+    "surface": "ai-eval.responses-api.training-topics"
+  },
+  "assertions": {
+    "mustContain": ["priority"],
+    "mustNotContain": ["fallback-topic"],
+    "schemaShape": ["parsed.topics[]", "parsed.priority", "model"]
+  }
+}

@@ -1,0 +1,169 @@
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  accountSetupQuickLinks,
+  accountSetupSideSections,
+  adminQuickLinks,
+  adminSideSections,
+  collectAllAppNavItems,
+  companyAdminQuickLinks,
+  companyAdminSideSections,
+  companyManagerQuickLinks,
+  companyManagerSideSections,
+  companyUserQuickLinks,
+  companyUserSideSections,
+  getDeclaredAppNavHrefs,
+  internalAdminAppendedSection,
+  superadminOnlySideSections,
+  userQuickLinks,
+  userSideSections,
+} from "./appNavigation";
+import { resolveHrefToPageFile } from "./internalLinkResolve";
+
+const REPO_ROOT = join(import.meta.dirname, "..");
+
+describe("App Navigation Integrity", () => {
+  it("every declared nav href maps to an existing page.tsx", () => {
+    const hrefs = getDeclaredAppNavHrefs();
+    expect(hrefs.length).toBeGreaterThan(0);
+
+    const failures: string[] = [];
+    for (const href of hrefs) {
+      const resolved = resolveHrefToPageFile(REPO_ROOT, href);
+      if (!resolved) {
+        failures.push(href);
+      }
+    }
+
+    expect(failures, `Broken nav href(s) — add a page or fix lib/appNavigation.ts:\n${failures.join("\n")}`).toEqual(
+      []
+    );
+  });
+
+  it("nav items have non-empty href, label, and short", () => {
+    for (const item of collectAllAppNavItems()) {
+      expect(item.href.trim(), `href for "${item.label}"`).toBe(item.href);
+      expect(item.href.startsWith("/"), `href must start with /: ${item.href}`).toBe(true);
+      expect(item.label.trim().length, `label for ${item.href}`).toBeGreaterThan(0);
+      expect(item.short.trim().length, `short for ${item.href}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("no duplicate hrefs within a single nav section", () => {
+    const allSectionGroups: { group: string; sections: { title: string; items: { href: string }[] }[] }[] = [
+      { group: "userSideSections", sections: userSideSections },
+      { group: "adminSideSections", sections: adminSideSections },
+      { group: "superadminOnlySideSections", sections: superadminOnlySideSections },
+      { group: "companyAdminSideSections", sections: companyAdminSideSections },
+      { group: "companyManagerSideSections", sections: companyManagerSideSections },
+      { group: "companyUserSideSections", sections: companyUserSideSections },
+      { group: "accountSetupSideSections", sections: accountSetupSideSections },
+      { group: "internalAdminAppendedSection", sections: [internalAdminAppendedSection] },
+    ];
+
+    for (const { group, sections } of allSectionGroups) {
+      for (const section of sections) {
+        const hrefs = section.items.map((i) => i.href);
+        const unique = new Set(hrefs);
+        expect(
+          unique.size,
+          `${group} → "${section.title}": duplicate href(s) in the same section`
+        ).toBe(hrefs.length);
+      }
+    }
+  });
+
+  it("keeps AI Engine Operations in the superadmin-only navigation section", () => {
+    const aiEngineHref = "/superadmin/ai-engine";
+    const ordinaryAdminHrefs = adminSideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    const companyHrefs = [
+      ...companyAdminSideSections,
+      ...companyManagerSideSections,
+      ...companyUserSideSections,
+    ].flatMap((section) => section.items.map((item) => item.href));
+    const superadminHrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+
+    expect(superadminHrefs).toContain(aiEngineHref);
+    expect(ordinaryAdminHrefs).not.toContain(aiEngineHref);
+    expect(companyHrefs).not.toContain(aiEngineHref);
+  });
+
+  it("exposes the Superadmin hub and CSEP program settings only in superadmin navigation", () => {
+    const superadminHrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    const ordinaryAdminHrefs = adminSideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+
+    expect(superadminHrefs).toContain("/superadmin");
+    expect(superadminHrefs).toContain("/superadmin/cyber-security");
+    expect(superadminHrefs).toContain("/superadmin/csep-programs");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin/cyber-security");
+    expect(ordinaryAdminHrefs).not.toContain("/superadmin/csep-programs");
+  });
+
+  it("does not repeat superadmin tool hrefs across grouped sections", () => {
+    const hrefs = superadminOnlySideSections.flatMap((section) =>
+      section.items.map((item) => item.href)
+    );
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("quick-link rows do not repeat the same href twice in one list", () => {
+    const lists = [
+      ["userQuickLinks", userQuickLinks],
+      ["adminQuickLinks", adminQuickLinks],
+      ["companyAdminQuickLinks", companyAdminQuickLinks],
+      ["companyManagerQuickLinks", companyManagerQuickLinks],
+      ["companyUserQuickLinks", companyUserQuickLinks],
+      ["accountSetupQuickLinks", accountSetupQuickLinks],
+    ] as const;
+
+    for (const [name, items] of lists) {
+      const hrefs = items.map((i) => i.href);
+      expect(new Set(hrefs).size, `${name}: duplicate href`).toBe(hrefs.length);
+    }
+  });
+
+  it("keeps the insights section ordering centered on Command Center first", () => {
+    expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/dashboard",
+      "/jobsites",
+    ]);
+    expect(companyManagerQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/dashboard",
+      "/jobsites",
+    ]);
+
+    const adminInsightsSection = companyAdminSideSections.find(
+      (section) => section.title === "Insights & Reports"
+    );
+    const managerInsightsSection = companyManagerSideSections.find(
+      (section) => section.title === "Insights & Reports"
+    );
+
+    expect(adminInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+    expect(managerInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
+      "/command-center",
+      "/safety-intelligence",
+    ]);
+
+    const analyticsChildIdx =
+      adminInsightsSection?.items.findIndex((item) => item.href === "/analytics/safety-intelligence") ?? -1;
+    const analyticsParentIdx = adminInsightsSection?.items.findIndex((item) => item.href === "/analytics") ?? -1;
+    expect(analyticsChildIdx).toBeGreaterThan(0);
+    expect(analyticsParentIdx).toBeGreaterThan(0);
+    expect(analyticsChildIdx).toBeLessThan(analyticsParentIdx);
+  });
+});

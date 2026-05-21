@@ -56,7 +56,7 @@ function formatWeatherAlertFromEmail(value: string) {
   return `${WEATHER_ALERT_EMAIL_DISPLAY_NAME} <${value}>`;
 }
 
-function normalizeSmsPhoneNumber(value?: string | null) {
+export function normalizeSmsPhoneNumber(value?: string | null) {
   const raw = (value ?? "").trim();
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
@@ -165,12 +165,14 @@ export async function sendWeatherAlertSms(params: {
       sent: false,
       error:
         "Weather SMS delivery is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID.",
+      toPhone,
     };
   }
   if (!toPhone) {
     return {
       sent: false,
       error: "No valid SMS phone number is available for this user.",
+      toPhone: null,
     };
   }
 
@@ -199,10 +201,10 @@ export async function sendWeatherAlertSms(params: {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    return { sent: false, error: body.trim() || "Weather SMS provider rejected the message." };
+    return { sent: false, error: body.trim() || "Weather SMS provider rejected the message.", toPhone };
   }
 
-  return { sent: true, error: null };
+  return { sent: true, error: null, toPhone };
 }
 
 export async function deliverWeatherNotification(params: {

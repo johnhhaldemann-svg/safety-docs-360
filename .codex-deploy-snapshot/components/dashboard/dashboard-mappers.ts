@@ -1,0 +1,2517 @@
+import {
+  getDocumentStatusLabel,
+  isApprovedDocumentStatus,
+  isSubmittedDocumentStatus,
+} from "@/lib/documentStatus";
+import type { DashboardRole } from "@/lib/dashboardRole";
+import { CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL } from "@/lib/safetyBlueprintLabels";
+import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
+import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
+import { formatTitleCase } from "@/lib/formatTitleCase";
+import type {
+  DashboardActionSection,
+  DashboardBanner,
+  DashboardBlockId,
+  DashboardBlockModel,
+  DashboardDataState,
+  DashboardDocument,
+  DashboardFeedItem,
+  DashboardFeedSection,
+  DashboardGraphItem,
+  DashboardGraphSection,
+  DashboardMetric,
+  DashboardSummaryItem,
+  DashboardSummarySection,
+  DashboardViewModel,
+} from "@/components/dashboard/types";
+
+const s = (value?: string | null) => (value ?? "").trim().toLowerCase();
+const approved = (document: DashboardDocument) =>
+  isApprovedDocumentStatus(document.status, Boolean(document.final_file_path));
+const pending = (document: DashboardDocument) =>
+  isSubmittedDocumentStatus(document.status, Boolean(document.final_file_path));
+const active = (status?: string | null) =>
+  !["closed", "archived", "expired", "verified_closed", "completed", "inactive"].includes(
+    s(status)
+  );
+const overdue = (row: { due_at?: string | null; status?: string | null }) =>
+  Boolean(row.due_at && active(row.status) && new Date(row.due_at).getTime() < Date.now());
+
+function formatRelative(timestamp?: string | null) {
+  if (!timestamp) return "Updated recently";
+
+  const minutes = Math.max(1, Math.round((Date.now() - new Date(timestamp).getTime()) / 60000));
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function formatDue(timestamp?: string | null) {
+  if (!timestamp) return "No due date";
+
+  const days = Math.ceil((new Date(timestamp).getTime() - Date.now()) / 86400000);
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`;
+  if (days === 0) return "Due today";
+  return days === 1 ? "Due tomorrow" : `Due in ${days} days`;
+}
+
+function documentTitle(document: DashboardDocument) {
+  const title = document.document_title ?? document.project_name ?? document.file_name ?? "Untitled document";
+  return formatTitleCase(title) || title;
+}
+
+function getCompanyName(data: DashboardDataState) {
+  const title = data.companyProfile?.name?.trim() || data.userTeam || "your company";
+  return formatTitleCase(title) || title;
+}
+
+function banner(data: DashboardDataState): DashboardBanner | undefined {
+  if (data.companyWorkspaceError) {
+    return { message: data.companyWorkspaceError, tone: "error" };
+  }
+  return data.analyticsSummaryIssue ?? undefined;
+}
+
+function jobsites(data: DashboardDataState) {
+  return new Map(
+    data.workspaceSummary.jobsites
+      .filter((jobsite) => jobsite.id)
+      .map((jobsite) => [jobsite.id as string, jobsite.name] as const)
+  );
+}
+
+function metric(title: string, value: string, detail: string, tone?: DashboardMetric["tone"]) {
+  return { title, value, detail, tone };
+}
+
+function documentBuilderHeroActions(data: DashboardDataState): DashboardViewModel["hero"]["actions"] {
+  const actions: DashboardViewModel["hero"]["actions"] = [];
+  if (canAccessCompanyWorkspaceHref("/csep", data.userRole, data.permissionMap)) {
+    actions.push({ label: "Build CSEP", href: "/csep", variant: "secondary" });
+  }
+  if (
+    data.workspaceProduct !== "csep" &&
+    canAccessCompanyWorkspaceHref("/peshep", data.userRole, data.permissionMap)
+  ) {
+    actions.push({ label: "Build PESHEP", href: "/peshep", variant: "secondary" });
+  }
+  return actions;
+}
+
+function feedSection(
+  title: string,
+  description: string,
+  items: DashboardFeedItem[],
+  empty: DashboardFeedSection["empty"]
+): DashboardFeedSection {
+  return { title, description, items, empty };
+}
+
+function actionSection(
+  title: string,
+  description: string,
+  items: DashboardActionSection["items"],
+  empty: DashboardActionSection["empty"]
+): DashboardActionSection {
+  return { title, description, items, empty };
+}
+
+function summarySection(
+  title: string,
+  description: string,
+  items: DashboardSummaryItem[],
+  empty: DashboardSummarySection["empty"]
+): DashboardSummarySection {
+  return { title, description, items, empty };
+}
+
+function graphSection(
+  title: string,
+  description: string,
+  items: DashboardGraphSection["items"],
+  empty: DashboardGraphSection["empty"],
+  valueLabel?: string,
+  chartType: DashboardGraphSection["chartType"] = "bar"
+): DashboardGraphSection {
+  return { title, description, items, empty, valueLabel, chartType };
+}
+
+function onboardingChecklistSection(
+  data: DashboardDataState,
+  commandCenterViewed = false
+): DashboardSummarySection {
+  const checklist = buildAdoptionChecklist({
+    companyProfile: data.companyProfile,
+    companyUsers: data.companyUsers,
+    companyInvites: data.companyInvites,
+    jobsites: data.workspaceSummary.jobsites,
+    documents: data.documents,
+    commandCenterViewed:
+      commandCenterViewed ||
+      data.onboardingState.completedSteps.includes("command_center") ||
+      Boolean(data.onboardingState.lastSeenCommandCenterAt),
+  });
+  const nextLabel = checklist.nextItem ? checklist.nextItem.label : "Workspace launch complete";
+
+  return summarySection(
+    "Workspace launch checklist",
+    `${checklist.completedCount} of ${checklist.totalCount} first-run milestones complete. Next: ${nextLabel}.`,
+    checklist.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      value: item.complete ? "Done" : "Next",
+      note: item.note,
+      href: item.href,
+      tone: item.complete ? ("success" as const) : ("warning" as const),
+    })),
+    {
+      title: "Workspace launch checklist",
+      description: "First-run setup milestones will appear after workspace data loads.",
+      actionHref: checklist.nextItem?.href ?? "/command-center",
+      actionLabel: checklist.nextItem ? "Continue setup" : "Open Command Center",
+    }
+  );
+}
+
+function dashboardGraphs(data: DashboardDataState) {
+  const jobsiteNames = jobsites(data);
+  const breakdown = data.analyticsSummary?.observationBreakdown;
+  const dashboardMetrics = data.analyticsSummary?.companyDashboard;
+  const priorityBands = dashboardMetrics?.observationPriorityBands;
+  const highRiskCount =
+    priorityBands?.high ?? dashboardMetrics?.totalHighRiskObservations ?? 0;
+  const mediumRiskCount = priorityBands?.medium ?? 0;
+  const lowRiskCount = priorityBands?.low ?? 0;
+  const observationStatuses = data.workspaceSummary.observations.map((row) => s(row.status));
+  const reducedRiskCount = observationStatuses.filter(
+    (status) => !active(status)
+  ).length;
+  const inProgressRiskCount = observationStatuses.filter((status) =>
+    ["in_progress", "in progress", "in-review", "review", "mitigating"].includes(status)
+  ).length;
+  const openRiskCount = Math.max(
+    0,
+    observationStatuses.length - reducedRiskCount - inProgressRiskCount
+  );
+
+  return {
+    hazardTrendGraph: graphSection(
+      "Hazard trend graph",
+      "Top hazard categories by count in the current analytics window.",
+      (data.analyticsSummary?.topHazardCategories ?? []).slice(0, 6).map((hazard) => ({
+        id: hazard.category,
+        label: formatTitleCase(hazard.category.replace(/_/g, " ")),
+        value: hazard.count,
+        detail: `${hazard.count} current signal${hazard.count === 1 ? "" : "s"}`,
+        tone: hazard.count >= 5 ? "warning" : "info",
+      })),
+      {
+        title: "No hazard trend graph yet",
+        description: "Hazard graph data will appear after analytics data is available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "signals"
+    ),
+    jobsiteRiskGraph: graphSection(
+      "Jobsite risk graph",
+      "Highest-risk jobsites ranked by combined incident, stop-work, and overdue action score.",
+      (data.analyticsSummary?.jobsiteRiskScore ?? []).slice(0, 6).map((row) => ({
+        id: row.jobsiteId,
+        label: formatTitleCase(jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite"),
+        value: row.score,
+        detail: `${row.overdue} overdue - ${row.stopWork} stop-work - ${row.incidents} incidents`,
+        tone: row.score >= 10 ? "error" : row.score >= 5 ? "warning" : "info",
+      })),
+      {
+        title: "No jobsite risk graph yet",
+        description: "Risk graph data will appear after jobsite analytics data is available.",
+        actionHref: "/jobsites",
+        actionLabel: "Open jobsites",
+      },
+      "risk score"
+    ),
+    observationMixGraph: graphSection(
+      "Observation mix graph",
+      "Current observation mix across reports, inspections, and daily activity planning.",
+      breakdown
+        ? [
+            { id: "near-miss", label: "Near miss", value: breakdown.nearMiss, tone: "warning" as const },
+            { id: "hazard", label: "Hazard", value: breakdown.hazard, tone: "warning" as const },
+            { id: "positive", label: "Positive", value: breakdown.positive, tone: "success" as const },
+            { id: "other", label: "Other", value: breakdown.other, tone: "neutral" as const },
+            { id: "inspections", label: "Inspections", value: breakdown.inspections, tone: "info" as const },
+            { id: "daps", label: "DAPs", value: breakdown.daps, tone: "info" as const },
+          ].filter((item) => item.value > 0)
+        : [],
+      {
+        title: "No observation mix graph yet",
+        description: "Observation mix data will appear after report analytics are available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "records"
+    ),
+    riskDistributionGraph: graphSection(
+      "Risk distribution chart",
+      "Current mix of high, medium, and low priority risk observations.",
+      [
+        { id: "risk-high", label: "High", value: highRiskCount, tone: "error" as const },
+        { id: "risk-medium", label: "Medium", value: mediumRiskCount, tone: "warning" as const },
+        { id: "risk-low", label: "Low", value: lowRiskCount, tone: "success" as const },
+      ].filter((item) => item.value > 0),
+      {
+        title: "No risk distribution yet",
+        description: "Risk priority distribution appears after analytics aggregation is available.",
+        actionHref: "/analytics",
+        actionLabel: "Open analytics",
+      },
+      "items",
+      "pie"
+    ),
+    riskReductionGraph: graphSection(
+      "Risk reduction graph",
+      "Risk status movement from open to in-progress to reduced (closed).",
+      [
+        { id: "risk-open", label: "Open", value: openRiskCount, tone: "warning" as const },
+        {
+          id: "risk-in-progress",
+          label: "In progress",
+          value: inProgressRiskCount,
+          tone: "info" as const,
+        },
+        { id: "risk-reduced", label: "Reduced", value: reducedRiskCount, tone: "success" as const },
+      ].filter((item) => item.value > 0),
+      {
+        title: "No risk reduction data yet",
+        description: "Risk-reduction movement appears when corrective action statuses are available.",
+        actionHref: "/field-id-exchange",
+        actionLabel: "Open field exchange",
+      },
+      "items",
+      "bar"
+    ),
+    workspaceSignalsGraph: (() => {
+      const dm = data.dashboardMetrics;
+      if (!dm) {
+        return graphSection(
+          "Workspace signal mix",
+          "SOR reports vs corrective actions vs near misses from the dashboard metrics service.",
+          [],
+          {
+            title: "No workspace signal graph yet",
+            description: "This chart fills when dashboard metrics finish loading for your workspace.",
+            actionHref: "/analytics",
+            actionLabel: "Open analytics",
+          },
+          "records",
+          "bar"
+        );
+      }
+      const scopeNote = dm.jobsiteScoped
+        ? `Assigned jobsites only for corrective and incident rows (${dm.windowDays}d). SOR counts stay company-wide.`
+        : `Company-wide (${dm.windowDays}d).`;
+      const rawItems: DashboardGraphItem[] = [
+        {
+          id: "sor-reports",
+          label: "SOR Reports",
+          value: dm.sorReportsCount,
+          detail: "company_sor_records",
+          tone: "info",
+        },
+        {
+          id: "corrective-actions",
+          label: "Corrective actions",
+          value: dm.correctiveActionsInWindowCount,
+          detail: "company_corrective_actions",
+          tone: "neutral",
+        },
+        {
+          id: "near-miss-actions",
+          label: "Near Miss (Actions)",
+          value: dm.nearMissCorrectiveActionsCount,
+          detail: "observation_type near_miss",
+          tone: "warning",
+        },
+        {
+          id: "near-miss-incidents",
+          label: "Near Miss (Incidents)",
+          value: dm.incidentNearMissRecordsCount,
+          detail: "category near_miss",
+          tone: "warning",
+        },
+      ];
+      const items = rawItems.filter((item) => item.value > 0);
+      return graphSection(
+        "Workspace signal mix",
+        scopeNote,
+        items,
+        {
+          title: "No countable signals in this window",
+          description: "Log SORs, corrective actions, or incidents to populate this chart.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field exchange",
+        },
+        "records",
+        "bar"
+      );
+    })(),
+  };
+}
+
+function recentDocumentsItems(data: DashboardDataState) {
+  return data.documents
+    .slice()
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    .slice(0, 6)
+    .map((document) => ({
+      id: document.id,
+      title: documentTitle(document),
+      detail: getDocumentStatusLabel(document.status, Boolean(document.final_file_path)),
+      meta: formatRelative(document.created_at),
+      tone: approved(document)
+        ? ("success" as const)
+        : pending(document)
+          ? ("warning" as const)
+          : ("info" as const),
+    }));
+}
+
+function recentReportsItems(data: DashboardDataState) {
+  return (data.analyticsSummary?.recentReports ?? []).map((report) => ({
+    id: report.id,
+    title: formatTitleCase(report.title) || report.title,
+    detail: report.tag,
+    meta: "Recent workspace submission",
+    tone:
+      report.tag === "HAZARD" || report.tag === "NEAR MISS"
+        ? ("warning" as const)
+        : ("info" as const),
+  }));
+}
+
+function riskItems(data: DashboardDataState) {
+  const jobsiteNames = jobsites(data);
+
+  const overdueItems = data.workspaceSummary.observations
+    .filter(overdue)
+    .slice(0, 4)
+    .map((row, index) => ({
+      id: row.id ?? `obs-${index}`,
+      title: formatTitleCase(row.title?.trim() || row.category?.trim() || "Corrective action overdue"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "No jobsite assigned",
+      meta: formatDue(row.due_at),
+      tone: "warning" as const,
+    }));
+
+  const incidentItems = data.workspaceSummary.incidents
+    .filter((row) => active(row.status))
+    .slice(0, 4)
+    .map((row, index) => ({
+      id: row.id ?? `inc-${index}`,
+      title: formatTitleCase(row.title?.trim() || "Open incident"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "Company-wide follow-up",
+      meta:
+        row.stop_work_status === "stop_work_active"
+          ? "Stop-work active"
+          : row.sif_flag
+            ? "SIF follow-up required"
+            : "Needs follow-up",
+      tone:
+        row.stop_work_status === "stop_work_active"
+          ? ("error" as const)
+          : row.sif_flag
+            ? ("warning" as const)
+            : ("info" as const),
+    }));
+
+  const permitItems = data.workspaceSummary.permits
+    .filter((row) => active(row.status))
+    .slice(0, 4)
+    .map((row, index) => ({
+      id: row.id ?? `permit-${index}`,
+      title: formatTitleCase(row.title?.trim() || "Active permit"),
+      detail: row.jobsite_id
+        ? formatTitleCase(jobsiteNames.get(row.jobsite_id) ?? "Assigned jobsite")
+        : "No jobsite assigned",
+      meta:
+        row.stop_work_status === "stop_work_active"
+          ? "Restriction in place"
+          : row.sif_flag
+            ? "High-risk permit"
+            : "Permit review item",
+      tone:
+        row.stop_work_status === "stop_work_active"
+          ? ("error" as const)
+          : row.sif_flag
+            ? ("warning" as const)
+            : ("info" as const),
+    }));
+
+  return { overdueItems, incidentItems, permitItems };
+}
+
+export function buildDailyActionQueue(data: DashboardDataState): DashboardFeedItem[] {
+  const risks = riskItems(data);
+  const highRiskCount =
+    data.analyticsSummary?.companyDashboard?.totalHighRiskObservations ??
+    data.analyticsSummary?.companyDashboard?.observationPriorityBands?.high ??
+    0;
+  const pendingDocuments = recentDocumentsItems(data).filter((item) => item.tone !== "success");
+  const pendingUsers = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const setupBacklog = pendingUsers + data.companyInvites.length;
+  const activePermits = data.workspaceSummary.permits.filter((row) => active(row.status)).length;
+  const stopWorkOrSifItems = [...risks.permitItems, ...risks.incidentItems].filter((item) =>
+    /stop-work|sif|restriction|high-risk/i.test(`${item.meta} ${item.title} ${item.detail}`)
+  );
+  const standardPermitAndIncidentItems = [...risks.permitItems, ...risks.incidentItems].filter(
+    (item) => !stopWorkOrSifItems.some((priority) => priority.id === item.id)
+  );
+
+  return [
+    ...stopWorkOrSifItems,
+    ...risks.overdueItems,
+    ...(highRiskCount > 0
+      ? [
+          {
+            id: "high-risk-observations",
+            title: "Open high-risk observations",
+            detail: "High-priority observation signals require field verification before related work continues.",
+            meta: `${highRiskCount} item${highRiskCount === 1 ? "" : "s"}`,
+            tone: "error" as const,
+          },
+        ]
+      : []),
+    ...(setupBacklog > 0
+      ? [
+          {
+            id: "training-setup-backlog",
+            title: "Training setup signal",
+            detail: "Pending users or invites may affect readiness until the training matrix is fully connected.",
+            meta: `${setupBacklog} setup item${setupBacklog === 1 ? "" : "s"}`,
+            tone: "warning" as const,
+          },
+        ]
+      : []),
+    ...pendingDocuments.slice(0, 2),
+    ...(activePermits > stopWorkOrSifItems.length
+      ? [
+          {
+            id: "active-permit-readiness",
+            title: "Active permit readiness",
+            detail: "Open active permits should be reviewed for missing closure, restriction, or readiness details.",
+            meta: `${activePermits} active`,
+            tone: "info" as const,
+          },
+        ]
+      : []),
+    ...standardPermitAndIncidentItems,
+  ].slice(0, 8);
+}
+
+function rankingItems(data: DashboardDataState, href = "/jobsites"): DashboardSummaryItem[] {
+  const jobsiteNames = jobsites(data);
+
+  return (data.analyticsSummary?.jobsiteRiskScore ?? []).slice(0, 5).map((row) => ({
+    id: row.jobsiteId,
+    label: formatTitleCase(jobsiteNames.get(row.jobsiteId) ?? "Unassigned jobsite"),
+    value: `${row.score}`,
+    note: `${row.overdue} overdue - ${row.stopWork} stop-work - ${row.incidents} incidents`,
+    href,
+    tone:
+      row.score >= 10 ? ("error" as const) : row.score >= 5 ? ("warning" as const) : ("info" as const),
+  }));
+}
+
+function hazardItems(data: DashboardDataState, href = "/analytics"): DashboardSummaryItem[] {
+  return (data.analyticsSummary?.topHazardCategories ?? []).slice(0, 4).map((hazard) => ({
+    id: hazard.category,
+    label: formatTitleCase(hazard.category.replace(/_/g, " ")),
+    value: `${hazard.count}`,
+    note: "Recurring hazard signal in the current review window.",
+    href,
+    tone: hazard.count >= 5 ? ("warning" as const) : ("info" as const),
+  }));
+}
+
+function accessItems(data: DashboardDataState, role: DashboardRole): DashboardSummaryItem[] {
+  const pendingUsers = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const inactiveUsers = data.companyUsers.filter((user) => user.status === "Inactive").length;
+
+  if (data.companyUsers.length > 0 || role === "company_admin") {
+    return [
+      {
+        id: "pending-approvals",
+        label: "Pending approvals",
+        value: `${pendingUsers}`,
+        note: "Users still waiting for activation or approval.",
+        href: "/company-users",
+        tone: pendingUsers > 0 ? "warning" : "success",
+      },
+      {
+        id: "inactive-workers",
+        label: "Inactive workers",
+        value: `${inactiveUsers}`,
+        note: "Accounts with no recent sign-in that may need follow-up.",
+        href: "/company-users",
+        tone: inactiveUsers > 0 ? "info" : "success",
+      },
+      {
+        id: "team-size",
+        label: "Active company users",
+        value: `${data.companyUsers.length}`,
+        note: "Current roster visible from the company workspace.",
+        href: "/company-users",
+        tone: "info",
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "my-role",
+      label: "Current role",
+      value: data.userRole || "Viewer",
+      note: "The current role driving this dashboard experience.",
+      href: "/profile",
+      tone: "info",
+    },
+    {
+      id: "workspace-team",
+      label: "Workspace team",
+      value: data.userTeam || "General",
+      note: "Current team label tied to this account.",
+      href: "/profile",
+      tone: "info",
+    },
+    {
+      id: "library-access",
+      label: "Completed records",
+      value: `${data.documents.filter(approved).length}`,
+      note: "Approved files currently visible in your library.",
+      href: "/documents",
+      tone: "success",
+    },
+  ];
+}
+
+function trainingItems(data: DashboardDataState, role: DashboardRole): DashboardSummaryItem[] {
+  const pendingUsers = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const activeJobsites = data.workspaceSummary.jobsites.filter((jobsite) => active(jobsite.status)).length;
+  const proxyTrainingGap = data.companyInvites.length || pendingUsers;
+  const trainingHref = role === "default" ? "/profile" : "/training-matrix";
+  const jobsiteHref = role === "default" ? "/search" : "/jobsites";
+  const accessHref =
+    role === "default" || role === "field_user" ? "/profile" : "/company-users";
+
+  const dm = data.dashboardMetrics;
+  const includeDirectoryMetrics = role !== "default" && role !== "field_user";
+  const metricsRows: DashboardSummaryItem[] =
+    dm && role !== "default"
+      ? [
+          {
+            id: "dm-training-requirements",
+            label: "Training requirements",
+            value: `${dm.trainingRequirementDefinitionsCount}`,
+            note: "Defined rows in the company training requirements matrix.",
+            href: trainingHref,
+            tone: dm.trainingRequirementDefinitionsCount > 0 ? ("info" as const) : ("warning" as const),
+          },
+          ...(includeDirectoryMetrics
+            ? [
+                {
+                  id: "dm-active-contractors",
+                  label: "Active contractors",
+                  value: `${dm.activeContractorsCount}`,
+                  note: "Contractor profiles marked active in the company directory.",
+                  href: "/company-contractors",
+                  tone: "neutral" as const,
+                },
+                {
+                  id: "dm-sor-reports-window",
+                  label: "SOR reports",
+                  value: `${dm.sorReportsCount}`,
+                  note: `Safety observation reports in the last ${dm.windowDays} days (company-wide; not jobsite-scoped in DB).`,
+                  href: "/analytics",
+                  tone: "info" as const,
+                },
+              ]
+            : []),
+        ]
+      : [];
+
+  return [
+    ...metricsRows,
+    {
+      id: "training-gap-proxy",
+      label: "Training setup signal",
+      value: proxyTrainingGap > 0 ? `${proxyTrainingGap}` : "Clear",
+      note:
+        proxyTrainingGap > 0
+          ? "Setup signal based on unresolved invites and pending user setup until training records connect."
+          : "No onboarding or invite backlog is visible right now.",
+      href: trainingHref,
+      tone: proxyTrainingGap > 0 ? "warning" : "success",
+    },
+    {
+      id: "jobsites-in-scope",
+      label: "Active jobsites",
+      value: `${activeJobsites}`,
+      note: "Current site count that training coverage should support.",
+      href: jobsiteHref,
+      tone: "info",
+    },
+    {
+      id: "training-records",
+      label: "Open invites",
+      value: `${data.companyInvites.length}`,
+      note: "Current invite backlog used as a temporary training-readiness signal.",
+      href: accessHref,
+      tone: data.companyInvites.length > 0 ? "warning" : "info",
+    },
+  ];
+}
+
+function genericRiskItems(data: DashboardDataState, href = "/search"): DashboardSummaryItem[] {
+  const openIncidents = data.workspaceSummary.incidents.filter((row) => active(row.status)).length;
+  const overdueActions = data.workspaceSummary.observations.filter(overdue).length;
+  const activePermits = data.workspaceSummary.permits.filter((row) => active(row.status)).length;
+
+  return [
+    {
+      id: "open-incidents",
+      label: "Open incidents",
+      value: `${openIncidents}`,
+      note: "Incident follow-ups currently visible in the workspace.",
+      href,
+      tone: openIncidents > 0 ? "warning" : "success",
+    },
+    {
+      id: "overdue-actions",
+      label: "Overdue actions",
+      value: `${overdueActions}`,
+      note: "Corrective actions that are already past due.",
+      href,
+      tone: overdueActions > 0 ? "warning" : "success",
+    },
+    {
+      id: "active-permits",
+      label: "Active permits",
+      value: `${activePermits}`,
+      note: "Permits currently active across visible sites.",
+      href,
+      tone: activePermits > 0 ? "info" : "success",
+    },
+  ];
+}
+
+function parseSummaryItemValue(raw: string): number {
+  const trimmed = raw.trim();
+  const direct = Number(trimmed);
+  if (Number.isFinite(direct)) return direct;
+  const match = trimmed.match(/-?\d+/);
+  if (match) return Number(match[0]);
+  return 0;
+}
+
+function summaryItemsToGraphItems(items: DashboardSummaryItem[]): DashboardGraphItem[] {
+  return items.map((item) => {
+    const value = Math.max(0, parseSummaryItemValue(item.value));
+    const tone = item.tone;
+    const graphTone: DashboardGraphItem["tone"] =
+      tone === "success"
+        ? "success"
+        : tone === "warning"
+          ? "warning"
+          : tone === "error"
+            ? "error"
+            : tone === "info"
+              ? "info"
+              : tone === "neutral"
+                ? "neutral"
+                : undefined;
+    return {
+      id: item.id,
+      label: item.label,
+      value,
+      detail: item.note,
+      tone: graphTone,
+    };
+  });
+}
+
+function graphSectionFromRiskRanking(
+  graphs: ReturnType<typeof dashboardGraphs>,
+  riskRanking: DashboardSummarySection
+): DashboardGraphSection {
+  const base = graphs.jobsiteRiskGraph;
+  if (base.items.length > 0) {
+    return {
+      ...base,
+      title: riskRanking.title,
+      description: riskRanking.description,
+      empty: riskRanking.empty,
+    };
+  }
+  return graphSection(
+    riskRanking.title,
+    riskRanking.description,
+    summaryItemsToGraphItems(riskRanking.items),
+    riskRanking.empty,
+    "risk score",
+    "bar"
+  );
+}
+
+function graphSectionFromHazardTrends(
+  graphs: ReturnType<typeof dashboardGraphs>,
+  hazardTrends: DashboardSummarySection
+): DashboardGraphSection {
+  const base = graphs.hazardTrendGraph;
+  if (base.items.length > 0) {
+    return {
+      ...base,
+      title: hazardTrends.title,
+      description: hazardTrends.description,
+      empty: hazardTrends.empty,
+    };
+  }
+  return graphSection(
+    hazardTrends.title,
+    hazardTrends.description,
+    summaryItemsToGraphItems(hazardTrends.items),
+    hazardTrends.empty,
+    "signals",
+    "bar"
+  );
+}
+
+function buildBlocks(params: {
+  metrics: DashboardMetric[];
+  priorityQueue: DashboardFeedSection;
+  nextActions: DashboardActionSection;
+  recentActivity: DashboardFeedSection;
+  recentDocuments: DashboardFeedSection;
+  recentReports: DashboardFeedSection;
+  riskRanking: DashboardSummarySection;
+  hazardTrends: DashboardSummarySection;
+  supportSignals: DashboardSummarySection;
+  onboardingChecklist?: DashboardSummarySection;
+  companyAccess: DashboardSummarySection;
+  trainingSignal: DashboardSummarySection;
+  permitFollowups: DashboardFeedSection;
+  incidentFollowups: DashboardFeedSection;
+  graphs?: ReturnType<typeof dashboardGraphs>;
+}): Record<DashboardBlockId, DashboardBlockModel> {
+  const [primary, secondary, tertiary, quaternary] = params.metrics;
+  const graphs =
+    params.graphs ??
+    {
+      hazardTrendGraph: graphSection(
+        "Hazard trend graph",
+        "Top hazard categories by count in the current analytics window.",
+        [],
+        {
+          title: "No hazard trend graph yet",
+          description: "Hazard graph data will appear after analytics data is available.",
+        },
+        "signals"
+      ),
+      jobsiteRiskGraph: graphSection(
+        "Jobsite risk graph",
+        "Highest-risk jobsites ranked by combined risk score.",
+        [],
+        {
+          title: "No jobsite risk graph yet",
+          description: "Risk graph data will appear after jobsite analytics data is available.",
+        },
+        "risk score"
+      ),
+      observationMixGraph: graphSection(
+        "Observation mix graph",
+        "Current observation mix across reports, inspections, and daily activity planning.",
+        [],
+        {
+          title: "No observation mix graph yet",
+          description: "Observation mix data will appear after report analytics are available.",
+        },
+        "records"
+      ),
+      riskDistributionGraph: graphSection(
+        "Risk distribution chart",
+        "Current mix of high, medium, and low priority risk observations.",
+        [],
+        {
+          title: "No risk distribution yet",
+          description: "Risk priority distribution appears after analytics aggregation is available.",
+        },
+        "items",
+        "pie"
+      ),
+      riskReductionGraph: graphSection(
+        "Risk reduction graph",
+        "Risk status movement from open to in-progress to reduced (closed).",
+        [],
+        {
+          title: "No risk reduction data yet",
+          description: "Risk-reduction movement appears when corrective action statuses are available.",
+        },
+        "items",
+        "bar"
+      ),
+      workspaceSignalsGraph: graphSection(
+        "Workspace signal mix",
+        "SOR reports vs corrective actions vs near misses from the dashboard metrics service.",
+        [],
+        {
+          title: "No workspace signal graph yet",
+          description: "This chart fills when dashboard metrics finish loading for your workspace.",
+        },
+        "records",
+        "bar"
+      ),
+    };
+
+  return {
+    metric_primary: {
+      kind: "metric",
+      title: primary.title,
+      value: primary.value,
+      detail: primary.detail,
+      tone: primary.tone,
+    },
+    metric_secondary: {
+      kind: "metric",
+      title: secondary.title,
+      value: secondary.value,
+      detail: secondary.detail,
+      tone: secondary.tone,
+    },
+    metric_tertiary: {
+      kind: "metric",
+      title: tertiary.title,
+      value: tertiary.value,
+      detail: tertiary.detail,
+      tone: tertiary.tone,
+    },
+    metric_quaternary: {
+      kind: "metric",
+      title: quaternary.title,
+      value: quaternary.value,
+      detail: quaternary.detail,
+      tone: quaternary.tone,
+    },
+    priority_queue: {
+      kind: "feed",
+      eyebrow: "Priority queue",
+      section: params.priorityQueue,
+    },
+    next_actions: {
+      kind: "action",
+      section: params.nextActions,
+    },
+    recent_activity: {
+      kind: "feed",
+      eyebrow: "Live activity",
+      section: params.recentActivity,
+    },
+    recent_documents: {
+      kind: "feed",
+      eyebrow: "Documents",
+      section: params.recentDocuments,
+    },
+    recent_reports: {
+      kind: "feed",
+      eyebrow: "Reports",
+      section: params.recentReports,
+    },
+    risk_ranking: {
+      kind: "graph",
+      eyebrow: "Risk ranking",
+      section: graphSectionFromRiskRanking(graphs, params.riskRanking),
+    },
+    hazard_trends: {
+      kind: "graph",
+      eyebrow: "Hazard trends",
+      section: graphSectionFromHazardTrends(graphs, params.hazardTrends),
+    },
+    support_signals: {
+      kind: "summary",
+      eyebrow: "Support signals",
+      section: params.supportSignals,
+    },
+    onboarding_checklist: {
+      kind: "summary",
+      eyebrow: "Start here",
+      section:
+        params.onboardingChecklist ??
+        summarySection(
+          "Workspace launch checklist",
+          "First-run setup milestones will appear after workspace data loads.",
+          [],
+          {
+            title: "Workspace launch checklist",
+            description: "First-run setup milestones will appear after workspace data loads.",
+          }
+        ),
+    },
+    company_access: {
+      kind: "summary",
+      eyebrow: "Company access",
+      section: params.companyAccess,
+    },
+    training_signal: {
+      kind: "summary",
+      eyebrow: "Training signal",
+      section: params.trainingSignal,
+    },
+    permit_followups: {
+      kind: "feed",
+      eyebrow: "Permit follow-ups",
+      section: params.permitFollowups,
+    },
+    incident_followups: {
+      kind: "feed",
+      eyebrow: "Incident follow-ups",
+      section: params.incidentFollowups,
+    },
+    graph_hazard_trends: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.hazardTrendGraph,
+    },
+    graph_jobsite_risk: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.jobsiteRiskGraph,
+    },
+    graph_observation_mix: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.observationMixGraph,
+    },
+    graph_risk_distribution: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.riskDistributionGraph,
+    },
+    graph_risk_reduction: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.riskReductionGraph,
+    },
+    graph_workspace_signals: {
+      kind: "graph",
+      eyebrow: "Graph",
+      section: graphs.workspaceSignalsGraph,
+    },
+  };
+}
+
+function loading(role: DashboardRole, title: string): DashboardViewModel {
+  const loadingFeed = feedSection(
+    "Loading block",
+    "Waiting for current workspace signals.",
+    [],
+    {
+      title: "Nothing yet",
+      description: "This block will populate once the dashboard finishes loading.",
+    }
+  );
+  const loadingSummary = summarySection(
+    "Loading block",
+    "Waiting for current workspace signals.",
+    [],
+    {
+      title: "Nothing yet",
+      description: "This block will populate once the dashboard finishes loading.",
+    }
+  );
+
+  return {
+    role,
+    hero: {
+      eyebrow: "Loading dashboard",
+      title,
+      description: "Gathering current risk, backlog, and next-action signals.",
+      actions: [],
+    },
+    blocks: buildBlocks({
+      metrics: [
+        metric("Attention now", "Loading", "Pulling live workload.", "attention"),
+        metric("Queue", "Loading", "Checking role-specific queue."),
+        metric("Risk", "Loading", "Resolving risk indicators."),
+        metric("Activity", "Loading", "Fetching current activity."),
+      ],
+      priorityQueue: loadingFeed,
+      nextActions: actionSection(
+        "Loading actions",
+        "Recommended actions will appear after loading.",
+        [],
+        {
+          title: "Nothing yet",
+          description: "Recommended actions will appear after loading.",
+        }
+      ),
+      recentActivity: loadingFeed,
+      recentDocuments: loadingFeed,
+      recentReports: loadingFeed,
+      riskRanking: loadingSummary,
+      hazardTrends: loadingSummary,
+      supportSignals: loadingSummary,
+      companyAccess: loadingSummary,
+      trainingSignal: loadingSummary,
+      permitFollowups: loadingFeed,
+      incidentFollowups: loadingFeed,
+    }),
+  };
+}
+
+export function getCompanyAdminDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("company_admin", "Preparing company admin dashboard");
+  }
+
+  const risks = riskItems(data);
+  const recentDocuments = recentDocumentsItems(data);
+  const recentReports = recentReportsItems(data);
+  const access = accessItems(data, "company_admin");
+  const training = trainingItems(data, "company_admin");
+
+  if (data.workspaceProduct === "csep") {
+    const inReview = data.documents.filter(pending).length;
+    const approvedCount = data.documents.filter(approved).length;
+    const draftCount = data.documents.length - inReview - approvedCount;
+
+    return {
+      role: "company_admin",
+      hero: {
+        eyebrow: "Company admin dashboard",
+        title: `${getCompanyName(data)} CSEP workspace`,
+        description:
+          "This company is on the focused CSEP experience, so the dashboard stays centered on document throughput and the next builder action.",
+        actions: [
+          {
+            label: CONTRACTOR_SAFETY_BLUEPRINT_BUILDER_LABEL,
+            href: "/csep",
+            variant: "primary",
+          },
+          {
+            label: "Open documents",
+            href: "/documents",
+            variant: "secondary",
+          },
+        ],
+      },
+      banner: banner(data),
+      blocks: buildBlocks({
+        graphs: dashboardGraphs(data),
+        onboardingChecklist: onboardingChecklistSection(data),
+        metrics: [
+          metric("In review", `${inReview}`, "CSEP files waiting in review.", "attention"),
+          metric("Approved", `${approvedCount}`, "Completed CSEP files in the library."),
+          metric("Drafts", `${draftCount}`, "Unsubmitted work still in progress."),
+          metric(
+            "Credits",
+            data.creditBalance == null ? "Unknown" : `${data.creditBalance}`,
+            "Current credit balance."
+          ),
+        ],
+        priorityQueue: feedSection(
+          "Document queue",
+          "Clear anything stuck in review and keep the builder queue moving.",
+          recentDocuments.filter((item) => item.tone !== "success").slice(0, 6),
+          {
+            title: "No CSEP items need attention",
+            description: "The current builder queue is clear.",
+            actionHref: "/csep",
+            actionLabel: "Open builder",
+          }
+        ),
+        nextActions: actionSection(
+          "What should this user do next",
+          "Use the focused CSEP workflow instead of the broader company workspace.",
+          [
+            {
+              title: "Start a new CSEP",
+              description: "Open the builder and begin the next contractor safety package.",
+              href: "/csep",
+              actionLabel: "Open builder",
+              tone: "attention",
+            },
+            {
+              title: "Review completed files",
+              description: "Open approved files and keep deliverables organized.",
+              href: "/documents",
+              actionLabel: "Open documents",
+            },
+          ],
+          {
+            title: "No actions yet",
+            description: "Use the builder to start the next package.",
+          }
+        ),
+        recentActivity: feedSection(
+          "Recent activity",
+          "Latest document updates in the focused CSEP workspace.",
+          recentDocuments,
+          {
+            title: "No document activity yet",
+            description:
+              "Your CSEP document feed will show up here after the first file is created.",
+            actionHref: "/csep",
+            actionLabel: "Start a CSEP",
+          }
+        ),
+        recentDocuments: feedSection(
+          "Recent documents",
+          "Latest CSEP documents visible to this company workspace.",
+          recentDocuments,
+          {
+            title: "No documents yet",
+            description: "Create the first CSEP to populate the document list.",
+            actionHref: "/csep",
+            actionLabel: "Open builder",
+          }
+        ),
+        recentReports: feedSection(
+          "Recent reports",
+          "CSEP work stays focused on document throughput, so recent document activity is shown here too.",
+          recentReports.length > 0 ? recentReports : recentDocuments.slice(0, 4),
+          {
+            title: "No recent reports yet",
+            description: "Recent report signals will appear here once they are available.",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
+          }
+        ),
+        riskRanking: summarySection(
+          "Workspace snapshot",
+          "A compact throughput view for the CSEP-only workspace.",
+          [
+            {
+              id: "documents-total",
+              label: "Total documents",
+              value: `${data.documents.length}`,
+              note: "All CSEP records currently visible in the workspace.",
+              href: "/search",
+              tone: "info",
+            },
+            {
+              id: "queue-balance",
+              label: "Review queue",
+              value: `${inReview}`,
+              note: "Documents still waiting for approval or completion.",
+              href: "/documents",
+              tone: inReview > 0 ? "warning" : "success",
+            },
+            {
+              id: "completed-deliverables",
+              label: "Completed deliverables",
+              value: `${approvedCount}`,
+              note: "Approved CSEP files already available in the library.",
+              href: "/documents",
+              tone: approvedCount > 0 ? "success" : "info",
+            },
+          ],
+          {
+            title: "Workspace snapshot",
+            description: "Metrics will appear once your CSEP records load.",
+          }
+        ),
+        hazardTrends: summarySection(
+          "Document health",
+          "Status-based document trends for the focused CSEP workspace.",
+          [
+            {
+              id: "draft-documents",
+              label: "Drafts",
+              value: `${draftCount}`,
+              note: "Documents still being prepared before submission.",
+              href: "/csep",
+              tone: draftCount > 0 ? "info" : "success",
+            },
+            {
+              id: "in-review-documents",
+              label: "In review",
+              value: `${inReview}`,
+              note: "Submitted packages still waiting for review.",
+              href: "/documents",
+              tone: inReview > 0 ? "warning" : "success",
+            },
+            {
+              id: "approved-documents",
+              label: "Approved",
+              value: `${approvedCount}`,
+              note: "Completed files available to open right now.",
+              href: "/documents",
+              tone: approvedCount > 0 ? "success" : "info",
+            },
+          ],
+          {
+            title: "Document health",
+            description: "Status trends will appear once records exist.",
+          }
+        ),
+        supportSignals: summarySection(
+          "Support signals",
+          "Keep an eye on company access and backlog from the focused workspace.",
+          access,
+          {
+            title: "Support signals",
+            description: "Support signals will appear after company access loads.",
+          }
+        ),
+        companyAccess: summarySection(
+          "Company access",
+          "Company user and activation signals tied to the CSEP workspace.",
+          access,
+          {
+            title: "Company access",
+            description: "Company access data will appear after the user roster loads.",
+          }
+        ),
+        trainingSignal: summarySection(
+          "Training signal",
+          "Training readiness is still proxied by invite and onboarding activity in this focused workspace.",
+          training,
+          {
+            title: "Training signal",
+            description: "Training signals will appear once invite and team data load.",
+          }
+        ),
+        permitFollowups: feedSection(
+          "Permit follow-ups",
+          "The focused CSEP workspace does not route permit workflows, so this block stays in a waiting state.",
+          [],
+          {
+            title: "No permit workflow in this workspace",
+            description: "Open the broader company workspace if you need permit follow-ups.",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
+          }
+        ),
+        incidentFollowups: feedSection(
+          "Incident follow-ups",
+          "The focused CSEP workspace does not route incident workflows, so this block stays in a waiting state.",
+          [],
+          {
+            title: "No incident workflow in this workspace",
+            description: "Open the broader company workspace if you need incident follow-ups.",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
+          }
+        ),
+      }),
+    };
+  }
+
+  const pendingApprovals = data.companyUsers.filter((user) => user.status === "Pending").length;
+  const readiness = data.revenueReadiness;
+  const supportItems = [
+    readiness
+      ? {
+          id: "pilot-health",
+          label: "Pilot health",
+          value: `${readiness.score}`,
+          note: `${readiness.band} - ${readiness.counts.openWork} open work items.`,
+          href: "/command-center",
+          tone: readiness.score >= 65 ? ("success" as const) : ("warning" as const),
+        }
+      : null,
+    {
+      id: "pending-users",
+      label: "Pending approvals",
+      value: `${pendingApprovals}`,
+      note: "Users still waiting for company activation.",
+      href: "/company-users",
+      tone: pendingApprovals > 0 ? ("warning" as const) : ("success" as const),
+    },
+    {
+      id: "inactive-workers",
+      label: "Inactive workers",
+      value: `${data.companyUsers.filter((user) => user.status === "Inactive").length}`,
+      note: "Accounts with no recent sign-in that may need follow-up.",
+      href: "/company-users",
+      tone: "info" as const,
+    },
+    {
+      id: "training-expirations",
+      label: "Training setup signal",
+      value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
+      note:
+        data.companyInvites.length > 0
+          ? "Invite backlog used as a setup signal until training coverage records connect."
+          : "Training expiration feed is not connected yet.",
+      href: "/training-matrix",
+      tone: data.companyInvites.length > 0 ? ("warning" as const) : ("info" as const),
+    },
+    ...hazardItems(data),
+  ].filter((item): item is DashboardSummaryItem => Boolean(item)).slice(0, 6);
+  const readinessActions =
+    readiness?.nextActions.map((action) => ({
+      title: action.label,
+      description: action.detail,
+      href: action.href,
+      actionLabel: action.priority === "high" ? "Resolve now" : "Open",
+      tone: action.priority === "high" ? ("attention" as const) : undefined,
+    })) ?? [];
+
+  return {
+    role: "company_admin",
+    hero: {
+      eyebrow: "Company admin dashboard",
+      title: "Start in Command Center, then move the work",
+      description:
+        "Use the Command Center as the daily operating hub for risk, open work, recommendations, and the setup steps that get a company to value.",
+      actions: [
+        {
+          label: "Open Command Center",
+          href: "/command-center",
+          variant: "primary",
+        },
+        ...documentBuilderHeroActions(data),
+        {
+          label: "Invite team",
+          href: "/company-users",
+          variant: "secondary",
+        },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
+      onboardingChecklist: onboardingChecklistSection(data),
+      metrics: [
+        metric(
+          readiness ? "Pilot health" : "Pending approvals",
+          readiness ? `${readiness.score}` : `${pendingApprovals}`,
+          readiness
+            ? `${readiness.band} across activation, operations, billing, and retention.`
+            : "Users and access decisions waiting now.",
+          "attention"
+        ),
+        metric(
+          "Open incidents",
+          `${data.workspaceSummary.incidents.filter((row) => active(row.status)).length}`,
+          "Incident records still requiring follow-up."
+        ),
+        metric(
+          "Overdue actions",
+          `${data.workspaceSummary.observations.filter(overdue).length}`,
+          "Corrective actions already past due."
+        ),
+        metric(
+          "Training setup signal",
+          data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
+          "Invite backlog is a setup signal until the training expiration feed is connected."
+        ),
+      ],
+      priorityQueue: feedSection(
+        "Top actions today",
+        "Ranked by stop-work/SIF signals, overdue corrective work, high-risk observations, readiness blockers, and document or permit gaps.",
+        buildDailyActionQueue(data).slice(0, 6),
+        {
+          title: "Urgent items are clear",
+          description: "No high-priority daily action signals are visible right now.",
+          actionHref: "/analytics",
+          actionLabel: "Open analytics",
+        }
+      ),
+      nextActions: actionSection(
+        "Unified action queue",
+        "Use these shortcuts after clearing the top daily queue.",
+        [
+          ...readinessActions,
+          {
+            title: "Open Command Center",
+            description: "Use the hub for current risk, open work, recommendations, and company memory.",
+            href: "/command-center",
+            actionLabel: "Start here",
+            tone: "attention",
+          },
+          {
+            title: "Review pending approvals",
+            description: "Confirm access and unblock the workforce.",
+            href: "/company-users",
+            actionLabel: "Open company users",
+          },
+          {
+            title: "Check overdue site risk",
+            description: "Open jobsites and focus on the locations with the highest combined risk.",
+            href: "/jobsites",
+            actionLabel: "Open jobsites",
+          },
+          {
+            title: "Open executive analytics",
+            description: "Review hazard concentration, incident trends, and closure performance.",
+            href: "/analytics",
+            actionLabel: "Open analytics",
+          },
+          {
+            title: "Audit training coverage",
+            description: "Open the training matrix and resolve coverage gaps.",
+            href: "/training-matrix",
+            actionLabel: "Open training matrix",
+          },
+        ],
+        {
+          title: "No actions yet",
+          description: "Recommended admin actions will appear here.",
+        }
+      ),
+      recentActivity: feedSection(
+        "Recent workspace activity",
+        "Recent submissions and company activity signals from the live workspace.",
+        recentReports.length > 0 ? recentReports : recentDocuments,
+        {
+          title: "No recent workspace activity",
+          description: "Recent submissions will appear here as soon as records move through the workspace.",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
+        }
+      ),
+      recentDocuments: feedSection(
+        "Recent documents",
+        "The newest documents visible from the company workspace.",
+        recentDocuments,
+        {
+          title: "No recent documents",
+          description: "New document activity will appear here as soon as files move through the workspace.",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Fresh report and submission signals from the current review window.",
+        recentReports,
+        {
+          title: "No reports yet",
+          description: "Recent report submissions will appear here as soon as they are available.",
+          actionHref: "/reports",
+          actionLabel: "Open reports",
+        }
+      ),
+      riskRanking: summarySection(
+        "Jobsite health ranking",
+        "Highest-risk jobsites ranked by combined incident, stop-work, and overdue action signals.",
+        rankingItems(data),
+        {
+          title: "No jobsite health ranking yet",
+          description: "This list will appear after jobsites and analytics data begin flowing.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Hazard trends",
+        "Recurring hazard and trend signals pulled from the current analytics window.",
+        hazardItems(data),
+        {
+          title: "No hazard trends yet",
+          description: "Hazard signals will appear here when analytics data is available.",
+          actionHref: "/analytics",
+          actionLabel: "Open analytics",
+        }
+      ),
+      supportSignals: summarySection(
+        "Training and hazard signals",
+        "Secondary context for what looks overdue or risky right now.",
+        supportItems,
+        {
+          title: "Training and hazard signals",
+          description: "Support signals will appear here when data is available.",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "The current user and access posture across the company workspace.",
+        access,
+        {
+          title: "Company access",
+          description: "User access indicators will appear after the company roster loads.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Current training and readiness proxy indicators for the company workspace.",
+        training,
+        {
+          title: "Training signal",
+          description: "Training indicators will appear here when the roster and invite feed are ready.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Permit-related review and restriction items that still need attention.",
+        risks.permitItems,
+        {
+          title: "No permit follow-ups",
+          description: "There are no active permit escalations or restrictions visible right now.",
+          actionHref: "/permits",
+          actionLabel: "Open permits",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Incident records that still need response, closure, or leadership attention.",
+        risks.incidentItems,
+        {
+          title: "No incident follow-ups",
+          description: "There are no active incident escalations visible right now.",
+          actionHref: "/incidents",
+          actionLabel: "Open incidents",
+        }
+      ),
+    }),
+  };
+}
+
+export function getSafetyManagerDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("safety_manager", "Preparing safety manager dashboard");
+  }
+
+  const risks = riskItems(data);
+  const recentDocuments = recentDocumentsItems(data);
+  const recentReports = recentReportsItems(data);
+  const reviewDocuments = data.documents.filter(pending).length;
+  const permitReview = data.workspaceSummary.permits.filter((row) => active(row.status)).length;
+  const incidentFollowups = data.workspaceSummary.incidents.filter((row) => active(row.status)).length;
+  const overdueCount = data.workspaceSummary.observations.filter(overdue).length;
+  const safetyHazardTrendItems: DashboardSummaryItem[] = [
+    ...hazardItems(data),
+    {
+      id: "overdue-audits",
+      label: "Overdue audits",
+      value: overdueCount > 0 ? `${overdueCount}` : "Not enough data yet",
+      note:
+        overdueCount > 0
+          ? "Overdue corrective actions currently visible in the company workspace."
+          : "Audit due dates are not connected yet.",
+      href: "/reports",
+      tone: overdueCount > 0 ? ("warning" as const) : ("info" as const),
+    },
+  ].slice(0, 5);
+
+  return {
+    role: "safety_manager",
+    hero: {
+      eyebrow: "Safety manager dashboard",
+      title: "Start with Command Center, then clear the queue",
+      description:
+        "The safety manager path starts with the daily queue, then moves into permits, incidents, documents, and training setup signals.",
+      actions: [
+        { label: "Open Command Center", href: "/command-center", variant: "primary" },
+        ...documentBuilderHeroActions(data),
+        { label: "Open permits", href: "/permits", variant: "secondary" },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
+      onboardingChecklist: onboardingChecklistSection(data),
+      metrics: [
+        metric(
+          "Personal work queue",
+          `${reviewDocuments + permitReview + incidentFollowups + overdueCount}`,
+          "Combined document, permit, incident, and overdue follow-ups.",
+          "attention"
+        ),
+        metric("Docs needing review", `${reviewDocuments}`, "Submitted files still waiting on review."),
+        metric("Permit review items", `${permitReview}`, "Active permits still open across current jobsites."),
+        metric(
+          "Incident follow-ups",
+          `${incidentFollowups}`,
+          "Open incidents still requiring response or closure."
+        ),
+      ],
+      priorityQueue: feedSection(
+        "Top actions today",
+        "Ranked by stop-work/SIF signals, overdue corrective work, high-risk observations, readiness blockers, and document or permit gaps.",
+        buildDailyActionQueue(data).slice(0, 6),
+        {
+          title: "Your priority queue is clear",
+          description: "No high-priority daily action signals are visible right now.",
+          actionHref: "/command-center",
+          actionLabel: "Open command center",
+        }
+      ),
+      nextActions: actionSection(
+        "Unified action queue",
+        "Use these shortcuts after clearing the top daily queue.",
+        [
+          {
+            title: "Open Command Center",
+            description: "Start with the single hub for current risk, open work, and recommended actions.",
+            href: "/command-center",
+            actionLabel: "Start here",
+            tone: "attention",
+          },
+          {
+            title: "Review documents in queue",
+            description: "Open in-review files and keep approvals moving for the field.",
+            href: "/documents",
+            actionLabel: "Open documents",
+          },
+          {
+            title: "Work permit review items",
+            description: "Clear active permits and check for stop-work or SIF escalation flags.",
+            href: "/permits",
+            actionLabel: "Open permits",
+          },
+          {
+            title: "Follow up on incidents",
+            description: "Complete incident response items and keep leadership informed.",
+            href: "/incidents",
+            actionLabel: "Open incidents",
+          },
+          {
+            title: "Review training setup signals",
+            description: "Open the training matrix and resolve setup or coverage issues before the next shift or audit cycle.",
+            href: "/training-matrix",
+            actionLabel: "Open training matrix",
+          },
+        ],
+        {
+          title: "No actions yet",
+          description: "Recommended safety-manager actions will appear here.",
+        }
+      ),
+      recentActivity: feedSection(
+        "Recent submissions",
+        "Latest documents and submission activity that may need a safety review.",
+        recentDocuments.filter((item) => item.tone !== "success").slice(0, 6),
+        {
+          title: "No recent submissions",
+          description: "Recent document or report submissions will show up here as they land.",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
+        }
+      ),
+      recentDocuments: feedSection(
+        "Recent documents",
+        "Documents that recently moved and may need a safety decision or follow-up.",
+        recentDocuments,
+        {
+          title: "No recent documents",
+          description: "Document updates will appear here after the next submission lands.",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Recent safety reports and generated submission signals.",
+        recentReports,
+        {
+          title: "No recent reports",
+          description: "Report submissions will appear here when they start flowing through the workspace.",
+          actionHref: "/reports",
+          actionLabel: "Open reports",
+        }
+      ),
+      riskRanking: summarySection(
+        "Risk ranking",
+        "The highest-risk jobsites and work areas based on the current analytics signal.",
+        rankingItems(data).length > 0 ? rankingItems(data) : genericRiskItems(data, "/analytics"),
+        {
+          title: "No risk ranking yet",
+          description: "Risk ranking will appear here once analytics data is available.",
+          actionHref: "/analytics",
+          actionLabel: "Open analytics",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Risk and review signals",
+        "A compact snapshot of where this safety role should concentrate next.",
+        safetyHazardTrendItems,
+        {
+          title: "Risk and review signals",
+          description: "Insights will appear when analytics data is available.",
+        }
+      ),
+      supportSignals: summarySection(
+        "Coverage gaps and support",
+        "Secondary signals to help prioritize the next operational step.",
+        [
+          {
+            id: "review-documents",
+            label: "Documents needing review",
+            value: `${reviewDocuments}`,
+            note: "Items in review that need a decision or follow-up.",
+            href: "/documents",
+            tone: reviewDocuments > 0 ? "warning" : "success",
+          },
+          {
+            id: "training-gaps",
+            label: "Training setup signal",
+            value: data.companyInvites.length > 0 ? `${data.companyInvites.length}` : "Not enough data yet",
+            note:
+              data.companyInvites.length > 0
+                ? "Setup signal based on unresolved company invites and onboarding backlog."
+                : "Training expiration feed is not connected yet.",
+            href: "/training-matrix",
+            tone: data.companyInvites.length > 0 ? "warning" : "info",
+          },
+          {
+            id: "permit-followups-total",
+            label: "Permit follow-ups",
+            value: `${permitReview + incidentFollowups}`,
+            note: "Combined permit and incident follow-up items still open across assigned work.",
+            href: "/permits",
+            tone: permitReview + incidentFollowups > 0 ? "warning" : "success",
+          },
+        ],
+        {
+          title: "Coverage gaps and support",
+          description: "Support indicators will appear here when the workspace finishes loading.",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "Company and roster context that can change the safety review workload.",
+        accessItems(data, "safety_manager"),
+        {
+          title: "Company access",
+          description: "Roster context will appear here after user and team data load.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Training readiness indicators that support the next safety decision.",
+        trainingItems(data, "safety_manager"),
+        {
+          title: "Training signal",
+          description: "Training indicators will appear when the roster and invite feed are ready.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Active permits that still need review, closure, or restriction management.",
+        risks.permitItems,
+        {
+          title: "No permit follow-ups",
+          description: "There are no active permit review items visible right now.",
+          actionHref: "/permits",
+          actionLabel: "Open permits",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Open incidents that still need response, closure, or communications.",
+        risks.incidentItems,
+        {
+          title: "No incident follow-ups",
+          description: "There are no active incident follow-ups visible right now.",
+          actionHref: "/incidents",
+          actionLabel: "Open incidents",
+        }
+      ),
+    }),
+  };
+}
+
+export function getFieldSupervisorDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("field_supervisor", "Preparing field supervisor dashboard");
+  }
+
+  const risks = riskItems(data);
+  const recentDocuments = recentDocumentsItems(data);
+  const recentReports = recentReportsItems(data);
+  const activeJobsites = data.workspaceSummary.jobsites.filter((jobsite) => active(jobsite.status)).length;
+  const restrictions = data.workspaceSummary.permits.filter(
+    (permit) => permit.stop_work_status === "stop_work_active" || permit.sif_flag
+  ).length;
+  const activeDaps = data.workspaceSummary.daps.filter((row) => active(row.status)).length;
+
+  return {
+    role: "field_supervisor",
+    hero: {
+      eyebrow: "Field supervisor dashboard",
+      title: "Today's site status and next field actions",
+      description:
+        "The top of this dashboard stays focused on active site conditions, open observations, permit restrictions, and the fastest next action for the field.",
+      actions: [
+        { label: "Open jobsites", href: "/jobsites", variant: "primary" },
+        ...documentBuilderHeroActions(data),
+        { label: "Review DAPs", href: "/jsa", variant: "secondary" },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
+      metrics: [
+        metric(
+          "Today's site status",
+          restrictions > 0 ? "Needs review" : activeJobsites > 0 ? "Ready" : "No active sites",
+          "Live field summary across your assigned jobsites.",
+          restrictions > 0 ? "attention" : "elevated"
+        ),
+        metric(
+          "Active permits",
+          `${data.workspaceSummary.permits.filter((row) => active(row.status)).length}`,
+          "Permits currently active across visible sites."
+        ),
+        metric(
+          "Open observations",
+          `${data.workspaceSummary.observations.filter((row) => active(row.status)).length}`,
+          "Open observation and corrective-action items in the field queue."
+        ),
+        metric(
+          "Weather / restrictions",
+          restrictions > 0 ? `${restrictions}` : "No live feed",
+          restrictions > 0
+            ? "Restriction or high-risk permit signals are active."
+            : "Weather integration is not wired yet."
+        ),
+      ],
+      priorityQueue: feedSection(
+        "What needs attention now",
+        "Field-facing items that could block work, create risk, or need a same-day response.",
+        [...risks.permitItems, ...risks.overdueItems, ...risks.incidentItems].slice(0, 6),
+        {
+          title: "Field queue is clear",
+          description: "No active permit restrictions, overdue corrective actions, or incident escalations are visible right now.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      nextActions: actionSection(
+        "What should this user do next",
+        "Move directly into the next field workflow without digging through the full navigation.",
+        [
+          {
+            title: "Start walk",
+            description: "Open assigned jobsites and begin the next field walk or site check.",
+            href: "/jobsites",
+            actionLabel: "Open jobsites",
+            tone: "attention",
+          },
+          {
+            title: "Report observation",
+            description: "Capture a new field observation or issue from the exchange workflow.",
+            href: "/field-id-exchange",
+            actionLabel: "Open exchange",
+          },
+          {
+            title: "Open permit board",
+            description: "Review active permits and confirm there are no open restrictions before work starts.",
+            href: "/jobsites",
+            actionLabel: "View permit board",
+          },
+          {
+            title: "Review DAPs",
+            description: "Open JSAs/DAPs and clear the next activity package for the site.",
+            href: "/jsa",
+            actionLabel: "Open DAP review",
+          },
+        ],
+        {
+          title: "No actions yet",
+          description: "Recommended field actions will appear here.",
+        }
+      ),
+      recentActivity: feedSection(
+        "Recent field activity",
+        "Live permit, observation, and submission movement relevant to today's field work.",
+        [...risks.permitItems, ...recentReports].slice(0, 6),
+        {
+          title: "No recent field activity",
+          description: "Field activity will appear once permits, reports, or observations start moving.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      recentDocuments: feedSection(
+        "Recent documents",
+        "The newest documents visible to the field workflow.",
+        recentDocuments,
+        {
+          title: "No recent documents",
+          description: "Field-facing document updates will appear here as soon as records move.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Recent report submissions and field activity signals.",
+        recentReports,
+        {
+          title: "No recent reports",
+          description: "Field report submissions will appear here when they are available.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      riskRanking: summarySection(
+        "Site risk snapshot",
+        "A compact view of which jobsites and field items need the most attention.",
+        [
+          ...rankingItems(data).slice(0, 3),
+          {
+            id: "open-daps",
+            label: "Open DAP review",
+            value: `${activeDaps}`,
+            note: "Open DAPs/JSAs still needing a field review or completion check.",
+            href: "/jsa",
+            tone: activeDaps > 0 ? "warning" : "success",
+          },
+        ],
+        {
+          title: "Site risk snapshot",
+          description: "The site ranking will appear after jobsite and analytics data load.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Hazard trends",
+        "Recurring field hazard patterns from the current analytics window.",
+        hazardItems(data).length > 0 ? hazardItems(data) : genericRiskItems(data, "/jobsites"),
+        {
+          title: "No hazard trends yet",
+          description: "Field hazard trends will appear when analytics data is available.",
+          actionHref: "/analytics",
+          actionLabel: "Open analytics",
+        }
+      ),
+      supportSignals: summarySection(
+        "Coverage and support",
+        "Helpful context for crews, weather, and assigned site workload.",
+        [
+          {
+            id: "site-coverage",
+            label: "Sites in your queue",
+            value: `${activeJobsites}`,
+            note: "Active jobsites currently visible to this field role.",
+            href: "/jobsites",
+            tone: "info",
+          },
+          {
+            id: "dap-review",
+            label: "DAP review items",
+            value: `${activeDaps}`,
+            note: "Open JSAs/DAPs that still need a field review or completion check.",
+            href: "/jsa",
+            tone: activeDaps > 0 ? "warning" : "success",
+          },
+          {
+            id: "weather",
+            label: "Weather / restrictions",
+            value: restrictions > 0 ? `${restrictions}` : "No live feed",
+            note:
+              restrictions > 0
+                ? "Stop-work or restriction flags are active on current permits."
+                : "Weather integration is not wired yet. Check the active permit board before kickoff.",
+            href: "/jobsites",
+            tone: restrictions > 0 ? "warning" : "info",
+          },
+          {
+            id: "crews",
+            label: "Crews on site",
+            value: "Pending sync",
+            note: "Crew roster data is not connected yet. Use jobsites and DAP activity as the current field signal.",
+            href: "/jobsites",
+            tone: "info",
+          },
+        ],
+        {
+          title: "Coverage and support",
+          description: "Crew and weather indicators will appear here once connected.",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "The access posture and role context that shape this field workflow.",
+        accessItems(data, "field_supervisor"),
+        {
+          title: "Company access",
+          description: "Access context will appear here once account information is ready.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Training and onboarding signals that can affect field readiness.",
+        trainingItems(data, "field_supervisor"),
+        {
+          title: "Training signal",
+          description: "Training indicators will appear when the roster and invite feed are ready.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Permit restrictions, escalations, and open reviews visible to this field role.",
+        risks.permitItems,
+        {
+          title: "No permit follow-ups",
+          description: "There are no active permit restrictions or reviews visible right now.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Incident items that still need a field response or completion check.",
+        risks.incidentItems,
+        {
+          title: "No incident follow-ups",
+          description: "There are no active incident follow-up items visible right now.",
+          actionHref: "/incidents",
+          actionLabel: "Open incidents",
+        }
+      ),
+    }),
+  };
+}
+
+export function getFieldUserDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("field_user", "Preparing field dashboard");
+  }
+
+  const risks = riskItems(data);
+  const graphs = dashboardGraphs(data);
+  const observations = data.workspaceSummary.observations;
+  const openFollowUps = observations.filter((row) => active(row.status)).length;
+  const overdueCount = observations.filter(overdue).length;
+  const activeSites = data.workspaceSummary.jobsites.filter((jobsite) => active(jobsite.status)).length;
+  const sorWindow = data.dashboardMetrics?.sorReportsCount;
+
+  const recentObservations = feedSection(
+    "Recent observations",
+    "Items from your visible field queue—submitted or assigned to you depending on workspace rules.",
+    observations.slice(0, 8).map((row, index) => ({
+      id: row.id ?? `obs-${index}`,
+      title: formatTitleCase(row.title?.trim() || row.category?.trim() || "Observation / corrective"),
+      detail: row.jobsite_id ? formatTitleCase(jobsites(data).get(row.jobsite_id) ?? "Jobsite") : "Workspace",
+      meta: overdue(row) ? formatDue(row.due_at) : (row.status ?? "open").replace(/_/g, " "),
+      tone: overdue(row) ? ("warning" as const) : ("info" as const),
+    })),
+    {
+      title: "No observations yet",
+      description: "Submitted observations will appear here once they are recorded in the field issue log.",
+      actionHref: "/field-id-exchange",
+      actionLabel: "Open field issue log",
+    }
+  );
+
+  return {
+    role: "field_user",
+    hero: {
+      eyebrow: "Field dashboard",
+      title: "Tasks, follow-ups, training, and observations",
+      description:
+        "This view stays narrow: what is open for you, what is overdue, required training signals, and recent observation activity—without company-wide executive tiles.",
+      actions: [
+        { label: "Field issue log", href: "/field-id-exchange", variant: "primary" },
+        ...documentBuilderHeroActions(data),
+        { label: "Training tracker", href: "/training-matrix", variant: "secondary" },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs,
+      metrics: [
+        metric(
+          "Open follow-ups",
+          `${openFollowUps}`,
+          "Observation and corrective items still active in your queue.",
+          openFollowUps > 0 ? "attention" : "elevated"
+        ),
+        metric(
+          "Overdue actions",
+          `${overdueCount}`,
+          "Items past due until closed or verified in the field.",
+          overdueCount > 0 ? "attention" : "elevated"
+        ),
+        metric("Assigned jobsites", `${activeSites}`, "Active jobsites currently visible to your account."),
+        metric(
+          "SOR reports (window)",
+          sorWindow != null ? `${sorWindow}` : "—",
+          data.dashboardMetrics
+            ? `Safety observation reports in the last ${data.dashboardMetrics.windowDays} days when metrics are connected.`
+            : "Connect analytics to show observation report volume for your window.",
+          "elevated"
+        ),
+      ],
+      priorityQueue: feedSection(
+        "Needs attention now",
+        "Overdue or high-priority follow-ups from the same queue as the field issue log.",
+        risks.overdueItems,
+        {
+          title: "Nothing overdue in view",
+          description: "When corrective work piles up, overdue items will surface here for same-day follow-up.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field issue log",
+        }
+      ),
+      nextActions: actionSection(
+        "Recommended next steps",
+        "Short paths for typical field workflows—submit observations, close training gaps, or upload evidence.",
+        [
+          {
+            title: "Submit an observation",
+            description: "Log a hazard, near miss, or positive catch through the field exchange.",
+            href: "/field-id-exchange",
+            actionLabel: "Open exchange",
+            tone: "attention",
+          },
+          {
+            title: "Complete assigned training",
+            description: "Open the training tracker to clear required credentials before high-risk work.",
+            href: "/training-matrix",
+            actionLabel: "Open training",
+          },
+          {
+            title: "Upload evidence",
+            description: "Attach photos or documents tied to a corrective or observation package.",
+            href: "/upload",
+            actionLabel: "Upload",
+          },
+          {
+            title: "Review assigned jobsites",
+            description: "Confirm you are on the correct site roster before starting work.",
+            href: "/jobsites",
+            actionLabel: "Open jobsites",
+          },
+        ],
+        {
+          title: "No suggested actions",
+          description: "Recommended actions will populate as assignments arrive.",
+        }
+      ),
+      recentActivity: recentObservations,
+      recentDocuments: feedSection(
+        "Documents",
+        "Recent submissions are available from search when your role can access them.",
+        recentDocumentsItems(data).slice(0, 4),
+        {
+          title: "No recent documents",
+          description: "Document movement will appear here when your workspace includes library activity.",
+          actionHref: "/search",
+          actionLabel: "Search workspace",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Field report submissions visible in your workspace window.",
+        recentReportsItems(data).slice(0, 6),
+        {
+          title: "No recent reports",
+          description: "Reports will list here as they are filed for your sites.",
+          actionHref: "/reports",
+          actionLabel: "Open reports",
+        }
+      ),
+      riskRanking: summarySection(
+        "Risk ranking",
+        "Executive jobsite ranking is hidden for this role—use jobsites and the field issue log for your assignments.",
+        [],
+        {
+          title: "Not shown for field users",
+          description: "Company-wide risk ranking is available to managers and safety leads.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Hazard trends",
+        "Aggregate hazard trends are available to analytics roles.",
+        [],
+        {
+          title: "Not shown for field users",
+          description: "Ask your safety manager for hazard trend reviews when needed.",
+          actionHref: "/field-id-exchange",
+          actionLabel: "Open field issue log",
+        }
+      ),
+      supportSignals: summarySection(
+        "Your access",
+        "Role and workspace context for this account.",
+        accessItems(data, "field_user"),
+        {
+          title: "Access context unavailable",
+          description: "Profile and workspace details will appear after account data loads.",
+          actionHref: "/profile",
+          actionLabel: "Open profile",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "Directory-level access is limited for field users.",
+        [],
+        {
+          title: "Not available",
+          description: "User management is restricted to company administrators.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Training and onboarding signals that can affect field readiness.",
+        trainingItems(data, "field_user"),
+        {
+          title: "Training signal",
+          description: "Training indicators will appear when your roster and invite data are ready.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Permit boards are managed by site leads; open the jobsite view when you need permit context.",
+        [],
+        {
+          title: "No permit queue for this role",
+          description: "Escalate permit questions to your supervisor or safety manager.",
+          actionHref: "/jobsites",
+          actionLabel: "Open jobsites",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Incident management views are limited for field users—escalate through your supervisor.",
+        risks.incidentItems.slice(0, 4),
+        {
+          title: "No incident items in view",
+          description: "Open incidents when your workspace grants access.",
+          actionHref: "/incidents",
+          actionLabel: "Open incidents",
+        }
+      ),
+    }),
+  };
+}
+
+export function getDefaultDashboardModel(data: DashboardDataState): DashboardViewModel {
+  if (data.loading) {
+    return loading("default", "Preparing workspace dashboard");
+  }
+
+  const recentDocuments = recentDocumentsItems(data);
+  const recentReports = recentReportsItems(data);
+  const risks = riskItems(data);
+  const approvedCount = data.documents.filter(approved).length;
+  const pendingCount = data.documents.filter(pending).length;
+
+  return {
+    role: "default",
+    hero: {
+      eyebrow: "Workspace dashboard",
+      title: "Your dashboard is ready",
+      description:
+        "This account does not map to a specialized role dashboard yet, so the home page stays focused on safe defaults and the next obvious workspace actions.",
+      actions: [
+        { label: "Open documents", href: "/documents", variant: "primary" },
+        ...documentBuilderHeroActions(data),
+        { label: "Search records", href: "/search", variant: "secondary" },
+      ],
+    },
+    banner: banner(data),
+    blocks: buildBlocks({
+      graphs: dashboardGraphs(data),
+      metrics: [
+        metric("Needs attention now", `${pendingCount}`, "Documents currently waiting in review.", "attention"),
+        metric(
+          "Overdue / risky",
+          `${data.workspaceSummary.observations.filter(overdue).length}`,
+          "Overdue corrective-action items visible to this account."
+        ),
+        metric(
+          "Next action",
+          data.documents.length > 0 ? "Open documents" : "Update profile",
+          "Best next step based on what is currently available."
+        ),
+        metric("Recent activity", `${data.documents.length}`, "Visible records in the current workspace."),
+      ],
+      priorityQueue: feedSection(
+        "What needs attention now",
+        "Safe defaults for accounts without a dedicated role-based dashboard.",
+        recentDocuments.filter((item) => item.tone !== "success").slice(0, 5),
+        {
+          title: "Nothing urgent in view",
+          description: "This default dashboard will surface priority items here when records need attention.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      nextActions: actionSection(
+        "What should this user do next",
+        "Open the most useful baseline workspace tools without assuming company-wide access.",
+        [
+          {
+            title: "Open documents",
+            description: "Review completed or approved records available to this account.",
+            href: "/documents",
+            actionLabel: "Open documents",
+            tone: "attention",
+          },
+          {
+            title: "Search records",
+            description: "Find files, records, and pages without navigating the full menu.",
+            href: "/search",
+            actionLabel: "Open search",
+          },
+          {
+            title: "Update profile",
+            description: "Keep your construction profile and role details current.",
+            href: "/profile",
+            actionLabel: "Open profile",
+          },
+        ],
+        {
+          title: "No actions yet",
+          description: "Baseline actions will appear here.",
+        }
+      ),
+      recentActivity: feedSection(
+        "Recent activity",
+        "Latest records visible to this account.",
+        recentDocuments,
+        {
+          title: "No recent activity",
+          description: "Activity will appear here after your first workspace records are created or approved.",
+          actionHref: "/profile",
+          actionLabel: "Open profile",
+        }
+      ),
+      recentDocuments: feedSection(
+        "Recent documents",
+        "Recent documents that are visible to this account.",
+        recentDocuments,
+        {
+          title: "No recent documents",
+          description: "Documents will appear here after your first record is created or shared with you.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      recentReports: feedSection(
+        "Recent reports",
+        "Recent reports and generated submission signals available to this account.",
+        recentReports,
+        {
+          title: "No recent reports",
+          description: "Report signals will appear here when they become available.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      riskRanking: summarySection(
+        "Workspace snapshot",
+        "Simple counts and access-safe signals for this account.",
+        [
+          {
+            id: "approved-docs",
+            label: "Completed documents",
+            value: `${approvedCount}`,
+            note: "Approved files currently visible in your workspace.",
+            href: "/documents",
+            tone: "success",
+          },
+          {
+            id: "in-review-docs",
+            label: "Documents in review",
+            value: `${pendingCount}`,
+            note: "Files still in the review workflow.",
+            href: "/documents",
+            tone: "warning",
+          },
+          ...genericRiskItems(data, "/search").slice(0, 1),
+        ],
+        {
+          title: "Workspace snapshot",
+          description: "Simple workspace insights will appear here.",
+        }
+      ),
+      hazardTrends: summarySection(
+        "Hazard trends",
+        "Access-safe hazard and risk trend signals available to this account.",
+        hazardItems(data, "/search").length > 0
+          ? hazardItems(data, "/search")
+          : genericRiskItems(data, "/search"),
+        {
+          title: "No hazard trends yet",
+          description: "Hazard and risk trend signals will appear here when analytics data is available.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      supportSignals: summarySection(
+        "Support and access",
+        "Helpful baseline context for what this account can do next.",
+        [
+          {
+            id: "library-access",
+            label: "Completed records",
+            value: `${approvedCount}`,
+            note: "Approved and completed records available in your library.",
+            href: "/documents",
+            tone: "info",
+          },
+          {
+            id: "search",
+            label: "Searchable files",
+            value: `${data.documents.length}`,
+            note: "Documents currently available for search and lookup.",
+            href: "/search",
+            tone: "success",
+          },
+        ],
+        {
+          title: "Support and access",
+          description: "Support indicators will appear here when data is available.",
+        }
+      ),
+      companyAccess: summarySection(
+        "Company access",
+        "Account-safe access context and profile indicators.",
+        accessItems(data, "default"),
+        {
+          title: "Company access",
+          description: "Account and access indicators will appear here when profile data is available.",
+        }
+      ),
+      trainingSignal: summarySection(
+        "Training signal",
+        "Training and readiness indicators available to this account.",
+        trainingItems(data, "default"),
+        {
+          title: "Training signal",
+          description: "Training indicators will appear when invite and profile data are available.",
+        }
+      ),
+      permitFollowups: feedSection(
+        "Permit follow-ups",
+        "Permit-related items visible to this account.",
+        risks.permitItems,
+        {
+          title: "No permit follow-ups",
+          description: "There are no visible permit follow-up items right now.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+      incidentFollowups: feedSection(
+        "Incident follow-ups",
+        "Incident items visible to this account.",
+        risks.incidentItems,
+        {
+          title: "No incident follow-ups",
+          description: "There are no visible incident follow-up items right now.",
+          actionHref: "/search",
+          actionLabel: "Search records",
+        }
+      ),
+    }),
+  };
+}

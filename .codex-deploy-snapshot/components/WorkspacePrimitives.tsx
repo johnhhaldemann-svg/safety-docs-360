@@ -1,0 +1,543 @@
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import { ArrowRight, Check, Minus } from "lucide-react";
+import { formatTitleCase } from "@/lib/formatTitleCase";
+
+/**
+ * Use on native `<select>` elements in the authenticated app so the closed control and
+ * (where the OS allows) the dropdown list match the light enterprise shell.
+ */
+export const appNativeSelectClassName =
+  "rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2 text-sm text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
+
+export const workspaceEyebrowClassName =
+  "text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--app-accent-primary)]";
+
+export const workspaceSectionEyebrowClassName =
+  "text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--app-muted)]";
+
+export const appButtonPrimaryClassName =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--app-shadow-primary-button)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-hover)] active:translate-y-0 active:bg-[var(--app-accent-primary-active)]";
+
+export const appButtonSecondaryClassName =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border-strong)] bg-white/92 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] shadow-[0_10px_18px_rgba(76,108,161,0.06)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
+
+export const appButtonQuietClassName =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--app-accent-primary)] transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-24)] hover:bg-[var(--app-accent-primary-soft)] active:translate-y-0";
+
+function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
+  if (tone === "elevated") {
+    return "border-[rgba(121,151,196,0.34)] bg-white shadow-[0_12px_28px_rgba(44,58,86,0.07)]";
+  }
+  if (tone === "attention") {
+    return "border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] shadow-[0_14px_30px_rgba(37,99,235,0.08)]";
+  }
+  return "border border-[var(--app-border)] bg-white/96 shadow-[0_10px_24px_rgba(44,58,86,0.055)]";
+}
+
+export function PageHero({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  actions?: React.ReactNode;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <section className="relative overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_58%,_rgba(232,247,239,0.86)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
+      <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_var(--semantic-success)_54%,_var(--semantic-warning)_100%)]" />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-3xl">
+          <p className={workspaceEyebrowClassName}>{eyebrow}</p>
+          <h1 className="font-app-display mt-2 max-w-4xl text-3xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-4xl">
+            {displayTitle}
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-[1.7] text-[var(--app-text)]">{description}</p>
+        </div>
+        {actions ? <div className="flex flex-wrap gap-3 lg:justify-end">{actions}</div> : null}
+      </div>
+    </section>
+  );
+}
+
+export function SectionCard({
+  eyebrow,
+  title,
+  description,
+  children,
+  aside,
+  actions,
+  tone = "panel",
+  className = "",
+  contentClassName = "",
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+  actions?: React.ReactNode;
+  tone?: "panel" | "elevated" | "attention";
+  className?: string;
+  contentClassName?: string;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <section
+      className={`relative overflow-hidden rounded-xl p-5 ${getSurfaceToneClassName(tone)} ${className}`.trim()}
+    >
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+          <h2 className="text-lg font-bold tracking-tight text-[var(--app-text-strong)]">{displayTitle}</h2>
+          {description ? <p className="mt-1 max-w-4xl text-sm leading-relaxed text-[var(--app-muted)]">{description}</p> : null}
+        </div>
+        <div className="flex flex-wrap items-start gap-3 sm:justify-end">
+          {aside}
+          {actions}
+        </div>
+      </div>
+      <div className={`relative mt-5 space-y-5 ${contentClassName}`.trim()}>{children}</div>
+    </section>
+  );
+}
+
+export function InlineMessage({
+  tone = "neutral",
+  children,
+  onRetry,
+  retryLabel = "Try again",
+}: {
+  tone?: "neutral" | "success" | "warning" | "error";
+  children: React.ReactNode;
+  onRetry?: () => void;
+  /** Shown when `onRetry` is set. */
+  retryLabel?: string;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-[rgba(46,158,91,0.24)] bg-[var(--semantic-success-bg)] text-[var(--semantic-success)]"
+      : tone === "warning"
+        ? "border-[rgba(217,164,65,0.28)] bg-[var(--semantic-warning-bg)] text-[var(--semantic-warning)]"
+        : tone === "error"
+          ? "border-[rgba(159,31,28,0.3)] bg-[var(--semantic-danger-bg)] text-[#9f1f1c]"
+          : "border-[rgba(138,150,168,0.3)] bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]";
+  const label =
+    tone === "success"
+      ? "Success"
+      : tone === "warning"
+        ? "Attention"
+        : tone === "error"
+          ? "Error"
+          : "Notice";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3.5 text-sm shadow-[0_8px_20px_rgba(76,108,161,0.06)] ${toneClass}`}>
+      <div className="flex flex-wrap items-start gap-3">
+        <span className="rounded-full border border-current/15 bg-white/55 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
+          {label}
+        </span>
+        <div className="min-w-0 flex-1 pt-0.5">{children}</div>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 rounded-lg border border-current/25 bg-white/60 px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-white/90"
+            aria-label={retryLabel}
+          >
+            {retryLabel}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function EmptyState({
+  eyebrow,
+  title,
+  description,
+  actionHref,
+  actionLabel,
+  icon: Icon = Minus,
+  className = "",
+  align = "center",
+  primaryAction,
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  description: string;
+  actionHref?: string;
+  actionLabel?: string;
+  icon?: LucideIcon;
+  className?: string;
+  align?: "center" | "left";
+  primaryAction?: { label: string; onClick: () => void };
+  children?: React.ReactNode;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+  const textAlign = align === "left" ? "text-left" : "text-center";
+  const iconBox =
+    align === "left" ? "mb-4 flex h-11 w-11" : "mx-auto mb-4 flex h-11 w-11";
+  return (
+    <div
+      className={`rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 shadow-[var(--app-shadow-soft)] ${textAlign} ${className}`.trim()}
+    >
+      <div
+        className={`${iconBox} items-center justify-center rounded-2xl border border-[var(--app-accent-surface-18)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]`}
+      >
+        <Icon aria-hidden="true" className="h-5 w-5" />
+      </div>
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+      <p className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+      {actionHref && actionLabel ? (
+        <Link
+          href={actionHref}
+          className={`mt-4 inline-flex items-center justify-center ${align === "center" ? "w-full sm:w-auto" : ""} ${appButtonPrimaryClassName}`}
+        >
+          {actionLabel}
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+      ) : null}
+      {primaryAction ? (
+        <button
+          type="button"
+          onClick={primaryAction.onClick}
+          className={`mt-4 ${appButtonPrimaryClassName} w-full sm:inline-flex sm:w-auto ${align === "center" ? "justify-center" : ""}`}
+        >
+          {primaryAction.label}
+        </button>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+export function StartChecklist({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ label: string; done: boolean }>;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="flex items-center gap-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3.5"
+          >
+            <span
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                item.done
+                  ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.2)]"
+                  : "bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]"
+              }`}
+            >
+              {item.done ? (
+                <Check aria-hidden="true" className="h-4 w-4" />
+              ) : (
+                <Minus aria-hidden="true" className="h-4 w-4" />
+              )}
+            </span>
+            <span className="text-sm font-medium text-[var(--app-text)]">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Tiny "AI" / "Rules" badge used to make Safety Intelligence surfaces
+ * self-explanatory: deterministic outputs (rules, conflicts, permit triggers)
+ * vs. LLM-generated outputs (review summaries, document drafts). Builds trust
+ * and reduces "is this number real?" support tickets — see the Trust UX item
+ * in the AI Quick Wins plan.
+ */
+export function ProvenanceBadge({
+  kind,
+  title,
+}: {
+  kind: "ai" | "rules" | "hybrid";
+  title?: string;
+}) {
+  const label = kind === "ai" ? "AI" : kind === "rules" ? "Rules" : "AI + Rules";
+  const tooltip =
+    title ??
+    (kind === "ai"
+      ? "Generated by an AI model. Review before relying on the output."
+      : kind === "rules"
+        ? "Computed by deterministic rules. Same input always produces the same output."
+        : "Combines deterministic rules with AI summarization.");
+  const toneClass =
+    kind === "ai"
+      ? "bg-[var(--app-accent-surface-12)] text-[var(--app-accent-primary)] ring-1 ring-[var(--app-accent-border-22)]"
+      : kind === "rules"
+        ? "bg-[#d8f1e2] text-[#247c49] ring-1 ring-[rgba(46,158,91,0.24)]"
+        : "bg-[#e8e2ff] text-[#5a3fb8] ring-1 ring-[rgba(106,77,210,0.24)]";
+  return (
+    <span
+      title={tooltip}
+      aria-label={tooltip}
+      className={`inline-flex min-h-[1.375rem] items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em] leading-none ${toneClass}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+export function StatusBadge({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "success" | "warning" | "error" | "info";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "bg-[#d8f1e2] text-[#1f6b3f] ring-1 ring-[rgba(46,158,91,0.24)]"
+      : tone === "warning"
+        ? "bg-[#fdeabf] text-[#7a4f00] ring-1 ring-[rgba(217,164,65,0.24)]"
+        : tone === "error"
+          ? "bg-[#fad9d8] text-[#b94440] ring-1 ring-[rgba(217,83,79,0.24)]"
+          : tone === "info"
+            ? "bg-[#d8e6ff] text-[#325fda] ring-1 ring-[var(--app-accent-border-22)]"
+            : "bg-[#e7edf5] text-[#475569] ring-1 ring-[rgba(138,150,168,0.18)]";
+
+  return (
+    <span
+      className={`inline-flex min-h-[1.625rem] items-center justify-center rounded-full px-3.5 py-1.5 text-center text-xs font-semibold leading-none ${toneClass}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+export function ActivityFeed({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description?: string;
+  items: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    meta: string;
+    tone?: "neutral" | "success" | "warning" | "error" | "info";
+  }>;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
+      {description ? (
+        <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+      ) : null}
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="relative overflow-hidden rounded-xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.72)_0%,_var(--app-panel)_100%)] px-4 py-4.5 shadow-[0_8px_18px_rgba(76,108,161,0.05)]"
+          >
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-55" />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[var(--app-text-strong)]">
+                  {formatTitleCase(item.title) || item.title}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.detail}</p>
+              </div>
+              <StatusBadge label={item.meta} tone={item.tone ?? "neutral"} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function WorkflowPath({
+  title,
+  description,
+  steps,
+}: {
+  title: string;
+  description?: string;
+  steps: Array<{
+    label: string;
+    detail: string;
+    active?: boolean;
+    complete?: boolean;
+  }>;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+      <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
+      {description ? (
+        <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+      ) : null}
+      <div className="mt-4 grid gap-3">
+        {steps.map((step, index) => {
+          const toneClass = step.complete
+            ? "border-[rgba(46,158,91,0.2)] bg-[var(--semantic-success-bg)]"
+            : step.active
+              ? "border-[var(--app-accent-border-20)] bg-[var(--semantic-info-bg)]"
+              : "border-[var(--app-border)] bg-[var(--app-panel)]";
+          const badgeClass = step.complete
+            ? "bg-[var(--semantic-success-bg)] text-[var(--semantic-success)] ring-1 ring-[rgba(46,158,91,0.2)]"
+            : step.active
+              ? "bg-[var(--semantic-info-bg)] text-[var(--semantic-info)] ring-1 ring-[var(--app-accent-border-20)]"
+              : "bg-[var(--semantic-neutral-bg)] text-[var(--semantic-neutral)]";
+
+          return (
+            <div
+              key={step.label}
+              className={`rounded-xl border px-4 py-4 ${toneClass}`}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${badgeClass}`}
+                >
+                  {step.complete ? "OK" : index + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[var(--app-text-strong)]">{step.label}</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{step.detail}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function MetricTile({
+  eyebrow,
+  title,
+  value,
+  detail,
+  tone = "panel",
+}: {
+  eyebrow?: string;
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "panel" | "elevated" | "attention";
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl p-4 ${getSurfaceToneClassName(tone)}`}>
+      <span className="absolute right-4 top-4 h-10 w-10 rounded-2xl border border-[var(--app-accent-surface-14)] bg-[var(--app-accent-primary-soft)]" aria-hidden="true" />
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+      <p className="mt-1 text-sm font-medium text-[var(--app-text-strong)]">{displayTitle}</p>
+      <p className="mt-3 max-w-[80%] text-2xl font-bold tracking-tight text-[var(--app-text-strong)]">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{detail}</p>
+    </div>
+  );
+}
+
+export function ActionTile({
+  eyebrow,
+  title,
+  description,
+  href,
+  actionLabel,
+  tone = "panel",
+}: {
+  eyebrow?: string;
+  title: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+  tone?: "panel" | "elevated" | "attention";
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <Link href={href} className={`group relative block overflow-hidden rounded-2xl p-4 transition hover:-translate-y-0.5 ${getSurfaceToneClassName(tone)}`}>
+      <span className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-65" />
+      {eyebrow ? <p className={workspaceSectionEyebrowClassName}>{eyebrow}</p> : null}
+      <div className="mt-1 flex items-start justify-between gap-3">
+        <p className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</p>
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--app-border)] bg-white/80 text-[var(--app-accent-primary)] transition group-hover:translate-x-0.5">
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">{actionLabel}</p>
+    </Link>
+  );
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+export function WorkspaceScopedNav({
+  eyebrow,
+  title,
+  tabs,
+  sticky = false,
+}: {
+  eyebrow: string;
+  title: string;
+  tabs: Array<{ href: string; label: string }>;
+  sticky?: boolean;
+}) {
+  const displayTitle = formatTitleCase(title) || title;
+
+  return (
+    <div
+      className={cx(
+        "rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] p-4 shadow-[var(--app-shadow-soft)]",
+        sticky && "sticky top-0 z-20 backdrop-blur-md"
+      )}
+    >
+      <div className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
+        {eyebrow}
+      </div>
+      <div className="mt-2 text-xl font-semibold tracking-tight text-[var(--app-text-strong)]">
+        {displayTitle}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <div className="inline-flex min-w-max gap-2">
+          {tabs.map((tab) => {
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={cx(
+                  "flex items-center rounded-2xl border px-4 py-3 text-sm font-semibold whitespace-nowrap transition",
+                  "border-transparent bg-white/72 text-[var(--app-text)] hover:bg-white/90 hover:text-[var(--app-text-strong)]"
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,116 @@
+{
+  "name": "safety_docs_360",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.cjs",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run --configLoader native --pool=threads",
+    "test:navigation": "vitest run --configLoader native --pool=threads lib/appNavigationIntegrity.test.ts",
+    "test:links": "vitest run --configLoader native --pool=threads lib/brokenLinkChecker.test.ts",
+    "test:inductions": "vitest run --configLoader native --pool=threads app/api/company/inductions lib/inductions/evaluateAccess.test.ts",
+    "test:ai-eval": "vitest run --configLoader native --pool=threads --config vitest.config.ai-eval.ts",
+    "ai:release-gate": "node scripts/ai-release-gate.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report playwright-report",
+    "test:e2e:ci": "npm run build && playwright test",
+    "test:e2e:smoke": "playwright test tests/smoke.spec.ts --project=chromium",
+    "test:e2e:beta": "playwright test tests/beta-exit.spec.ts --project=chromium",
+    "verify:release": "npm run lint && npm run test && npm run test:navigation && npm run test:links && node ./node_modules/typescript/bin/tsc --noEmit && npx playwright test tests/adoption.spec.ts --project=chromium",
+    "stress:platform": "node scripts/stress-platform.mjs",
+    "seed:csep-test": "node ./scripts/seed-csep-test-user.mjs",
+    "seed:pilot-company": "node ./scripts/seed-pilot-company.mjs",
+    "seed:beta-exit": "node ./scripts/seed-beta-exit-workspace.mjs",
+    "pack:offline-demo": "node ./scripts/write-offline-demo-pack.mjs",
+    "build:bls-rates": "node ./scripts/build-bls-state-construction-rates.mjs",
+    "streamlit:osha": "node ./scripts/run-osha-streamlit.mjs",
+    "streamlit:osha:install": "node ./scripts/install-osha-streamlit-deps.mjs",
+    "streamlit:osha:demo-data": "node ./scripts/run-demo-ipa-generator.mjs",
+    "desktop:build:web": "cross-env OFFLINE_DESKTOP=1 NEXT_PUBLIC_OFFLINE_DESKTOP=1 next build && node ./scripts/sync-next-standalone-assets.mjs",
+    "desktop:clean": "node ./scripts/clean-dist-desktop.mjs",
+    "desktop:build": "node ./scripts/clean-dist-desktop.mjs && npm run desktop:build:web && electron-builder --win nsis",
+    "desktop:build:handoff": "npm run desktop:build && node ./scripts/copy-desktop-installer-to-demo-pack.mjs && node ./scripts/write-offline-demo-pack.mjs",
+    "desktop:dev": "cross-env OFFLINE_DESKTOP=1 NEXT_PUBLIC_OFFLINE_DESKTOP=1 electron .",
+    "supabase": "supabase",
+    "db:push": "supabase db push --yes",
+    "db:push:env": "node scripts/supabase-db-push-from-env.mjs",
+    "db:scaffold-url": "node scripts/scaffold-database-url.mjs",
+    "db:try-pooler": "node scripts/try-supabase-pooler-push.mjs",
+    "vercel:prod": "npx --yes vercel@latest deploy --prod",
+    "vercel:preview": "npx --yes vercel@latest deploy",
+    "vercel:env:push-service-role": "node scripts/push-supabase-service-role-to-vercel.mjs",
+    "vercel:env:sync-cron": "node scripts/vercel-env-sync-from-local.mjs"
+  },
+  "dependencies": {
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.104.1",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "docx": "^9.6.0",
+    "lucide-react": "^1.7.0",
+    "mammoth": "^1.12.0",
+    "next": "^16.2.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "recharts": "^3.8.1",
+    "sharp": "^0.34.5",
+    "sonner": "^2.0.7",
+    "stripe": "^17.7.0",
+    "three": "^0.184.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@playwright/test": "^1.52.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.184.1",
+    "cross-env": "^10.1.0",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9",
+    "eslint-config-next": "^16.2.1",
+    "supabase": "^2.95.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^4.1.2"
+  },
+  "build": {
+    "appId": "com.safety360.docs.offline",
+    "productName": "SafetyDocs360 Offline Demo",
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "asarUnpack": [
+      ".next/standalone/**/*"
+    ],
+    "directories": {
+      "output": "dist-electron-out"
+    },
+    "artifactName": "SafetyDocs360-Offline-Demo-Setup-${version}.${ext}",
+    "win": {
+      "signAndEditExecutable": false,
+      "target": "nsis"
+    }
+  }
+}

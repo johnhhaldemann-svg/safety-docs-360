@@ -1,0 +1,33 @@
+"use client";
+
+import { CompanyAdminDashboard } from "@/components/dashboard/company-admin-dashboard";
+import { DashboardPageSkeleton } from "@/components/dashboard/DashboardPageSkeleton";
+import { DefaultDashboard } from "@/components/dashboard/default-dashboard";
+import { FieldSupervisorDashboard } from "@/components/dashboard/field-supervisor-dashboard";
+import { FieldUserDashboard } from "@/components/dashboard/field-user-dashboard";
+import { SafetyManagerDashboard } from "@/components/dashboard/safety-manager-dashboard";
+import type { DashboardDataState } from "@/components/dashboard/types";
+import { resolveDashboardRole } from "@/lib/dashboardRole";
+
+export function RoleDashboardResolver({ data }: { data: DashboardDataState }) {
+  if (data.loading) {
+    return <DashboardPageSkeleton />;
+  }
+
+  const dashboardRole = resolveDashboardRole(data.userRole);
+
+  if (dashboardRole === "company_admin") {
+    return <CompanyAdminDashboard data={data} />;
+  }
+  if (dashboardRole === "safety_manager") {
+    return <SafetyManagerDashboard data={data} />;
+  }
+  if (dashboardRole === "field_supervisor") {
+    return <FieldSupervisorDashboard data={data} />;
+  }
+  if (dashboardRole === "field_user") {
+    return <FieldUserDashboard data={data} />;
+  }
+
+  return <DefaultDashboard data={data} />;
+}

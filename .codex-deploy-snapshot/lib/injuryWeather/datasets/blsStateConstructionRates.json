@@ -1,0 +1,1155 @@
+{
+  "meta": {
+    "source": "BLS state SOII injury/illness rates (Construction_Quick_View)",
+    "sourceWorkbook": "best_effort_state_trade_injury_rates.xlsx",
+    "sheet": "Construction_Quick_View",
+    "generatedAt": "2026-04-03T13:58:28.988Z",
+    "coveredStates": [
+      "AL",
+      "TX",
+      "WI"
+    ],
+    "rowCount": 127
+  },
+  "rows": [
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.2,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 0.8,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 0.8,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 0.8,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 0.5,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 0.5,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 0.9,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "AL",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 0.9,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.1,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.7,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.7,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 2.7,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Electrical contractors and other wiring installation contractors",
+      "naics": "23821",
+      "trc": 0.5,
+      "dart": 0.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 2.5,
+      "dart": 1.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 2.8,
+      "dart": 1.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 2,
+      "dart": 1.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 0.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Plumbing, heating, and air-conditioning contractors",
+      "naics": "23822",
+      "trc": 1.3,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 1,
+      "dart": 0.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "AL",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 3.2,
+      "dart": 2.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 2.5,
+      "dart": 2.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.4,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.4,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Electrical contractors and other wiring installation contractors",
+      "naics": "23821",
+      "trc": 0.7,
+      "dart": 0.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 0.9,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 1.6,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 0.6,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 1.1,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Plumbing, heating, and air-conditioning contractors",
+      "naics": "23822",
+      "trc": 4.4,
+      "dart": 4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "AL",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 1.9,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-alabama.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "All other specialty trade contractors",
+      "naics": "23899",
+      "trc": 1.1,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.6,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 1.4,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.3,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.3,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 0.9,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Drywall and insulation contractors",
+      "naics": "23831",
+      "trc": 1,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Electrical contractors and other wiring installation contractors",
+      "naics": "23821",
+      "trc": 1.2,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 2.1,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 1,
+      "dart": 0.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 1.2,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 1.2,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Oil and gas pipeline and related structures construction",
+      "naics": "23712",
+      "trc": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 0.9,
+      "dart": 0.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Plumbing, heating, and air-conditioning contractors",
+      "naics": "23822",
+      "trc": 1.7,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Power and communication line and related structures construction",
+      "naics": "23713",
+      "trc": 1.3,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Roofing contractors",
+      "naics": "23816",
+      "trc": 1.7,
+      "dart": 1.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Site preparation contractors",
+      "naics": "23891",
+      "trc": 0.6,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 1.5,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 1,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "TX",
+      "ind": "Water and sewer line and related structures construction",
+      "naics": "23711",
+      "trc": 1.5,
+      "dart": 0.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.7,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 1.2,
+      "dart": 0.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.2,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.2,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 0.6,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Electrical contractors and other wiring installation contractors",
+      "naics": "23821",
+      "trc": 1.6,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 1.7,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 1,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 2.2,
+      "dart": 2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Masonry contractors",
+      "naics": "23814",
+      "trc": 1.3,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 0.8,
+      "dart": 0.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Oil and gas pipeline and related structures construction",
+      "naics": "23712",
+      "trc": 0.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Plumbing, heating, and air-conditioning contractors",
+      "naics": "23822",
+      "trc": 1.8,
+      "dart": 1.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Poured concrete foundation and structure contractors",
+      "naics": "23811",
+      "trc": 2.3,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Power and communication line and related structures construction",
+      "naics": "23713",
+      "trc": 0.7,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Residential building construction",
+      "naics": "2361",
+      "trc": 0.3,
+      "dart": 0.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 1.4,
+      "dart": 1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Structural steel and precast concrete contractors",
+      "naics": "23812",
+      "trc": 0.8,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 0.7,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "TX",
+      "ind": "Water and sewer line and related structures construction",
+      "naics": "23711",
+      "trc": 1.5,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.7,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 1.3,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.3,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 1.3,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 0.8,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Drywall and insulation contractors",
+      "naics": "23831",
+      "trc": 1.8,
+      "dart": 1.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Electrical contractors and other wiring installation contractors",
+      "naics": "23821",
+      "trc": 1.7,
+      "dart": 1.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Finish carpentry contractors",
+      "naics": "23835",
+      "trc": 3.5,
+      "dart": 1.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 1.8,
+      "dart": 1.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 1.3,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Highway, street, and bridge construction",
+      "naics": "2373",
+      "trc": 1.8,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Masonry contractors",
+      "naics": "23814",
+      "trc": 2,
+      "dart": 1.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 1,
+      "dart": 0.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Oil and gas pipeline and related structures construction",
+      "naics": "23712",
+      "trc": 0.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Other heavy and civil engineering construction",
+      "naics": "2379",
+      "trc": 0.6,
+      "dart": 0.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 1.1,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Plumbing, heating, and air-conditioning contractors",
+      "naics": "23822",
+      "trc": 1.9,
+      "dart": 1.2,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Poured concrete foundation and structure contractors",
+      "naics": "23811",
+      "trc": 2.1,
+      "dart": 1.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Residential building construction",
+      "naics": "2361",
+      "trc": 0.6,
+      "dart": 0.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Site preparation contractors",
+      "naics": "23891",
+      "trc": 1.2,
+      "dart": 0.9,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 1.6,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Structural steel and precast concrete contractors",
+      "naics": "23812",
+      "trc": 4,
+      "dart": 3.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 1.2,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "TX",
+      "ind": "Water and sewer line and related structures construction",
+      "naics": "23711",
+      "trc": 2,
+      "dart": 1.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-texas.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 3.2,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 3.6,
+      "dart": 1.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3.6,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3.6,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 3.5,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 4,
+      "dart": 2.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 2.8,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 2.5,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 3.9,
+      "dart": 1.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2024,
+      "sc": "WI",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 3.4,
+      "dart": 1.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2024-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 2.5,
+      "dart": 1.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 5.3,
+      "dart": 2.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3,
+      "dart": 1.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3,
+      "dart": 1.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 4.5,
+      "dart": 2.3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 2.6,
+      "dart": 1.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 1.4,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 2.9,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 1.6,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Residential building construction",
+      "naics": "2361",
+      "trc": 6.5,
+      "dart": 3.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2023,
+      "sc": "WI",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 2.8,
+      "dart": 1.5,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2023-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Building equipment contractors",
+      "naics": "2382",
+      "trc": 1.9,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Building finishing contractors",
+      "naics": "2383",
+      "trc": 6.6,
+      "dart": 4.4,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3.2,
+      "dart": 1.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Construction",
+      "naics": "23",
+      "trc": 3.2,
+      "dart": 1.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Construction of buildings",
+      "naics": "236",
+      "trc": 3.7,
+      "dart": 2.1,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Foundation, structure, and building exterior contractors",
+      "naics": "2381",
+      "trc": 4.8,
+      "dart": 3,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Heavy and civil engineering construction",
+      "naics": "237",
+      "trc": 3.1,
+      "dart": 1.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Nonresidential building construction",
+      "naics": "2362",
+      "trc": 3.5,
+      "dart": 1.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Other specialty trade contractors",
+      "naics": "2389",
+      "trc": 1.1,
+      "dart": 0.6,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Specialty trade contractors",
+      "naics": "238",
+      "trc": 3,
+      "dart": 1.7,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    },
+    {
+      "y": 2022,
+      "sc": "WI",
+      "ind": "Utility system construction",
+      "naics": "2371",
+      "trc": 1.9,
+      "dart": 0.8,
+      "url": "https://www.bls.gov/iif/state-data/table-1-injury-and-illness-rates-by-industry-2022-wisconsin.xlsx"
+    }
+  ]
+}

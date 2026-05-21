@@ -1,0 +1,37 @@
+{
+  "name": "confined-space-mid-band-rollup",
+  "surface": "risk-memory.llm-recommendations",
+  "notes": "Mid-severity rollup focused on confined-space and electrical hazards. Drafts should at least mention permit-required confined space themes.",
+  "input": {
+    "engine": "Safety360 Risk Memory Engine",
+    "windowDays": 60,
+    "facetCount": 18,
+    "topScopes": [
+      { "code": "mechanical_piping", "count": 7 },
+      { "code": "electrical", "count": 6 },
+      { "code": "demolition", "count": 3 }
+    ],
+    "topHazards": [
+      { "code": "permit_required_confined_space", "count": 8 },
+      { "code": "electrical_shock", "count": 5 },
+      { "code": "atmosphere_hazard", "count": 3 }
+    ],
+    "topLocationGrids": [],
+    "topLocationAreas": [
+      { "label": "mechanical room", "count": 5 },
+      { "label": "vault", "count": 3 }
+    ],
+    "openCorrectiveFacetHints": { "openStyleStatuses": 4 },
+    "aggregated": { "score": 7.4, "band": "moderate", "sampleSize": 18, "baselineContribution": 0.6 },
+    "baselineHints": [
+      { "scope_code": "mechanical_piping", "hazard_code": "permit_required_confined_space", "signals": {} }
+    ],
+    "aggregatedWithBaseline": { "score": 8.0, "band": "moderate" },
+    "derivedRollupConfidence": 0.55
+  },
+  "assertions": {
+    "mustContain": ["confined"],
+    "mustNotContain": ["as an ai"],
+    "schemaShape": ["drafts[]"]
+  }
+}

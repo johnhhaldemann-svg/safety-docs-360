@@ -1,0 +1,119 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { JOBSITE_NAV_PHASES } from "@/lib/jobsiteWorkspaceNav";
+import { WORKSPACE_NAV_GROUP_ORDER } from "@/lib/workspaceNavigationModel";
+
+const REPO_ROOT = join(import.meta.dirname, "..");
+
+describe("Reorganized tab strips (release contracts)", () => {
+  it("jobsite workspace nav collapses to five parent phases", () => {
+    expect(JOBSITE_NAV_PHASES.map((p) => p.label)).toEqual([
+      "Overview",
+      "Field work",
+      "Compliance",
+      "Documents",
+      "Insights",
+    ]);
+  });
+
+  it("workspace sidebar uses seven ordered groups", () => {
+    expect([...WORKSPACE_NAV_GROUP_ORDER]).toEqual([
+      "today",
+      "audits",
+      "documents",
+      "fieldSites",
+      "programs",
+      "insights",
+      "account",
+    ]);
+  });
+
+  it("CSEP builder defines the current guided workflow steps", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/csep/page.tsx"), "utf8");
+    for (const title of [
+      "Trade selection",
+      "Sub-trade",
+      "Select sections",
+      "Selectable tasks",
+      "Intelligence enrichment",
+      "Task-driven sections",
+      "Draft review",
+      "Submit document",
+    ] as const) {
+      expect(src, `missing phase "${title}"`).toContain(`title: "${title}"`);
+    }
+  });
+
+  it("PSHSEP builder defines four phase categories", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/peshep/page.tsx"), "utf8");
+    for (const title of ["Setup", "Scope", "Build", "Review & Submit"] as const) {
+      expect(src, `missing phase "${title}"`).toContain(`title: "${title}"`);
+    }
+  });
+
+  it("analytics page defines four primary tab ids", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/analytics/page.tsx"), "utf8");
+    expect(src).toContain('const ANALYTICS_TAB_IDS = ["overview", "observations", "inspections", "risk"]');
+  });
+
+  it("command center hub uses five URL-synced tabs with legacy risk support", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/command-center/CommandCenterWorkspace.tsx"), "utf8");
+    expect(src).toContain('const COMMAND_CENTER_HUB_TABS = ["overview", "risk-memory", "predictive-risk", "insights", "open-work"]');
+    expect(src).toContain('const COMMAND_CENTER_URL_TABS = [...COMMAND_CENTER_HUB_TABS, "risk"]');
+    expect(src).toContain('rawHubTab === "risk" ? "risk-memory"');
+    expect(src).toContain("AppTabBar");
+    expect(src).toContain("useUrlTabState");
+    expect(src).toContain("PredictiveModelView");
+  });
+
+  it("documents workspace exposes three primary tabs via AppTabBar", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/documents/documents-page-client.tsx"), "utf8");
+    expect(src).toContain('const LIBRARY_PRIMARY_TABS = ["documents", "templates", "marketplace"]');
+    expect(src).toContain("<AppTabBar");
+  });
+
+  it("Safety Intelligence workflow lists four main stages", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyIntelligenceWorkflow.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).toContain('value: "intake"');
+    expect(src).toContain('value: "rules"');
+    expect(src).toContain('value: "generate"');
+    expect(src).toContain('value: "review"');
+  });
+
+  it("JSA workspace lists four top-level tabs", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/jsa/JsaWorkspace.tsx"), "utf8");
+    expect(src).toContain('["setup", "Setup"]');
+    expect(src).toContain('["hazards", "Hazards"]');
+    expect(src).toContain('["ppe", "PPE & Permits"]');
+    expect(src).toContain('["signoff", "Sign-off"]');
+  });
+
+  it("Safety review panel keeps three review modes", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyReviewPanel.tsx"), "utf8");
+    expect(src).toContain('"gaps"');
+    expect(src).toContain('"permits"');
+    expect(src).toContain('"training_ppe"');
+    expect(src).toContain("Training & PPE");
+  });
+
+  it("admin jobsite audits Excel section uses segmented buttons not nested Radix tabs", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/admin/jobsite-audits/page.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).toContain("excelWorkbook");
+    expect(src).not.toMatch(/<Tabs\.Root[^>]*defaultValue="hs"/);
+  });
+
+  it("field audit workspace uses the shared app tab bar", () => {
+    const src = readFileSync(join(REPO_ROOT, "app/(app)/field-audits/page.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).not.toContain("@radix-ui/react-tabs");
+  });
+
+  it("Safety review panel uses the shared app tab bar", () => {
+    const src = readFileSync(join(REPO_ROOT, "components/safety-intelligence/SafetyReviewPanel.tsx"), "utf8");
+    expect(src).toContain("<AppTabBar");
+    expect(src).not.toContain("@radix-ui/react-tabs");
+  });
+});

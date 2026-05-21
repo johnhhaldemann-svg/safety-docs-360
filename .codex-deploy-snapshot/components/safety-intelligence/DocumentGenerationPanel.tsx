@@ -1,0 +1,122 @@
+"use client";
+
+import { useState } from "react";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
+import type { GeneratedDocumentPayload } from "@/components/safety-intelligence/types";
+import {
+  InlineMessage,
+  ProvenanceBadge,
+  StatusBadge,
+  appButtonPrimaryClassName,
+  appNativeSelectClassName,
+} from "@/components/WorkspacePrimitives";
+
+export function DocumentGenerationPanel({
+  onGenerate,
+  generated,
+  canGenerate = true,
+}: {
+  onGenerate: (documentType: string) => Promise<void> | void;
+  generated: GeneratedDocumentPayload | null;
+  canGenerate?: boolean;
+}) {
+  const [documentType, setDocumentType] = useState("jsa");
+  const [working, setWorking] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {!canGenerate ? (
+        <InlineMessage tone="warning">
+          Complete intake first so the draft is tied to a reviewed work package and the current rule context.
+        </InlineMessage>
+      ) : null}
+
+      <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <label className="grid gap-1.5 text-xs font-semibold text-[var(--app-text-strong)]">
+          Document type
+          <select
+            value={documentType}
+            onChange={(event) => setDocumentType(event.target.value)}
+            className={appNativeSelectClassName}
+          >
+            <option value="jsa">JSA</option>
+            <option value="csep">CSEP</option>
+            <option value="peshep">PESHEP</option>
+            <option value="pshsep">PSHSEP</option>
+            <option value="permit">Permit</option>
+            <option value="sop">SOP</option>
+            <option value="work_plan">Work plan</option>
+            <option value="safety_narrative">Safety narrative</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={working || !canGenerate}
+          onClick={async () => {
+            setWorking(true);
+            try {
+              await onGenerate(documentType);
+            } finally {
+              setWorking(false);
+            }
+          }}
+          className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+        >
+            {working ? "Creating..." : "Create draft"}
+        </button>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-[var(--app-text)]">
+          Drafts use the latest intake plus deterministic rule and conflict outputs from this workflow.
+        </p>
+      </div>
+
+      {generated ? (
+        <div className="grid gap-3 rounded-2xl border border-[var(--app-border-strong)] bg-white/92 p-4 shadow-[var(--app-shadow-soft)]">
+          <div>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-text)]">
+                  Draft preview
+                </p>
+                <h3 className="mt-1 text-base font-bold leading-tight text-[var(--app-text-strong)]">
+                  {generated.document.title}
+                </h3>
+              </div>
+              <ProvenanceBadge
+                kind="ai"
+              title="This draft was prepared with AI assistance from the deterministic rules + conflict context above. Review before sending to the field."
+              />
+            </div>
+            <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">{generated.risk.summary}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusBadge label={`${generated.document.sections.length} sections`} tone="info" />
+              <StatusBadge label="Needs review" tone="warning" />
+            </div>
+          </div>
+          {generated.document.sections.slice(0, 3).map((section) => (
+            <div key={section.heading} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-text)]">{section.heading}</p>
+              <p className="mt-1.5 text-xs leading-5 text-[var(--app-text-strong)]">{section.body}</p>
+            </div>
+          ))}
+          {generated.document.sections.length > 3 ? (
+            <p className="text-xs font-semibold text-[var(--app-muted)]">
+              {generated.document.sections.length - 3} additional section
+              {generated.document.sections.length - 3 === 1 ? "" : "s"} will appear in the full draft.
+            </p>
+          ) : null}
+          <AiFeedbackControls
+            surface="safety-intelligence.document"
+            sourceId={generated.aiReviewId ?? generated.document.title}
+            metadata={{
+              workflowStep: "safety_intelligence_document_generation",
+              documentType,
+            }}
+            className="border-t border-[var(--app-border)] pt-3"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

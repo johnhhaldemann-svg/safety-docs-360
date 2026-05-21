@@ -37,6 +37,7 @@ vi.mock("@/components/safe-predict/SafePredictDataProvider", async () => {
       advanceActionStatus: vi.fn(),
       addDraftAction: vi.fn((input) => ({ id: "draft-action", ...input, status: "New", progress: 0 })),
       addDraftHazard: vi.fn(),
+      addDraftIncident: vi.fn(),
       addDraftPermit: vi.fn(),
       addDraftJobsite: vi.fn(),
     }),
@@ -62,5 +63,12 @@ describe("SafePredictNativeWorkspace analytics", () => {
     expect(html).toContain("Document Control Register");
     expect(html).toContain("North Pier JSA");
     expect(html).toContain("/safe-predict/documents");
+  });
+
+  it("opens incident logging from the native workspace instead of linking back to itself", () => {
+    const html = renderToStaticMarkup(<SafePredictNativeWorkspace workspace="incidents" />);
+
+    expect(html).toContain("Log Incident");
+    expect(html).not.toContain('href="/safe-predict/incidents"');
   });
 });

@@ -1,0 +1,620 @@
+create table if not exists public.platform_jurisdictions (
+  code text primary key,
+  state_code text null,
+  display_name text not null,
+  plan_type text not null check (plan_type in ('federal_osha', 'state_plan')),
+  covers_private_sector boolean not null default true,
+  source_url text not null,
+  source_title text not null,
+  source_authority text not null,
+  effective_date date null,
+  last_reviewed_date date not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid null references auth.users(id) on delete set null
+);
+
+create unique index if not exists platform_jurisdictions_state_code_uidx
+  on public.platform_jurisdictions (state_code)
+  where state_code is not null;
+
+create table if not exists public.platform_jurisdiction_standards (
+  id text primary key,
+  jurisdiction_code text not null references public.platform_jurisdictions(code) on delete cascade,
+  surface_scope text not null check (surface_scope in ('csep', 'peshep', 'both')),
+  standard_type text not null check (
+    standard_type in (
+      'osha_ref',
+      'program_requirement',
+      'permit_requirement',
+      'training_requirement',
+      'builder_prompt_delta',
+      'admin_review_note'
+    )
+  ),
+  title text not null,
+  summary text not null,
+  applicability jsonb not null default '{}'::jsonb,
+  content jsonb not null default '{}'::jsonb,
+  source_url text not null,
+  source_title text not null,
+  source_authority text not null,
+  effective_date date null,
+  last_reviewed_date date not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid null references auth.users(id) on delete set null
+);
+
+create index if not exists platform_jurisdiction_standards_lookup_idx
+  on public.platform_jurisdiction_standards (jurisdiction_code, surface_scope);
+
+create table if not exists public.platform_jurisdiction_standard_mappings (
+  id text primary key,
+  standard_id text not null references public.platform_jurisdiction_standards(id) on delete cascade,
+  mapping_type text not null check (
+    mapping_type in ('program_item', 'pshsep_catalog', 'section_key', 'checklist_field')
+  ),
+  mapping_key text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid null references auth.users(id) on delete set null
+);
+
+create index if not exists platform_jurisdiction_standard_mappings_standard_idx
+  on public.platform_jurisdiction_standard_mappings (standard_id);
+
+create table if not exists public.platform_jurisdiction_standard_overrides (
+  standard_id text primary key references public.platform_jurisdiction_standards(id) on delete cascade,
+  title text null,
+  summary text null,
+  applicability jsonb not null default '{}'::jsonb,
+  content jsonb not null default '{}'::jsonb,
+  effective_date date null,
+  last_reviewed_date date null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid null references auth.users(id) on delete set null
+);
+
+drop trigger if exists set_platform_jurisdictions_updated_at on public.platform_jurisdictions;
+create trigger set_platform_jurisdictions_updated_at
+before update on public.platform_jurisdictions
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_platform_jurisdiction_standards_updated_at on public.platform_jurisdiction_standards;
+create trigger set_platform_jurisdiction_standards_updated_at
+before update on public.platform_jurisdiction_standards
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_platform_jurisdiction_standard_mappings_updated_at on public.platform_jurisdiction_standard_mappings;
+create trigger set_platform_jurisdiction_standard_mappings_updated_at
+before update on public.platform_jurisdiction_standard_mappings
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_platform_jurisdiction_standard_overrides_updated_at on public.platform_jurisdiction_standard_overrides;
+create trigger set_platform_jurisdiction_standard_overrides_updated_at
+before update on public.platform_jurisdiction_standard_overrides
+for each row execute function public.set_updated_at();
+
+alter table public.platform_jurisdictions enable row level security;
+alter table public.platform_jurisdiction_standards enable row level security;
+alter table public.platform_jurisdiction_standard_mappings enable row level security;
+alter table public.platform_jurisdiction_standard_overrides enable row level security;
+
+grant select on public.platform_jurisdictions to authenticated;
+grant select on public.platform_jurisdiction_standards to authenticated;
+grant select on public.platform_jurisdiction_standard_mappings to authenticated;
+grant select on public.platform_jurisdiction_standard_overrides to authenticated;
+
+grant select, insert, update, delete on public.platform_jurisdictions to service_role;
+grant select, insert, update, delete on public.platform_jurisdiction_standards to service_role;
+grant select, insert, update, delete on public.platform_jurisdiction_standard_mappings to service_role;
+grant select, insert, update, delete on public.platform_jurisdiction_standard_overrides to service_role;
+
+drop policy if exists platform_jurisdictions_select_all on public.platform_jurisdictions;
+create policy platform_jurisdictions_select_all on public.platform_jurisdictions
+for select to authenticated using (true);
+
+drop policy if exists platform_jurisdiction_standards_select_all on public.platform_jurisdiction_standards;
+create policy platform_jurisdiction_standards_select_all on public.platform_jurisdiction_standards
+for select to authenticated using (true);
+
+drop policy if exists platform_jurisdiction_standard_mappings_select_all on public.platform_jurisdiction_standard_mappings;
+create policy platform_jurisdiction_standard_mappings_select_all on public.platform_jurisdiction_standard_mappings
+for select to authenticated using (true);
+
+drop policy if exists platform_jurisdiction_standard_overrides_select_all on public.platform_jurisdiction_standard_overrides;
+create policy platform_jurisdiction_standard_overrides_select_all on public.platform_jurisdiction_standard_overrides
+for select to authenticated using (true);
+
+insert into public.platform_jurisdictions (
+  code,
+  state_code,
+  display_name,
+  plan_type,
+  covers_private_sector,
+  source_url,
+  source_title,
+  source_authority,
+  effective_date,
+  last_reviewed_date,
+  metadata
+)
+select
+  value->>'code',
+  nullif(value->>'stateCode', ''),
+  value->>'displayName',
+  value->>'planType',
+  coalesce((value->>'coversPrivateSector')::boolean, true),
+  value->>'sourceUrl',
+  value->>'sourceTitle',
+  value->>'sourceAuthority',
+  nullif(value->>'effectiveDate', '')::date,
+  (value->>'lastReviewedDate')::date,
+  coalesce(value->'metadata', '{}'::jsonb)
+from jsonb_array_elements(
+  $j$[
+    {
+      "code": "federal",
+      "stateCode": null,
+      "displayName": "Federal OSHA",
+      "planType": "federal_osha",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans",
+      "sourceTitle": "State Plans",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "code": "ca",
+      "stateCode": "CA",
+      "displayName": "California",
+      "planType": "state_plan",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans/ca",
+      "sourceTitle": "California State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "code": "wa",
+      "stateCode": "WA",
+      "displayName": "Washington",
+      "planType": "state_plan",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans/wa",
+      "sourceTitle": "Washington State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "code": "or",
+      "stateCode": "OR",
+      "displayName": "Oregon",
+      "planType": "state_plan",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans/or",
+      "sourceTitle": "Oregon State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "code": "mi",
+      "stateCode": "MI",
+      "displayName": "Michigan",
+      "planType": "state_plan",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans/mi",
+      "sourceTitle": "Michigan State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "code": "nc",
+      "stateCode": "NC",
+      "displayName": "North Carolina",
+      "planType": "state_plan",
+      "coversPrivateSector": true,
+      "sourceUrl": "https://www.osha.gov/stateplans/NC",
+      "sourceTitle": "North Carolina State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    }
+  ]$j$::jsonb
+) as source(value)
+on conflict (code) do update
+set
+  state_code = excluded.state_code,
+  display_name = excluded.display_name,
+  plan_type = excluded.plan_type,
+  covers_private_sector = excluded.covers_private_sector,
+  source_url = excluded.source_url,
+  source_title = excluded.source_title,
+  source_authority = excluded.source_authority,
+  effective_date = excluded.effective_date,
+  last_reviewed_date = excluded.last_reviewed_date,
+  metadata = excluded.metadata,
+  updated_at = now();
+
+insert into public.platform_jurisdiction_standards (
+  id,
+  jurisdiction_code,
+  surface_scope,
+  standard_type,
+  title,
+  summary,
+  applicability,
+  content,
+  source_url,
+  source_title,
+  source_authority,
+  effective_date,
+  last_reviewed_date,
+  metadata
+)
+select
+  value->>'id',
+  value->>'jurisdictionCode',
+  value->>'surfaceScope',
+  value->>'standardType',
+  value->>'title',
+  value->>'summary',
+  coalesce(value->'applicability', '{}'::jsonb),
+  coalesce(value->'content', '{}'::jsonb),
+  value->>'sourceUrl',
+  value->>'sourceTitle',
+  value->>'sourceAuthority',
+  nullif(value->>'effectiveDate', '')::date,
+  (value->>'lastReviewedDate')::date,
+  coalesce(value->'metadata', '{}'::jsonb)
+from jsonb_array_elements(
+  $j$[
+    {
+      "id": "std_federal_baseline",
+      "jurisdictionCode": "federal",
+      "surfaceScope": "both",
+      "standardType": "osha_ref",
+      "title": "Federal OSHA construction baseline",
+      "summary": "Use federal OSHA 29 CFR Part 1926 as the baseline construction profile when the selected state is not covered by a state-plan delta.",
+      "applicability": {},
+      "content": {
+        "body": "Federal OSHA remains the baseline construction standard set for CSEP and PESHEP unless a selected OSHA-approved State Plan introduces additional or different requirements that must be layered into the draft and review workflow.",
+        "bullets": [
+          "Confirm project planning addresses housekeeping, training, first aid, emergency response, and PPE expectations from the federal construction baseline.",
+          "When a selected state does not have a seeded state-plan delta, keep the federal baseline active and flag the draft as federal OSHA."
+        ],
+        "oshaRefs": [
+          "29 CFR 1926 Subpart C - General Safety and Health Provisions",
+          "29 CFR 1926.20 - General safety and health provisions",
+          "29 CFR 1926.21 - Safety training and education",
+          "29 CFR 1926.23 - First aid and medical attention",
+          "29 CFR 1926.25 - Housekeeping",
+          "29 CFR 1926.28 - Personal protective equipment",
+          "29 CFR 1926.35 - Employee emergency action plans"
+        ],
+        "builderGuidance": "Apply the federal OSHA construction baseline unless the governing state resolves to a seeded state-plan jurisdiction.",
+        "adminReviewNote": "This draft uses the federal OSHA baseline profile."
+      },
+      "sourceUrl": "https://www.osha.gov/laws-regs/regulations/standardnumber/1926/1926SubpartC",
+      "sourceTitle": "1926 Subpart C - General Safety and Health Provisions",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_federal_training_emergency",
+      "jurisdictionCode": "federal",
+      "surfaceScope": "peshep",
+      "standardType": "training_requirement",
+      "title": "Federal training and emergency planning baseline",
+      "summary": "PESHEP drafts should explicitly address training, emergency posting, and reporting controls expected under the federal construction baseline.",
+      "applicability": {},
+      "content": {
+        "trainingNotes": [
+          "Confirm workforce safety training expectations are written into the project plan.",
+          "Document emergency contacts, response flow, and treatment resources before mobilization."
+        ],
+        "checklist": {
+          "requiredFields": [
+            "incident_reporting_process_text",
+            "inspection_process_text",
+            "posted_emergency_contacts_text"
+          ],
+          "note": "Federal baseline planning expects training, emergency communication, and reporting coverage in site-level safety documentation."
+        }
+      },
+      "sourceUrl": "https://www.osha.gov/stateplans",
+      "sourceTitle": "State Plans",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_ca_iipp_review",
+      "jurisdictionCode": "ca",
+      "surfaceScope": "both",
+      "standardType": "admin_review_note",
+      "title": "California state-plan review note",
+      "summary": "California drafts should be reviewed against current Cal/OSHA Title 8 requirements and the project's written safety program expectations.",
+      "applicability": {},
+      "content": {
+        "body": "California operates an OSHA-approved State Plan through Cal/OSHA. Reviewers should confirm that the draft aligns with current Cal/OSHA expectations, including project-specific written safety management requirements and any applicable Title 8 construction orders.",
+        "builderGuidance": "Show the draft as a California state-plan profile and direct reviewers to confirm current Cal/OSHA-specific requirements before release.",
+        "adminReviewNote": "California state-plan delta active. Verify current Cal/OSHA / Title 8 alignment before approval.",
+        "checklist": {
+          "requiredFields": [
+            "site_specific_notes",
+            "inspection_process_text"
+          ],
+          "note": "California drafts should clearly show how project-specific safety expectations and inspections will be managed."
+        }
+      },
+      "sourceUrl": "https://dir.ca.gov/dosh/",
+      "sourceTitle": "Cal/OSHA - Division of Occupational Safety and Health - Home Page",
+      "sourceAuthority": "California Department of Industrial Relations / Cal/OSHA",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_ca_construction_orders",
+      "jurisdictionCode": "ca",
+      "surfaceScope": "csep",
+      "standardType": "program_requirement",
+      "title": "California construction-orders overlay",
+      "summary": "CSEP program sections for California should explicitly tell reviewers to reconcile controls and references against current Cal/OSHA construction orders.",
+      "applicability": {},
+      "content": {
+        "oshaRefs": [
+          "California Code of Regulations, Title 8 - Construction Safety Orders"
+        ],
+        "requiredControls": [
+          "Verify the selected construction controls against the current Cal/OSHA construction-order language before final issue.",
+          "Document any project-specific California safety-program expectations in the contractor handoff notes."
+        ]
+      },
+      "sourceUrl": "https://www.osha.gov/stateplans/ca",
+      "sourceTitle": "California State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_wa_construction_rules",
+      "jurisdictionCode": "wa",
+      "surfaceScope": "both",
+      "standardType": "builder_prompt_delta",
+      "title": "Washington construction-rules overlay",
+      "summary": "Washington drafts should call out DOSH / WAC 296-155 construction rules as an active state-plan overlay.",
+      "applicability": {},
+      "content": {
+        "body": "Washington DOSH has adopted most OSHA standards by reference but also maintains unique state-plan construction rules in areas including fall protection, excavation, rigging, storage of materials, signs and barricades, and other core construction controls.",
+        "oshaRefs": [
+          "WAC 296-155 - Safety Standards for Construction Work"
+        ],
+        "adminReviewNote": "Washington state-plan delta active. Verify WAC 296-155 construction requirements before approval."
+      },
+      "sourceUrl": "https://www.osha.gov/stateplans/wa",
+      "sourceTitle": "Washington State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_wa_excavation",
+      "jurisdictionCode": "wa",
+      "surfaceScope": "csep",
+      "standardType": "permit_requirement",
+      "title": "Washington excavation and trenching emphasis",
+      "summary": "Washington excavation-related scopes should reinforce trenching, shoring, and competent-person expectations from the DOSH construction rules.",
+      "applicability": {},
+      "content": {
+        "requiredControls": [
+          "Confirm excavation, trenching, and shoring controls against current Washington DOSH construction requirements before field issue.",
+          "Identify the competent-person review path for trench conditions, utilities, and protective systems in the project handoff."
+        ],
+        "trainingNotes": [
+          "Ensure excavation crews understand Washington-specific trenching and competent-person expectations."
+        ]
+      },
+      "sourceUrl": "https://lni.wa.gov/safety-health/safety-topics/topics/trenching-excavation",
+      "sourceTitle": "Trenching & Excavation",
+      "sourceAuthority": "Washington State Department of Labor & Industries",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_or_state_plan",
+      "jurisdictionCode": "or",
+      "surfaceScope": "both",
+      "standardType": "admin_review_note",
+      "title": "Oregon state-plan review note",
+      "summary": "Oregon drafts should be reviewed against Oregon OSHA construction requirements and any Oregon-specific adoption updates before release.",
+      "applicability": {},
+      "content": {
+        "body": "Oregon operates an OSHA-approved State Plan through Oregon OSHA. Reviewers should confirm that the draft aligns with Oregon OSHA construction requirements and any Oregon-specific adoption updates that affect the selected work.",
+        "adminReviewNote": "Oregon state-plan delta active. Verify Oregon OSHA construction alignment before approval."
+      },
+      "sourceUrl": "https://www.osha.gov/stateplans/or",
+      "sourceTitle": "Oregon State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_or_rules_resources",
+      "jurisdictionCode": "or",
+      "surfaceScope": "peshep",
+      "standardType": "builder_prompt_delta",
+      "title": "Oregon rules and laws workflow note",
+      "summary": "Oregon PESHEP drafts should explicitly tell admins to reconcile recurring inspections and site controls with Oregon OSHA rules and laws resources.",
+      "applicability": {},
+      "content": {
+        "checklist": {
+          "requiredFields": [
+            "inspection_process_text",
+            "event_calendar_notes_text"
+          ],
+          "note": "Oregon review should confirm that inspections and recurring compliance events are written into the site plan."
+        }
+      },
+      "sourceUrl": "https://osha.oregon.gov/",
+      "sourceTitle": "Oregon OSHA Home",
+      "sourceAuthority": "State of Oregon / Oregon OSHA",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_mi_state_plan",
+      "jurisdictionCode": "mi",
+      "surfaceScope": "both",
+      "standardType": "builder_prompt_delta",
+      "title": "Michigan MIOSHA standards overlay",
+      "summary": "Michigan drafts should identify MIOSHA construction standards as an active state-plan overlay instead of relying only on federal citations.",
+      "applicability": {},
+      "content": {
+        "body": "Michigan operates an OSHA-approved State Plan through MIOSHA. Construction drafts should be reviewed against current MIOSHA construction safety and health standards, including the applicable administrative rules and updated construction parts.",
+        "adminReviewNote": "Michigan state-plan delta active. Verify MIOSHA construction standards before approval."
+      },
+      "sourceUrl": "https://www.michigan.gov/leo/bureaus-agencies/miosha/standards/standards-and-interpretations/construction-safety-and-health-standards",
+      "sourceTitle": "Construction Safety and Health Standards",
+      "sourceAuthority": "Michigan Department of Labor and Economic Opportunity / MIOSHA",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_mi_cranes_steel",
+      "jurisdictionCode": "mi",
+      "surfaceScope": "csep",
+      "standardType": "program_requirement",
+      "title": "Michigan crane and steel-erection emphasis",
+      "summary": "Michigan crane and steel-related CSEP sections should push reviewers to verify the current MIOSHA construction parts that govern the selected lift or steel scope.",
+      "applicability": {},
+      "content": {
+        "requiredControls": [
+          "Verify crane, derrick, steel-erection, and related lift planning controls against the current MIOSHA construction parts before release."
+        ],
+        "oshaRefs": [
+          "MIOSHA Construction Safety and Health Standards"
+        ]
+      },
+      "sourceUrl": "https://www.michigan.gov/leo/bureaus-agencies/miosha/standards/standards-and-interpretations/construction-safety-and-health-standards",
+      "sourceTitle": "Construction Safety and Health Standards",
+      "sourceAuthority": "Michigan Department of Labor and Economic Opportunity / MIOSHA",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_nc_state_plan",
+      "jurisdictionCode": "nc",
+      "surfaceScope": "both",
+      "standardType": "admin_review_note",
+      "title": "North Carolina state-plan review note",
+      "summary": "North Carolina drafts should indicate that the state adopts most federal standards verbatim but still requires review for North Carolina-specific rules and procedures.",
+      "applicability": {},
+      "content": {
+        "body": "North Carolina generally adopts federal OSHA standards verbatim, but employers must comply with North Carolina-specific rules when the state's administrative rules differ from federal OSHA. Reviewers should confirm whether state-specific construction rules are triggered by the selected work.",
+        "adminReviewNote": "North Carolina state-plan delta active. Check for NC-specific construction rules before approval.",
+        "checklist": {
+          "requiredFields": [
+            "inspection_process_text",
+            "special_conditions_permit_text"
+          ],
+          "note": "North Carolina review should document how site-specific rules, variances, and inspections will be managed."
+        }
+      },
+      "sourceUrl": "https://www.labor.nc.gov/safety-and-health/occupational-safety-and-health",
+      "sourceTitle": "Occupational Safety and Health",
+      "sourceAuthority": "North Carolina Department of Labor",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    },
+    {
+      "id": "std_nc_construction_specific",
+      "jurisdictionCode": "nc",
+      "surfaceScope": "csep",
+      "standardType": "program_requirement",
+      "title": "North Carolina construction-specific standards emphasis",
+      "summary": "North Carolina construction drafts should flag state-specific PPE, steel-erection, blasting, bloodborne-pathogen, and communication-tower standards when those scopes are implicated.",
+      "applicability": {},
+      "content": {
+        "requiredControls": [
+          "If the selected work touches PPE, steel erection, blasting, bloodborne pathogens, or communication towers, verify the applicable North Carolina-specific construction standards before issue."
+        ]
+      },
+      "sourceUrl": "https://www.osha.gov/stateplans/NC",
+      "sourceTitle": "North Carolina State Plan",
+      "sourceAuthority": "Occupational Safety and Health Administration (OSHA)",
+      "effectiveDate": null,
+      "lastReviewedDate": "2026-04-15"
+    }
+  ]$j$::jsonb
+) as source(value)
+on conflict (id) do update
+set
+  jurisdiction_code = excluded.jurisdiction_code,
+  surface_scope = excluded.surface_scope,
+  standard_type = excluded.standard_type,
+  title = excluded.title,
+  summary = excluded.summary,
+  applicability = excluded.applicability,
+  content = excluded.content,
+  source_url = excluded.source_url,
+  source_title = excluded.source_title,
+  source_authority = excluded.source_authority,
+  effective_date = excluded.effective_date,
+  last_reviewed_date = excluded.last_reviewed_date,
+  metadata = excluded.metadata,
+  updated_at = now();
+
+insert into public.platform_jurisdiction_standard_mappings (
+  id,
+  standard_id,
+  mapping_type,
+  mapping_key,
+  metadata
+)
+select
+  value->>'id',
+  value->>'standardId',
+  value->>'mappingType',
+  value->>'mappingKey',
+  coalesce(value->'metadata', '{}'::jsonb)
+from jsonb_array_elements(
+  $j$[
+    { "id": "map_federal_baseline_references", "standardId": "std_federal_baseline", "mappingType": "section_key", "mappingKey": "references" },
+    { "id": "map_federal_baseline_profile", "standardId": "std_federal_baseline", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_federal_training_section", "standardId": "std_federal_training_emergency", "mappingType": "section_key", "mappingKey": "training_certifications" },
+    { "id": "map_ca_review_profile", "standardId": "std_ca_iipp_review", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_ca_review_project_roles", "standardId": "std_ca_iipp_review", "mappingType": "section_key", "mappingKey": "project_oversight_roles" },
+    { "id": "map_ca_program_falls", "standardId": "std_ca_construction_orders", "mappingType": "program_item", "mappingKey": "hazard:Falls from height" },
+    { "id": "map_wa_profile", "standardId": "std_wa_construction_rules", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_wa_references", "standardId": "std_wa_construction_rules", "mappingType": "section_key", "mappingKey": "references" },
+    { "id": "map_wa_excavation_hazard", "standardId": "std_wa_excavation", "mappingType": "program_item", "mappingKey": "hazard:Excavation collapse" },
+    { "id": "map_wa_excavation_permit", "standardId": "std_wa_excavation", "mappingType": "program_item", "mappingKey": "permit:Ground Disturbance Permit" },
+    { "id": "map_or_profile", "standardId": "std_or_state_plan", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_or_inspections", "standardId": "std_or_rules_resources", "mappingType": "section_key", "mappingKey": "inspections_recurring_events" },
+    { "id": "map_mi_profile", "standardId": "std_mi_state_plan", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_mi_cranes", "standardId": "std_mi_cranes_steel", "mappingType": "program_item", "mappingKey": "hazard:Crane lift hazards" },
+    { "id": "map_nc_profile", "standardId": "std_nc_state_plan", "mappingType": "section_key", "mappingKey": "jurisdiction_profile" },
+    { "id": "map_nc_training", "standardId": "std_nc_state_plan", "mappingType": "section_key", "mappingKey": "training_certifications" },
+    { "id": "map_nc_program_hot_work", "standardId": "std_nc_construction_specific", "mappingType": "program_item", "mappingKey": "permit:Hot Work Permit" }
+  ]$j$::jsonb
+) as source(value)
+on conflict (id) do update
+set
+  standard_id = excluded.standard_id,
+  mapping_type = excluded.mapping_type,
+  mapping_key = excluded.mapping_key,
+  metadata = excluded.metadata,
+  updated_at = now();

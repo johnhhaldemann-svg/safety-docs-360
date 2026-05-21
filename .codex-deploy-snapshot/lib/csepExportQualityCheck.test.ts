@@ -1,0 +1,306 @@
+import { describe, expect, it } from "vitest";
+import { assertCsepExportQuality } from "@/lib/csepExportQualityCheck";
+import { buildCsepRenderModelFromGeneratedDraft } from "@/lib/csepDocxRenderer";
+import type { CsepTemplateSection } from "@/lib/csepDocxRenderer";
+import type { GeneratedSafetyPlanDraft } from "@/types/safety-intelligence";
+
+describe("assertCsepExportQuality", () => {
+  it("passes for the standard renderer fixture draft", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow();
+  });
+
+  it("blocks known correction placeholders and obsolete citation labels", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.coverMetadataRows = model.coverMetadataRows.map((row) =>
+      row.label === "Project Name" ? { ...row, value: "Test 1" } : row
+    );
+    model.sections.push({
+      key: "bad_reference",
+      title: "Bad Reference",
+      subsections: [
+        {
+          title: "Old citation",
+          items: ["R7 OSHA 29 CFR 1926.453 - Aerial Lifts / MEWPs"],
+        },
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/forbidden_final_text/);
+  });
+
+  it("blocks street addresses that are missing city/state/ZIP", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.titlePageProjectLocation = "N109W15738 Candler Ct";
+    model.coverMetadataRows = model.coverMetadataRows.map((row) =>
+      row.label === "Project Address" ? { ...row, value: "N109W15738 Candler Ct" } : row
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/project_address_complete/);
+  });
+
+  it("blocks export when a task module subsection has no safety content", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.frontMatterSections.push({
+      key: "steel_task_modules_reference",
+      title: "Steel Erection Task Modules Reference Pack",
+      subsections: [
+        {
+          title: "Receiving, Unloading — Required safety controls",
+          paragraphs: [],
+          items: [],
+        },
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/task_module_empty/i);
+  });
+
+  it("blocks export when Document Control is placed in front matter", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.frontMatterSections.unshift({
+      key: "document_control_and_revision_history",
+      title: "Document Control and Revision History",
+      subsections: [{ title: "Revisions", paragraphs: ["Keep on file."], items: [] }],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/document_control_placement/i);
+  });
+
+  it("blocks export when owner/sign-off/toc order is wrong", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const msg = model.frontMatterSections.find((s) => s.key === "owner_message")!;
+    const sign = model.frontMatterSections.find((s) => s.key === "sign_off_page")!;
+    const toc = model.frontMatterSections.find((s) => s.key === "table_of_contents")!;
+    model.frontMatterSections = [
+      toc,
+      sign,
+      msg,
+      ...model.frontMatterSections.filter(
+        (s) => !["owner_message", "sign_off_page", "table_of_contents"].includes(s.key)
+      ),
+    ];
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/front_matter_order/i);
+  });
+
+  it("blocks export when selected permit triggers are missing from final text", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    draft.ruleSummary.permitTriggers = ["Lift plan", "Special permit token 991ZZ"];
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/permit_coverage/i);
+  });
+
+  it("matches selected permit ids against normalized permit labels in the export", () => {
+    const draft = minimalSteelDraft();
+    draft.ruleSummary.permitTriggers = ["elevated_work_notice", "hot_work_permit"];
+    draft.operations[0]!.permitTriggers = ["hot_work_permit"];
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/permit_coverage/i);
+  });
+
+  it("does not treat normal ladder program slices as duplicate ladder programs", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const hazards = model.sections.find((section) => section.key === "high_risk_programs")!;
+    hazards.subsections.push(
+      { title: "Ladder Authorization Program: Risk", paragraphs: ["Ladder access requires task review."] },
+      { title: "Ladder Authorization Program: Required Controls", items: ["Inspect ladder condition before use."] },
+      { title: "Ladder Authorization Program: Verification and Handoff", items: ["Supervisor verifies access setup."] },
+      { title: "Ladder Authorization Program: Stop-Work Triggers", items: ["Stop work if access is unstable."] },
+      { title: "Ladder Authorization Program: References", items: ["R12"] }
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/ladder_authorization_duplicates/i);
+  });
+
+  it("allows generic permit references outside the primary permit section", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.sections.push({
+      key: "generic_admin_notes",
+      title: "Generic Administrative Notes",
+      subsections: [
+        {
+          title: "General Controls",
+          items: Array.from({ length: 12 }, (_, index) => `Generic permit reference ${index + 1}.`),
+        },
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/scattered across too many sections/i);
+  });
+
+  it("keeps fit-for-duty wording out of the IIPP isolation gate", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const ppe = model.sections.find((section) => section.key === "ppe_and_work_attire")!;
+    ppe.subsections.push({
+      title: "Fit for duty clothing",
+      items: ["Workers shall wear task-appropriate work attire and report fit-for-duty concerns to supervision."],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/iipp_isolation/i);
+  });
+
+  it("allows emergency response to contain brief IIPP and HazCom cross-references", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const emergency = model.sections.find((section) => section.key === "emergency_response_and_rescue")!;
+    emergency.subsections.push({
+      title: "Stop and notification triggers",
+      items: [
+        "Stop or modify work when on-site conditions no longer match the JHA, permit, SDS, or manufacturer limits.",
+        "Report injuries, near misses, and significant near-miss weather events to supervision per the IIPP.",
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/hazcom_isolation|iipp_isolation/i);
+  });
+
+  it("allows roles and responsibilities to assign corrective-action ownership", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const roles = model.sections.find((section) => section.key === "roles_and_responsibilities")!;
+    roles.subsections.push({
+      title: "Core Responsibilities",
+      items: [
+        "Own implementation of this CSEP, staffing, sequencing, permit readiness, and coordination with the incident-reporting and corrective-action process.",
+      ],
+    });
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/iipp_isolation/i);
+  });
+
+  it("allows repeated Appendix E baseline fire-watch and fall-protection controls", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    model.appendixSections.push(
+      appendixETaskHazardMatrixSectionWithControlColumn(
+        "Fire watch remove combustibles spark containment fire watch spark containment flammable clearance."
+      ),
+      appendixETaskHazardMatrixSectionWithControlColumn(
+        "Guardrails PFAS pre task planning guardrails PFAS pre task planning."
+      )
+    );
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/appendix_e_duplicate_controls/i);
+  });
+
+  it("allows Appendix E when hot work / fire watch boilerplate repeats across many tasks", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const boilerplate =
+      "Hot work permit active and posted where required; fire watch where required; maintain extinguisher access and combustible clearance for welding, cutting, or grinding.";
+    model.appendixSections.push(appendixETaskHazardMatrixSectionWithControlColumn(boilerplate));
+    expect(() => assertCsepExportQuality(model, { draft })).not.toThrow(/appendix_e_duplicate_controls/i);
+  });
+
+  it("blocks Appendix E when the same long non-boilerplate control appears across many tasks", () => {
+    const draft = minimalSteelDraft();
+    const model = buildCsepRenderModelFromGeneratedDraft(draft);
+    const unique =
+      "Project-specific temporary anchor system design must be signed by the qualified person for tower crane picks on this deck phase marker-unique-xyz-991122.";
+    model.appendixSections.push(appendixETaskHazardMatrixSectionWithControlColumn(unique));
+    expect(() => assertCsepExportQuality(model, { draft })).toThrow(/appendix_e_duplicate_controls/i);
+  });
+});
+
+function appendixETaskHazardMatrixSectionWithControlColumn(controlCell: string): CsepTemplateSection {
+  const rows = [
+    ["Receiving / unloading", "Struck-by", controlCell],
+    ["Column setting", "Crush", controlCell],
+    ["Field welding", "Ignition", controlCell],
+    ["Touch-up painting", "Ignition", controlCell],
+  ];
+  return {
+    key: "appendix_e_task_hazard_control_matrix",
+    title: "Appendix E. Task-Hazard-Control Matrix",
+    kind: "appendix",
+    subsections: [
+      {
+        title: "Consolidated matrix",
+        paragraphs: [],
+        items: [],
+        table: {
+          columns: ["Activity", "Hazard", "Required Controls"],
+          rows,
+        },
+      },
+    ],
+  };
+}
+
+function minimalSteelDraft(): GeneratedSafetyPlanDraft {
+  return {
+    documentType: "csep",
+    projectDeliveryType: "ground_up",
+    title: "QC Test CSEP",
+    projectOverview: {
+      projectName: "QC Tower",
+      projectNumber: "QC-1",
+      projectAddress: "1 Test Way, Milwaukee, WI 53202",
+      ownerClient: "Owner",
+      gcCm: "GC",
+      contractorCompany: "Contractor",
+      location: "Site",
+      schedule: "2026",
+    },
+    operations: [
+      {
+        operationId: "op-qc",
+        tradeLabel: "Steel Erection",
+        subTradeLabel: "Steel erection / decking",
+        taskTitle: "Decking install",
+        workAreaLabel: "L4",
+        locationGrid: "A1",
+        equipmentUsed: ["Crane"],
+        workConditions: ["Wind"],
+        hazardCategories: ["Fall exposure", "Suspended loads"],
+        permitTriggers: ["Lift plan"],
+        ppeRequirements: ["Harness", "Hard hat"],
+        requiredControls: ["Controlled decking zone", "Tag lines"],
+        siteRestrictions: [],
+        prohibitedEquipment: [],
+        conflicts: [],
+      },
+    ],
+    ruleSummary: {
+      permitTriggers: ["Lift plan"],
+      ppeRequirements: ["Harness"],
+      requiredControls: ["CDZ"],
+      hazardCategories: ["Fall exposure"],
+      siteRestrictions: [],
+      prohibitedEquipment: [],
+      trainingRequirements: [],
+      weatherRestrictions: [],
+    },
+    conflictSummary: {
+      total: 0,
+      intraDocument: 0,
+      external: 0,
+      highestSeverity: "low",
+      items: [],
+    },
+    riskSummary: {
+      score: 1,
+      band: "low",
+      priorities: ["Plan picks."],
+    },
+    trainingProgram: { rows: [], summaryTrainingTitles: [] },
+    narrativeSections: { safetyNarrative: "Site narrative." },
+    sectionMap: [
+      {
+        key: "purpose",
+        title: "Purpose",
+        body: "Purpose text for the project.",
+      },
+      {
+        key: "hazcom_program",
+        title: "Hazard Communication Program",
+        bullets: ["Maintain SDS access on site.", "Label secondary containers."],
+      },
+      {
+        key: "incident_reporting_and_investigation",
+        title: "Incident Reporting",
+        bullets: ["Report incidents to supervision.", "Call 911 for medical emergencies and initiate rescue as trained."],
+      },
+    ],
+    provenance: { generator: "test" },
+  };
+}
