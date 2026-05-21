@@ -78,4 +78,62 @@ describe("weather location resolver", () => {
       confidence: "low",
     });
   });
+
+  it("uses public ZIP centroid lookup when Geocodio is not configured", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(url).toContain("api.zippopotam.us/us/53022");
+      return Response.json({
+        places: [
+          {
+            latitude: "43.2286",
+            longitude: "-88.1246",
+            "place name": "Germantown",
+            "state abbreviation": "WI",
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation({ zipCode: "53022" }, { fetcher });
+
+    expect(result).toMatchObject({
+      latitude: 43.2286,
+      longitude: -88.1246,
+      source: "zip_centroid",
+      confidence: "low",
+      label: "Germantown, WI, 53022",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses public ZIP centroid lookup if configured Geocodio fails", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("api.geocod.io")) {
+        return new Response("bad gateway", { status: 502 });
+      }
+      expect(url).toContain("api.zippopotam.us/us/53022");
+      return Response.json({
+        places: [
+          {
+            latitude: "43.2286",
+            longitude: "-88.1246",
+            "place name": "Germantown",
+            "state abbreviation": "WI",
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation(
+      { zipCode: "53022" },
+      { fetcher, geocodioApiKey: "test-key" }
+    );
+
+    expect(result).toMatchObject({
+      latitude: 43.2286,
+      longitude: -88.1246,
+      source: "zip_centroid",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });

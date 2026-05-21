@@ -64,6 +64,13 @@ function increaseLevel(level: SafetyRiskLevel): SafetyRiskLevel {
   return "critical";
 }
 
+function minimumScoreForLevel(level: SafetyRiskLevel) {
+  if (level === "critical") return 81;
+  if (level === "high") return 61;
+  if (level === "moderate") return 41;
+  return 0;
+}
+
 function sourceCategoryCount(signals: SafetyAiSignal[]) {
   return new Set(signals.map((signal) => signal.type)).size;
 }
@@ -75,7 +82,7 @@ function defaultMissingData(input: SafetyAiInput) {
   if (!input.taskType && !signals.some((signal) => signal.task)) missing.add("task");
   if (!input.trade && !signals.some((signal) => signal.trade)) missing.add("trade");
   if (signals.length === 0) missing.add("recent safety signals");
-  if (!input.controlEffectiveness && !signals.some((signal) => signal.controlGap != null)) {
+  if ((!input.controlEffectiveness || input.controlEffectiveness === "unknown") && !signals.some((signal) => signal.controlGap != null)) {
     missing.add("control effectiveness");
   }
   if (input.dataCompleteness == null && sourceCategoryCount(signals) < 3) {
@@ -249,7 +256,7 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
   if (gapEscalation) level = increaseLevel(level);
   if (fatalOverride || imminentDanger) level = "critical";
 
-  const score = level === "critical" && weighted.score < 81 ? 81 : weighted.score;
+  const score = Math.max(weighted.score, minimumScoreForLevel(level));
   const confidence = confidenceFor(input, signals, missingData, dataConfidenceConcern);
   const topDrivers = buildDrivers({
     input,

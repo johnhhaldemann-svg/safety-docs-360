@@ -13,6 +13,7 @@ import {
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
+  riskLevelForScore,
   riskLabel,
   safePredictMitigations,
   type SafePredictForecastPoint,
@@ -59,6 +60,20 @@ function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
   if (level === "high") return "bg-orange-500";
   if (level === "medium") return "bg-amber-400";
   return "bg-emerald-500";
+}
+
+function commandRiskToneClass(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "text-red-400";
+  if (level === "high") return "text-orange-400";
+  if (level === "medium") return "text-amber-300";
+  return "text-emerald-400";
+}
+
+function commandRiskSparklineColor(level: SafePredictJobsiteRecord["riskLevel"]) {
+  if (level === "critical") return "#f87171";
+  if (level === "high") return "#fb923c";
+  if (level === "medium") return "#fbbf24";
+  return "#34d399";
 }
 
 function LiveDashboardRiskMap({ jobsites }: { jobsites: SafePredictJobsiteRecord[] }) {
@@ -391,6 +406,7 @@ function JobsiteRiskMap({
   const [mapZoomAdjustment, setMapZoomAdjustment] = useState(0);
   const [mapPanOffset, setMapPanOffset] = useState<MapPanOffset>({ x: 0, y: 0 });
   const [isMapDragging, setIsMapDragging] = useState(false);
+  const mapWheelTargetRef = useRef<HTMLDivElement | null>(null);
   const mapDragState = useRef<{
     pointerId: number;
     startX: number;
@@ -500,6 +516,29 @@ function JobsiteRiskMap({
       ? "Satellite + partial locations"
       : "Add ZIP or coordinates";
 
+  function updateMapZoom(delta: number) {
+    setMapZoomAdjustment((value) =>
+      clampNumber(value + delta, MIN_REAL_MAP_ZOOM - baseMapZoom, MAX_REAL_MAP_ZOOM - baseMapZoom)
+    );
+  }
+
+  useEffect(() => {
+    const element = mapWheelTargetRef.current;
+    if (!element || !realMapViewport) return;
+
+    function handleWheel(event: WheelEvent) {
+      if (event.deltaY === 0) return;
+
+      event.preventDefault();
+      setMapZoomAdjustment((value) =>
+        clampNumber(value + (event.deltaY < 0 ? 1 : -1), MIN_REAL_MAP_ZOOM - baseMapZoom, MAX_REAL_MAP_ZOOM - baseMapZoom)
+      );
+    }
+
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => element.removeEventListener("wheel", handleWheel);
+  }, [baseMapZoom, realMapViewport]);
+
   function endMapDrag(event: PointerEvent<HTMLDivElement>) {
     if (mapDragState.current?.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -538,6 +577,7 @@ function JobsiteRiskMap({
   return (
     <section className="relative h-[560px] min-w-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950 shadow-[0_24px_70px_rgba(2,6,23,0.35)]">
       <div
+        ref={mapWheelTargetRef}
         className={cx(
           "relative h-full overflow-hidden bg-slate-950 select-none",
           realMapViewport ? (isMapDragging ? "cursor-grabbing" : "cursor-grab") : ""
@@ -631,11 +671,11 @@ function JobsiteRiskMap({
         {realMapViewport ? (
           <div data-map-control="true" className="absolute right-4 top-4 z-40 flex items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-white/15 bg-slate-950/76 text-white shadow-[0_18px_36px_rgba(0,0,0,0.3)] backdrop-blur">
-              <button type="button" onClick={() => setMapZoomAdjustment((value) => value - 1)} disabled={!canZoomOut} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom out" title="Zoom out">
+              <button type="button" onClick={() => updateMapZoom(-1)} disabled={!canZoomOut} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom out" title="Zoom out">
                 <Minus className="h-4 w-4" aria-hidden />
               </button>
               <div className="grid h-10 min-w-12 place-items-center border-x border-white/10 px-2 text-xs font-black text-slate-200">Z{currentMapZoom}</div>
-              <button type="button" onClick={() => setMapZoomAdjustment((value) => value + 1)} disabled={!canZoomIn} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom in" title="Zoom in">
+              <button type="button" onClick={() => updateMapZoom(1)} disabled={!canZoomIn} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500" aria-label="Zoom in" title="Zoom in">
                 <Plus className="h-4 w-4" aria-hidden />
               </button>
               <button
@@ -720,7 +760,7 @@ function JobsiteRiskMap({
         ) : null}
 
         <div data-map-control="true" className="absolute bottom-4 left-4 z-30 max-w-[360px] rounded-lg border border-white/15 bg-slate-950/78 px-3 py-2 text-xs font-bold leading-5 text-slate-200 shadow-lg backdrop-blur">
-          Drag to move the map. Satellite tiles from Esri World Imagery; pins use saved coordinates first, then ZIP and city/state lookup.
+          Drag to move the map. Use the mouse wheel to zoom. Satellite tiles from Esri World Imagery; pins use saved coordinates first, then ZIP and city/state lookup.
         </div>
         <div data-map-control="true" className="absolute bottom-4 right-4 z-30 rounded bg-slate-950/78 px-2 py-1 text-[10px] font-bold text-slate-300 shadow-sm backdrop-blur xl:right-[328px]">
           Imagery (c) Esri, Maxar, Earthstar Geographics, and GIS community
@@ -834,21 +874,21 @@ function ActionPriorityRail({ actions }: { actions: SafePredictDataset["actions"
   ];
 
   return (
-    <aside className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
-      <div className="absolute right-0 top-0 h-full w-6 bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.8)_0_5px,transparent_5px_11px)] opacity-70" aria-hidden />
+    <aside className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 pr-6 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
+      <div className="absolute right-0 top-0 h-full w-4 bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.8)_0_5px,transparent_5px_11px)] opacity-70" aria-hidden />
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Open Actions</p>
       <p className="mt-2 text-4xl font-black text-red-400">{openActions.length}</p>
       <div className="mt-4 grid gap-3">
         {rows.map((row) => (
-          <Link key={row.label} href="/safe-predict/risk-mitigation#corrective-action-tracker" className={cx("group flex items-center gap-3 rounded-lg border p-3 transition hover:bg-white/10", row.className)}>
-            <span className={cx("grid h-10 w-10 place-items-center rounded-lg border border-current/25 bg-slate-950/36", row.icon)}>
+          <Link key={row.label} href="/safe-predict/risk-mitigation#corrective-action-tracker" className={cx("group flex min-h-[74px] items-center gap-2 rounded-lg border px-3 py-3 transition hover:bg-white/10", row.className)}>
+            <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-current/25 bg-slate-950/36", row.icon)}>
               <ShieldAlert className="h-5 w-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-200">{row.label}</span>
+              <span className="block whitespace-nowrap text-[13px] font-black leading-tight text-slate-200">{row.label}</span>
               <span className="mt-1 block text-xl font-black">{row.value}</span>
             </span>
-            <ArrowRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-white" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-white" />
           </Link>
         ))}
       </div>
@@ -941,15 +981,18 @@ function CommandKpiStrip({
   liveWithoutOpenActions: boolean;
   liveWithoutCompletedInspections: boolean;
 }) {
+  const overallRiskLevel = riskLevelForScore(totals.riskScore);
+  const overallRiskTone = liveWithoutRiskData ? "text-slate-300" : commandRiskToneClass(overallRiskLevel);
+  const overallRiskSparklineColor = commandRiskSparklineColor(overallRiskLevel);
   const kpis = [
     {
       title: "Overall Site Risk Score",
       value: totals.riskScore,
       suffix: "/100",
-      detail: liveWithoutRiskData ? "No Data" : "High Risk",
-      tone: "text-red-400",
+      detail: liveWithoutRiskData ? "No Data" : `${riskLabel(overallRiskLevel)} Risk`,
+      tone: overallRiskTone,
       icon: <ShieldAlert className="h-7 w-7" />,
-      sparkline: liveWithoutRiskData ? undefined : <CommandSparkline data={[42, 47, 58, 44, 46, 56, 54]} />,
+      sparkline: liveWithoutRiskData ? undefined : <CommandSparkline data={[42, 47, 58, 44, 46, 56, 54]} color={overallRiskSparklineColor} />,
       href: "/safe-predict/risk-mitigation#prioritized-risk-queue",
       sourceLabel: "Open risk guide",
     },
@@ -1083,7 +1126,7 @@ export default function SafePredictDashboardPage() {
         </div>
       </div>
 
-      <section className="grid gap-3 2xl:grid-cols-[320px_minmax(0,1fr)_250px]">
+      <section className="grid gap-3 2xl:grid-cols-[320px_minmax(0,1fr)_280px]">
         <CompanyCommandPanel dataset={dataset} totals={totals} />
         <div className="min-w-0">
           <JobsiteRiskMap jobsites={dataset.jobsites} selectedJobsiteId={selectedJobsiteId} onSelectJobsite={setSelectedJobsiteId} />

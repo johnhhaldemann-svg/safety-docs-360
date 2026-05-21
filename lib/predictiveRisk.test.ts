@@ -183,6 +183,77 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.safetyAiAssessment.missingData).toContain("recent safety signals");
   });
 
+  it("does not flag a JSA permit gap when an active matching permit exists", () => {
+    const payload = buildPredictiveRiskPayload({
+      days: 30,
+      forecast: forecastFixture(),
+      jobsites: [{ id: "j1", name: "North Building", location: "Austin" }],
+      correctiveActions: [],
+      incidents: [],
+      permits: [
+        {
+          id: "p1",
+          title: "Hot work permit",
+          permit_type: "hot_work",
+          status: "active",
+          jobsite_id: "j1",
+          created_at: "2026-05-01T12:00:00.000Z",
+        },
+      ],
+      jsaActivities: [
+        {
+          id: "jsa1",
+          jobsite_id: "j1",
+          work_date: "2026-05-22",
+          trade: "Mechanical",
+          activity_name: "Hot work at mezzanine",
+          hazard_category: "hot_work",
+          mitigation: "Supervisor verifies fire watch, extinguishers, and isolation before start.",
+          permit_required: true,
+          permit_type: "Hot Work Permit",
+          planned_risk_level: "high",
+          status: "planned",
+        },
+      ],
+      scheduleItems: [],
+      observations: [],
+    });
+
+    expect(payload.safetyAiAssessment.topDrivers.map((driver) => driver.label)).not.toContain("Permit readiness gap");
+  });
+
+  it("flags scheduled high-risk work when required permits are not active", () => {
+    const payload = buildPredictiveRiskPayload({
+      days: 30,
+      forecast: forecastFixture(),
+      jobsites: [{ id: "j1", name: "North Building", location: "Austin" }],
+      correctiveActions: [],
+      incidents: [],
+      permits: [],
+      jsaActivities: [],
+      scheduleItems: [
+        {
+          id: "s1",
+          title: "Hot work on roof screen",
+          jobsite_id: "j1",
+          work_start_date: "2026-05-22",
+          trade: "Mechanical",
+          risk_level: "high",
+          is_high_risk: true,
+          hazard_categories: ["hot_work"],
+          permit_triggers: ["Hot Work Permit"],
+          required_controls: ["fire watch", "extinguisher"],
+          status: "planned",
+          supervisor_name: "Supervisor A",
+        },
+      ],
+      observations: [],
+    });
+
+    expect(payload.safetyAiAssessment.topDrivers.map((driver) => driver.label)).toContain("Permit readiness gap");
+    expect(payload.safetyAiAssessment.escalationRequired).toBe(true);
+  });
+
   it("builds a populated sales demo payload", () => {
     const payload = buildSalesDemoPredictiveRiskPayload(30);
     expect(payload.locations.length).toBeGreaterThan(0);

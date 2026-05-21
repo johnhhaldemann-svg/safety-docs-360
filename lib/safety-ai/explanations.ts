@@ -33,7 +33,7 @@ export function buildSafetyExplanation(params: {
   return (
     `Based on available data, this rules-based assessment flags ${levelPhrase(params.level)} with a score of ${params.score}/100 and ${params.confidence} confidence.` +
     driverText +
-    ` Weighted inputs were severity ${params.breakdown.severity}/5, likelihood ${params.breakdown.likelihood}/5, exposure ${params.breakdown.exposureFrequency}/5, controls ${params.breakdown.controlGap}/5, and data-confidence concern ${params.breakdown.dataConfidenceConcern}/5.` +
+    ` The score uses weighted inputs: severity 40% (${params.breakdown.severity}/5), likelihood 25% (${params.breakdown.likelihood}/5), exposure 15% (${params.breakdown.exposureFrequency}/5), controls 10% (${params.breakdown.controlGap}/5), and data-confidence concern 10% (${params.breakdown.dataConfidenceConcern}/5).` +
     missingText +
     " This does not guarantee compliance and does not replace a competent person, safety manager, legal review, or professional judgment; review recommended when conditions are high-risk or uncertain."
   );

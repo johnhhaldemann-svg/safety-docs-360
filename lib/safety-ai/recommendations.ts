@@ -93,6 +93,16 @@ export function buildSafetyRecommendations(params: {
     });
   }
 
+  if (!recommendations.some((item) => item.controlType === "ppe")) {
+    recommendations.push({
+      title: "Confirm PPE is task-specific and available",
+      priority: level === "low" ? "low" : "medium",
+      controlType: "ppe",
+      reason: "PPE is the last layer of defense and should support, not replace, stronger controls.",
+      suggestedOwnerRole: "field_supervisor",
+    });
+  }
+
   if (level === "critical") {
     recommendations.push({
       title: "Competent-person or safety-manager review recommended",
@@ -108,16 +118,6 @@ export function buildSafetyRecommendations(params: {
       controlType: "competent_person_review",
       reason: "High findings need field review and documented follow-through before risk is treated as controlled.",
       suggestedOwnerRole: "safety_manager",
-    });
-  }
-
-  if (!recommendations.some((item) => item.controlType === "ppe")) {
-    recommendations.push({
-      title: "Confirm PPE is task-specific and available",
-      priority: level === "low" ? "low" : "medium",
-      controlType: "ppe",
-      reason: "PPE is the last layer of defense and should support, not replace, stronger controls.",
-      suggestedOwnerRole: "field_supervisor",
     });
   }
 

@@ -533,6 +533,42 @@ function isPermitGap(row: PredictiveRiskPermitRow) {
   return status.includes("expired") || status.includes("missing") || status.includes("draft") || status.includes("pending");
 }
 
+function normalizePermitText(value: string | null | undefined) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPermitActiveForWork(row: PredictiveRiskPermitRow) {
+  const status = String(row.status ?? "").toLowerCase();
+  return status === "active" || status === "approved";
+}
+
+function permitMatchesRequiredWork(row: PredictiveRiskPermitRow, requiredPermit: string, jobsiteId?: string | null) {
+  if (!isPermitActiveForWork(row)) return false;
+  if (jobsiteId && row.jobsite_id && row.jobsite_id !== jobsiteId) return false;
+
+  const permitText = normalizePermitText(`${row.permit_type ?? ""} ${row.title ?? ""} ${row.category ?? ""}`);
+  const requiredTokens = normalizePermitText(requiredPermit)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+
+  return requiredTokens.length > 0 && requiredTokens.every((token) => permitText.includes(token));
+}
+
+function hasActivePermitForRequiredWork(
+  permits: PredictiveRiskPermitRow[],
+  requiredPermits: Array<string | null | undefined>,
+  jobsiteId?: string | null
+) {
+  const requirements = requiredPermits.map(normalizePermitText).filter(Boolean);
+  if (requirements.length === 0) return false;
+  return requirements.some((requirement) => permits.some((permit) => permitMatchesRequiredWork(permit, requirement, jobsiteId)));
+}
+
 function isFatalPotentialText(...values: Array<string | null | undefined>) {
   const text = values.join(" ").toLowerCase();
   return /fatal|catastrophic|sif|serious injury|life[- ]?threat/.test(text);
@@ -596,42 +632,61 @@ function buildSafetyAiSignals(input: {
       fatalityOrCatastrophicPotential: row.sif_flag || isFatalPotentialText(row.title, row.permit_type, row.category, row.severity),
       missingRequiredPermit: isPermitGap(row),
     })),
-    ...input.jsaActivities.map((row): SafetyAiSignal => ({
-      id: row.id,
-      type: "high_risk_work",
-      label: row.activity_name ?? row.hazard_category ?? "JSA activity",
-      hazard: row.hazard_category ?? row.hazard_description ?? null,
-      severity: signalSeverity(row.planned_risk_level ?? row.status, "medium"),
-      status: row.status ?? null,
-      createdAt: row.created_at ?? row.work_date ?? null,
-      jobsiteId: row.jobsite_id ?? null,
-      trade: row.trade ?? null,
-      task: row.activity_name ?? null,
-      crewSize: row.crew_size ?? null,
-      highRisk: signalSeverity(row.planned_risk_level, "medium") === "high" || signalSeverity(row.planned_risk_level, "medium") === "critical",
-      missingRequiredPermit: Boolean(row.permit_required && !row.permit_type),
-      missingCompetentPersonReview: !/competent person|supervisor|verify|verified|foreman|sign[- ]?off/i.test(row.mitigation ?? ""),
-      controlGap: /use ppe|be careful|watch your surroundings|use caution|stay aware/i.test(row.mitigation ?? "") ? 4 : undefined,
-      fatalityOrCatastrophicPotential: isFatalPotentialText(row.activity_name, row.hazard_category, row.hazard_description, row.planned_risk_level),
-    })),
-    ...(input.scheduleItems ?? []).map((row): SafetyAiSignal => ({
-      id: row.id,
-      type: "high_risk_work",
-      label: row.title ?? "Scheduled work",
-      hazard: row.hazard_categories?.[0] ?? row.permit_triggers?.[0] ?? null,
-      severity: signalSeverity(row.risk_level, row.is_high_risk ? "high" : "medium"),
-      status: row.status ?? null,
-      createdAt: row.created_at ?? row.work_start_date ?? null,
-      jobsiteId: row.jobsite_id ?? null,
-      trade: row.trade ?? null,
-      task: row.title ?? null,
-      crewSize: row.crew_size ?? null,
-      highRisk: row.is_high_risk || signalSeverity(row.risk_level, "medium") === "high" || signalSeverity(row.risk_level, "medium") === "critical",
-      missingRequiredPermit: (row.permit_triggers?.length ?? 0) > 0,
-      missingCompetentPersonReview: !row.supervisor_name,
-      controlGap: row.is_high_risk && (row.required_controls?.length ?? 0) === 0 ? 5 : undefined,
-      fatalityOrCatastrophicPotential: isFatalPotentialText(row.title, row.risk_level, ...(row.hazard_categories ?? [])),
-    })),
+    ...input.jsaActivities.map((row): SafetyAiSignal => {
+      const missingRequiredPermit = Boolean(
+        row.permit_required &&
+          (!row.permit_type ||
+            !hasActivePermitForRequiredWork(input.permits, [row.permit_type], row.jobsite_id ?? null))
+      );
+
+      return {
+        id: row.id,
+        type: "high_risk_work",
+        label: row.activity_name ?? row.hazard_category ?? "JSA activity",
+        hazard: row.hazard_category ?? row.hazard_description ?? null,
+        severity: signalSeverity(row.planned_risk_level ?? row.status, "medium"),
+        status: row.status ?? null,
+        createdAt: row.created_at ?? row.work_date ?? null,
+        jobsiteId: row.jobsite_id ?? null,
+        trade: row.trade ?? null,
+        task: row.activity_name ?? null,
+        crewSize: row.crew_size ?? null,
+        highRisk:
+          signalSeverity(row.planned_risk_level, "medium") === "high" ||
+          signalSeverity(row.planned_risk_level, "medium") === "critical",
+        missingRequiredPermit,
+        missingCompetentPersonReview: !/competent person|supervisor|verify|verified|foreman|sign[- ]?off/i.test(row.mitigation ?? ""),
+        controlGap: /use ppe|be careful|watch your surroundings|use caution|stay aware/i.test(row.mitigation ?? "") ? 4 : undefined,
+        fatalityOrCatastrophicPotential: isFatalPotentialText(row.activity_name, row.hazard_category, row.hazard_description, row.planned_risk_level),
+      };
+    }),
+    ...(input.scheduleItems ?? []).map((row): SafetyAiSignal => {
+      const permitTriggers = row.permit_triggers ?? [];
+      const missingRequiredPermit =
+        permitTriggers.length > 0 && !hasActivePermitForRequiredWork(input.permits, permitTriggers, row.jobsite_id ?? null);
+
+      return {
+        id: row.id,
+        type: "high_risk_work",
+        label: row.title ?? "Scheduled work",
+        hazard: row.hazard_categories?.[0] ?? row.permit_triggers?.[0] ?? null,
+        severity: signalSeverity(row.risk_level, row.is_high_risk ? "high" : "medium"),
+        status: row.status ?? null,
+        createdAt: row.created_at ?? row.work_start_date ?? null,
+        jobsiteId: row.jobsite_id ?? null,
+        trade: row.trade ?? null,
+        task: row.title ?? null,
+        crewSize: row.crew_size ?? null,
+        highRisk:
+          row.is_high_risk ||
+          signalSeverity(row.risk_level, "medium") === "high" ||
+          signalSeverity(row.risk_level, "medium") === "critical",
+        missingRequiredPermit,
+        missingCompetentPersonReview: !row.supervisor_name,
+        controlGap: row.is_high_risk && (row.required_controls?.length ?? 0) === 0 ? 5 : undefined,
+        fatalityOrCatastrophicPotential: isFatalPotentialText(row.title, row.risk_level, ...(row.hazard_categories ?? [])),
+      };
+    }),
     ...(input.trainingGaps ?? []).map((row): SafetyAiSignal => ({
       id: row.id ?? row.worker_id,
       type: "training_gap",

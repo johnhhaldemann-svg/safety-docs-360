@@ -63,7 +63,24 @@ describe("assessSafetyRisk", () => {
     });
 
     expect(result.confidence).toBe("low");
-    expect(result.missingData).toEqual(expect.arrayContaining(["jobsite", "task", "trade"]));
+    expect(result.missingData).toEqual(expect.arrayContaining(["jobsite", "task", "trade", "control effectiveness"]));
+  });
+
+  it("does not downgrade imminent danger when numeric inputs are low", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Trench entry",
+      trade: "Earthwork",
+      controlEffectiveness: "effective",
+      imminentDanger: true,
+      scores: { severity: 1, likelihood: 1, exposureFrequency: 1, controlGap: 1, dataConfidenceConcern: 1 },
+      signals: [{ type: "observation", label: "Worker in unsupported trench", imminentDanger: true, severity: "low" }],
+    });
+
+    expect(result.level).toBe("critical");
+    expect(result.score).toBeGreaterThanOrEqual(81);
+    expect(result.escalationRequired).toBe(true);
+    expect(result.stopWorkReviewRecommended).toBe(true);
   });
 
   it("requires escalation for high and critical findings", () => {
@@ -87,6 +104,23 @@ describe("assessSafetyRisk", () => {
     expect(critical.escalationRequired).toBe(true);
   });
 
+  it("keeps the numeric score inside the final raised level band", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Hot work",
+      trade: "Mechanical",
+      controlEffectiveness: "partial",
+      missingRequiredPermit: true,
+      highRiskWorkCategories: ["hot_work"],
+      scores: { severity: 3, likelihood: 3, exposureFrequency: 3, controlGap: 3, dataConfidenceConcern: 1 },
+      signals: [{ type: "high_risk_work", label: "Hot work", severity: "medium", highRisk: true, missingRequiredPermit: true }],
+    });
+
+    expect(result.level).toBe("high");
+    expect(result.score).toBeGreaterThanOrEqual(61);
+    expect(result.score).toBeLessThanOrEqual(80);
+  });
+
   it("orders recommendations by hierarchy of controls", () => {
     const result = assessSafetyRisk({
       jobsiteName: "North Tower",
@@ -98,11 +132,12 @@ describe("assessSafetyRisk", () => {
       signals: [{ type: "high_risk_work", label: "Critical lift", highRisk: true, severity: "critical" }],
     });
 
-    expect(result.recommendations.map((item) => item.controlType).slice(0, 5)).toEqual([
+    expect(result.recommendations.map((item) => item.controlType).slice(0, 6)).toEqual([
       "elimination",
       "substitution",
       "engineering",
       "administrative",
+      "ppe",
       "competent_person_review",
     ]);
   });

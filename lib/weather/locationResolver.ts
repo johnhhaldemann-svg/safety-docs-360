@@ -81,6 +81,10 @@ export function normalizeZipCode(value?: string | null) {
   return match[2] ? `${match[1]}-${match[2]}` : match[1];
 }
 
+function baseZipCode(value: string) {
+  return value.slice(0, 5);
+}
+
 export function buildWeatherAddress(input: WeatherLocationInput) {
   return joinAddress([
     input.addressLine1,
@@ -127,10 +131,16 @@ export async function resolveWeatherLocation(
   const zip = normalizeZipCode(input.zipCode);
   if (!zip) return null;
 
-  return geocodeZipWithGeocodio(zip, {
+  const geocodioLocation = await geocodeZipWithGeocodio(zip, {
     fetcher,
     timeoutMs,
     geocodioApiKey: options.geocodioApiKey ?? readEnv("GEOCODIO_API_KEY"),
+  }).catch(() => null);
+  if (geocodioLocation) return geocodioLocation;
+
+  return geocodeZipWithZippopotam(zip, {
+    fetcher,
+    timeoutMs,
   }).catch(() => null);
 }
 
@@ -180,6 +190,34 @@ export async function geocodeZipWithGeocodio(
   const city = asString(components?.city);
   const state = asString(components?.state);
   const label = [city, state, normalizeZipCode(zipCode)].filter(Boolean).join(", ") || null;
+
+  return {
+    latitude,
+    longitude,
+    source: "zip_centroid",
+    confidence: "low",
+    label,
+  };
+}
+
+export async function geocodeZipWithZippopotam(
+  zipCode: string,
+  options: { fetcher?: typeof fetch; timeoutMs?: number } = {}
+): Promise<WeatherLocationResult | null> {
+  const zip = normalizeZipCode(zipCode);
+  if (!zip) return null;
+
+  const url = `https://api.zippopotam.us/us/${encodeURIComponent(baseZipCode(zip))}`;
+  const json = await fetchJsonWithTimeout(options.fetcher ?? fetch, url, options.timeoutMs ?? 12000);
+  const places = asRecord(json)?.places;
+  const first = Array.isArray(places) ? asRecord(places[0]) : null;
+  const latitude = asNumber(first?.latitude);
+  const longitude = asNumber(first?.longitude);
+  if (latitude === null || longitude === null) return null;
+
+  const city = asString(first?.["place name"]);
+  const state = asString(first?.["state abbreviation"]) ?? asString(first?.state);
+  const label = [city, state, zip].filter(Boolean).join(", ") || null;
 
   return {
     latitude,
