@@ -152,6 +152,15 @@ type IncidentDraft = {
   occurredAt: string;
 };
 
+type IncidentNotificationSummary = {
+  attempted?: boolean;
+  recipients?: number;
+  sent?: number;
+  skipped?: number;
+  failed?: number;
+  error?: string | null;
+};
+
 function permitTypeApiValue(type: string) {
   return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
@@ -580,6 +589,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [permitMessage, setPermitMessage] = useState("");
   const [incidentMessage, setIncidentMessage] = useState("");
   const [incidentSubmitting, setIncidentSubmitting] = useState(false);
+  const [incidentTestSending, setIncidentTestSending] = useState(false);
   const [permitSubmitting, setPermitSubmitting] = useState(false);
   const [incidentDraft, setIncidentDraft] = useState(() =>
     buildEmptyIncidentDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
@@ -803,6 +813,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       const stopWorkStatus = incidentDraft.severity === "critical" || incidentDraft.fatality || incidentDraft.idlhFlag
         ? "stop_work_requested"
         : "normal";
+      let notificationSummary: IncidentNotificationSummary | null = null;
 
       if (mode === "live" && token) {
         const response = await fetch("/api/company/incidents", {
@@ -832,11 +843,15 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             occurredAt: incidentDraft.occurredAt ? new Date(incidentDraft.occurredAt).toISOString() : null,
           }),
         });
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+          notification?: IncidentNotificationSummary | null;
+        } | null;
         if (!response.ok) {
           setIncidentMessage(data?.error || "Could not log the incident.");
           return;
         }
+        notificationSummary = data?.notification ?? null;
         refreshLiveData();
       } else {
         addDraftIncident({
@@ -855,11 +870,75 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       setQuery("");
       setIncidentDraft(buildEmptyIncidentDraft(siteId));
       setShowIncidentComposer(false);
-      setIncidentMessage(mode === "live" && token ? "Incident logged to the company register." : "Incident queued locally in SafePredict.");
+      if (mode === "live" && token) {
+        const sent = notificationSummary?.sent ?? 0;
+        const skipped = notificationSummary?.skipped ?? 0;
+        const failed = notificationSummary?.failed ?? 0;
+        const recipients = notificationSummary?.recipients ?? 0;
+        setIncidentMessage(
+          notificationSummary?.attempted
+            ? `Incident logged to the company register. Notifications: ${sent} sent, ${skipped} skipped, ${failed} failed across ${recipients} recipient${recipients === 1 ? "" : "s"}.`
+            : "Incident logged to the company register. No notification was triggered for this severity/category."
+        );
+      } else {
+        setIncidentMessage("Incident queued locally in SafePredict.");
+      }
     } catch (error) {
       setIncidentMessage(error instanceof Error ? error.message : "Could not log the incident.");
     } finally {
       setIncidentSubmitting(false);
+    }
+  }
+
+  async function sendIncidentAlertTest() {
+    if (mode !== "live") {
+      setIncidentMessage("Switch to Live data before sending an incident alert test.");
+      return;
+    }
+    const confirmed = window.confirm("Send a TEST ONLY critical incident alert to configured incident alert recipients?");
+    if (!confirmed) return;
+    setIncidentTestSending(true);
+    setIncidentMessage("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      if (!token) {
+        setIncidentMessage("Sign in again before sending an incident alert test.");
+        return;
+      }
+      const response = await fetch("/api/company/incidents/test-alert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            message?: string;
+            warning?: string | null;
+            recipients?: number;
+            sent?: number;
+            skipped?: number;
+            failed?: number;
+          }
+        | null;
+      if (!response.ok) {
+        setIncidentMessage(data?.error || data?.warning || "Incident alert test failed.");
+        return;
+      }
+      setIncidentMessage(
+        data?.message ||
+          `Incident alert test complete. Recipients: ${data?.recipients ?? 0}. Sent: ${data?.sent ?? 0}. Skipped: ${data?.skipped ?? 0}. Failed: ${data?.failed ?? 0}.`
+      );
+    } catch (error) {
+      setIncidentMessage(error instanceof Error ? error.message : "Incident alert test failed.");
+    } finally {
+      setIncidentTestSending(false);
     }
   }
 
@@ -1216,14 +1295,25 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
             </Link>
           ) : null}
           {workspace === "incidents" ? (
-            <button
-              type="button"
-              onClick={openIncidentComposer}
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
-            >
-              <Plus className="h-4 w-4" />
-              {config.primaryAction}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void sendIncidentAlertTest()}
+                disabled={incidentTestSending}
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <TriangleAlert className="h-4 w-4" />
+                {incidentTestSending ? "Sending test" : "Send test alert"}
+              </button>
+              <button
+                type="button"
+                onClick={openIncidentComposer}
+                className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
+              >
+                <Plus className="h-4 w-4" />
+                {config.primaryAction}
+              </button>
+            </>
           ) : workspace === "permits" ? (
             <button
               type="button"

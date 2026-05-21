@@ -137,8 +137,12 @@ export function isSevereIncidentAlert(record: Pick<IncidentAlertRecord, "fatalit
   );
 }
 
-export function isActionableIncidentAlert(record: Pick<IncidentAlertRecord, "fatality" | "idlhFlag" | "severity" | "sifFlag" | "stopWorkStatus">) {
-  return isSevereIncidentAlert(record) || normalizeKey(record.severity) === "high";
+export function isActionableIncidentAlert(record: Pick<IncidentAlertRecord, "fatality" | "idlhFlag" | "severity" | "sifFlag" | "stopWorkStatus" | "category">) {
+  return (
+    isSevereIncidentAlert(record) ||
+    normalizeKey(record.severity) === "high" ||
+    normalizeKey(record.category) === "incident"
+  );
 }
 
 export function shouldDispatchIncidentAlert(params: {

@@ -117,7 +117,9 @@ async function dispatchIncidentAlertSafe(params: {
   row: Record<string, unknown>;
 }) {
   const next = incidentAlertRecordFromRow(params.row, params.companyId);
-  if (!shouldDispatchIncidentAlert({ previous: params.previous ?? null, next })) return;
+  if (!shouldDispatchIncidentAlert({ previous: params.previous ?? null, next })) {
+    return { attempted: false, recipients: 0, sent: 0, skipped: 0, failed: 0, error: null };
+  }
   const result = await dispatchIncidentAlertNotifications({
     supabase: params.supabase,
     sourceTable: "company_incidents",
@@ -141,6 +143,7 @@ async function dispatchIncidentAlertSafe(params: {
       failed: result.failed,
     });
   }
+  return result;
 }
 
 export async function GET(request: Request) {
@@ -313,7 +316,7 @@ export async function POST(request: Request) {
     lost_time: lostTime,
     fatality,
     idlh_flag: idlhFlag,
-    owner_user_id: String(body?.ownerUserId ?? "").trim() || null,
+    owner_user_id: String(body?.ownerUserId ?? "").trim() || auth.user.id,
     due_at: String(body?.dueAt ?? "").trim() || null,
     occurred_at: occurredAt,
     ...injuryTimePatterns,
@@ -346,13 +349,13 @@ export async function POST(request: Request) {
     },
     created_by: auth.user.id,
   });
-  await dispatchIncidentAlertSafe({
+  const notification = await dispatchIncidentAlertSafe({
     companyId: companyScope.companyId,
     supabase: auth.supabase,
     actorUserId: auth.user.id,
     row: result.data as Record<string, unknown>,
   });
-  return NextResponse.json({ success: true, incident: result.data });
+  return NextResponse.json({ success: true, incident: result.data, notification });
 }
 
 export async function PATCH(request: Request) {
@@ -592,7 +595,7 @@ export async function PATCH(request: Request) {
     },
     created_by: auth.user.id,
   });
-  await dispatchIncidentAlertSafe({
+  const notification = await dispatchIncidentAlertSafe({
     companyId: companyScope.companyId,
     supabase: auth.supabase,
     actorUserId: auth.user.id,
@@ -603,5 +606,5 @@ export async function PATCH(request: Request) {
     const facetPatch = buildIncidentFacetRow(companyScope.companyId, result.data as Record<string, unknown>, body);
     void upsertRiskMemoryFacetSafe(auth.supabase, facetPatch);
   }
-  return NextResponse.json({ success: true, incident: result.data });
+  return NextResponse.json({ success: true, incident: result.data, notification });
 }

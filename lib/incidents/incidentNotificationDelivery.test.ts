@@ -49,7 +49,13 @@ describe("incident notification delivery helpers", () => {
     expect(isSevereIncidentAlert({ ...baseRecord, severity: "high" })).toBe(false);
   });
 
-  it("dispatches on high first visibility and later severe escalation", () => {
+  it("dispatches on injury incidents, high visibility, and later severe escalation", () => {
+    expect(
+      shouldDispatchIncidentAlert({
+        previous: null,
+        next: { ...baseRecord, severity: "medium", category: "incident" },
+      })
+    ).toBe(true);
     expect(
       shouldDispatchIncidentAlert({
         previous: null,
