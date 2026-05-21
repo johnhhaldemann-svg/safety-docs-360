@@ -28,8 +28,8 @@ type OriginalSystemLink = {
 
 const toneClasses: Record<OriginalSystemLink["tone"], string> = {
   blue: "bg-blue-50 text-blue-600 border-blue-100",
-  green: "bg-emerald-50 text-emerald-600 border-emerald-100",
-  amber: "bg-amber-50 text-amber-600 border-amber-100",
+  green: "bg-emerald-50 text-emerald-800 border-emerald-100",
+  amber: "bg-amber-50 text-amber-800 border-amber-100",
   red: "bg-red-50 text-red-600 border-red-100",
   purple: "bg-violet-50 text-violet-600 border-violet-100",
 };

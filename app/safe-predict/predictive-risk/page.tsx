@@ -193,10 +193,10 @@ export default function SafePredictPredictiveRiskPage() {
                         index === 0
                           ? "border-red-200 bg-red-50 text-red-600"
                           : index === 1
-                            ? "border-orange-200 bg-orange-50 text-orange-600"
+                            ? "border-orange-200 bg-orange-50 text-orange-800"
                             : index === 2
-                              ? "border-amber-200 bg-amber-50 text-amber-600"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-600"
+                              ? "border-amber-200 bg-amber-50 text-amber-800"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-800"
                       )}
                     >
                       {label}
@@ -290,14 +290,14 @@ export default function SafePredictPredictiveRiskPage() {
           <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
             {recommendedActions.map(({ title, detail, priority, tone }) => (
             <Link key={title} href="/safe-predict/risk-mitigation" className="flex items-start gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 hover:bg-white 2xl:border-r 2xl:border-slate-200 2xl:bg-white 2xl:pr-4 2xl:last:border-r-0">
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-800">
                 <ShieldCheck className="h-7 w-7" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-black text-slate-950">{title}</p>
                 <p className="mt-1 text-sm leading-5 text-slate-600">{detail}</p>
               </div>
-              <span className={cx("rounded-lg border px-3 py-2 text-center text-xs font-black", tone === "red" ? "border-red-200 bg-red-50 text-red-600" : "border-amber-200 bg-amber-50 text-amber-600")}>
+              <span className={cx("rounded-lg border px-3 py-2 text-center text-xs font-black", tone === "red" ? "border-red-200 bg-red-50 text-red-600" : "border-amber-200 bg-amber-50 text-amber-800")}>
                 {priority}
               </span>
               <ArrowRight className="h-5 w-5 text-slate-400" />

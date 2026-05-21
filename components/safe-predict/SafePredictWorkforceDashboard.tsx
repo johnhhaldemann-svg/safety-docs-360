@@ -283,8 +283,8 @@ function readinessLabel(score: number, hasEmployees: boolean) {
 
 function employeeStatusClass(status: SafePredictDemoEmployeeStatus) {
   if (status === "overdue") return "bg-red-50 text-red-600";
-  if (status === "expiring") return "bg-amber-50 text-amber-600";
-  return "bg-emerald-50 text-emerald-600";
+  if (status === "expiring") return "bg-amber-50 text-amber-800";
+  return "bg-emerald-50 text-emerald-800";
 }
 
 function workflowToneClass(severity: WorkflowSeverity) {
@@ -544,10 +544,10 @@ export function SafePredictWorkforceDashboard() {
     forecastLabel === "Elevated"
       ? "text-purple-700"
       : forecastLabel === "Watch"
-        ? "text-amber-600"
+        ? "text-amber-800"
         : forecastLabel === "Stable"
           ? "text-emerald-700"
-          : "text-slate-500";
+          : "text-slate-700";
   const predictedRiskImpact = !hasEmployees ? "No Data" : forecastLabel === "Elevated" ? "High" : forecastLabel === "Watch" ? "Watch" : "Stable";
   const incidentLikelihood = !hasEmployees ? "No Data" : forecastLabel === "Elevated" ? "Elevated" : forecastLabel === "Watch" ? "Moderate" : "Low";
   const activeFilterText = [
@@ -779,6 +779,7 @@ export function SafePredictWorkforceDashboard() {
               if (activeTab === "overview") setActiveTab("workforce");
             }}
             className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            aria-label="Filter workforce by status"
           >
             <option value="all">All statuses</option>
             <option value="overdue">Overdue first</option>
@@ -789,6 +790,7 @@ export function SafePredictWorkforceDashboard() {
             value={siteFilter}
             onChange={(event) => setSiteFilter(event.target.value)}
             className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-black text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            aria-label="Filter workforce by jobsite"
           >
             <option value="all">All jobsites</option>
             {jobsites.map((jobsite) => (
@@ -803,10 +805,10 @@ export function SafePredictWorkforceDashboard() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <aside className="order-first xl:order-last">
+        <section className="order-first xl:order-last">
           <WorkflowActionRail items={workflowItems} statuses={workflowStatuses} topCount={topCreatableItems.length} onCreate={createWorkflowAction} onCreateTop={createTopWorkflowActions} />
-        </aside>
-        <main className="order-last grid min-w-0 gap-5 xl:order-first">
+        </section>
+        <section className="order-last grid min-w-0 gap-5 xl:order-first">
           {activeTab === "overview" ? (
             <OverviewTab
               employees={employees}
@@ -862,7 +864,7 @@ export function SafePredictWorkforceDashboard() {
               workforce={workforce}
             />
           ) : null}
-        </main>
+        </section>
       </div>
 
       <EmployeeProfileDrawer
@@ -956,7 +958,7 @@ function OverviewTab({
                 </div>
                 <div className="flex gap-2 text-xs font-black">
                   <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-600">{permit.expired} overdue</span>
-                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-600">{permit.expiringSoon} expiring</span>
+                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800">{permit.expiringSoon} expiring</span>
                 </div>
               </div>
             ))}
@@ -973,7 +975,7 @@ function OverviewTab({
                     <p className="truncate text-sm font-black text-slate-950">{jobsite.name}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-500">{jobsite.phase}</p>
                   </div>
-                  <span className={cx("rounded-full px-3 py-1 text-xs font-black", jobsiteForecastLevel(jobsite) === "Elevated" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-600")}>{jobsiteForecastLevel(jobsite)}</span>
+                  <span className={cx("rounded-full px-3 py-1 text-xs font-black", jobsiteForecastLevel(jobsite) === "Elevated" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-800")}>{jobsiteForecastLevel(jobsite)}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-black">
                   <span className="rounded-lg bg-white p-2 text-slate-700">{jobsite.workforceCount} workers</span>
@@ -1187,7 +1189,7 @@ function DynamicRequirementCard({
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-black">
         <span className="rounded-lg bg-red-50 p-2 text-red-600">{requirement.overdueCount}<span className="block text-[10px] uppercase">Need it</span></span>
-        <span className="rounded-lg bg-amber-50 p-2 text-amber-600">{requirement.expiringCount}<span className="block text-[10px] uppercase">Expiring</span></span>
+        <span className="rounded-lg bg-amber-50 p-2 text-amber-800">{requirement.expiringCount}<span className="block text-[10px] uppercase">Expiring</span></span>
         <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">{requirement.compliantCount}<span className="block text-[10px] uppercase">Have it</span></span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -1217,7 +1219,7 @@ function DynamicTrainingTradeSection({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{group.overdueCount}</span>
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-600">{group.expiringCount}</span>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{group.expiringCount}</span>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.compliantCount}</span>
           <ChevronDown className={cx("h-4 w-4 text-slate-400 transition", isOpen ? "rotate-180" : undefined)} />
         </div>
@@ -1252,7 +1254,7 @@ function StaticTrainingFallback({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">{group.overdueCount}</span>
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-600">{group.expiringCount}</span>
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-800">{group.expiringCount}</span>
                   <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{group.compliantCount}</span>
                   <ChevronDown className={cx("h-4 w-4 text-slate-400 transition", isOpen ? "rotate-180" : undefined)} />
                 </div>
@@ -1353,7 +1355,7 @@ function PermitsTab({ groups, permits }: { groups: PermitCategoryGroup[]; permit
               </div>
               <div className="grid grid-cols-4 gap-2 text-center text-xs font-black">
                 <span className="rounded-lg bg-emerald-50 p-2 text-emerald-700">{group.active}<span className="block text-[10px] uppercase">Active</span></span>
-                <span className="rounded-lg bg-amber-50 p-2 text-amber-600">{group.expiringSoon}<span className="block text-[10px] uppercase">Expiring</span></span>
+                <span className="rounded-lg bg-amber-50 p-2 text-amber-800">{group.expiringSoon}<span className="block text-[10px] uppercase">Expiring</span></span>
                 <span className="rounded-lg bg-red-50 p-2 text-red-600">{group.expired}<span className="block text-[10px] uppercase">Overdue</span></span>
                 <span className="rounded-lg bg-slate-100 p-2 text-slate-700">{group.missingSignatures}<span className="block text-[10px] uppercase">Signature</span></span>
               </div>
@@ -1397,7 +1399,7 @@ function JobsiteAssignmentsTab({ employees, jobsites, permits, siteFilter, onFil
                 <p className="text-xl font-black leading-tight text-slate-950">{jobsite.name}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-500">{jobsite.address}, {jobsite.cityState}</p>
               </div>
-              <span className={cx("rounded-full px-3 py-1 text-xs font-black", forecast === "Elevated" ? "bg-violet-50 text-violet-700" : forecast === "Watch" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-700")}>{forecast}</span>
+              <span className={cx("rounded-full px-3 py-1 text-xs font-black", forecast === "Elevated" ? "bg-violet-50 text-violet-700" : forecast === "Watch" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800")}>{forecast}</span>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
               <MetricLine label="Workers" value={assigned.length || jobsite.workforceCount} tone="slate" />
@@ -1523,7 +1525,7 @@ function MetricLine({ label, value, tone }: { label: string; value: string | num
     tone === "green"
       ? "bg-emerald-50 text-emerald-700"
       : tone === "amber"
-        ? "bg-amber-50 text-amber-600"
+        ? "bg-amber-50 text-amber-800"
         : tone === "red"
           ? "bg-red-50 text-red-600"
           : tone === "blue"
@@ -1619,7 +1621,7 @@ function PreventionInsightsCard({ hasEmployees, highRiskActivityCount, incidentL
 }
 
 function InsightPill({ label, value, tone }: { label: string; value: string; tone: "red" | "amber" | "green" | "violet" | "slate" }) {
-  const toneClass = tone === "red" ? "bg-red-50 text-red-600" : tone === "amber" ? "bg-amber-50 text-amber-600" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "violet" ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-500";
+  const toneClass = tone === "red" ? "bg-red-50 text-red-600" : tone === "amber" ? "bg-amber-50 text-amber-800" : tone === "green" ? "bg-emerald-50 text-emerald-800" : tone === "violet" ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-700";
   return <div className="rounded-lg border border-slate-100 bg-slate-50 p-3"><p className="text-xs font-bold uppercase text-slate-500">{label}</p><span className={cx("mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black", toneClass)}>{value}</span></div>;
 }
 
@@ -1912,7 +1914,7 @@ function EmployeeProfileDrawer({
               </div>
             </section>
           ) : null}
-          <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-600" />Credentials</h3><div className="mt-3 flex flex-wrap gap-2">{employee.credentials.map((credential) => <span key={credential} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{credential}</span>)}</div></section>
+          <section><h3 className="flex items-center gap-2 text-sm font-black text-slate-950"><ShieldCheck className="h-4 w-4 text-emerald-800" />Credentials</h3><div className="mt-3 flex flex-wrap gap-2">{employee.credentials.map((credential) => <span key={credential} className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">{credential}</span>)}</div></section>
           {isTrackedEmployee ? (
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start justify-between gap-3">

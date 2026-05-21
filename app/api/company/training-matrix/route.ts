@@ -733,6 +733,8 @@ function buildSalesDemoTrainingMatrixResponse(
       cellDetails,
       inventory,
       profileFields,
+      companyOrDepartment: "Demo Construction",
+      workerType: "Employee",
       assignedJobsiteCount: 1,
     });
 
@@ -862,6 +864,8 @@ function buildStage1Details(params: {
   cellDetails: Record<string, TrainingMatrixCellDetail | undefined>;
   inventory: CertificationInventoryItem[];
   profileFields: { jobTitle: string; tradeSpecialty: string; readinessStatus: string };
+  companyOrDepartment: string;
+  workerType: string;
   assignedJobsiteCount: number;
 }): { trainingRequirements: Stage1TrainingDetail[]; trainingSummary: Stage1TrainingSummary } {
   const trainingRequirements = params.requirements.map((requirement) =>
@@ -874,6 +878,8 @@ function buildStage1Details(params: {
       worker: {
         jobTitle: params.profileFields.jobTitle,
         tradeSpecialty: params.profileFields.tradeSpecialty,
+        companyOrDepartment: params.companyOrDepartment,
+        workerType: params.workerType,
         readinessStatus: params.profileFields.readinessStatus,
         assignedJobsiteCount: params.assignedJobsiteCount,
       },
@@ -1068,6 +1074,7 @@ async function getTrainingMatrix(request: Request) {
   for (const row of (profileData as ProfileRow[] | null) ?? []) {
     profileMap.set(row.user_id, row);
   }
+  const directoryUserNameById = new Map(directory.users.map((user) => [user.id, user.name || user.email || "Assigned manager"]));
 
   const asOf = new Date();
   const licensedRows = directory.users.map((user) => {
@@ -1102,6 +1109,8 @@ async function getTrainingMatrix(request: Request) {
       cellDetails,
       inventory,
       profileFields,
+      companyOrDepartment: user.team,
+      workerType: "Employee",
       assignedJobsiteCount: 0,
     });
 
@@ -1169,12 +1178,23 @@ async function getTrainingMatrix(request: Request) {
     const assignedJobsites = (employee.jobsiteAssignments ?? [])
       .map((assignment) => assignment.jobsite?.name ?? assignment.jobsite_id)
       .filter(Boolean);
+    const workerType = employee.worker_type?.trim() || "External Worker";
+    const companyOrDepartment =
+      [employee.company_name, employee.department_name].map((item) => item?.trim()).filter(Boolean).join(" / ") ||
+      "Tracked workforce";
+    const supervisorOrManager =
+      directoryUserNameById.get(employee.responsible_sponsor_id ?? "") ||
+      directoryUserNameById.get(employee.manager_id ?? "") ||
+      directoryUserNameById.get(employee.supervisor_id ?? "") ||
+      "Responsible manager not assigned";
     const stage1 = buildStage1Details({
       requirements,
       cells,
       cellDetails,
       inventory,
       profileFields,
+      companyOrDepartment,
+      workerType,
       assignedJobsiteCount: assignedJobsites.length,
     });
 
@@ -1193,16 +1213,16 @@ async function getTrainingMatrix(request: Request) {
       profileFields,
       personType: "tracked_employee",
       licenseStatus: "No Portal Access",
-      workerType: "External Worker",
+      workerType,
       loginAccessStatus: "No Portal Access",
-      companyOrDepartment: "Tracked workforce",
+      companyOrDepartment,
       jobTitleOrTrade: [profileFields.jobTitle, profileFields.tradeSpecialty].filter(Boolean).join(" / "),
       assignedJobsites,
-      supervisorOrManager: "Responsible manager not assigned",
+      supervisorOrManager,
       readinessStatus: stage1.trainingSummary.overallStatus || readinessStatusLabel(employee.readiness_status),
       trainingStatus: stage1.trainingSummary.overallStatus,
       permitExposureStatus: stage1.trainingSummary.permitLinkedGaps > 0 ? "Permit-linked gaps" : "No permit-linked training gaps found",
-      accessStatus: employee.status === "inactive" ? "Inactive" : "Restricted",
+      accessStatus: employee.access_status === "active" ? "Active" : employee.access_status === "blocked" ? "Blocked" : employee.access_status === "pending_review" ? "Pending Review" : employee.status === "inactive" ? "Inactive" : "Restricted",
       lastUpdated: employee.updated_at ?? employee.created_at ?? null,
       trainingRequirements: stage1.trainingRequirements,
       trainingSummary: stage1.trainingSummary,

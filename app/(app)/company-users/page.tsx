@@ -57,6 +57,11 @@ import {
   type WorkspaceLoadState,
 } from "./workforce-logic";
 import {
+  ACCESS_STATUS_OPTIONS,
+  WORKER_TYPE_OPTIONS,
+  formatAccessStatus,
+} from "@/lib/companyTrackedEmployees";
+import {
   WorkerProfileDrawer,
   buildWorkerProfileFromDirectoryRow,
   buildWorkerProfileFromMatrixRow,
@@ -112,6 +117,18 @@ type TrackedEmployee = {
   trade_specialty?: string | null;
   readiness_status?: string | null;
   status?: string | null;
+  worker_type?: string | null;
+  company_name?: string | null;
+  department_name?: string | null;
+  manager_id?: string | null;
+  supervisor_id?: string | null;
+  responsible_sponsor_id?: string | null;
+  access_status?: string | null;
+  access_start_date?: string | null;
+  access_end_date?: string | null;
+  restrictions?: string[] | null;
+  updated_at?: string | null;
+  created_at?: string | null;
   trainingRecords?: Array<{ id: string }>;
   jobsiteAssignments?: Array<{ id: string; jobsite_id: string; status?: string | null }>;
 };
@@ -119,10 +136,20 @@ type TrackedEmployee = {
 type TrackedEmployeeForm = {
   employee_id: string;
   full_name: string;
+  worker_type: string;
+  company_name: string;
+  department_name: string;
   email: string;
   phone: string;
   job_title: string;
   trade_specialty: string;
+  manager_id: string;
+  supervisor_id: string;
+  responsible_sponsor_id: string;
+  access_status: string;
+  access_start_date: string;
+  access_end_date: string;
+  restrictions: string;
   readiness_status: string;
   status: string;
   certifications: string;
@@ -201,10 +228,20 @@ const emptyLoadState: WorkspaceLoadState = {
 const emptyTrackedEmployeeForm: TrackedEmployeeForm = {
   employee_id: "",
   full_name: "",
+  worker_type: "Contractor",
+  company_name: "",
+  department_name: "",
   email: "",
   phone: "",
   job_title: "",
   trade_specialty: "",
+  manager_id: "",
+  supervisor_id: "",
+  responsible_sponsor_id: "",
+  access_status: "restricted",
+  access_start_date: "",
+  access_end_date: "",
+  restrictions: "",
   readiness_status: "ready",
   status: "active",
   certifications: "",
@@ -283,7 +320,15 @@ function loginAccessLabel(status?: string | null): WorkforceDirectoryRow["loginA
 }
 
 function readWorkerProfileTab(value: string | null): WorkerProfileTab {
-  return value === "training" || value === "permits" || value === "access" ? value : "summary";
+  return value === "training" ||
+    value === "permits" ||
+    value === "jobsites" ||
+    value === "documents" ||
+    value === "actions" ||
+    value === "access" ||
+    value === "audit"
+    ? value
+    : "summary";
 }
 
 function getProfileHref(userId: string) {
@@ -424,6 +469,14 @@ function demoWorkspace(): WorkspaceData {
       trade_specialty: "Hoisting",
       readiness_status: "needs_training",
       status: "active",
+      worker_type: "Contractor",
+      company_name: "Summit Ridge Crane Services",
+      department_name: "Field Operations",
+      responsible_sponsor_id: "demo-admin",
+      access_status: "restricted",
+      access_start_date: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      access_end_date: null,
+      restrictions: ["No lifting operations until signal person training is current"],
       trainingRecords: [{ id: "demo-training-1" }],
       jobsiteAssignments: [],
     },
@@ -436,6 +489,14 @@ function demoWorkspace(): WorkspaceData {
       trade_specialty: "Concrete",
       readiness_status: "ready",
       status: "active",
+      worker_type: "Contractor",
+      company_name: "Bell Concrete",
+      department_name: "Concrete",
+      responsible_sponsor_id: "demo-admin",
+      access_status: "active",
+      access_start_date: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      access_end_date: null,
+      restrictions: [],
       trainingRecords: [{ id: "demo-training-2" }, { id: "demo-training-3" }],
       jobsiteAssignments: [{ id: "demo-employee-assignment-1", jobsite_id: "demo-jobsite-1", status: "active" }],
     },
@@ -610,7 +671,7 @@ function TabButton({
       onClick={() => onClick(tab)}
       className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
         isActive
-          ? "bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)]"
+          ? "bg-[var(--app-accent-primary)] !text-white shadow-[var(--app-shadow-primary-button)]"
           : "text-[var(--app-text)] hover:bg-[var(--app-accent-primary-soft)] hover:text-[var(--app-text-strong)]"
       }`}
     >
@@ -618,7 +679,7 @@ function TabButton({
       {typeof count === "number" ? (
         <span
           className={`rounded-full px-2 py-0.5 text-xs ${
-            isActive ? "bg-white/18 text-white" : "bg-[var(--semantic-neutral-bg)] text-[var(--app-muted)]"
+            isActive ? "bg-white/18 !text-white" : "bg-[var(--semantic-neutral-bg)] text-[var(--app-muted)]"
           }`}
         >
           {count}
@@ -819,6 +880,14 @@ export default function CompanyUsersPage() {
       }, {}),
     [workspace.jobsites]
   );
+  const userNameById = useMemo(
+    () =>
+      workspace.users.reduce<Record<string, string>>((acc, user) => {
+        acc[user.id] = user.name || user.email;
+        return acc;
+      }, {}),
+    [workspace.users]
+  );
   const activeTrackedEmployees = useMemo(
     () => workspace.trackedEmployees.filter((employee) => employee.status !== "archived"),
     [workspace.trackedEmployees]
@@ -856,21 +925,27 @@ export default function CompanyUsersPage() {
         id: employee.id,
         source: "tracked",
         name: employee.full_name,
-        workerType: "External Worker",
+        workerType: employee.worker_type || "External Worker",
         loginAccess: "No Portal Access",
-        companyOrDepartment: "Tracked workforce",
+        companyOrDepartment:
+          [employee.company_name, employee.department_name].filter(Boolean).join(" / ") ||
+          "Tracked workforce",
         jobTitleOrTrade: [employee.job_title, employee.trade_specialty].filter(Boolean).join(" / ") || "Not set",
         assignedJobsite,
-        supervisorOrManager: "Responsible manager not assigned",
+        supervisorOrManager:
+          userNameById[employee.responsible_sponsor_id ?? ""] ||
+          userNameById[employee.manager_id ?? ""] ||
+          userNameById[employee.supervisor_id ?? ""] ||
+          "Responsible manager not assigned",
         readinessStatus: friendlyReadinessLabel(employee.readiness_status),
         trainingStatus: employee.readiness_status === "needs_training" ? "Missing" : "Pending Review",
         permitExposure: "No permit-linked training gaps found",
-        lastUpdated: "Updated recently",
+        lastUpdated: formatRelative(employee.updated_at ?? employee.created_at),
         trackedEmployee: employee,
       };
     });
     return [...userRows, ...trackedRows];
-  }, [activeTrackedEmployees, jobsiteNameById, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
+  }, [activeTrackedEmployees, jobsiteNameById, userNameById, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
   const workforceDirectoryRows = useMemo<WorkforceDirectoryRow[]>(() => {
     const query = searchTerm.trim().toLowerCase();
     const rows = allWorkforceDirectoryRows;
@@ -1028,10 +1103,20 @@ export default function CompanyUsersPage() {
     setTrackedEmployeeForm({
       employee_id: employee.external_employee_id ?? "",
       full_name: employee.full_name,
+      worker_type: employee.worker_type ?? "Contractor",
+      company_name: employee.company_name ?? "",
+      department_name: employee.department_name ?? "",
       email: employee.email ?? "",
       phone: employee.phone ?? "",
       job_title: employee.job_title ?? "",
       trade_specialty: employee.trade_specialty ?? "",
+      manager_id: employee.manager_id ?? "",
+      supervisor_id: employee.supervisor_id ?? "",
+      responsible_sponsor_id: employee.responsible_sponsor_id ?? "",
+      access_status: employee.access_status ?? "restricted",
+      access_start_date: employee.access_start_date ?? "",
+      access_end_date: employee.access_end_date ?? "",
+      restrictions: (employee.restrictions ?? []).join("; "),
       readiness_status: employee.readiness_status ?? "ready",
       status: employee.status ?? "active",
       certifications: "",
@@ -1366,7 +1451,7 @@ export default function CompanyUsersPage() {
   async function handleSaveTrackedEmployee() {
     if (!trackedEmployeeForm.full_name.trim()) {
       setTrackedRosterMessageTone("warning");
-      setTrackedRosterMessage("Full name is required before adding a training-only person.");
+      setTrackedRosterMessage("Full name is required before adding a tracked worker.");
       return;
     }
 
@@ -1382,8 +1467,22 @@ export default function CompanyUsersPage() {
           phone: trackedEmployeeForm.phone || null,
           job_title: trackedEmployeeForm.job_title || null,
           trade_specialty: trackedEmployeeForm.trade_specialty || null,
+          worker_type: trackedEmployeeForm.worker_type,
+          company_name: trackedEmployeeForm.company_name || null,
+          department_name: trackedEmployeeForm.department_name || null,
+          manager_id: trackedEmployeeForm.manager_id || null,
+          supervisor_id: trackedEmployeeForm.supervisor_id || null,
+          responsible_sponsor_id: trackedEmployeeForm.responsible_sponsor_id || null,
+          access_status: trackedEmployeeForm.access_status,
+          access_start_date: trackedEmployeeForm.access_start_date || null,
+          access_end_date: trackedEmployeeForm.access_end_date || null,
+          restrictions: trackedEmployeeForm.restrictions
+            .split(/[;,|]+/)
+            .map((item) => item.trim())
+            .filter(Boolean),
           readiness_status: trackedEmployeeForm.readiness_status,
           status: trackedEmployeeForm.status,
+          updated_at: new Date().toISOString(),
           trainingRecords: editingTrackedEmployee?.trainingRecords ?? [],
           jobsiteAssignments: editingTrackedEmployee?.jobsiteAssignments ?? [],
         };
@@ -1421,7 +1520,7 @@ export default function CompanyUsersPage() {
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
-        error instanceof Error ? error.message : "Failed to save training-only person."
+        error instanceof Error ? error.message : "Failed to save tracked worker."
       );
     } finally {
       setBusyAction(null);
@@ -1473,7 +1572,7 @@ export default function CompanyUsersPage() {
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
-        error instanceof Error ? error.message : "Failed to save training-only jobsite assignments."
+        error instanceof Error ? error.message : "Failed to save tracked worker jobsite assignments."
       );
     } finally {
       setBusyAction(null);
@@ -1881,6 +1980,7 @@ export default function CompanyUsersPage() {
           <TrainingOnlyView
             employees={activeTrackedEmployees}
             jobsites={workspace.jobsites}
+            users={workspace.users}
             form={trackedEmployeeForm}
             setForm={setTrackedEmployeeForm}
             editing={editingTrackedEmployee}
@@ -2366,6 +2466,7 @@ function _AppUsersView({
 function TrainingOnlyView({
   employees,
   jobsites,
+  users,
   form,
   setForm,
   editing,
@@ -2382,6 +2483,7 @@ function TrainingOnlyView({
 }: {
   employees: TrackedEmployee[];
   jobsites: Jobsite[];
+  users: CompanyUser[];
   form: TrackedEmployeeForm;
   setForm: React.Dispatch<React.SetStateAction<TrackedEmployeeForm>>;
   editing: TrackedEmployee | null;
@@ -2402,7 +2504,7 @@ function TrainingOnlyView({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-base font-semibold text-[var(--app-text-strong)]">{editing ? "Edit Tracked Worker" : "Add Tracked Worker"}</p>
-            <p className="mt-1 text-sm text-[var(--app-text)]">No portal access is created from this roster.</p>
+            <p className="mt-1 text-sm text-[var(--app-text)]">Create or update a no-portal worker with site access details.</p>
           </div>
           <a href="/api/company/onboarding/import/template?type=employees" className={appButtonSecondaryClassName}>
             <FileDown aria-hidden className="h-4 w-4" />
@@ -2442,29 +2544,101 @@ function TrainingOnlyView({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} className={fieldClassName} placeholder="Full name" />
-            <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={fieldClassName} placeholder="Email (optional)" />
-            <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className={fieldClassName} placeholder="Phone (optional)" />
-            <input value={form.employee_id} onChange={(event) => setForm((current) => ({ ...current, employee_id: event.target.value }))} className={fieldClassName} placeholder="Employee ID" />
-            <select value={form.readiness_status} onChange={(event) => setForm((current) => ({ ...current, readiness_status: event.target.value }))} className={appNativeSelectClassName}>
-              <option value="ready">Ready</option>
-              <option value="travel_ready">Travel ready</option>
-              <option value="limited">Limited</option>
-              <option value="needs_training">Needs training</option>
-              <option value="onboarding">Onboarding</option>
-            </select>
-            <input value={form.job_title} onChange={(event) => setForm((current) => ({ ...current, job_title: event.target.value }))} className={fieldClassName} placeholder="Job title" />
-            <input value={form.trade_specialty} onChange={(event) => setForm((current) => ({ ...current, trade_specialty: event.target.value }))} className={fieldClassName} placeholder="Trade specialty" />
-            <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={appNativeSelectClassName}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="archived">Archived</option>
-            </select>
-            <input value={form.certifications} onChange={(event) => setForm((current) => ({ ...current, certifications: event.target.value }))} className={fieldClassName} placeholder="Certifications; separated by semicolons" />
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Full name</span>
+              <input value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} className={fieldClassName} placeholder="Full name" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Worker type</span>
+              <select value={form.worker_type} onChange={(event) => setForm((current) => ({ ...current, worker_type: event.target.value }))} className={appNativeSelectClassName}>
+                {WORKER_TYPE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Company</span>
+              <input value={form.company_name} onChange={(event) => setForm((current) => ({ ...current, company_name: event.target.value }))} className={fieldClassName} placeholder="External company" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Department</span>
+              <input value={form.department_name} onChange={(event) => setForm((current) => ({ ...current, department_name: event.target.value }))} className={fieldClassName} placeholder="Department" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Job title</span>
+              <input value={form.job_title} onChange={(event) => setForm((current) => ({ ...current, job_title: event.target.value }))} className={fieldClassName} placeholder="Job title" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Trade</span>
+              <input value={form.trade_specialty} onChange={(event) => setForm((current) => ({ ...current, trade_specialty: event.target.value }))} className={fieldClassName} placeholder="Trade specialty" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Responsible sponsor</span>
+              <select value={form.responsible_sponsor_id} onChange={(event) => setForm((current) => ({ ...current, responsible_sponsor_id: event.target.value }))} className={appNativeSelectClassName}>
+                <option value="">Responsible manager not assigned</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.name} / {user.role}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Readiness status</span>
+              <select value={form.readiness_status} onChange={(event) => setForm((current) => ({ ...current, readiness_status: event.target.value }))} className={appNativeSelectClassName}>
+                <option value="ready">Ready</option>
+                <option value="travel_ready">Ready With Warnings</option>
+                <option value="limited">Restricted</option>
+                <option value="needs_training">Not Ready</option>
+                <option value="onboarding">Pending Review</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Site access status</span>
+              <select value={form.access_status} onChange={(event) => setForm((current) => ({ ...current, access_status: event.target.value }))} className={appNativeSelectClassName}>
+                {ACCESS_STATUS_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{formatAccessStatus(option)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Active status</span>
+              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={appNativeSelectClassName}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Access start</span>
+              <input type="date" value={form.access_start_date} onChange={(event) => setForm((current) => ({ ...current, access_start_date: event.target.value }))} className={fieldClassName} />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Access end</span>
+              <input type="date" value={form.access_end_date} onChange={(event) => setForm((current) => ({ ...current, access_end_date: event.target.value }))} className={fieldClassName} />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Email</span>
+              <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={fieldClassName} placeholder="Email (optional)" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Phone</span>
+              <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className={fieldClassName} placeholder="Phone (optional)" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Contractor / reference ID</span>
+              <input value={form.employee_id} onChange={(event) => setForm((current) => ({ ...current, employee_id: event.target.value }))} className={fieldClassName} placeholder="Reference ID" />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Certifications</span>
+              <input value={form.certifications} onChange={(event) => setForm((current) => ({ ...current, certifications: event.target.value }))} className={fieldClassName} placeholder="Separated by semicolons" />
+            </label>
+            <label className="grid gap-1.5 sm:col-span-2">
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Access restrictions</span>
+              <textarea value={form.restrictions} onChange={(event) => setForm((current) => ({ ...current, restrictions: event.target.value }))} className={`${fieldClassName} min-h-20`} placeholder="Separated by semicolons" />
+            </label>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSave} disabled={busyAction === "tracked-save" || !form.full_name.trim()} className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}>
-              {busyAction === "tracked-save" ? "Saving..." : editing ? "Save Worker" : "Add To Training Matrix"}
+              {busyAction === "tracked-save" ? "Saving..." : editing ? "Save Worker" : "Add Tracked Worker"}
             </button>
             {editing ? (
               <button type="button" onClick={onCancel} className={appButtonSecondaryClassName}>
@@ -2484,11 +2658,14 @@ function TrainingOnlyView({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</p>
+                  <StatusBadge label={employee.worker_type || "External Worker"} tone="neutral" />
                   <StatusBadge label="No Portal Access" tone="info" />
+                  <StatusBadge label={formatAccessStatus(employee.access_status)} tone={employee.access_status === "active" ? "success" : employee.access_status === "blocked" ? "error" : "warning"} />
                   <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
                 </div>
                 <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "No email on file"}</p>
                 <p className="mt-1 truncate text-xs text-[var(--app-muted)]">{employee.phone || "No phone on file"}</p>
+                <p className="mt-1 truncate text-xs text-[var(--app-muted)]">{[employee.company_name, employee.department_name].filter(Boolean).join(" / ") || "Company or department not set"}</p>
                 <p className="mt-1 text-sm text-[var(--app-text)]">{employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}</p>
               </div>
               <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
@@ -2512,8 +2689,8 @@ function TrainingOnlyView({
         })}
         {!employees.length ? (
           <EmptyState
-            title="No training-only people yet"
-            description={jobsites.length ? "Add non-login workers here when they need training compliance tracking without app access." : "Add jobsites first, then assign training-only people to active sites."}
+            title="No no-portal tracked workers yet"
+            description={jobsites.length ? "Add no-portal tracked workers here when they need training compliance tracking without app access." : "Add jobsites first, then assign no-portal tracked workers to active sites."}
           />
         ) : null}
       </div>

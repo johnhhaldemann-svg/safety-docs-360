@@ -48,7 +48,10 @@ function formatTime(value?: string | null) {
 }
 
 function formatWeatherAlertFromEmail(value: string) {
-  if (value.includes("<") && value.includes(">")) return value;
+  const formattedAddress = value.match(/<([^<>]+)>/)?.[1]?.trim();
+  if (formattedAddress && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(formattedAddress)) {
+    return `${WEATHER_ALERT_EMAIL_DISPLAY_NAME} <${formattedAddress}>`;
+  }
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value)) return value;
   return `${WEATHER_ALERT_EMAIL_DISPLAY_NAME} <${value}>`;
 }
@@ -111,11 +114,13 @@ export async function sendWeatherAlertEmail(params: {
   fetcher?: typeof fetch;
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
-  const configuredFromEmail = readEnv("WEATHER_ALERT_FROM_EMAIL");
+  const configuredFromEmail =
+    readEnv("WEATHER_ALERT_FROM_EMAIL") ?? readEnv("COMPANY_INVITE_FROM_EMAIL") ?? readEnv("RESEND_FROM_EMAIL");
   if (!resendApiKey || !configuredFromEmail) {
     return {
       sent: false,
-      error: "Weather email delivery is not configured. Add RESEND_API_KEY and WEATHER_ALERT_FROM_EMAIL.",
+      error:
+        "Weather email delivery is not configured. Add RESEND_API_KEY and WEATHER_ALERT_FROM_EMAIL, COMPANY_INVITE_FROM_EMAIL, or RESEND_FROM_EMAIL.",
     };
   }
 

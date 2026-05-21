@@ -43,6 +43,7 @@ export type Stage1RequirementLike = {
   matchKeywords?: string[] | null;
   applyTrades?: string[] | null;
   applyPositions?: string[] | null;
+  applyDepartments?: string[] | null;
   applySubTrades?: string[] | null;
   applyTaskCodes?: string[] | null;
   generatedSourceType?: string | null;
@@ -51,6 +52,8 @@ export type Stage1RequirementLike = {
 export type Stage1WorkerProfileLike = {
   jobTitle?: string | null;
   tradeSpecialty?: string | null;
+  companyOrDepartment?: string | null;
+  workerType?: string | null;
   readinessStatus?: string | null;
   assignedJobsiteCount?: number | null;
 };
@@ -90,6 +93,18 @@ function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => normalizedHaystack.includes(needle));
 }
 
+function setIncludesValue(values: Set<string>, value: string): boolean {
+  return Boolean(value) && values.has(value);
+}
+
+function isCompanyPolicyRequirement(requirement: Stage1RequirementLike): boolean {
+  const generated = normalizeForMatch(requirement.generatedSourceType ?? "");
+  return (
+    includesAny(requirement.title, ["company", "policy", "orientation", "induction", "all workers", "all positions"]) ||
+    includesAny(generated, ["company", "policy", "orientation", "induction"])
+  );
+}
+
 export function requirementSourcesForWorker(
   requirement: Stage1RequirementLike,
   worker: Stage1WorkerProfileLike
@@ -97,16 +112,24 @@ export function requirementSourcesForWorker(
   const sources: Stage1RequirementReason[] = [];
   const positions = normalizedSet(requirement.applyPositions);
   const trades = normalizedSet(requirement.applyTrades);
+  const departments = normalizedSet(requirement.applyDepartments);
   const workerPosition = normalizeForMatch(worker.jobTitle ?? "");
   const workerTrade = normalizeForMatch(worker.tradeSpecialty ?? "");
+  const workerDepartment = normalizeForMatch(worker.companyOrDepartment ?? "");
+  const workerType = normalizeForMatch(worker.workerType ?? "");
   const title = requirement.title;
   const generated = normalizeForMatch(requirement.generatedSourceType ?? "");
 
-  if (positions.size > 0 && workerPosition && positions.has(workerPosition)) {
+  if (positions.size > 0 && setIncludesValue(positions, workerPosition)) {
     sources.push(workerPosition.includes("supervisor") || workerPosition.includes("foreman") ? "Supervisor role" : "Role requirement");
   }
-  if (trades.size > 0 && workerTrade && trades.has(workerTrade)) {
+  if (trades.size > 0 && setIncludesValue(trades, workerTrade)) {
     sources.push("Role requirement");
+  }
+  if (departments.size > 0 && setIncludesValue(departments, workerDepartment)) {
+    sources.push("Department requirement");
+  } else if (workerDepartment && includesAny(title, [workerDepartment])) {
+    sources.push("Department requirement");
   }
   if ((requirement.applySubTrades?.length ?? 0) > 0 || (requirement.applyTaskCodes?.length ?? 0) > 0) {
     sources.push("Site requirement");
@@ -120,7 +143,13 @@ export function requirementSourcesForWorker(
   if (worker.assignedJobsiteCount && worker.assignedJobsiteCount > 0 && (requirement.applySubTrades?.length ?? 0) > 0) {
     sources.push("Site requirement");
   }
+  if (workerType && includesAny(title, [workerType])) {
+    sources.push("Company policy");
+  }
   if (sources.length === 0 && ((requirement.applyTrades?.length ?? 0) > 0 || (requirement.applyPositions?.length ?? 0) > 0)) {
+    sources.push("Company policy");
+  }
+  if (sources.length === 0 && isCompanyPolicyRequirement(requirement)) {
     sources.push("Company policy");
   }
   if (sources.length === 0) {
@@ -177,7 +206,10 @@ export function buildStage1TrainingDetail(params: {
     params.detail?.expiresOn ??
     findExpiredMatchingCredential(params.requirement, params.inventory ?? [])?.expiresOn ??
     null;
-  const permitLinkedGap = sources.includes("Permit exposure") && ["Missing", "Expired", "Overdue"].includes(status);
+  const blockingGap = ["Missing", "Expired", "Overdue"].includes(status);
+  const permitLinkedGap = sources.includes("Permit exposure") && blockingGap;
+  const equipmentGap = sources.includes("Equipment requirement") && blockingGap;
+  const siteGap = sources.includes("Site requirement") && blockingGap;
 
   return {
     requirementId: params.requirement.id,
@@ -193,9 +225,13 @@ export function buildStage1TrainingDetail(params: {
     courseVersion: "Current",
     preventionMessage: permitLinkedGap
       ? `Worker is restricted from permit-controlled activity until ${params.requirement.title} is current.`
-      : status === "Expiring Soon"
-        ? `${params.requirement.title} is expiring soon; schedule renewal before the expiry date.`
-        : null,
+      : equipmentGap
+        ? `Worker can access site but cannot operate equipment tied to ${params.requirement.title} until training is current.`
+        : siteGap
+          ? `Worker is ready for general work but restricted from site-specific activity until ${params.requirement.title} is current.`
+          : status === "Expiring Soon"
+            ? `${params.requirement.title} is expiring soon; schedule renewal before the expiry date.`
+            : null,
   };
 }
 

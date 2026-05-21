@@ -11,6 +11,12 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import type { LeadershipTrustMetadata } from "@/lib/leadershipTrust";
+import {
+  buildWorkforceTrainingExport,
+  workforceTrainingExportOptions,
+  type WorkforceTrainingExportRow,
+  type WorkforceTrainingExportType,
+} from "@/lib/workforceTrainingExports";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -45,8 +51,8 @@ type GeneratedReportPayload = {
   file_path?: string | null;
 };
 
-function downloadTextFile(fileName: string, content: string) {
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+function downloadTextFile(fileName: string, content: string, mimeType = "text/markdown;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -74,6 +80,7 @@ export default function ReportsPage() {
   const [latestGenerated, setLatestGenerated] = useState<GeneratedReportPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<"daily_report" | "weekly_summary" | null>(null);
+  const [exportingType, setExportingType] = useState<WorkforceTrainingExportType | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">(
     "neutral"
@@ -171,6 +178,26 @@ export default function ReportsPage() {
       setMessage(error instanceof Error ? error.message : "Failed to generate end-of-day report.");
     } finally {
       setGenerating(null);
+    }
+  }
+
+  async function exportWorkforceTrainingReport(type: WorkforceTrainingExportType) {
+    setExportingType(type);
+    setMessage("");
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch("/api/company/training-matrix", { headers });
+      const data = (await response.json().catch(() => null)) as { rows?: WorkforceTrainingExportRow[]; error?: string } | null;
+      if (!response.ok) throw new Error(data?.error || "Failed to load workforce training data.");
+      const report = buildWorkforceTrainingExport(type, data?.rows ?? []);
+      downloadTextFile(report.filename, report.content, "text/csv;charset=utf-8");
+      setMessageTone("success");
+      setMessage(`${workforceTrainingExportOptions.find((option) => option.type === type)?.label ?? "Report"} exported as CSV.`);
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Failed to export report.");
+    } finally {
+      setExportingType(null);
     }
   }
 
@@ -391,6 +418,31 @@ export default function ReportsPage() {
         </SectionCard>
       </section>
 
+      <SectionCard
+        title="Workforce and Training Exports"
+        description="Export workforce readiness, training matrix, permit-linked gaps, and evidence reports as CSV."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {workforceTrainingExportOptions.map((option) => (
+            <button
+              key={option.type}
+              type="button"
+              onClick={() => void exportWorkforceTrainingReport(option.type)}
+              disabled={exportingType !== null}
+              className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4 text-left transition hover:border-sky-500/40 hover:bg-slate-900/90 disabled:opacity-60"
+            >
+              <span className="block text-sm font-semibold text-slate-100">
+                {exportingType === option.type ? "Exporting..." : option.label}
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-slate-400">{option.description}</span>
+              <span className="mt-3 inline-flex rounded-full bg-sky-950/60 px-2.5 py-1 text-[11px] font-semibold text-sky-300">
+                CSV
+              </span>
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
       <SectionCard title="Report History" description="Generated daily and weekly reports.">
         {loading ? (
           <InlineMessage>Loading reports...</InlineMessage>
@@ -461,5 +513,4 @@ export default function ReportsPage() {
     </div>
   );
 }
-
 

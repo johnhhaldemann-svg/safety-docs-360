@@ -5,8 +5,11 @@ import {
   normalizeEmployeeStatus,
   normalizePhone,
   normalizeReadinessStatus,
+  normalizeAccessStatus,
   parseCertificationExpirationsText,
   parseDelimitedList,
+  normalizeRestrictions,
+  normalizeWorkerType,
   uniqueStrings,
 } from "@/lib/companyTrackedEmployees";
 
@@ -78,6 +81,16 @@ export type NormalizedEmployeeImportRow = {
   phoneNormalized: string | null;
   jobTitle: string | null;
   tradeSpecialty: string | null;
+  workerType: string;
+  companyName: string | null;
+  departmentName: string | null;
+  managerId: string | null;
+  supervisorId: string | null;
+  responsibleSponsorId: string | null;
+  accessStatus: string;
+  accessStartDate: string | null;
+  accessEndDate: string | null;
+  restrictions: string[];
   readinessStatus: string;
   yearsExperience: number | null;
   status: string;
@@ -247,6 +260,8 @@ export function validateEmployeeImportRows(
     const rawEmail = valueFor(row, ["email", "email_address", "email address"]);
     const email = normalizeEmail(rawEmail);
     const yearsExperience = normalizeYears(valueFor(row, ["years_experience", "years experience", "yearsExperience"]));
+    const accessStartDate = normalizeDateOnly(valueFor(row, ["access_start_date", "access start date", "accessStartDate"]));
+    const accessEndDate = normalizeDateOnly(valueFor(row, ["access_end_date", "access end date", "accessEndDate"]));
     const certifications = parseDelimitedList(valueFor(row, ["certifications", "certification"]));
     const certificationExpirations = parseCertificationExpirationsText(
       valueFor(row, ["certification_expirations", "certification expirations", "certificationExpirations", "cert_expirations"]),
@@ -268,6 +283,18 @@ export function validateEmployeeImportRows(
         field: "years_experience",
         message: "Years experience must be a number from 0 to 80.",
       });
+      return;
+    }
+    if (cleanString(valueFor(row, ["access_start_date", "access start date"])) && !accessStartDate) {
+      rowErrors.push({ rowNumber, entity: "employees", field: "access_start_date", message: "Access start date is not valid." });
+      return;
+    }
+    if (cleanString(valueFor(row, ["access_end_date", "access end date"])) && !accessEndDate) {
+      rowErrors.push({ rowNumber, entity: "employees", field: "access_end_date", message: "Access end date is not valid." });
+      return;
+    }
+    if (accessStartDate && accessEndDate && accessEndDate < accessStartDate) {
+      rowErrors.push({ rowNumber, entity: "employees", field: "access_end_date", message: "Access end date must be after access start date." });
       return;
     }
 
@@ -306,6 +333,18 @@ export function validateEmployeeImportRows(
           "discipline",
         ])
       ),
+      workerType: normalizeWorkerType(valueFor(row, ["worker_type", "worker type", "workerType"])),
+      companyName: cleanNullable(valueFor(row, ["company_name", "company name", "companyName", "external_company", "external company"])),
+      departmentName: cleanNullable(valueFor(row, ["department_name", "department name", "departmentName", "department"])),
+      managerId: cleanNullable(valueFor(row, ["manager_id", "manager id", "managerId"])),
+      supervisorId: cleanNullable(valueFor(row, ["supervisor_id", "supervisor id", "supervisorId"])),
+      responsibleSponsorId: cleanNullable(
+        valueFor(row, ["responsible_sponsor_id", "responsible sponsor id", "responsibleSponsorId", "sponsor_id", "sponsor id"])
+      ),
+      accessStatus: normalizeAccessStatus(valueFor(row, ["access_status", "access status", "accessStatus", "site_access_status"])),
+      accessStartDate,
+      accessEndDate,
+      restrictions: normalizeRestrictions(valueFor(row, ["restrictions", "access_restrictions", "access restrictions"])),
       readinessStatus: normalizeReadinessStatus(valueFor(row, ["readiness_status", "readiness status", "readinessStatus"])),
       yearsExperience,
       status: normalizeEmployeeStatus(valueFor(row, ["status"])),

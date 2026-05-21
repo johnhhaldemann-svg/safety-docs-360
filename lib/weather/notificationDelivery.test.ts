@@ -10,6 +10,8 @@ describe("weather notification delivery helpers", () => {
   const originalEnv = {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     WEATHER_ALERT_FROM_EMAIL: process.env.WEATHER_ALERT_FROM_EMAIL,
+    COMPANY_INVITE_FROM_EMAIL: process.env.COMPANY_INVITE_FROM_EMAIL,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     TWILIO_FROM_NUMBER: process.env.TWILIO_FROM_NUMBER,
@@ -19,6 +21,8 @@ describe("weather notification delivery helpers", () => {
   afterEach(() => {
     process.env.RESEND_API_KEY = originalEnv.RESEND_API_KEY;
     process.env.WEATHER_ALERT_FROM_EMAIL = originalEnv.WEATHER_ALERT_FROM_EMAIL;
+    process.env.COMPANY_INVITE_FROM_EMAIL = originalEnv.COMPANY_INVITE_FROM_EMAIL;
+    process.env.RESEND_FROM_EMAIL = originalEnv.RESEND_FROM_EMAIL;
     process.env.TWILIO_ACCOUNT_SID = originalEnv.TWILIO_ACCOUNT_SID;
     process.env.TWILIO_AUTH_TOKEN = originalEnv.TWILIO_AUTH_TOKEN;
     process.env.TWILIO_FROM_NUMBER = originalEnv.TWILIO_FROM_NUMBER;
@@ -68,6 +72,8 @@ describe("weather notification delivery helpers", () => {
   it("sends weather email with urgent safety notification sender name", async () => {
     process.env.RESEND_API_KEY = "re_test";
     process.env.WEATHER_ALERT_FROM_EMAIL = "alerts@example.com";
+    delete process.env.COMPANY_INVITE_FROM_EMAIL;
+    delete process.env.RESEND_FROM_EMAIL;
     const fetcher = vi.fn(async () => Response.json({ id: "email-1" })) as unknown as typeof fetch;
 
     await expect(
@@ -102,6 +108,49 @@ describe("weather notification delivery helpers", () => {
       "https://api.resend.com/emails",
       expect.objectContaining({
         body: expect.stringContaining('"from":"Urgent Safety Notification <alerts@example.com>"'),
+      })
+    );
+  });
+
+  it("uses the company invite sender when no dedicated weather sender is configured", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    delete process.env.WEATHER_ALERT_FROM_EMAIL;
+    process.env.COMPANY_INVITE_FROM_EMAIL = "SafetyDocs360 <invites@example.com>";
+    delete process.env.RESEND_FROM_EMAIL;
+    const fetcher = vi.fn(async () => Response.json({ id: "email-1" })) as unknown as typeof fetch;
+
+    await expect(
+      sendWeatherAlertEmail({
+        toEmail: "field@example.com",
+        fetcher,
+        context: {
+          alertEventId: "event-1",
+          companyId: "company-1",
+          jobsiteId: "site-1",
+          jobsiteName: "123 Main Build",
+          zipCode: "10001",
+          alert: {
+            id: "alert-1",
+            eventName: "Severe Thunderstorm Warning",
+            severity: "Severe",
+            urgency: "Immediate",
+            certainty: "Likely",
+            headline: "Storm warning",
+            description: "Description",
+            instruction: "Check site conditions and secure loose materials.",
+            effectiveAt: "2026-05-20T19:45:00Z",
+            expiresAt: "2026-05-20T21:15:00Z",
+            status: "Actual",
+            rawPayload: {},
+          },
+        },
+      })
+    ).resolves.toEqual({ sent: true, error: null });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        body: expect.stringContaining('"from":"Urgent Safety Notification <invites@example.com>"'),
       })
     );
   });

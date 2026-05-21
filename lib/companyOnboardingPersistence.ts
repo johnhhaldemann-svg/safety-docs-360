@@ -7,12 +7,14 @@ import {
 } from "@/lib/companyOnboardingImport";
 import {
   isMissingTrackedEmployeesSchemaError,
+  normalizeAccessStatus,
   normalizeEmail,
+  normalizeWorkerType,
   type TrackedEmployeeProfileRow,
 } from "@/lib/companyTrackedEmployees";
 
 const EMPLOYEE_SELECT =
-  "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, certifications, certification_expirations, source, archived_at, created_at, updated_at";
+  "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, worker_type, company_name, department_name, manager_id, supervisor_id, responsible_sponsor_id, access_status, access_start_date, access_end_date, restrictions, certifications, certification_expirations, source, archived_at, created_at, updated_at";
 
 type JobsiteRow = {
   id: string;
@@ -228,6 +230,16 @@ export async function upsertTrackedEmployeeRows(params: {
       readiness_status: row.readinessStatus,
       years_experience: row.yearsExperience,
       status: row.status,
+      worker_type: row.workerType,
+      company_name: row.companyName,
+      department_name: row.departmentName,
+      manager_id: row.managerId,
+      supervisor_id: row.supervisorId,
+      responsible_sponsor_id: row.responsibleSponsorId,
+      access_status: row.accessStatus,
+      access_start_date: row.accessStartDate,
+      access_end_date: row.accessEndDate,
+      restrictions: row.restrictions,
       certifications: row.certifications,
       certification_expirations: row.certificationExpirations,
       source: params.source ?? "manual_upload",
@@ -562,6 +574,17 @@ export function trackedEmployeePayloadFromManual(body: Record<string, unknown>):
     phoneNormalized: typeof body.phone === "string" ? body.phone.replace(/\D+/g, "") || null : null,
     jobTitle: typeof body.jobTitle === "string" ? body.jobTitle.trim() || null : null,
     tradeSpecialty: typeof body.tradeSpecialty === "string" ? body.tradeSpecialty.trim() || null : null,
+    workerType: normalizeWorkerType(body.workerType ?? body.worker_type),
+    companyName: typeof body.companyName === "string" ? body.companyName.trim() || null : null,
+    departmentName: typeof body.departmentName === "string" ? body.departmentName.trim() || null : null,
+    managerId: typeof body.managerId === "string" ? body.managerId.trim() || null : null,
+    supervisorId: typeof body.supervisorId === "string" ? body.supervisorId.trim() || null : null,
+    responsibleSponsorId:
+      typeof body.responsibleSponsorId === "string" ? body.responsibleSponsorId.trim() || null : null,
+    accessStatus: normalizeAccessStatus(body.accessStatus ?? body.access_status),
+    accessStartDate: typeof body.accessStartDate === "string" ? body.accessStartDate.trim() || null : null,
+    accessEndDate: typeof body.accessEndDate === "string" ? body.accessEndDate.trim() || null : null,
+    restrictions: Array.isArray(body.restrictions) ? body.restrictions.map(String).filter(Boolean) : [],
     readinessStatus: String(body.readinessStatus ?? "ready"),
     yearsExperience:
       typeof body.yearsExperience === "number" && Number.isFinite(body.yearsExperience)

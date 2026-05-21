@@ -81,22 +81,25 @@ export async function createCompanyNotification(params: {
   sourceId?: string | null;
   metadata?: SupabaseJson;
   actorUserId?: string | null;
+  ignorePreference?: boolean;
 }) {
-  const preference = await params.supabase
-    .from("company_notification_preferences")
-    .select("event_type, in_app_enabled")
-    .eq("company_id", params.companyId)
-    .eq("user_id", params.recipientUserId)
-    .eq("event_type", params.eventType)
-    .maybeSingle();
+  if (!params.ignorePreference) {
+    const preference = await params.supabase
+      .from("company_notification_preferences")
+      .select("event_type, in_app_enabled")
+      .eq("company_id", params.companyId)
+      .eq("user_id", params.recipientUserId)
+      .eq("event_type", params.eventType)
+      .maybeSingle();
 
-  const enabled =
-    !preference.error && preference.data
-      ? (preference.data as { in_app_enabled?: boolean }).in_app_enabled !== false
-      : defaultNotificationPreference(params.eventType).inAppEnabled;
+    const enabled =
+      !preference.error && preference.data
+        ? (preference.data as { in_app_enabled?: boolean }).in_app_enabled !== false
+        : defaultNotificationPreference(params.eventType).inAppEnabled;
 
-  if (!enabled) {
-    return { skipped: true, notification: null, error: null };
+    if (!enabled) {
+      return { skipped: true, notification: null, error: null };
+    }
   }
 
   const result = await params.supabase
@@ -156,4 +159,3 @@ export async function listCompanyNotificationRecipients(params: {
 
   return { userIds: [...userIds], error: null };
 }
-

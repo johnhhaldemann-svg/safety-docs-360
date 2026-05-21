@@ -25,6 +25,10 @@
     {
       "path": "/api/cron/ai-engine-permit-auto-assign",
       "schedule": "15 7 * * *"
+    },
+    {
+      "path": "/api/cron/training-expiration-notifications",
+      "schedule": "45 6 * * *"
     }
   ]
 }

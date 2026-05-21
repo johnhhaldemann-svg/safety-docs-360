@@ -97,4 +97,48 @@ describe("company onboarding import helpers", () => {
       "employee_id,full_name,email,phone,job_title,trade_specialty,readiness_status,years_experience,status,jobsite_names,certifications,certification_expirations"
     );
   });
+
+  it("normalizes Stage 1 workforce profile fields for tracked workers", () => {
+    const result = validateEmployeeImportRows([
+      {
+        full_name: "Mark Smith",
+        worker_type: "Contractor",
+        company_name: "ABC Electrical",
+        department_name: "Electrical",
+        responsible_sponsor_id: "11111111-1111-1111-1111-111111111111",
+        access_status: "pending review",
+        access_start_date: "2026-06-01",
+        access_end_date: "2026-08-31",
+        restrictions: "No hot work; Escort required",
+      },
+    ]);
+
+    expect(result.rowErrors).toEqual([]);
+    expect(result.validRows[0]).toMatchObject({
+      workerType: "Contractor",
+      companyName: "ABC Electrical",
+      departmentName: "Electrical",
+      responsibleSponsorId: "11111111-1111-1111-1111-111111111111",
+      accessStatus: "pending_review",
+      accessStartDate: "2026-06-01",
+      accessEndDate: "2026-08-31",
+      restrictions: ["No hot work", "Escort required"],
+    });
+  });
+
+  it("rejects access windows where the end date is before the start date", () => {
+    const result = validateEmployeeImportRows([
+      {
+        full_name: "Ari Permit",
+        access_start_date: "2026-08-31",
+        access_end_date: "2026-06-01",
+      },
+    ]);
+
+    expect(result.validRows).toEqual([]);
+    expect(result.rowErrors[0]).toMatchObject({
+      field: "access_end_date",
+      message: "Access end date must be after access start date.",
+    });
+  });
 });

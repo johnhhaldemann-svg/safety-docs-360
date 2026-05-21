@@ -204,7 +204,7 @@ function Safety360DocsLockup({
           style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
         >
           <span className="font-black italic text-[#1977cf]">Safety</span>
-          <span className="font-black italic text-[#73b83b]">360</span>
+          <span className="font-black italic text-[#477a1f]">360</span>
           <span className="font-black italic text-[#1977cf]">Docs</span>
         </span>
         <span

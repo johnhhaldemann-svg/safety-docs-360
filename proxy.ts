@@ -3,15 +3,24 @@ import { type NextRequest, NextResponse } from "next/server";
 import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 
 const PUBLIC_PREFIXES = [
+  "/",
   "/api/auth",
   "/api/cron",
   "/api/contractor-training-intake",
   "/contractor-training-intake",
   "/company-signup",
+  "/demo/load",
+  "/liability-waiver",
   "/login",
+  "/marketing",
   "/privacy",
+  "/safe-predict",
   "/terms",
 ];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || (prefix !== "/" && pathname.startsWith(`${prefix}/`)));
+}
 
 function hasSupabaseAuthCookie(request: NextRequest) {
   return request.cookies
@@ -21,7 +30,7 @@ function hasSupabaseAuthCookie(request: NextRequest) {
 
 function shouldRefreshSupabaseSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+  if (isPublicPath(pathname)) {
     return false;
   }
   return hasSupabaseAuthCookie(request);
@@ -36,6 +45,14 @@ export async function proxy(request: NextRequest) {
     const [pathname, search = ""] = mappedWorkspacePath.split("?");
     redirectUrl.pathname = pathname;
     redirectUrl.search = search ? `?${search}` : "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  const pathname = request.nextUrl.pathname;
+  if (!pathname.startsWith("/api") && !isPublicPath(pathname) && !hasSupabaseAuthCookie(request)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
 

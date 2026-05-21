@@ -38,15 +38,15 @@ html {
   --app-accent-secondary: #d8e6ff;
   --app-shadow: 0 20px 48px rgba(61, 94, 148, 0.08);
   --app-shadow-soft: 0 12px 28px rgba(74, 106, 158, 0.055);
-  --semantic-success: #2e9e5b;
+  --semantic-success: #207251;
   --semantic-success-bg: #e7f6ec;
-  --semantic-warning: #d9a441;
+  --semantic-warning: #8a5b00;
   --semantic-warning-bg: #fff4db;
   --semantic-danger: #9f1f1c;
   --semantic-danger-bg: #fdecec;
   --semantic-info: #2563eb;
   --semantic-info-bg: #eaf1ff;
-  --semantic-neutral: #8a96a8;
+  --semantic-neutral: #42516a;
   --semantic-neutral-bg: #f2f5f9;
   --app-radius-lg: 1.5rem;
   --app-radius-xl: 1.9rem;
@@ -697,7 +697,7 @@ a[class] {
 }
 
 .company-access-workspace [class~="text-amber-200"] {
-  color: #9b6b12 !important;
+  color: #7a4f00 !important;
 }
 
 .company-access-workspace [class~="text-red-200"] {
@@ -1106,6 +1106,12 @@ html[data-table-density="compact"] .workspace-content :where(table) {
 .app-shell-light [class*="text-zinc-50"],
 .app-shell-light [class*="text-white"] {
   color: var(--app-text-strong);
+}
+
+.app-shell-light [class*="bg-[var(--app-accent-primary)]"][class*="text-white"],
+.app-shell-light [class*="bg-blue-600"][class*="text-white"],
+.app-shell-light [class*="bg-slate-950"][class*="text-white"] {
+  color: #ffffff !important;
 }
 
 .app-shell-light [class*="text-slate-200"],

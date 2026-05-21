@@ -905,7 +905,7 @@ function JobsiteRiskMap({
         ) : null}
 
         {selectedJobsite ? (
-          <aside data-map-control="true" className="absolute bottom-4 right-4 top-20 z-30 hidden w-[300px] rounded-lg border border-white/15 bg-slate-950/78 p-4 text-white shadow-[0_24px_56px_rgba(0,0,0,0.48)] backdrop-blur-md xl:block">
+          <div data-map-control="true" className="absolute bottom-4 right-4 top-20 z-30 hidden w-[300px] rounded-lg border border-white/15 bg-slate-950/78 p-4 text-white shadow-[0_24px_56px_rgba(0,0,0,0.48)] backdrop-blur-md xl:block">
             <div className="flex items-center justify-between gap-3">
               <span className="rounded-md border border-red-400/50 bg-red-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-red-100">
                 {riskLabel(selectedJobsite.riskLevel)}
@@ -942,7 +942,7 @@ function JobsiteRiskMap({
               <div className="flex justify-between gap-3 border-t border-white/10 pt-2"><dt className="text-slate-400">Site lead</dt><dd className="text-right font-semibold">{selectedJobsite.siteLead}</dd></div>
               <div className="flex justify-between gap-3 border-t border-white/10 pt-2"><dt className="text-slate-400">Phase</dt><dd className="text-right font-semibold">{selectedJobsite.phase}</dd></div>
             </dl>
-          </aside>
+          </div>
         ) : null}
 
         {missingLocationCount > 0 ? (
@@ -1028,7 +1028,7 @@ function CompanyCommandPanel({
       : `Live safety command center for ${dataset.company.name}. Safety lead: ${dataset.company.safetyLead}.`;
 
   return (
-    <aside className="rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#06172a_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
+    <section className="rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#06172a_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Company Account</p>
       <div className="mt-4 flex items-start gap-4">
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-md border border-white/12 bg-white p-3 shadow-xl">
@@ -1066,7 +1066,7 @@ function CompanyCommandPanel({
         View Source
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Link>
-    </aside>
+    </section>
   );
 }
 
@@ -1084,7 +1084,7 @@ function ActionPriorityRail({ actions }: { actions: SafePredictDataset["actions"
   ];
 
   return (
-    <aside className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 pr-6 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
+    <section className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 pr-6 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
       <div className="absolute right-0 top-0 h-full w-4 bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.8)_0_5px,transparent_5px_11px)] opacity-70" aria-hidden />
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Open Actions</p>
       <p className="mt-2 text-4xl font-black text-red-400">{openActions.length}</p>
@@ -1106,7 +1106,7 @@ function ActionPriorityRail({ actions }: { actions: SafePredictDataset["actions"
         View all actions
         <ArrowRight className="h-4 w-4" />
       </Link>
-    </aside>
+    </section>
   );
 }
 
@@ -1573,7 +1573,7 @@ export default function SafePredictDashboardPage() {
           <div className="mt-4 divide-y divide-slate-100">
             {dataset.alerts.slice(0, 4).map((alert) => (
               <Link key={alert.id} href={`/safe-predict/risk-mitigation#${alert.id}`} className="flex items-start gap-3 py-4 first:pt-0 hover:bg-slate-50">
-                <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-full", alert.riskLevel === "critical" || alert.riskLevel === "high" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
+                <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-full", alert.riskLevel === "critical" || alert.riskLevel === "high" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-800")}>
                   <AlertTriangle className="h-5 w-5" />
                 </span>
                 <span className="min-w-0 flex-1">

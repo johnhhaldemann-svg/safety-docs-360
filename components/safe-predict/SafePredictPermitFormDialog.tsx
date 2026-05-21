@@ -197,10 +197,10 @@ export function SafePredictPermitFormDialog({
             </label>
           </div>
 
-          <aside className="space-y-4">
+          <div className="space-y-4">
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-slate-950">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-800" />
                 <h3 className="text-sm font-black uppercase tracking-wide">Acknowledgment</h3>
               </div>
               <label className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">
@@ -236,7 +236,7 @@ export function SafePredictPermitFormDialog({
                 {saving ? "Saving..." : mode === "create" ? "Create permit" : "Save permit"}
               </button>
             ) : null}
-          </aside>
+          </div>
         </div>
       </div>
     </div>

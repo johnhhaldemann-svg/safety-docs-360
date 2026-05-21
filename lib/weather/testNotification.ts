@@ -25,6 +25,7 @@ export type JobsiteWeatherTestNotificationResult = {
     recipientName: string | null;
     userId: string | null;
     employeeId: string | null;
+    contact: string | null;
     channel: WeatherNotificationChannel;
     status: "sent" | "failed" | "skipped";
     error: string | null;
@@ -50,7 +51,10 @@ function readEnv(name: string) {
 }
 
 function isEmailConfigured() {
-  return Boolean(readEnv("RESEND_API_KEY") && readEnv("WEATHER_ALERT_FROM_EMAIL"));
+  return Boolean(
+    readEnv("RESEND_API_KEY") &&
+      (readEnv("WEATHER_ALERT_FROM_EMAIL") || readEnv("COMPANY_INVITE_FROM_EMAIL") || readEnv("RESEND_FROM_EMAIL"))
+  );
 }
 
 function isSmsConfigured() {
@@ -122,6 +126,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
             recipientName: recipient.name,
             userId: recipient.userId,
             employeeId: recipient.employeeId,
+            contact: recipient.email,
             channel,
             status: "skipped",
             error: "Weather email provider is not configured.",
@@ -134,6 +139,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
             recipientName: recipient.name,
             userId: recipient.userId,
             employeeId: recipient.employeeId,
+            contact: recipient.email,
             channel,
             status: "skipped",
             error: "No email address is available for this recipient.",
@@ -152,6 +158,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
           recipientName: recipient.name,
           userId: recipient.userId,
           employeeId: recipient.employeeId,
+          contact: recipient.email,
           channel,
           status: sent.sent ? "sent" : "failed",
           error: sent.error,
@@ -165,6 +172,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
             recipientName: recipient.name,
             userId: recipient.userId,
             employeeId: recipient.employeeId,
+            contact: recipient.phone,
             channel,
             status: "skipped",
             error: "Weather SMS provider is not configured.",
@@ -177,6 +185,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
             recipientName: recipient.name,
             userId: recipient.userId,
             employeeId: recipient.employeeId,
+            contact: recipient.phone,
             channel,
             status: "skipped",
             error: "No phone number is available for this recipient.",
@@ -195,6 +204,7 @@ export async function sendJobsiteWeatherTestNotification(params: {
           recipientName: recipient.name,
           userId: recipient.userId,
           employeeId: recipient.employeeId,
+          contact: recipient.phone,
           channel,
           status: sent.sent ? "sent" : "failed",
           error: sent.error,

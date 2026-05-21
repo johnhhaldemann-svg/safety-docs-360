@@ -308,14 +308,14 @@ export function StatusBadge({
 }) {
   const toneClass =
     tone === "success"
-      ? "bg-[#d8f1e2] text-[#247c49] ring-1 ring-[rgba(46,158,91,0.24)]"
+      ? "bg-[#d8f1e2] text-[#1f6b3f] ring-1 ring-[rgba(46,158,91,0.24)]"
       : tone === "warning"
-        ? "bg-[#fdeabf] text-[#9b6b12] ring-1 ring-[rgba(217,164,65,0.24)]"
+        ? "bg-[#fdeabf] text-[#7a4f00] ring-1 ring-[rgba(217,164,65,0.24)]"
         : tone === "error"
           ? "bg-[#fad9d8] text-[#b94440] ring-1 ring-[rgba(217,83,79,0.24)]"
           : tone === "info"
             ? "bg-[#d8e6ff] text-[#325fda] ring-1 ring-[var(--app-accent-border-22)]"
-            : "bg-[#e7edf5] text-[#637387] ring-1 ring-[rgba(138,150,168,0.18)]";
+            : "bg-[#e7edf5] text-[#475569] ring-1 ring-[rgba(138,150,168,0.18)]";
 
   return (
     <span

@@ -719,7 +719,7 @@ export default function SafePredictRiskMitigationPage() {
                   alert.riskLevel === "critical" ? "border-l-red-500" : alert.riskLevel === "high" ? "border-l-orange-500" : alert.riskLevel === "medium" ? "border-l-amber-500" : "border-l-emerald-500"
                 )}
               >
-                <span className={cx("grid h-16 w-16 place-items-center rounded-full border-4 text-center font-black", alert.riskLevel === "critical" ? "border-red-500 text-red-600" : alert.riskLevel === "high" ? "border-orange-500 text-orange-600" : alert.riskLevel === "medium" ? "border-amber-400 text-amber-600" : "border-emerald-500 text-emerald-600")}>
+                <span className={cx("grid h-16 w-16 place-items-center rounded-full border-4 text-center font-black", alert.riskLevel === "critical" ? "border-red-500 text-red-600" : alert.riskLevel === "high" ? "border-orange-500 text-orange-800" : alert.riskLevel === "medium" ? "border-amber-400 text-amber-800" : "border-emerald-500 text-emerald-800")}>
                   <span>
                     <span className="block text-xl">{alert.score}</span>
                     <span className="block text-[10px]">{alert.riskLevel}</span>
@@ -786,7 +786,7 @@ export default function SafePredictRiskMitigationPage() {
                 })}
               </div>
             ) : (
-              <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4" aria-label="Loading saved corrective action board">
+              <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4" role="status" aria-label="Loading saved corrective action board">
                 {statuses.map((status) => (
                   <div key={status} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                     <div className="h-4 w-24 rounded bg-slate-200" />

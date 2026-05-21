@@ -39,7 +39,9 @@ export type NotificationEvent =
   | "review_queue_changed"
   | "assignment_created"
   | "weather_alert"
+  | "incident_alert"
   | "billing_invoice"
+  | "training_expiring"
   | "training_gap"
   | "permit_auto_assignment"
   | "risk_recommendation"
@@ -85,7 +87,9 @@ export const DEFAULT_NOTIFICATION_EVENTS: Array<{
   { eventType: "review_queue_changed", label: "Review queue changes", defaultInApp: true, defaultEmail: false },
   { eventType: "assignment_created", label: "Assignments", defaultInApp: true, defaultEmail: false },
   { eventType: "weather_alert", label: "Weather alerts", defaultInApp: true, defaultEmail: true },
+  { eventType: "incident_alert", label: "Incident alerts", defaultInApp: true, defaultEmail: true },
   { eventType: "billing_invoice", label: "Billing invoices", defaultInApp: true, defaultEmail: true },
+  { eventType: "training_expiring", label: "Training expiration reminders", defaultInApp: true, defaultEmail: true },
   { eventType: "training_gap", label: "Training gaps", defaultInApp: true, defaultEmail: false },
   { eventType: "permit_auto_assignment", label: "Permit auto-assignments", defaultInApp: true, defaultEmail: false },
   { eventType: "risk_recommendation", label: "Risk recommendations", defaultInApp: true, defaultEmail: false },

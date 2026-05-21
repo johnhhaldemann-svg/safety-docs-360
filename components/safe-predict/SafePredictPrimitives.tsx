@@ -188,6 +188,7 @@ export function SelectShell({
             }
           : { defaultValue: value })}
         disabled={disabled}
+        aria-label={label ?? "Select SafePredict option"}
         className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500 disabled:bg-slate-50"
       >
         {options.map((option) => (
@@ -272,11 +273,11 @@ export function MetricCard({
 }) {
   const toneMap = {
     red: "text-red-600 bg-red-50",
-    orange: "text-orange-600 bg-orange-50",
-    green: "text-emerald-600 bg-emerald-50",
+    orange: "text-orange-800 bg-orange-50",
+    green: "text-emerald-800 bg-emerald-50",
     blue: "text-blue-600 bg-blue-50",
     purple: "text-purple-600 bg-purple-50",
-    amber: "text-amber-600 bg-amber-50",
+    amber: "text-amber-800 bg-amber-50",
   } as const;
 
   return (
@@ -448,7 +449,7 @@ export function DriverDots({ count, level }: { count: number; level: SafePredict
 }
 
 export function StatusIcon({ status }: { status: "compliant" | "expiring" | "overdue" }) {
-  if (status === "compliant") return <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600" aria-label="Compliant" />;
+  if (status === "compliant") return <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-800" aria-label="Compliant" />;
   if (status === "expiring") return <Clock className="mx-auto h-5 w-5 text-amber-500" aria-label="Expiring soon" />;
   return <CircleAlert className="mx-auto h-5 w-5 text-red-500" aria-label="Overdue" />;
 }
@@ -640,10 +641,10 @@ export function NextStepRow({
     tone === "critical" || tone === "high"
       ? "border-red-200 bg-red-50 text-red-600"
       : tone === "medium"
-        ? "border-amber-200 bg-amber-50 text-amber-600"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
         : tone === "blue"
           ? "border-blue-200 bg-blue-50 text-blue-600"
-          : "border-emerald-200 bg-emerald-50 text-emerald-600";
+          : "border-emerald-200 bg-emerald-50 text-emerald-800";
   const content = (
     <>
       <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-full border", color)}>{icon ?? <ShieldCheck className="h-5 w-5" />}</span>
@@ -683,7 +684,7 @@ export function InsightWorkflow() {
     red: "border-red-500 text-red-600",
     violet: "border-violet-500 text-violet-600",
     blue: "border-blue-500 text-blue-600",
-    emerald: "border-emerald-500 text-emerald-600",
+    emerald: "border-emerald-500 text-emerald-800",
   };
   return (
     <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">

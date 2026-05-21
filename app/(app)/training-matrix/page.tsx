@@ -491,7 +491,15 @@ function buildStage1CourseRollups(rows: MatrixRow[], requirements: Requirement[]
 }
 
 function readWorkerProfileTab(value: string | null): WorkerProfileTab {
-  return value === "training" || value === "permits" || value === "access" ? value : "summary";
+  return value === "training" ||
+    value === "permits" ||
+    value === "jobsites" ||
+    value === "documents" ||
+    value === "actions" ||
+    value === "access" ||
+    value === "audit"
+    ? value
+    : "summary";
 }
 
 function Stage1ComplianceGrid({

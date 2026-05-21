@@ -46,7 +46,7 @@ export function BrandMark({
                     Safety
                   </span>
                   <span
-                    className="text-[1rem] font-black italic text-[#7bc043]"
+                    className="text-[1rem] font-black italic text-[#477a1f]"
                     style={{ textShadow: "0 1px 1px rgba(86,134,31,0.14)" }}
                   >
                     360

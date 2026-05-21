@@ -9,9 +9,6 @@ const offlineDesktop = process.env.OFFLINE_DESKTOP === "1";
 const nextConfig: NextConfig = {
   output: offlineDesktop ? "standalone" : undefined,
   outputFileTracingRoot: projectRoot,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   /** Lets Playwright open `http://127.0.0.1:3000` while Next dev listens on `localhost` (HMR / dev resources). */
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {

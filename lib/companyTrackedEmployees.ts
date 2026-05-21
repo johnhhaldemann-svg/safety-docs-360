@@ -6,6 +6,27 @@ import {
 
 export const TRACKED_EMPLOYEE_SOURCE_LABEL = "Tracked employee, no license";
 
+export const WORKER_TYPE_OPTIONS = [
+  "Employee",
+  "Contractor",
+  "Agency Worker",
+  "Supplier",
+  "Visitor",
+  "Temporary Worker",
+  "External Worker",
+] as const;
+
+export const ACCESS_STATUS_OPTIONS = [
+  "active",
+  "pending_review",
+  "restricted",
+  "blocked",
+  "inactive",
+] as const;
+
+const WORKER_TYPES = new Set<string>(WORKER_TYPE_OPTIONS);
+const ACCESS_STATUSES = new Set<string>(ACCESS_STATUS_OPTIONS);
+
 const READINESS_STATUSES = new Set([
   "ready",
   "travel_ready",
@@ -30,6 +51,16 @@ export type TrackedEmployeeProfileRow = {
   readiness_status: string | null;
   years_experience: number | null;
   status: string | null;
+  worker_type?: string | null;
+  company_name?: string | null;
+  department_name?: string | null;
+  manager_id?: string | null;
+  supervisor_id?: string | null;
+  responsible_sponsor_id?: string | null;
+  access_status?: string | null;
+  access_start_date?: string | null;
+  access_end_date?: string | null;
+  restrictions?: string[] | null;
   certifications: string[] | null;
   certification_expirations: Record<string, string> | null;
   source?: string | null;
@@ -101,6 +132,28 @@ export function normalizeEmployeeStatus(value: unknown): string {
   return EMPLOYEE_STATUSES.has(normalized) ? normalized : "active";
 }
 
+export function normalizeWorkerType(value: unknown): (typeof WORKER_TYPE_OPTIONS)[number] {
+  const raw = String(value ?? "").trim();
+  if (WORKER_TYPES.has(raw)) return raw as (typeof WORKER_TYPE_OPTIONS)[number];
+  const normalized = raw.toLowerCase().replace(/[_-]+/g, " ");
+  const match = WORKER_TYPE_OPTIONS.find((option) => option.toLowerCase() === normalized);
+  return match ?? "External Worker";
+}
+
+export function normalizeAccessStatus(value: unknown): (typeof ACCESS_STATUS_OPTIONS)[number] {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return ACCESS_STATUSES.has(normalized) ? (normalized as (typeof ACCESS_STATUS_OPTIONS)[number]) : "restricted";
+}
+
+export function formatAccessStatus(value?: string | null) {
+  const normalized = normalizeAccessStatus(value);
+  if (normalized === "pending_review") return "Pending Review";
+  return normalized
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function normalizeDateOnly(value: unknown): string | null {
   if (value == null || value === "") return null;
 
@@ -153,6 +206,10 @@ export function parseDelimitedList(value: unknown): string[] {
       .split(/[;,|]+/)
       .map((entry) => entry.trim())
   );
+}
+
+export function normalizeRestrictions(value: unknown): string[] {
+  return parseDelimitedList(value);
 }
 
 export function uniqueStrings(values: string[]): string[] {
@@ -289,7 +346,7 @@ export async function loadTrackedCompanyEmployees(params: {
   let employeeQuery = db
     .from("company_employee_profiles")
     .select(
-      "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, certifications, certification_expirations, source, archived_at, created_at, updated_at"
+      "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, worker_type, company_name, department_name, manager_id, supervisor_id, responsible_sponsor_id, access_status, access_start_date, access_end_date, restrictions, certifications, certification_expirations, source, archived_at, created_at, updated_at"
     )
     .eq("company_id", companyId);
 

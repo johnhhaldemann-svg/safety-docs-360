@@ -54,7 +54,7 @@ describe("Stage 1 training matrix logic", () => {
     ).toBe("Complete");
   });
 
-  it("derives required-because reasons from role, trade, jobsite, permit, equipment, policy, and manual assignment", () => {
+  it("derives required-because reasons from role, trade, department, jobsite, permit, equipment, policy, and manual assignment", () => {
     expect(
       requirementSourcesForWorker(hotWorkRequirement, {
         jobTitle: "Foreman",
@@ -62,6 +62,17 @@ describe("Stage 1 training matrix logic", () => {
         assignedJobsiteCount: 1,
       })
     ).toEqual(["Supervisor role", "Role requirement", "Site requirement", "Permit exposure"]);
+
+    expect(
+      requirementSourcesForWorker(
+        {
+          id: "ops-induction",
+          title: "Operations Department Induction",
+          applyDepartments: ["Operations"],
+        },
+        { companyOrDepartment: "Operations" }
+      )
+    ).toEqual(["Department requirement"]);
 
     expect(
       requirementSourcesForWorker(
@@ -79,7 +90,6 @@ describe("Stage 1 training matrix logic", () => {
         {
           id: "policy",
           title: "Company Orientation",
-          applyTrades: ["Steel"],
         },
         {}
       )
@@ -115,5 +125,36 @@ describe("Stage 1 training matrix logic", () => {
     );
     expect(summary.permitLinkedGaps).toBe(1);
     expect(summary.overallStatus).toBe("Restricted");
+  });
+
+  it("creates prevention messages for equipment and site-specific training blockers", () => {
+    const equipmentGap = buildStage1TrainingDetail({
+      requirement: {
+        id: "forklift",
+        title: "Forklift Equipment Training",
+        matchKeywords: ["Forklift"],
+      },
+      state: "gap",
+      worker: {},
+    });
+    const siteGap = buildStage1TrainingDetail({
+      requirement: {
+        id: "site-rule",
+        title: "Hillcrest Site Induction",
+        matchKeywords: ["Hillcrest"],
+        applySubTrades: ["hillcrest-office-fit-out"],
+      },
+      state: "gap",
+      worker: { assignedJobsiteCount: 1 },
+    });
+
+    expect(equipmentGap.requiredBecause).toBe("Equipment requirement");
+    expect(equipmentGap.preventionMessage).toBe(
+      "Worker can access site but cannot operate equipment tied to Forklift Equipment Training until training is current."
+    );
+    expect(siteGap.requiredBecause).toBe("Site requirement");
+    expect(siteGap.preventionMessage).toBe(
+      "Worker is ready for general work but restricted from site-specific activity until Hillcrest Site Induction is current."
+    );
   });
 });

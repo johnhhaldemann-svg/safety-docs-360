@@ -234,6 +234,12 @@ export function WorkerProfileDrawer({
   const permitGaps = profile.trainingRequirements.filter(
     (detail) => detail.requirementSources.includes("Permit exposure") && detail.status !== "Complete" && detail.status !== "Not Applicable"
   );
+  const assignedJobsites = profile.assignedJobsites.filter((jobsite) => jobsite !== "No jobsite assigned");
+  const siteTrainingRows = profile.trainingRequirements.filter((detail) => detail.requirementSources.includes("Site requirement"));
+  const documentRows = profile.trainingRequirements.filter(hasVisibleEvidence);
+  const actionRows = profile.trainingRequirements.filter(
+    (detail) => isIncompleteTrainingStatus(detail.status) || detail.status === "Expiring Soon" || Boolean(detail.preventionMessage)
+  );
   const preventionMessages = profile.trainingRequirements
     .map((detail) => detail.preventionMessage)
     .filter((message): message is string => Boolean(cleanText(message, "")));
@@ -381,6 +387,109 @@ export function WorkerProfileDrawer({
             )
           ) : null}
 
+          {activeTab === "jobsites" ? (
+            assignedJobsites.length ? (
+              <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+                <table className="min-w-[820px] text-left text-sm">
+                  <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+                    <tr>
+                      {["Jobsite", "Role / trade", "Site access", "Required site training", "Missing site training", "Actions"].map((header) => (
+                        <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignedJobsites.map((jobsite) => {
+                      const missingSiteTraining = siteTrainingRows.filter((detail) => isIncompleteTrainingStatus(detail.status));
+                      return (
+                        <tr key={jobsite} className="border-b border-[var(--app-border)] align-top">
+                          <td className="px-3 py-3 font-semibold text-[var(--app-text-strong)]">{jobsite}</td>
+                          <td className="px-3 py-3">{profile.jobTitleOrTrade}</td>
+                          <td className="px-3 py-3"><StatusBadge label={profile.accessStatus} tone={statusTone(profile.accessStatus)} /></td>
+                          <td className="px-3 py-3">{siteTrainingRows.map((detail) => detail.trainingName).join(", ") || "No site-specific training found"}</td>
+                          <td className="px-3 py-3">{missingSiteTraining.map((detail) => detail.trainingName).join(", ") || "No missing site training found"}</td>
+                          <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Review access</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState title="No jobsite assignments found" description="This worker does not have a current jobsite assignment in the profile data available to this drawer." align="left" />
+            )
+          ) : null}
+
+          {activeTab === "documents" ? (
+            documentRows.length ? (
+              <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+                <table className="min-w-[840px] text-left text-sm">
+                  <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+                    <tr>
+                      {["Document name", "Document type", "Related training", "Uploaded by", "Expiry date", "Status", "Actions"].map((header) => (
+                        <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documentRows.map((detail) => (
+                      <tr key={detail.requirementId} className="border-b border-[var(--app-border)] align-top">
+                        <td className="px-3 py-3 font-semibold text-[var(--app-text-strong)]">{detail.trainingName} evidence</td>
+                        <td className="px-3 py-3">Training evidence</td>
+                        <td className="px-3 py-3">{detail.trainingName}</td>
+                        <td className="px-3 py-3">{detail.trainerOrApprover}</td>
+                        <td className="px-3 py-3">{detail.expiryDate ?? "No expiry on file"}</td>
+                        <td className="px-3 py-3"><StatusBadge label={detail.evidenceStatus} tone={detail.evidenceStatus === "On file" ? "success" : "warning"} /></td>
+                        <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">View evidence</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState title="No uploaded evidence found" description="No certificate, induction, or approval evidence is visible for this worker in the current matrix data." align="left" />
+            )
+          ) : null}
+
+          {activeTab === "actions" ? (
+            actionRows.length ? (
+              <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+                <table className="min-w-[900px] text-left text-sm">
+                  <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+                    <tr>
+                      {["Action title", "Priority", "Related item", "Owner", "Due date", "Status", "Actions"].map((header) => (
+                        <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actionRows.map((detail) => {
+                      const permitCritical = detail.requirementSources.includes("Permit exposure") && isIncompleteTrainingStatus(detail.status);
+                      const title =
+                        detail.preventionMessage ??
+                        (detail.status === "Expiring Soon"
+                          ? `Renew ${detail.trainingName}`
+                          : `Resolve ${detail.trainingName} requirement`);
+                      return (
+                        <tr key={detail.requirementId} className="border-b border-[var(--app-border)] align-top">
+                          <td className="px-3 py-3 font-semibold text-[var(--app-text-strong)]">{title}</td>
+                          <td className="px-3 py-3"><StatusBadge label={permitCritical ? "High" : "Medium"} tone={permitCritical ? "error" : "warning"} /></td>
+                          <td className="px-3 py-3">{detail.trainingName}</td>
+                          <td className="px-3 py-3">{profile.supervisorOrManager}</td>
+                          <td className="px-3 py-3">{detail.dueDate ?? "No due date"}</td>
+                          <td className="px-3 py-3"><StatusBadge label={detail.status === "Expiring Soon" ? "Monitor" : "Open"} tone={detail.status === "Expiring Soon" ? "warning" : "error"} /></td>
+                          <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState title="No open worker actions found" description="No training, permit, or access actions are visible for this worker in the current profile data." align="left" />
+            )
+          ) : null}
+
           {activeTab === "access" ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {noPortal ? (
@@ -409,6 +518,10 @@ export function WorkerProfileDrawer({
                 </>
               )}
             </div>
+          ) : null}
+
+          {activeTab === "audit" ? (
+            <EmptyState title="No audit log entries available" description="This drawer is using workforce and training matrix data only. Detailed audit events will appear here when an audit source is connected." align="left" />
           ) : null}
         </div>
       </aside>

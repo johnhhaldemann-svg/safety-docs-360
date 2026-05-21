@@ -3,10 +3,14 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyTrainingRequirements } from "@/lib/companyTrainingAccess";
 import {
   isInvalidEmail,
+  normalizeAccessStatus,
+  normalizeDateOnly,
   normalizeEmail,
   normalizeEmployeeStatus,
   normalizePhone,
   normalizeReadinessStatus,
+  normalizeRestrictions,
+  normalizeWorkerType,
   parseCertificationExpirationsText,
   parseDelimitedList,
 } from "@/lib/companyTrackedEmployees";
@@ -18,7 +22,7 @@ export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ id: string }> };
 
 const EMPLOYEE_SELECT =
-  "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, certifications, certification_expirations, source, archived_at, created_at, updated_at";
+  "id, company_id, external_employee_id, full_name, email, email_normalized, phone, phone_normalized, job_title, trade_specialty, readiness_status, years_experience, status, worker_type, company_name, department_name, manager_id, supervisor_id, responsible_sponsor_id, access_status, access_start_date, access_end_date, restrictions, certifications, certification_expirations, source, archived_at, created_at, updated_at";
 
 export async function PATCH(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request);
@@ -92,6 +96,41 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   if (body.tradeSpecialty !== undefined || body.trade_specialty !== undefined) {
     updates.trade_specialty = String(body.tradeSpecialty ?? body.trade_specialty ?? "").trim() || null;
+  }
+  if (body.workerType !== undefined || body.worker_type !== undefined) {
+    updates.worker_type = normalizeWorkerType(body.workerType ?? body.worker_type);
+  }
+  if (body.companyName !== undefined || body.company_name !== undefined) {
+    updates.company_name = String(body.companyName ?? body.company_name ?? "").trim() || null;
+  }
+  if (body.departmentName !== undefined || body.department_name !== undefined) {
+    updates.department_name = String(body.departmentName ?? body.department_name ?? "").trim() || null;
+  }
+  if (body.managerId !== undefined || body.manager_id !== undefined) {
+    updates.manager_id = String(body.managerId ?? body.manager_id ?? "").trim() || null;
+  }
+  if (body.supervisorId !== undefined || body.supervisor_id !== undefined) {
+    updates.supervisor_id = String(body.supervisorId ?? body.supervisor_id ?? "").trim() || null;
+  }
+  if (body.responsibleSponsorId !== undefined || body.responsible_sponsor_id !== undefined) {
+    updates.responsible_sponsor_id = String(body.responsibleSponsorId ?? body.responsible_sponsor_id ?? "").trim() || null;
+  }
+  if (body.accessStatus !== undefined || body.access_status !== undefined) {
+    updates.access_status = normalizeAccessStatus(body.accessStatus ?? body.access_status);
+  }
+  if (body.accessStartDate !== undefined || body.access_start_date !== undefined) {
+    updates.access_start_date = normalizeDateOnly(body.accessStartDate ?? body.access_start_date);
+  }
+  if (body.accessEndDate !== undefined || body.access_end_date !== undefined) {
+    updates.access_end_date = normalizeDateOnly(body.accessEndDate ?? body.access_end_date);
+  }
+  const accessStart = updates.access_start_date;
+  const accessEnd = updates.access_end_date;
+  if (typeof accessStart === "string" && typeof accessEnd === "string" && accessEnd < accessStart) {
+    return NextResponse.json({ error: "Access end date must be after access start date." }, { status: 400 });
+  }
+  if (body.restrictions !== undefined || body.accessRestrictions !== undefined) {
+    updates.restrictions = normalizeRestrictions(body.restrictions ?? body.accessRestrictions);
   }
   if (body.readinessStatus !== undefined || body.readiness_status !== undefined) {
     updates.readiness_status = normalizeReadinessStatus(body.readinessStatus ?? body.readiness_status);

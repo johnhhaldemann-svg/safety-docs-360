@@ -1,5 +1,4 @@
 const nativeOperationRouteMap: Record<string, string> = {
-  "/dashboard": "/safe-predict",
   "/command-center": "/safe-predict",
   "/jobsites": "/safe-predict/jobsites",
   "/audit-customers": "/safe-predict/jobsites",

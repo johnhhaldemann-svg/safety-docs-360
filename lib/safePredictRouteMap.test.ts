@@ -7,7 +7,7 @@ import {
 
 describe("safePredictRouteMap", () => {
   it("moves workspace operating routes into SafePredict beta pages", () => {
-    expect(mapSafePredictOperationHref("/dashboard")).toBe("/safe-predict");
+    expect(mapSafePredictOperationHref("/dashboard")).toBe("/dashboard");
     expect(mapSafePredictOperationHref("/jobsites")).toBe("/safe-predict/jobsites");
     expect(mapSafePredictOperationHref("/analytics/predictive-model")).toBe("/safe-predict/predictive-risk");
     expect(mapSafePredictOperationHref("/safety-submit")).toBe("/safe-predict/observations");

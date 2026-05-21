@@ -6,6 +6,7 @@ import {
   buildWorkerProfileFromMatrixRow,
   mergeWorkerProfiles,
   type WorkerProfileRecord,
+  type WorkerProfileTab,
 } from "./WorkerProfileDrawer";
 
 const baseTrainingDetail = {
@@ -23,7 +24,21 @@ const baseTrainingDetail = {
   preventionMessage: "Worker is restricted from permit-controlled activity until Hot Work Training is current.",
 };
 
-function renderDrawer(profile: WorkerProfileRecord, activeTab: "summary" | "training" | "permits" | "access" = "summary") {
+const completedEvidenceDetail = {
+  ...baseTrainingDetail,
+  requirementId: "fall-protection",
+  trainingName: "Fall Protection Training",
+  requiredBecause: "Site requirement",
+  requirementSources: ["Site requirement" as const],
+  status: "Complete" as const,
+  completedDate: "On file",
+  expiryDate: "2026-12-31",
+  dueDate: null,
+  evidenceStatus: "On file",
+  preventionMessage: null,
+};
+
+function renderDrawer(profile: WorkerProfileRecord, activeTab: WorkerProfileTab = "summary") {
   return renderToStaticMarkup(
     <WorkerProfileDrawer
       profile={profile}
@@ -108,7 +123,7 @@ describe("WorkerProfileDrawer", () => {
       trainingStatus: "Restricted",
       permitExposureStatus: "Permit-linked gaps",
       accessStatus: "Restricted",
-      trainingRequirements: [baseTrainingDetail],
+      trainingRequirements: [baseTrainingDetail, completedEvidenceDetail],
       trainingSummary: {
         requiredCount: 1,
         completeCount: 0,
@@ -154,17 +169,19 @@ describe("WorkerProfileDrawer", () => {
     expect(merged?.trainingRequirements).toHaveLength(1);
   });
 
-  it("renders Summary, Training, Permits, and Access tab content", () => {
+  it("renders all worker profile tab content", () => {
     const profile = buildWorkerProfileFromMatrixRow({
       userId: "worker-tabs",
       name: "Taylor Tabs",
       email: "taylor@example.com",
       loginAccessStatus: "Active User",
+      jobTitleOrTrade: "Electrician",
+      assignedJobsites: ["Hillcrest Office Fit-Out"],
       readinessStatus: "Ready With Warnings",
       trainingStatus: "Expiring Soon",
       permitExposureStatus: "Permit-linked gaps",
       accessStatus: "Active User",
-      trainingRequirements: [baseTrainingDetail],
+      trainingRequirements: [baseTrainingDetail, completedEvidenceDetail],
       trainingSummary: {
         requiredCount: 1,
         completeCount: 0,
@@ -180,6 +197,10 @@ describe("WorkerProfileDrawer", () => {
     expect(renderDrawer(profile, "summary")).toContain("Overall readiness");
     expect(renderDrawer(profile, "training")).toContain("Training name");
     expect(renderDrawer(profile, "permits")).toContain("Required because: Permit exposure, Site requirement");
+    expect(renderDrawer(profile, "jobsites")).toContain("Required site training");
+    expect(renderDrawer(profile, "documents")).toContain("Fall Protection Training evidence");
+    expect(renderDrawer(profile, "actions")).toContain("Worker is restricted from permit-controlled activity");
     expect(renderDrawer(profile, "access")).toContain("Login email");
+    expect(renderDrawer(profile, "audit")).toContain("No Audit Log Entries Available");
   });
 });

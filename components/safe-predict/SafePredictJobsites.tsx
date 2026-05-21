@@ -257,7 +257,7 @@ function statusLabel(status: SafePredictJobsiteStatus) {
 
 function statusClasses(status: SafePredictJobsiteStatus) {
   if (status === "action-needed") return "border-red-200 bg-red-50 text-red-700";
-  if (status === "active") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "active") return "border-emerald-200 bg-emerald-50 text-emerald-800";
   if (status === "planned") return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
@@ -275,7 +275,7 @@ function attentionToneClass(tone: JobsiteAttentionTone) {
   if (tone === "high") return "border-orange-200 bg-orange-50 text-orange-700";
   if (tone === "medium") return "border-amber-200 bg-amber-50 text-amber-700";
   if (tone === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
-  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-800";
 }
 
 function signalBorderClass(tone: JobsiteAttentionTone) {
@@ -673,7 +673,7 @@ function JobsiteWeatherOverviewCard({
     <Card className="p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
-          <span className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-xl border", alerts.length > 0 ? "border-red-200 bg-red-50 text-red-600" : enabled ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-slate-200 bg-slate-50 text-slate-500")}>
+          <span className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-xl border", alerts.length > 0 ? "border-red-200 bg-red-50 text-red-600" : enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-500")}>
             <CloudSun className="h-5 w-5" />
           </span>
           <div className="min-w-0">
@@ -1985,10 +1985,24 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         result?: {
           deliveriesSent?: number;
           recipientsSeen?: number;
-          results?: Array<{ error?: string | null; channel?: string; status?: string; recipientName?: string | null }>;
+          results?: Array<{
+            error?: string | null;
+            channel?: string;
+            status?: string;
+            recipientName?: string | null;
+            contact?: string | null;
+          }>;
         };
       } | null;
       const firstError = payload?.result?.results?.find((item) => item.status === "failed" && item.error)?.error;
+      const deliveryDetails = payload?.result?.results
+        ?.filter((item) => item.status === "sent" && item.contact)
+        .map((item) => {
+          const channel = item.channel?.toUpperCase() ?? "Channel";
+          const recipient = item.recipientName ? ` (${item.recipientName})` : "";
+          return `${channel}: ${item.contact}${recipient}`;
+        })
+        .filter((message, index, messages) => messages.indexOf(message) === index);
       const skippedDetails = payload?.result?.results
         ?.filter((item) => item.status === "skipped" && item.error)
         .map((item) => `${item.channel?.toUpperCase() ?? "Channel"}: ${item.error}`)
@@ -2003,7 +2017,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       const successMessage =
         payload?.message ||
         `Weather test notification sent to ${payload?.result?.recipientsSeen ?? 0} recipient${payload?.result?.recipientsSeen === 1 ? "" : "s"}.`;
-      setWeatherTestMessage(skippedDetails?.length ? `${successMessage} ${skippedDetails.join(" ")}` : successMessage);
+      const sentDetails = deliveryDetails?.length ? ` Sent to: ${deliveryDetails.join("; ")}.` : "";
+      const skippedSummary = skippedDetails?.length ? ` ${skippedDetails.join(" ")}` : "";
+      setWeatherTestMessage(`${successMessage}${sentDetails}${skippedSummary}`);
     } catch (error) {
       setWeatherTestTone("error");
       setWeatherTestMessage(error instanceof Error ? error.message : "Weather test notification could not be sent.");
@@ -2800,9 +2816,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-4 2xl:grid-cols-2">
             <InfoTile label="Workers" value={siteEmployees.length || site.workforceCount} />
-            <InfoTile label="Open Actions" value={siteActions.filter((action) => action.status !== "Closed").length} tone="text-orange-600" />
+            <InfoTile label="Open Actions" value={siteActions.filter((action) => action.status !== "Closed").length} tone="text-orange-800" />
             <InfoTile label="Permits" value={sitePermits.length || site.activePermits} />
-            <InfoTile label="Inspection Gaps" value={site.inspectionGaps} tone="text-amber-600" />
+            <InfoTile label="Inspection Gaps" value={site.inspectionGaps} tone="text-amber-800" />
           </div>
         </div>
       </Card>

@@ -278,9 +278,10 @@ export function FieldAuditChecklist({
                         <button
                           type="button"
                           onClick={() => openCameraFor(key)}
+                          aria-label={photos > 0 ? `${photos} photos for ${item.label}` : `Add photo for ${item.label}`}
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-600/80 bg-slate-950/50 px-2 py-1.5 text-xs font-semibold text-slate-200"
                         >
-                          <Camera className="h-3.5 w-3.5" />
+                          <Camera aria-hidden="true" className="h-3.5 w-3.5" />
                           {photos > 0 ? photos : ""}
                         </button>
                         <span className="rounded-md border border-slate-700/80 bg-slate-950/50 px-2 py-1 text-xs font-bold text-slate-300">
