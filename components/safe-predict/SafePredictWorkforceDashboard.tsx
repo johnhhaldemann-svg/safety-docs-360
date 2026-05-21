@@ -330,6 +330,12 @@ function trainingRecordDateLabel(value?: string | null) {
   return value?.trim() || "No date";
 }
 
+function safePermitActionName(value?: string | null): string {
+  const cleaned = String(value ?? "").trim();
+  if (!cleaned || cleaned.toLowerCase() === "none") return "expiring permit exposure";
+  return cleaned;
+}
+
 async function safePredictAccessToken() {
   const supabase = getSupabaseBrowserClient();
   const {
@@ -452,13 +458,14 @@ function buildWorkflowItems(params: {
 
   for (const permit of permitSource) {
     const severity: WorkflowSeverity = permit.status === "Expired" ? "critical" : "medium";
+    const permitActionName = safePermitActionName(permit.type);
     items.push({
       id: `permit-${permit.id}`,
       kind: "permit",
-      title: `Renew or review ${permit.type}`,
+      title: `Renew or review ${permitActionName}`,
       detail: `${permit.status} permit exposure at ${permit.siteName}.`,
-      actionTitle: `Renew or review ${permit.type}`,
-      linkedRisk: `${permit.type} permit readiness`,
+      actionTitle: `Renew or review ${permitActionName}`,
+      linkedRisk: `${permitActionName} permit readiness`,
       siteId: permit.siteId,
       siteName: permit.siteName,
       severity,

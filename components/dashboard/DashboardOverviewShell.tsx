@@ -607,6 +607,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       hint: selectedJobsite ? formatTitleCase(selectedJobsite.name) || selectedJobsite.name : "Workspace scope",
       icon: ShieldAlert,
       band: selectedRiskBand,
+      href: selectedJobsite?.id ? `/jobsites/${encodeURIComponent(selectedJobsite.id)}` : "/jobsites",
     },
     {
       id: "incident-risk",
@@ -615,6 +616,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       hint: incidentsHaveData ? "Trend from current window" : "Waiting on incident volume",
       icon: TrendingUp,
       band: outlook === "worsening" ? ("red" as const) : outlook === "stable" ? ("yellow" as const) : ("green" as const),
+      href: "/analytics",
     },
     {
       id: "open-actions",

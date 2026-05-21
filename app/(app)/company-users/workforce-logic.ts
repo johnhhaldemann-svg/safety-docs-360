@@ -194,7 +194,7 @@ export function buildWorkforceCommandCenter<
       id: `assign-tracked-${employee.id}`,
       kind: "assign_tracked_jobsites" as const,
       title: `Assign jobsites for ${employee.full_name}`,
-      detail: `${employee.email || "Tracked worker"} has no active jobsite assignment.`,
+      detail: `Tracked worker ${employee.email || employee.full_name} has no active jobsite assignment.`,
       severity: "warning" as const,
       targetTab: "training" as const,
       employeeId: employee.id,

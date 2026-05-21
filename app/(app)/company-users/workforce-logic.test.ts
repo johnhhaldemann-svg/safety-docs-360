@@ -91,7 +91,7 @@ describe("workforce command center logic", () => {
     ]);
   });
 
-  it("tracks non-user jobsite assignment gaps separately", () => {
+  it("tracks no-portal worker jobsite assignment gaps separately with friendly labels", () => {
     const result = buildWorkforceCommandCenter({
       users: [],
       invites: [],
@@ -122,6 +122,8 @@ describe("workforce command center logic", () => {
     expect(result.assignmentGaps).toHaveLength(0);
     expect(result.trackedAssignmentGaps).toHaveLength(1);
     expect(result.actionItems.map((item) => item.kind)).toEqual(["assign_tracked_jobsites"]);
+    expect(result.actionItems[0]?.detail).toContain("Tracked worker");
+    expect(result.actionItems[0]?.detail).not.toContain("Training-only");
   });
 
   it("marks critical load failures as blocked", () => {

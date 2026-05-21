@@ -771,7 +771,7 @@ function Stage1ComplianceGrid({
                               <div key={`${rollup.requirement.id}-${row.userId}`} className="flex flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                   <p className="font-semibold text-[var(--app-text-strong)]">{row.name}</p>
-                                  <p className="text-xs text-[var(--app-muted)]">{row.assignedJobsites?.join(", ") || "No jobsite assigned"} · Due {detail.dueDate ?? "not scheduled"} · Evidence {detail.evidenceStatus}</p>
+                                  <p className="text-xs text-[var(--app-muted)]">{row.assignedJobsites?.join(", ") || "No jobsite assigned"} / Due {detail.dueDate ?? "not scheduled"} / Evidence {detail.evidenceStatus}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <StatusBadge label={detail.status} tone={stage1StatusTone(detail.status)} />

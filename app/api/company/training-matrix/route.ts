@@ -21,6 +21,7 @@ import {
 import {
   buildProfileCertificationInventory,
   parseCertificationExpirations,
+  type CertificationInventoryItem,
 } from "@/lib/certificationExpirations";
 import {
   DEFAULT_EXPIRING_SOON_DAYS,
@@ -34,6 +35,7 @@ import {
   computeTrainingMatrixRow,
   DEFAULT_MATCH_FIELDS,
   matchesSelectedMatrixFilter,
+  type TrainingMatrixCellDetail,
   type TrainingMatrixContext,
   type TrainingRequirementInput,
 } from "@/lib/trainingMatrix";
@@ -857,8 +859,8 @@ function toRequirementResponse(row: SalesDemoRequirementRow | TrainingRequiremen
 function buildStage1Details(params: {
   requirements: MatrixRequirementResponse[];
   cells: Record<string, "match" | "gap" | "na">;
-  cellDetails: Record<string, any>;
-  inventory: ReturnType<typeof buildProfileCertificationInventory>;
+  cellDetails: Record<string, TrainingMatrixCellDetail | undefined>;
+  inventory: CertificationInventoryItem[];
   profileFields: { jobTitle: string; tradeSpecialty: string; readinessStatus: string };
   assignedJobsiteCount: number;
 }): { trainingRequirements: Stage1TrainingDetail[]; trainingSummary: Stage1TrainingSummary } {
