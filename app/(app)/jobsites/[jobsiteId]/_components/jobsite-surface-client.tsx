@@ -12,7 +12,6 @@ import {
   appButtonSecondaryClassName,
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
-import { JobsiteSiteVisualClient } from "../site-visual/site-visual-client";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -343,12 +342,6 @@ function OverviewWidgets({
       action: "Open live view",
     },
     {
-      href: `/jobsites/${encodeURIComponent(jobsiteId)}/site-visual`,
-      title: "Site Visual",
-      detail: "Generate a schematic 3D map of work areas, tasks, and overlapping work",
-      action: "Open site visual",
-    },
-    {
       href: links.incidents ?? `/jobsites/${encodeURIComponent(jobsiteId)}/incidents`,
       title: "Incidents",
       detail: `${Number(overview.incidents ?? 0)} incident record${Number(overview.incidents ?? 0) === 1 ? "" : "s"}`,
@@ -437,8 +430,6 @@ function OverviewWidgets({
           }}
         />
       ) : null}
-
-      {jobsiteId ? <JobsiteSiteVisualClient jobsiteId={jobsiteId} embedded /> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (

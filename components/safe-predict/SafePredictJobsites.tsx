@@ -594,6 +594,10 @@ function JobsiteWeatherOverviewCard({
   const sourceLabel = weatherLocationSourceLabel(jobsiteWeather?.weather_location_source ?? site.weatherLocationSource);
   const confidence = jobsiteWeather?.weather_location_confidence ?? site.weatherLocationConfidence;
   const forecastUrl = jobsiteWeather?.nws_forecast_url ?? site.weatherForecastUrl;
+  const canAttemptRefresh =
+    enabled ||
+    Boolean(zipCode) ||
+    (typeof site.weatherLatitude === "number" && typeof site.weatherLongitude === "number");
   const title = alerts.length > 0 ? `${alerts.length} active weather alert${alerts.length === 1 ? "" : "s"}` : enabled ? "No active NWS alerts" : "Weather monitoring off";
   return (
     <Card className="p-5">
@@ -621,10 +625,10 @@ function JobsiteWeatherOverviewCard({
             <button
               type="button"
               onClick={onRefresh}
-              disabled={refreshing || !enabled}
+              disabled={refreshing || !canAttemptRefresh}
               className={cx(
                 "inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black shadow-sm transition",
-                refreshing || !enabled
+                refreshing || !canAttemptRefresh
                   ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               )}

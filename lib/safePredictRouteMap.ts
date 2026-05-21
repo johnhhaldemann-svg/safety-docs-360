@@ -54,11 +54,32 @@ function appendQueryAndHash(route: string, query: string, hash: string) {
   return `${route}${nextQuery}${nextHash}`;
 }
 
+function mapLegacyDocumentLibrary(query: string, hash: string) {
+  const params = new URLSearchParams(query);
+  const tab = params.get("tab")?.trim().toLowerCase() ?? "";
+  if (tab && tab !== "documents") {
+    return null;
+  }
+
+  if (tab === "documents") {
+    params.delete("tab");
+  }
+
+  return appendQueryAndHash("/documents", params.toString(), hash);
+}
+
 export function mapSafePredictOperationHref(href: string) {
   const { path, query, hash } = splitHref(href);
 
   if (path === "/safe-predict" || path.startsWith("/safe-predict/")) {
     return href;
+  }
+
+  if (path === "/library") {
+    const mappedLibraryHref = mapLegacyDocumentLibrary(query, hash);
+    if (mappedLibraryHref) {
+      return mappedLibraryHref;
+    }
   }
 
   const direct = nativeOperationRouteMap[path];

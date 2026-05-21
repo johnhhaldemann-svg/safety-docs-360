@@ -4,7 +4,7 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { isAdminRole, normalizeAppRole, authorizeRequest } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
-import { normalizeZipCode, resolveWeatherLocationWithNwsPoint } from "@/lib/weather/locationResolver";
+import { normalizeZipCode, resolveWeatherLocationWithNwsPoint, type WeatherLocationInput } from "@/lib/weather/locationResolver";
 import { NwsClient } from "@/lib/weather/nwsClient";
 import { checkJobsiteWeatherAlerts } from "@/lib/weather/checkJobsiteWeatherAlerts";
 import { normalizeWeatherEventAllowlist, normalizeWeatherSeverityThreshold } from "@/lib/weather/alertFiltering";
@@ -89,6 +89,24 @@ function normalizeQuietHour(value: unknown) {
 
 function hasWeatherCoordinate(value: unknown) {
   return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function weatherCoordinateInput(value: unknown) {
+  if (typeof value === "number" || typeof value === "string") return value;
+  return null;
+}
+
+function addressFromJobsite(jobsite: Record<string, unknown>): WeatherLocationInput {
+  return {
+    zipCode: normalizeZipCode(String(jobsite.zip_code ?? "")),
+    addressLine1: cleanString(jobsite.weather_address_line_1) || null,
+    addressLine2: cleanString(jobsite.weather_address_line_2) || null,
+    city: cleanString(jobsite.weather_city) || null,
+    state: cleanString(jobsite.weather_state).toUpperCase() || null,
+    country: cleanString(jobsite.weather_country).toUpperCase() || "US",
+    manualLatitude: weatherCoordinateInput(jobsite.weather_latitude),
+    manualLongitude: weatherCoordinateInput(jobsite.weather_longitude),
+  };
 }
 
 async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
@@ -210,14 +228,52 @@ export async function POST(
   const resolved = await resolveScopedJobsite(request, params);
   if ("authError" in resolved) return resolved.authError;
 
-  if (!resolved.jobsite.weather_enabled) {
-    return NextResponse.json(
-      { error: "Turn on weather monitoring and set a resolved jobsite location before refreshing." },
-      { status: 400 }
-    );
+  let jobsite = resolved.jobsite;
+  if (!jobsite.weather_enabled) {
+    if (!isWeatherManagerRole(resolved.auth.role)) {
+      return NextResponse.json(
+        { error: "Only company weather managers can turn on weather monitoring before refreshing." },
+        { status: 403 }
+      );
+    }
+
+    const updateValues: Record<string, unknown> = { weather_enabled: true };
+    if (!hasWeatherCoordinate(jobsite.weather_latitude) || !hasWeatherCoordinate(jobsite.weather_longitude) || !jobsite.nws_grid_id) {
+      const resolvedLocation = await resolveWeatherLocationWithNwsPoint(addressFromJobsite(jobsite), new NwsClient()).catch(() => null);
+      if (!resolvedLocation) {
+        return NextResponse.json(
+          { error: "Could not resolve this jobsite weather location. Add a valid ZIP, full address, or manual coordinates before refreshing." },
+          { status: 400 }
+        );
+      }
+      updateValues.weather_latitude = resolvedLocation.latitude;
+      updateValues.weather_longitude = resolvedLocation.longitude;
+      updateValues.weather_location_source = resolvedLocation.source;
+      updateValues.weather_location_confidence = resolvedLocation.confidence;
+      updateValues.nws_grid_id = resolvedLocation.nwsPoint.gridId;
+      updateValues.nws_grid_x = resolvedLocation.nwsPoint.gridX;
+      updateValues.nws_grid_y = resolvedLocation.nwsPoint.gridY;
+      updateValues.nws_forecast_url = resolvedLocation.nwsPoint.forecastUrl;
+      updateValues.nws_forecast_hourly_url = resolvedLocation.nwsPoint.forecastHourlyUrl;
+    }
+
+    const enabledJobsite = await resolved.auth.supabase
+      .from("company_jobsites")
+      .update(updateValues)
+      .eq("id", resolved.jobsiteId)
+      .eq("company_id", resolved.scope.companyId)
+      .select(WEATHER_JOBSITE_SELECT)
+      .single();
+    if (enabledJobsite.error) {
+      return NextResponse.json(
+        { error: enabledJobsite.error.message || "Failed to turn on jobsite weather monitoring." },
+        { status: 500 }
+      );
+    }
+    jobsite = enabledJobsite.data as unknown as Record<string, unknown>;
   }
 
-  if (!hasWeatherCoordinate(resolved.jobsite.weather_latitude) || !hasWeatherCoordinate(resolved.jobsite.weather_longitude)) {
+  if (!hasWeatherCoordinate(jobsite.weather_latitude) || !hasWeatherCoordinate(jobsite.weather_longitude)) {
     return NextResponse.json(
       { error: "The jobsite weather location has not been resolved yet. Save a ZIP, full address, or manual coordinates first." },
       { status: 400 }
@@ -274,7 +330,7 @@ export async function POST(
   const overview = await loadWeatherOverviewPayload(
     resolved.auth.supabase,
     resolved.jobsiteId,
-    (refreshedJobsite.data ?? resolved.jobsite) as unknown as Record<string, unknown>
+    (refreshedJobsite.data ?? jobsite) as unknown as Record<string, unknown>
   );
   if ("error" in overview) return NextResponse.json({ error: overview.error }, { status: 500 });
 

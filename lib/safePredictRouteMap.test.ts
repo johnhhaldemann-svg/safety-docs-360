@@ -11,6 +11,8 @@ describe("safePredictRouteMap", () => {
     expect(mapSafePredictOperationHref("/jobsites")).toBe("/safe-predict/jobsites");
     expect(mapSafePredictOperationHref("/analytics/predictive-model")).toBe("/safe-predict/predictive-risk");
     expect(mapSafePredictOperationHref("/safety-submit")).toBe("/safe-predict/observations");
+    expect(mapSafePredictOperationHref("/library")).toBe("/documents");
+    expect(mapSafePredictOperationHref("/library?tab=documents&doc=doc-1")).toBe("/documents?doc=doc-1");
     expect(mapSafePredictOperationHref("/library?tab=marketplace")).toBe("/library?tab=marketplace");
     expect(mapSafePredictOperationHref("/csep")).toBe("/safe-predict/csep");
     expect(mapSafePredictOperationHref("/peshep")).toBe("/safe-predict/peshep");

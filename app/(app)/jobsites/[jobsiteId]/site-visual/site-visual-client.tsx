@@ -18,6 +18,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
+  isFailedSiteVisualJobStatus,
+  isFinishedSiteVisualJobStatus,
+  mergeSiteVisualZoneSavePayload,
+  nextSelectedSiteVisualZoneId,
+  siteVisualPollTimeoutMessage,
+} from "@/lib/jobsiteSiteVisualClientState";
+import {
   EmptyState,
   InlineMessage,
   PageHero,
@@ -149,6 +156,8 @@ type SiteVisualPayload = {
   warning?: string;
   error?: string;
 };
+
+const EMPTY_VISUAL_ZONES: VisualZone[] = [];
 
 function formatDateTime(value?: string | null) {
   if (!value) return "Not scheduled";
@@ -883,6 +892,7 @@ export function JobsiteSiteVisualClient({
       const data = (await response.json().catch(() => null)) as SiteVisualPayload | null;
       if (!response.ok) throw new Error(data?.error || "Failed to load site visual.");
       setPayload(data ?? {});
+      setSelectedZoneId((current) => nextSelectedSiteVisualZoneId(current, data?.scene?.zones ?? []));
       if (data?.warning) {
         setMessage(data.warning);
         setMessageTone("warning");
@@ -901,7 +911,7 @@ export function JobsiteSiteVisualClient({
   }, [jobsiteId]);
 
   const scene = payload?.scene ?? null;
-  const zones = scene?.zones ?? [];
+  const zones = scene?.zones ?? EMPTY_VISUAL_ZONES;
   const overlaps = scene?.overlaps ?? [];
   const activeBlueprint = payload?.blueprint ?? payload?.blueprints?.find((item) => item.processingStatus === "ready") ?? payload?.blueprints?.[0] ?? null;
   const activeRender = payload?.render?.renderStatus === "ready" && payload.render.signedImageUrl ? payload.render : null;
@@ -925,6 +935,10 @@ export function JobsiteSiteVisualClient({
   useEffect(() => {
     if (activeRender) setVisualSurfaceMode("detailed");
   }, [activeRender?.id]);
+
+  useEffect(() => {
+    setSelectedZoneId((current) => nextSelectedSiteVisualZoneId(current, zones));
+  }, [zones]);
 
   function updatePayloadBlueprint(blueprint: SiteVisualBlueprint) {
     setPayload((current) => {
@@ -1061,15 +1075,15 @@ export function JobsiteSiteVisualClient({
         setMapJob(data.job);
         setMessage(`Site visual ${data.job.stage.replaceAll("_", " ")} (${Math.round(data.job.progress)}%).`);
         setMessageTone("neutral");
-        if (data.job.status === "ready" || data.job.status === "fallback_ready") {
+        if (isFinishedSiteVisualJobStatus(data.job.status)) {
           return data.payload ?? null;
         }
-        if (data.job.status === "failed") {
+        if (isFailedSiteVisualJobStatus(data.job.status)) {
           throw new Error(data.job.errorMessage || "Site visual generation failed.");
         }
       }
     }
-    return null;
+    throw new Error(siteVisualPollTimeoutMessage("site visual"));
   }
 
   async function generateDetailedVisual() {
@@ -1113,7 +1127,7 @@ export function JobsiteSiteVisualClient({
         if (completed) {
           setPayload((current) => ({
             ...(current ?? {}),
-            render: completed.render ?? current?.render ?? null,
+            render: completed.render ?? null,
           }));
           setVisualSurfaceMode(completed.render ? "detailed" : "schematic");
           setMessage(
@@ -1139,8 +1153,9 @@ export function JobsiteSiteVisualClient({
       setMessage(error instanceof Error ? error.message : "Failed to generate detailed visual.");
       setMessageTone("error");
       setVisualSurfaceMode("schematic");
+    } finally {
+      setRenderingDetailed(false);
     }
-    setRenderingDetailed(false);
   }
 
   async function pollDetailedVisualJob(job: SiteVisualRenderJob) {
@@ -1157,15 +1172,15 @@ export function JobsiteSiteVisualClient({
         setRenderJob(data.job);
         setMessage(`Detailed visual ${data.job.stage.replaceAll("_", " ")} (${Math.round(data.job.progress)}%).`);
         setMessageTone("neutral");
-        if (data.job.status === "ready" || data.job.status === "fallback_ready") {
+        if (isFinishedSiteVisualJobStatus(data.job.status)) {
           return { job: data.job, render: data.render ?? null };
         }
-        if (data.job.status === "failed") {
+        if (isFailedSiteVisualJobStatus(data.job.status)) {
           throw new Error(data.job.errorMessage || "Detailed visual generation failed.");
         }
       }
     }
-    return null;
+    throw new Error(siteVisualPollTimeoutMessage("detailed visual"));
   }
 
   async function removeBlueprint() {
@@ -1235,14 +1250,15 @@ export function JobsiteSiteVisualClient({
       if (!response.ok) throw new Error(data?.error || "Failed to save visual zone.");
       setPayload((current) => {
         if (!current) return current;
-        return {
-          ...current,
-          scene: data?.scene ?? (current.scene ? { ...current.scene, zones: data?.zones ?? current.scene.zones } : current.scene),
-          zones: data?.zones ?? current.zones,
-        };
+        return mergeSiteVisualZoneSavePayload(current, {
+          scene: data?.scene,
+          zones: data?.zones,
+        });
       });
-      setMessage("Work zone updated.");
-      setMessageTone("success");
+      setSelectedZoneId((current) => nextSelectedSiteVisualZoneId(current, data?.scene?.zones ?? data?.zones ?? []));
+      setVisualSurfaceMode("schematic");
+      setMessage("Work zone updated. The detailed visual was cleared so it does not show stale task overlays.");
+      setMessageTone("warning");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to save visual zone.");
       setMessageTone("error");

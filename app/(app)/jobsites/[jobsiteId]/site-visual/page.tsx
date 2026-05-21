@@ -1,4 +1,4 @@
-import { JobsiteSiteVisualClient } from "./site-visual-client";
+import { redirect } from "next/navigation";
 
 export default async function JobsiteSiteVisualPage({
   params,
@@ -6,5 +6,5 @@ export default async function JobsiteSiteVisualPage({
   params: Promise<{ jobsiteId: string }>;
 }) {
   const { jobsiteId } = await params;
-  return <JobsiteSiteVisualClient jobsiteId={jobsiteId} />;
+  redirect(`/jobsites/${encodeURIComponent(jobsiteId)}/overview`);
 }
