@@ -843,6 +843,9 @@ export default function SafePredictDashboardPage() {
   const liveWithoutForecast = dataset.mode === "live" && !hasForecast;
   const liveWithoutOpenActions = dataset.mode === "live" && totals.openActions === 0;
   const liveWithoutCompletedInspections = dataset.mode === "live" && completedInspections === 0;
+  const selectedCommandSite =
+    dataset.jobsites.find((site) => site.id === selectedSiteId) ?? dataset.jobsites[0] ?? null;
+  const commandMapSites = dataset.jobsites.slice(0, 5);
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -876,51 +879,145 @@ export default function SafePredictDashboardPage() {
         }
       />
 
-      <section className="mb-5 overflow-hidden rounded-lg border border-slate-900/10 bg-slate-950 shadow-[0_24px_54px_rgba(15,23,42,0.22)]">
-        <div className="grid gap-5 bg-[linear-gradient(135deg,#07182c_0%,#0d2b4c_52%,#0f3b68_100%)] p-5 text-white 2xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-blue-100 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-              <Building2 className="h-7 w-7" />
-            </span>
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100">
-                  Site Command
-                </span>
-                <span className="rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-200">
-                  Company Account
-                </span>
+      <section className="mb-5 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
+        <div className="grid gap-0 2xl:grid-cols-[minmax(0,0.95fr)_minmax(560px,1.05fr)]">
+          <div className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f6f9ff_100%)] p-5 2xl:border-b-0 2xl:border-r">
+            <div className="flex items-start gap-4">
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-blue-100 bg-blue-50 text-blue-700 shadow-sm">
+                <Building2 className="h-7 w-7" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+                    Site Command
+                  </span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    Company Account
+                  </span>
+                </div>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">{dataset.company.name}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  {dataset.company.industry} tenant based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
+                </p>
               </div>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{dataset.company.name}</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-50/80">
-                {dataset.company.industry} tenant based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                <span className="rounded-md border border-white/15 bg-white/10 px-3 py-1 text-slate-100">{dataset.mode === "live" ? "Live data" : "Workspace data"}</span>
-                <span className="rounded-md border border-blue-300/30 bg-blue-400/15 px-3 py-1 text-blue-100">{totals.jobsites} active jobsites</span>
-                <span className="rounded-md border border-emerald-300/30 bg-emerald-400/15 px-3 py-1 text-emerald-100">{totals.employees} workers</span>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {[
+                { title: "Workforce", value: totals.employees, detail: `${totals.overdueEmployees} overdue`, href: "/safe-predict/workforce#employee-roster", tone: "text-red-600", bar: "bg-red-500" },
+                { title: "Open Actions", value: totals.openActions, detail: "Across all jobsites", href: "/safe-predict/risk-mitigation#corrective-action-tracker", tone: "text-blue-700", bar: "bg-blue-600" },
+                { title: "Avg. Site Risk", value: totals.riskScore, detail: dataset.mode === "live" ? "Live score" : "Elevated", href: "/safe-predict/risk-mitigation#prioritized-risk-queue", tone: "text-orange-600", bar: "bg-orange-500" },
+              ].map((item) => (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className="group relative block overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-[0_10px_22px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_16px_32px_rgba(15,23,42,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100"
+                >
+                  <span className={cx("absolute inset-x-0 top-0 h-1", item.bar)} aria-hidden />
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{item.title}</p>
+                  <p className="mt-2 text-4xl font-black leading-none text-slate-950">{item.value}</p>
+                  <p className={cx("mt-2 text-xs font-black", item.tone)}>{item.detail}</p>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Selected focus</p>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-lg font-black text-slate-950">
+                    {selectedCommandSite?.name ?? "No jobsite selected"}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                    {selectedCommandSite ? `${selectedCommandSite.workforceCount} workers / ${selectedCommandSite.openActions} open actions` : "Add active jobsites to populate the command board."}
+                  </p>
+                </div>
+                <span className="inline-flex shrink-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-700">
+                  {selectedCommandSite ? riskLabel(selectedCommandSite.riskLevel) : "No site data"}
+                </span>
               </div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-            {[
-              { title: "Workforce", value: totals.employees, detail: `${totals.overdueEmployees} overdue`, href: "/safe-predict/workforce#employee-roster", tone: "text-red-200" },
-              { title: "Open Actions", value: totals.openActions, detail: "Across all jobsites", href: "/safe-predict/risk-mitigation#corrective-action-tracker", tone: "text-blue-100" },
-              { title: "Avg. Site Risk", value: totals.riskScore, detail: dataset.mode === "live" ? "Live score" : "Elevated", href: "/safe-predict/risk-mitigation#prioritized-risk-queue", tone: "text-orange-200" },
-            ].map((item) => (
-              <Link
-                key={item.title}
-                href={item.href}
-                className="group block rounded-lg border border-white/12 bg-white/8 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:bg-white/12 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300/30"
-              >
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-100/70">{item.title}</p>
-                <p className="mt-2 text-4xl font-black text-white">{item.value}</p>
-                <p className={cx("mt-1 text-xs font-black", item.tone)}>{item.detail}</p>
-                <p className="mt-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-200">
-                  View source
-                </p>
-              </Link>
-            ))}
+
+          <div className="relative min-h-[360px] overflow-hidden bg-[#eaf3f8] p-5">
+            <div
+              className="absolute inset-0 opacity-90"
+              style={{
+                backgroundImage:
+                  "linear-gradient(28deg, rgba(15,118,160,0.13) 0 1px, transparent 1px 86px), linear-gradient(118deg, rgba(30,64,175,0.12) 0 1px, transparent 1px 100px), radial-gradient(circle at 70% 35%, rgba(37,99,235,0.18), transparent 22%), radial-gradient(circle at 20% 76%, rgba(16,185,129,0.18), transparent 18%)",
+              }}
+              aria-hidden
+            />
+            <div className="relative flex h-full min-h-[320px] flex-col justify-between rounded-lg border border-white/80 bg-white/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Command Map</p>
+                  <h3 className="mt-1 text-xl font-black tracking-tight text-slate-950">Active Site Coverage</h3>
+                </div>
+                <span className="rounded-md border border-white bg-white/86 px-3 py-2 text-xs font-black text-slate-700 shadow-sm">
+                  {dataset.mode === "live" ? "Live data" : "Workspace data"}
+                </span>
+              </div>
+
+              <div className="relative mt-4 min-h-[210px] flex-1 overflow-hidden rounded-lg border border-white/80 bg-white/35">
+                <div className="absolute left-[10%] top-[22%] h-[56%] w-[72%] rounded-[48%] border border-blue-900/10 bg-blue-50/25" aria-hidden />
+                <div className="absolute left-[18%] top-[32%] h-[40%] w-[45%] rotate-[-10deg] rounded-[44%] border border-blue-900/10 bg-white/25" aria-hidden />
+                {commandMapSites.length > 0 ? (
+                  commandMapSites.map((site, index) => {
+                    const points = [
+                      { left: 62, top: 42 },
+                      { left: 38, top: 58 },
+                      { left: 76, top: 64 },
+                      { left: 28, top: 35 },
+                      { left: 55, top: 75 },
+                    ];
+                    const point = points[index] ?? { left: 50, top: 50 };
+                    const selected = site.id === selectedCommandSite?.id;
+                    return (
+                      <button
+                        key={site.id}
+                        type="button"
+                        onClick={() => setSelectedJobsiteId(site.id)}
+                        className={cx(
+                          "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-white p-1 shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100",
+                          selected ? "border-blue-600 ring-4 ring-blue-100" : "border-white"
+                        )}
+                        style={{ left: `${point.left}%`, top: `${point.top}%` }}
+                        aria-label={`Select ${site.name}`}
+                      >
+                        <span className={cx("grid h-9 w-9 place-items-center rounded-full border shadow-lg", riskPinClasses(site.riskLevel))}>
+                          <MapPin className="h-5 w-5" />
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="absolute inset-0 grid place-items-center px-6 text-center">
+                    <div>
+                      <p className="text-sm font-black text-slate-950">Command map ready</p>
+                      <p className="mt-2 max-w-sm text-sm font-semibold leading-6 text-slate-600">
+                        Active jobsites will appear here as risk pins once workspace data is loaded.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md border border-white bg-white/82 px-3 py-2 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Risk Index</p>
+                  <p className="mt-1 text-2xl font-black text-slate-950">{totals.riskScore}</p>
+                </div>
+                <div className="rounded-md border border-white bg-white/82 px-3 py-2 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Jobsites</p>
+                  <p className="mt-1 text-2xl font-black text-blue-700">{totals.jobsites}</p>
+                </div>
+                <div className="rounded-md border border-white bg-white/82 px-3 py-2 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Workers</p>
+                  <p className="mt-1 text-2xl font-black text-emerald-700">{totals.employees}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
