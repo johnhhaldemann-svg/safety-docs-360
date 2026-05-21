@@ -564,7 +564,7 @@ export default function AppLayout({
         return;
       }
 
-      const companyAllowedRoutes = ["/dashboard", "/training", "/library", "/search", "/profile"];
+      const companyAllowedRoutes = ["/dashboard", "/training", "/documents", "/library", "/search", "/profile"];
 
       if (companyId) {
         companyAllowedRoutes.push("/customer/billing");

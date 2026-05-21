@@ -178,7 +178,7 @@ function lowReadinessDriver(
     detail: "Approved documents are not keeping pace with drafts and review-stage files.",
     severity: summary.documentReadinessRate < 50 ? "high" : "medium",
     metric: `${Math.round(summary.documentReadinessRate)}% ready`,
-    href: "/library",
+    href: "/documents",
   };
 }
 

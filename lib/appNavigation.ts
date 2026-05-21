@@ -100,7 +100,7 @@ export const companyAdminQuickLinks: NavItem[] = [
     primaryActionLabel: "Open audits",
     audience: "field",
   },
-  { href: "/library", label: "Document Library", short: "DC" },
+  { href: "/documents", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/training", label: "Training", short: "PT" },
@@ -149,7 +149,7 @@ export const companyManagerQuickLinks: NavItem[] = [
     primaryActionLabel: "Open audits",
     audience: "field",
   },
-  { href: "/library", label: "Document Library", short: "DC" },
+  { href: "/documents", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
@@ -168,7 +168,7 @@ export const companyUserQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Home Dashboard", short: "DB" },
   { href: "/auditflow", label: "AuditFlow", short: "AF" },
   { href: "/field-audits", label: "Field Audits", short: "FA" },
-  { href: "/library", label: "Document Library", short: "DC" },
+  { href: "/documents", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
@@ -305,7 +305,7 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Documents",
     items: [
-      { href: "/library", label: "Document Library", short: "DC" },
+      { href: "/documents", label: "Documents", short: "DC" },
       {
         href: "/library?tab=marketplace",
         label: "Template Marketplace",
@@ -388,7 +388,7 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Documents",
     items: [
-      { href: "/library", label: "Document Library", short: "DC" },
+      { href: "/documents", label: "Documents", short: "DC" },
       {
         href: "/library?tab=marketplace",
         label: "Template Marketplace",
@@ -463,7 +463,7 @@ export const companyUserSideSections: NavSection[] = [
   {
     title: "Documents",
     items: [
-      { href: "/library", label: "Document Library", short: "DC" },
+      { href: "/documents", label: "Documents", short: "DC" },
       {
         href: "/library?tab=marketplace",
         label: "Template Marketplace",

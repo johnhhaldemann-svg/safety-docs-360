@@ -270,7 +270,7 @@ export function canAccessCompanyWorkspaceHref(
   const pathOnly = normalizedHref.split("?")[0] ?? normalizedHref;
   const isMarketplaceTab = normalizedHref.includes("tab=marketplace");
 
-  if (pathOnly === "/library") {
+  if (pathOnly === "/documents" || pathOnly === "/library") {
     if (isMarketplaceTab) {
       return hasFeatureAccess(permissionMap, "can_access_template_marketplace");
     }

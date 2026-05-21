@@ -567,7 +567,7 @@ export function CompanyAdminDashboard({
       id: "pending-documents",
       title: `${pendingDocuments.length} document${pendingDocuments.length === 1 ? "" : "s"} still pending review`,
       detail: "Open the library queue and follow up on the newest submissions.",
-      href: "/library",
+      href: "/documents",
       button: "Review docs",
       tone: "warning",
     });
@@ -991,8 +991,8 @@ export function CompanyAdminDashboard({
           <EmptyState
             title="Nice work, the board is clear"
             description="Approvals, document reviews, and high-risk alerts are all in good shape."
-            actionHref="/library"
-            actionLabel="Open library"
+            actionHref="/documents"
+            actionLabel="Open documents"
           />
         ) : (
           <div className="grid gap-3 xl:grid-cols-3">
@@ -1316,7 +1316,7 @@ export function CompanyAdminDashboard({
                   </div>
                   <div className="text-slate-500">{formatRelative(document.created_at)}</div>
                   <div>
-                    <Link href="/library" className="font-semibold text-sky-300">
+                    <Link href="/documents" className="font-semibold text-sky-300">
                       View
                     </Link>
                   </div>

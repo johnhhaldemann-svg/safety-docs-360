@@ -161,6 +161,7 @@ describe("companyFeatureAccess", () => {
       can_access_billing: false,
     });
 
+    expect(canAccessCompanyWorkspaceHref("/documents", "company_admin", permissions)).toBe(true);
     expect(canAccessCompanyWorkspaceHref("/library", "company_admin", permissions)).toBe(true);
     expect(canAccessCompanyWorkspaceHref("/jobsites", "company_admin", permissions)).toBe(false);
     expect(canAccessCompanyWorkspaceHref("/field-audits", "company_admin", permissions)).toBe(false);

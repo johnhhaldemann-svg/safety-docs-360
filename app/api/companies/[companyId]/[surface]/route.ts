@@ -29,6 +29,8 @@ export async function GET(
       "can_view_dashboards",
       "can_manage_company_users",
       "can_create_documents",
+      "can_submit_documents",
+      "can_access_document_library",
     ],
   });
   if ("error" in auth) {

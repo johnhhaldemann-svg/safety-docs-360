@@ -8,6 +8,7 @@ import {
   FileDown,
   ListChecks,
   MailPlus,
+  MapPin,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -100,6 +101,7 @@ type TrackedEmployee = {
   readiness_status?: string | null;
   status?: string | null;
   trainingRecords?: Array<{ id: string }>;
+  jobsiteAssignments?: Array<{ id: string; jobsite_id: string; status?: string | null }>;
 };
 
 type TrackedEmployeeForm = {
@@ -371,6 +373,7 @@ function demoWorkspace(): WorkspaceData {
       readiness_status: "needs_training",
       status: "active",
       trainingRecords: [{ id: "demo-training-1" }],
+      jobsiteAssignments: [],
     },
     {
       id: "demo-tracked-2",
@@ -382,6 +385,7 @@ function demoWorkspace(): WorkspaceData {
       readiness_status: "ready",
       status: "active",
       trainingRecords: [{ id: "demo-training-2" }, { id: "demo-training-3" }],
+      jobsiteAssignments: [{ id: "demo-employee-assignment-1", jobsite_id: "demo-jobsite-1", status: "active" }],
     },
   ];
   const leadershipScores = users.slice(0, 3).map((user, index) => ({
@@ -601,6 +605,8 @@ export default function CompanyUsersPage() {
     emptyTrackedEmployeeForm
   );
   const [editingTrackedEmployee, setEditingTrackedEmployee] = useState<TrackedEmployee | null>(null);
+  const [assigningTrackedEmployee, setAssigningTrackedEmployee] = useState<TrackedEmployee | null>(null);
+  const [trackedEditAssignments, setTrackedEditAssignments] = useState<string[]>([]);
   const [trackedRosterRowErrors, setTrackedRosterRowErrors] = useState<ImportRowError[]>([]);
 
   const loadWorkspace = useCallback(async (options?: { preserveMessage?: boolean }) => {
@@ -869,6 +875,31 @@ export default function CompanyUsersPage() {
     };
   }
 
+  function getTrackedAssignmentSummary(employee: TrackedEmployee) {
+    const assignedIds = (employee.jobsiteAssignments ?? [])
+      .filter((assignment) => String(assignment.status ?? "active").toLowerCase() === "active")
+      .map((assignment) => assignment.jobsite_id);
+    if (!assignedIds.length) {
+      return { label: "No jobsites", detail: "Needs assignment", tone: "warning" as const };
+    }
+    const names = assignedIds.map((id) => jobsiteNameById[id] ?? "Unknown jobsite").slice(0, 2);
+    const extra = assignedIds.length - names.length;
+    return {
+      label: `${assignedIds.length} assigned`,
+      detail: `${names.join(", ")}${extra > 0 ? ` +${extra} more` : ""}`,
+      tone: "info" as const,
+    };
+  }
+
+  function openTrackedAssignmentManager(employee: TrackedEmployee) {
+    setAssigningTrackedEmployee(employee);
+    setTrackedEditAssignments(
+      (employee.jobsiteAssignments ?? [])
+        .filter((assignment) => String(assignment.status ?? "active").toLowerCase() === "active")
+        .map((assignment) => assignment.jobsite_id)
+    );
+  }
+
   async function handleInvite() {
     const email = inviteEmail.trim().toLowerCase();
     if (!isValidEmail(email)) {
@@ -1114,6 +1145,7 @@ export default function CompanyUsersPage() {
               readiness_status: row.readinessStatus,
               status: row.status,
               trainingRecords: [],
+              jobsiteAssignments: [],
             })),
             ...current.trackedEmployees,
           ],
@@ -1165,6 +1197,7 @@ export default function CompanyUsersPage() {
           readiness_status: trackedEmployeeForm.readiness_status,
           status: trackedEmployeeForm.status,
           trainingRecords: editingTrackedEmployee?.trainingRecords ?? [],
+          jobsiteAssignments: editingTrackedEmployee?.jobsiteAssignments ?? [],
         };
         setWorkspace((current) => ({
           ...current,
@@ -1201,6 +1234,58 @@ export default function CompanyUsersPage() {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
         error instanceof Error ? error.message : "Failed to save training-only person."
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSaveTrackedAssignments() {
+    if (!assigningTrackedEmployee) return;
+    const nextAssignments = trackedEditAssignments;
+    setBusyAction(`tracked-assign-${assigningTrackedEmployee.id}`);
+    setTrackedRosterMessage("");
+    try {
+      if (workspace.demoMode) {
+        setWorkspace((current) => ({
+          ...current,
+          trackedEmployees: current.trackedEmployees.map((employee) =>
+            employee.id === assigningTrackedEmployee.id
+              ? {
+                  ...employee,
+                  jobsiteAssignments: nextAssignments.map((jobsiteId) => ({
+                    id: `demo-tracked-assignment-${employee.id}-${jobsiteId}`,
+                    jobsite_id: jobsiteId,
+                    status: "active",
+                  })),
+                }
+              : employee
+          ),
+        }));
+        setAssigningTrackedEmployee(null);
+        setTrackedRosterMessageTone("success");
+        setTrackedRosterMessage("Training-only jobsite assignments saved in demo mode.");
+        return;
+      }
+
+      const token = await getAccessToken();
+      await fetchJson(
+        `/api/company/tracked-employees/${assigningTrackedEmployee.id}/jobsite-assignments`,
+        token,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobsiteIds: nextAssignments }),
+        }
+      );
+      setAssigningTrackedEmployee(null);
+      await loadWorkspace({ preserveMessage: true });
+      setTrackedRosterMessageTone("success");
+      setTrackedRosterMessage("Training-only jobsite assignments saved.");
+    } catch (error) {
+      setTrackedRosterMessageTone("error");
+      setTrackedRosterMessage(
+        error instanceof Error ? error.message : "Failed to save training-only jobsite assignments."
       );
     } finally {
       setBusyAction(null);
@@ -1351,7 +1436,8 @@ export default function CompanyUsersPage() {
       const employee = workspace.trackedEmployees.find((entry) => entry.id === item.employeeId);
       if (employee) {
         setActiveTab("training");
-        openTrackedEmployeeEditor(employee);
+        if (item.kind === "assign_tracked_jobsites") openTrackedAssignmentManager(employee);
+        else openTrackedEmployeeEditor(employee);
       }
     }
   }
@@ -1373,10 +1459,10 @@ export default function CompanyUsersPage() {
     },
     {
       label: "Assignment gaps",
-      value: loadState.loading ? "-" : String(commandCenter.assignmentGaps.length),
-      detail: "Active field-scoped users without jobsites.",
+      value: loadState.loading ? "-" : String(commandCenter.assignmentGaps.length + commandCenter.trackedAssignmentGaps.length),
+      detail: "Active field-scoped users and training-only people without jobsites.",
       icon: ListChecks,
-      tone: commandCenter.assignmentGaps.length ? ("warning" as const) : ("success" as const),
+      tone: commandCenter.assignmentGaps.length || commandCenter.trackedAssignmentGaps.length ? ("warning" as const) : ("success" as const),
     },
     {
       label: "Training-only",
@@ -1603,6 +1689,7 @@ export default function CompanyUsersPage() {
         {activeTab === "training" ? (
           <TrainingOnlyView
             employees={activeTrackedEmployees}
+            jobsites={workspace.jobsites}
             form={trackedEmployeeForm}
             setForm={setTrackedEmployeeForm}
             editing={editingTrackedEmployee}
@@ -1614,6 +1701,8 @@ export default function CompanyUsersPage() {
             onSave={() => void handleSaveTrackedEmployee()}
             onCancel={resetTrackedEmployeeEditor}
             onEdit={openTrackedEmployeeEditor}
+            onAssign={openTrackedAssignmentManager}
+            getAssignmentSummary={getTrackedAssignmentSummary}
           />
         ) : null}
 
@@ -1657,6 +1746,19 @@ export default function CompanyUsersPage() {
           onClose={() => setEditingUser(null)}
           onSave={() => void handleSaveUser()}
           onRemove={() => void handleRemoveUser()}
+        />
+      ) : null}
+
+      {assigningTrackedEmployee ? (
+        <TrackedEmployeeAssignmentModal
+          employee={assigningTrackedEmployee}
+          scopeCompanyName={workspace.scopeCompanyName}
+          jobsites={workspace.jobsites}
+          editAssignments={trackedEditAssignments}
+          setEditAssignments={setTrackedEditAssignments}
+          busyAction={busyAction}
+          onClose={() => setAssigningTrackedEmployee(null)}
+          onSave={() => void handleSaveTrackedAssignments()}
         />
       ) : null}
     </div>
@@ -1947,6 +2049,7 @@ function AppUsersView({
 
 function TrainingOnlyView({
   employees,
+  jobsites,
   form,
   setForm,
   editing,
@@ -1958,8 +2061,11 @@ function TrainingOnlyView({
   onSave,
   onCancel,
   onEdit,
+  onAssign,
+  getAssignmentSummary,
 }: {
   employees: TrackedEmployee[];
+  jobsites: Jobsite[];
   form: TrackedEmployeeForm;
   setForm: React.Dispatch<React.SetStateAction<TrackedEmployeeForm>>;
   editing: TrackedEmployee | null;
@@ -1971,6 +2077,8 @@ function TrainingOnlyView({
   onSave: () => void;
   onCancel: () => void;
   onEdit: (employee: TrackedEmployee) => void;
+  onAssign: (employee: TrackedEmployee) => void;
+  getAssignmentSummary: (employee: TrackedEmployee) => { label: string; detail: string; tone: "success" | "warning" | "info" };
 }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
@@ -2051,9 +2159,11 @@ function TrainingOnlyView({
       </div>
 
       <div className="grid content-start gap-3">
-        {employees.map((employee) => (
+        {employees.map((employee) => {
+          const assignment = getAssignmentSummary(employee);
+          return (
           <div key={employee.id} className={compactCardClassName}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_auto] lg:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</p>
@@ -2063,16 +2173,29 @@ function TrainingOnlyView({
                 <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "No email on file"}</p>
                 <p className="mt-1 text-sm text-[var(--app-text)]">{employee.job_title || "Role not set"} / {employee.trade_specialty || "Trade not set"}</p>
               </div>
-              <button type="button" onClick={() => onEdit(employee)} className={appButtonSecondaryClassName}>
-                Edit
-              </button>
+              <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={assignment.label} tone={assignment.tone} />
+                </div>
+                <p className="mt-1 text-sm text-[var(--app-text)]">{assignment.detail}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <button type="button" onClick={() => onAssign(employee)} className={appButtonPrimaryClassName}>
+                  <MapPin aria-hidden className="h-4 w-4" />
+                  Assign Jobsites
+                </button>
+                <button type="button" onClick={() => onEdit(employee)} className={appButtonSecondaryClassName}>
+                  Edit
+                </button>
+              </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         {!employees.length ? (
           <EmptyState
             title="No training-only people yet"
-            description="Add non-login workers here when they need training compliance tracking without app access."
+            description={jobsites.length ? "Add non-login workers here when they need training compliance tracking without app access." : "Add jobsites first, then assign training-only people to active sites."}
           />
         ) : null}
       </div>
@@ -2224,6 +2347,101 @@ function MetricLine({ label, value }: { label: string; value: number }) {
     <div className="flex items-center justify-between rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
       <span className="text-sm text-[var(--app-text)]">{label}</span>
       <span className="font-semibold text-[var(--app-text-strong)]">{value}</span>
+    </div>
+  );
+}
+
+function TrackedEmployeeAssignmentModal({
+  employee,
+  scopeCompanyName,
+  jobsites,
+  editAssignments,
+  setEditAssignments,
+  busyAction,
+  onClose,
+  onSave,
+}: {
+  employee: TrackedEmployee;
+  scopeCompanyName: string;
+  jobsites: Jobsite[];
+  editAssignments: string[];
+  setEditAssignments: React.Dispatch<React.SetStateAction<string[]>>;
+  busyAction: string | null;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const activeJobsites = jobsites.filter((jobsite) => jobsite.status !== "archived");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4">
+      <div className="w-full max-w-3xl rounded-xl border border-[var(--app-border-strong)] bg-white p-5 shadow-[0_28px_70px_rgba(38,64,106,0.22)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Assign Jobsites</p>
+            <h3 className="mt-1 text-2xl font-bold text-[var(--app-text-strong)]">{employee.full_name}</h3>
+            <p className="mt-1 text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "Training-only person"}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--app-border)] text-[var(--app-text)] transition hover:bg-[var(--app-panel-soft)]" aria-label="Close jobsite assignment manager">
+            <X aria-hidden className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4">
+          <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3 text-sm text-[var(--app-text)]">
+            Company scope: <span className="font-semibold text-[var(--app-text-strong)]">{scopeCompanyName}</span>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-[var(--app-text-strong)]">Jobsite Assignments</p>
+                <p className="mt-1 text-sm text-[var(--app-text)]">Training-only people can be assigned to multiple active jobsites without app access.</p>
+              </div>
+              <StatusBadge label={`${editAssignments.length} selected`} tone={editAssignments.length === 0 ? "warning" : "success"} />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setEditAssignments(activeJobsites.map((jobsite) => jobsite.id))} className={appButtonSecondaryClassName}>
+                Select All
+              </button>
+              <button type="button" onClick={() => setEditAssignments([])} className={appButtonSecondaryClassName}>
+                Clear
+              </button>
+            </div>
+            <div className="mt-4 grid max-h-80 gap-2 overflow-y-auto pr-1">
+              {activeJobsites.map((jobsite) => {
+                const checked = editAssignments.includes(jobsite.id);
+                return (
+                  <label key={jobsite.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-3 text-sm transition ${checked ? "border-[var(--app-accent-border-24)] bg-white" : "border-[var(--app-border)] bg-white/60 hover:bg-white"}`}>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-[var(--app-text-strong)]">{jobsite.name}</span>
+                      <span className="mt-1 block text-xs text-[var(--app-muted)]">{jobsite.status}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setEditAssignments((current) =>
+                          event.target.checked
+                            ? Array.from(new Set([...current, jobsite.id]))
+                            : current.filter((value) => value !== jobsite.id)
+                        );
+                      }}
+                    />
+                  </label>
+                );
+              })}
+              {!activeJobsites.length ? <p className="text-sm text-[var(--app-muted)]">No active jobsites available yet.</p> : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={onClose} className={appButtonSecondaryClassName}>
+            Cancel
+          </button>
+          <button type="button" onClick={onSave} disabled={busyAction === `tracked-assign-${employee.id}`} className={appButtonPrimaryClassName}>
+            {busyAction === `tracked-assign-${employee.id}` ? "Saving..." : "Save Assignments"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

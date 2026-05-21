@@ -44,7 +44,7 @@ const SECTION_META: Record<
   },
   documents: {
     title: "Documents",
-    description: "Library, templates, uploads, submissions, search, and safety plan builders.",
+    description: "Company documents, templates, uploads, submissions, search, and safety plan builders.",
     audience: "operator",
   },
   fieldSites: {
@@ -94,9 +94,13 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open inbox",
   },
   {
-    matcher: (href) => href.startsWith("/library"),
+    matcher: (href) =>
+      href === "/documents" ||
+      href.startsWith("/documents/") ||
+      href.startsWith("/library") ||
+      /^\/companies\/[^/]+\/documents(?:\/|$)/.test(href),
     group: "documents",
-    description: "Browse finished records, templates, and marketplace content.",
+    description: "Browse company documents, finished records, templates, and marketplace content.",
     primaryActionLabel: "Open documents",
   },
   {

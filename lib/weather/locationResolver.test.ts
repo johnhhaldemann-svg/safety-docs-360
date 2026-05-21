@@ -24,14 +24,43 @@ describe("weather location resolver", () => {
     ).toBe("123 Main St, New York, NY, 10001, US");
   });
 
-  it("prefers full address geocoding before ZIP fallback", async () => {
+  it("uses ZIP centroid even when a full address is available", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(url).toContain("api.zippopotam.us/us/10001");
+      return Response.json({
+        places: [
+          {
+            latitude: "40.7506",
+            longitude: "-73.9972",
+            "place name": "New York",
+            "state abbreviation": "NY",
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation(
+      { addressLine1: "123 Main St", city: "New York", state: "NY", zipCode: "10001" },
+      { fetcher }
+    );
+
+    expect(result).toMatchObject({
+      latitude: 40.7506,
+      longitude: -73.9972,
+      source: "zip_centroid",
+      confidence: "low",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to full address geocoding when no ZIP is available", async () => {
     const fetcher = vi.fn(async (url: string) => {
       expect(url).toContain("geocoding.geo.census.gov");
       return Response.json({
         result: {
           addressMatches: [
             {
-              matchedAddress: "123 MAIN ST, NEW YORK, NY, 10001",
+              matchedAddress: "123 MAIN ST, NEW YORK, NY",
               coordinates: { x: -73.99, y: 40.75 },
             },
           ],
@@ -40,7 +69,7 @@ describe("weather location resolver", () => {
     }) as unknown as typeof fetch;
 
     const result = await resolveWeatherLocation(
-      { addressLine1: "123 Main St", city: "New York", state: "NY", zipCode: "10001" },
+      { addressLine1: "123 Main St", city: "New York", state: "NY" },
       { fetcher }
     );
 
@@ -135,5 +164,17 @@ describe("weather location resolver", () => {
       source: "zip_centroid",
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not fall back to full address geocoding when a ZIP lookup fails", async () => {
+    const fetcher = vi.fn(async () => new Response("unavailable", { status: 503 })) as unknown as typeof fetch;
+
+    const result = await resolveWeatherLocation(
+      { zipCode: "53022", addressLine1: "N112 W17001 Mequon Rd", city: "Germantown", state: "WI" },
+      { fetcher }
+    );
+
+    expect(result).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

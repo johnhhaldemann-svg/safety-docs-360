@@ -203,7 +203,7 @@ function emptyOverview(params: {
       { key: "correctives", label: "Correctives", count: 0, href: "/field-id-exchange", status: "missing" },
       { key: "incidents", label: "Incidents", count: 0, href: "/incidents", status: "missing" },
       { key: "permits", label: "Permits", count: 0, href: "/permits", status: "missing" },
-      { key: "documents", label: "Documents", count: 0, href: "/library", status: "missing" },
+      { key: "documents", label: "Documents", count: 0, href: "/documents", status: "missing" },
     ],
     executiveSummary: "No leadership-ready prevention signals were available for this dashboard response.",
     provenanceNote: "The dashboard service returned an empty overview because source records are not connected or the workspace is still being set up.",
@@ -562,23 +562,23 @@ export async function getDashboardOverview(params?: {
       missingTables.push("documents");
       engine.push(yellowEngine("Documents", "Data source is not connected yet."));
     } else {
-      engine.push(yellowEngine("Documents", documentsLoad.message ?? "Query failed.", "/library"));
+      engine.push(yellowEngine("Documents", documentsLoad.message ?? "Query failed.", "/documents"));
     }
   } else {
-    engine.push(greenEngine("Documents", "Loaded document rows for readiness.", "/library"));
+    engine.push(greenEngine("Documents", "Loaded document rows for readiness.", "/documents"));
   }
 
   /** Storage probe (RLS may still deny listing — treat as yellow, not a crash). */
   try {
     const { error: stErr } = await supabase.storage.from("documents").list("", { limit: 1 });
     if (stErr) {
-      engine.push(yellowEngine("Document storage bucket", stErr.message || "Could not list bucket `documents`.", "/library"));
+      engine.push(yellowEngine("Document storage bucket", stErr.message || "Could not list bucket `documents`.", "/documents"));
     } else {
       engine.push(greenEngine("Document storage bucket", "`documents` bucket responded to a minimal list."));
     }
   } catch (e) {
     engine.push(
-      yellowEngine("Document storage bucket", e instanceof Error ? e.message : "Storage probe failed.", "/library")
+      yellowEngine("Document storage bucket", e instanceof Error ? e.message : "Storage probe failed.", "/documents")
     );
   }
 
@@ -1013,7 +1013,7 @@ export async function getDashboardOverview(params?: {
       key: "documents",
       label: "Documents",
       count: documentRows.length,
-      href: "/library",
+      href: "/documents",
       status: coverageStatus(documentRows.length),
     },
     {
@@ -1082,7 +1082,7 @@ export async function getDashboardOverview(params?: {
       ? {
           id: "clear-documents",
           label: "Clear document readiness",
-          href: "/library",
+          href: "/documents",
           priority: "low",
           detail: "Review submitted, draft, under-review, missing, or expiring documents before leadership reporting.",
         }

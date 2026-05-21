@@ -98,7 +98,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: hasDocument
         ? "The document workflow has started."
         : "Upload a file, submit a package, or generate a safety document to create the first workspace record.",
-      href: "/library",
+      href: "/documents",
       complete: hasDocument,
     },
     {

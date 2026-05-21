@@ -609,10 +609,10 @@ function JobsiteWeatherOverviewCard({
               {sourceLabel}{zipCode ? ` - ZIP ${zipCode}` : ""}{confidence ? ` - ${formatTitleCase(confidence)} confidence` : ""} - Last checked {formatWeatherDateTime(jobsiteWeather?.weather_last_checked_at ?? site.weatherLastCheckedAt)}
             </p>
             {!enabled && !zipCode ? (
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add a ZIP code or full address in jobsite settings before turning on weather notifications.</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">Add a ZIP code in jobsite settings before turning on weather notifications.</p>
             ) : null}
             {sourceLabel === "ZIP approximate" ? (
-              <p className="mt-2 text-xs font-semibold leading-5 text-amber-700">ZIP-based weather is approximate. A full jobsite address gives crews more accurate NWS alert coverage.</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-amber-700">ZIP-based weather is approximate and is used for NWS alert coverage.</p>
             ) : null}
           </div>
         </div>
@@ -1742,11 +1742,6 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             body: JSON.stringify({
               weatherEnabled: true,
               zipCode: savedZip,
-              addressLine1: site.addressLine1 ?? "",
-              addressLine2: site.addressLine2 ?? "",
-              city: site.city ?? "",
-              state: site.state ?? "",
-              country: site.country ?? "US",
             }),
           });
           const activatePayload = (await activateResponse.json().catch(() => null)) as JobsiteWeatherOverviewData | null;

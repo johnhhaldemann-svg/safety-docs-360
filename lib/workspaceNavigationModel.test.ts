@@ -13,7 +13,7 @@ describe("workspaceNavigationModel", () => {
         items: [
           { href: "/dashboard", label: "Dashboard", short: "DB" },
           { href: "/command-center", label: "Command Center", short: "CC" },
-          { href: "/library", label: "Documents", short: "DC" },
+          { href: "/documents", label: "Documents", short: "DC" },
           { href: "/field-audits", label: "Audits", short: "FA" },
           { href: "/jobsites", label: "Jobsites", short: "JS" },
           { href: "/reports", label: "Reports", short: "RP" },
@@ -34,7 +34,7 @@ describe("workspaceNavigationModel", () => {
       "/field-audits",
     ]);
     expect(grouped.find((s) => s.group === "documents")?.items.map((item) => item.href)).toEqual([
-      "/library",
+      "/documents",
     ]);
     expect(grouped.find((s) => s.group === "insights")?.description).toContain("reports");
   });
@@ -65,13 +65,13 @@ describe("workspaceNavigationModel", () => {
 
     expect(
       getWorkspaceNavItemMeta({
-        href: "/library",
+        href: "/documents",
         label: "Documents",
         short: "DC",
       })
     ).toMatchObject({
       group: "documents",
-      description: "Browse finished records, templates, and marketplace content.",
+      description: "Browse company documents, finished records, templates, and marketplace content.",
       primaryActionLabel: "Open documents",
     });
 
@@ -93,7 +93,7 @@ describe("workspaceNavigationModel", () => {
         title: "Mixed",
         items: [
           { href: "/command-center", label: "Command Center", short: "CC" },
-          { href: "/library", label: "Documents", short: "DC" },
+          { href: "/documents", label: "Documents", short: "DC" },
           { href: "/jobsites", label: "Jobsites", short: "JS" },
           { href: "/profile", label: "Profile", short: "PF" },
         ],
@@ -102,7 +102,7 @@ describe("workspaceNavigationModel", () => {
 
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
       "Start Here:Dashboard, command hub, and the first place to check today's work.",
-      "Documents:Library, templates, uploads, submissions, search, and safety plan builders.",
+      "Documents:Company documents, templates, uploads, submissions, search, and safety plan builders.",
       "Field & Sites:Job sites, JSAs, permits, incidents, and field issue tracking.",
       "Account:Billing, team access, profile, and purchases.",
     ]);
@@ -111,8 +111,8 @@ describe("workspaceNavigationModel", () => {
       description: "Current risk, open work, and recommended next steps.",
     });
     expect(grouped.find((s) => s.group === "documents")?.items[0]).toMatchObject({
-      href: "/library",
-      description: "Browse finished records, templates, and marketplace content.",
+      href: "/documents",
+      description: "Browse company documents, finished records, templates, and marketplace content.",
     });
     expect(grouped[3]?.items[0]).toMatchObject({
       href: "/profile",
@@ -136,7 +136,7 @@ describe("workspaceNavigationModel", () => {
     ]);
 
     expect(grouped.map((section) => `${section.title}:${section.description}`)).toEqual([
-      "Documents:Library, templates, uploads, submissions, search, and safety plan builders.",
+      "Documents:Company documents, templates, uploads, submissions, search, and safety plan builders.",
     ]);
     expect(grouped[0]?.items.map((item) => item.href)).toEqual([
       "/submit",

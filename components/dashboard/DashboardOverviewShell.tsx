@@ -282,7 +282,7 @@ function buildDailyCommandActions(params: {
             documentPipelineTotal > 0
               ? "Submitted, in-review, missing, or expiring documents are waiting on review."
               : "Document readiness needs source records before the rate is meaningful.",
-          href: "/library",
+          href: "/documents",
           meta: `${documentBacklog} item${documentBacklog === 1 ? "" : "s"}`,
           tone: "info" as const,
         }

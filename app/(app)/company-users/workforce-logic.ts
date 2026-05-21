@@ -22,11 +22,13 @@ export type WorkforceTrackedEmployeeLike = {
   email?: string | null;
   readiness_status?: string | null;
   status?: string | null;
+  jobsiteAssignments?: Array<{ jobsite_id?: string | null; status?: string | null }>;
 };
 
 export type WorkforceActionKind =
   | "approve"
   | "assign_jobsites"
+  | "assign_tracked_jobsites"
   | "copy_invite"
   | "resolve_training"
   | "review_suspended"
@@ -77,6 +79,7 @@ export type WorkforceCommandCenter<
   pendingUsers: TUser[];
   suspendedUsers: TUser[];
   assignmentGaps: TUser[];
+  trackedAssignmentGaps: TTrackedEmployee[];
   staleInvites: TInvite[];
   trainingGaps: TTrackedEmployee[];
   actionItems: WorkforceActionItem[];
@@ -138,6 +141,13 @@ export function trackedEmployeeNeedsTraining(employee: WorkforceTrackedEmployeeL
   return readiness === "needs_training" || readiness === "limited" || readiness === "onboarding";
 }
 
+export function trackedEmployeeNeedsJobsiteAssignment(employee: WorkforceTrackedEmployeeLike) {
+  if (String(employee.status ?? "active").toLowerCase() !== "active") return false;
+  return (employee.jobsiteAssignments ?? []).filter(
+    (assignment) => String(assignment.status ?? "active").toLowerCase() === "active"
+  ).length === 0;
+}
+
 export function buildWorkforceCommandCenter<
   TUser extends WorkforceUserLike,
   TInvite extends WorkforceInviteLike,
@@ -153,6 +163,10 @@ export function buildWorkforceCommandCenter<
       ? activeUsers.filter(
           (user) => roleNeedsAssignments(user.role) && (input.assignmentMap[user.id] ?? []).length === 0
         )
+      : [];
+  const trackedAssignmentGaps =
+    input.activeJobsiteCount > 0
+      ? input.trackedEmployees.filter(trackedEmployeeNeedsJobsiteAssignment)
       : [];
   const staleInvites = input.invites.filter((invite) => isStaleInvite(invite, input.nowMs));
   const trainingGaps = input.trackedEmployees.filter(trackedEmployeeNeedsTraining);
@@ -175,6 +189,15 @@ export function buildWorkforceCommandCenter<
       severity: "warning" as const,
       targetTab: "users" as const,
       userId: user.id,
+    })),
+    ...trackedAssignmentGaps.map((employee) => ({
+      id: `assign-tracked-${employee.id}`,
+      kind: "assign_tracked_jobsites" as const,
+      title: `Assign jobsites for ${employee.full_name}`,
+      detail: `${employee.email || "Training-only person"} has no active jobsite assignment.`,
+      severity: "warning" as const,
+      targetTab: "training" as const,
+      employeeId: employee.id,
     })),
     ...staleInvites.map((invite) => ({
       id: `invite-${invite.id}`,
@@ -227,6 +250,7 @@ export function buildWorkforceCommandCenter<
       pendingUsers,
       suspendedUsers,
       assignmentGaps,
+      trackedAssignmentGaps,
       staleInvites,
       trainingGaps,
       actionItems,
@@ -242,6 +266,7 @@ export function buildWorkforceCommandCenter<
       pendingUsers,
       suspendedUsers,
       assignmentGaps,
+      trackedAssignmentGaps,
       staleInvites,
       trainingGaps,
       actionItems,
@@ -256,6 +281,7 @@ export function buildWorkforceCommandCenter<
     pendingUsers,
     suspendedUsers,
     assignmentGaps,
+    trackedAssignmentGaps,
     staleInvites,
     trainingGaps,
     actionItems,

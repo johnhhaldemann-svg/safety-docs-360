@@ -597,7 +597,7 @@ function accessItems(data: DashboardDataState, role: DashboardRole): DashboardSu
       label: "Completed records",
       value: `${data.documents.filter(approved).length}`,
       note: "Approved files currently visible in your library.",
-      href: "/library",
+      href: "/documents",
       tone: "success",
     },
   ];
@@ -1105,8 +1105,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
             variant: "primary",
           },
           {
-            label: "Open library",
-            href: "/library",
+            label: "Open documents",
+            href: "/documents",
             variant: "secondary",
           },
         ],
@@ -1150,8 +1150,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
             {
               title: "Review completed files",
               description: "Open approved files and keep deliverables organized.",
-              href: "/library",
-              actionLabel: "Open library",
+              href: "/documents",
+              actionLabel: "Open documents",
             },
           ],
           {
@@ -1189,8 +1189,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
           {
             title: "No recent reports yet",
             description: "Recent report signals will appear here once they are available.",
-            actionHref: "/library",
-            actionLabel: "Open library",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
           }
         ),
         riskRanking: summarySection(
@@ -1210,7 +1210,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
               label: "Review queue",
               value: `${inReview}`,
               note: "Documents still waiting for approval or completion.",
-              href: "/library",
+              href: "/documents",
               tone: inReview > 0 ? "warning" : "success",
             },
             {
@@ -1218,7 +1218,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
               label: "Completed deliverables",
               value: `${approvedCount}`,
               note: "Approved CSEP files already available in the library.",
-              href: "/library",
+              href: "/documents",
               tone: approvedCount > 0 ? "success" : "info",
             },
           ],
@@ -1244,7 +1244,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
               label: "In review",
               value: `${inReview}`,
               note: "Submitted packages still waiting for review.",
-              href: "/library",
+              href: "/documents",
               tone: inReview > 0 ? "warning" : "success",
             },
             {
@@ -1252,7 +1252,7 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
               label: "Approved",
               value: `${approvedCount}`,
               note: "Completed files available to open right now.",
-              href: "/library",
+              href: "/documents",
               tone: approvedCount > 0 ? "success" : "info",
             },
           ],
@@ -1295,8 +1295,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
           {
             title: "No permit workflow in this workspace",
             description: "Open the broader company workspace if you need permit follow-ups.",
-            actionHref: "/library",
-            actionLabel: "Open library",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
           }
         ),
         incidentFollowups: feedSection(
@@ -1306,8 +1306,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
           {
             title: "No incident workflow in this workspace",
             description: "Open the broader company workspace if you need incident follow-ups.",
-            actionHref: "/library",
-            actionLabel: "Open library",
+            actionHref: "/documents",
+            actionLabel: "Open documents",
           }
         ),
       }),
@@ -1475,8 +1475,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
         {
           title: "No recent workspace activity",
           description: "Recent submissions will appear here as soon as records move through the workspace.",
-          actionHref: "/library",
-          actionLabel: "Open library",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
         }
       ),
       recentDocuments: feedSection(
@@ -1486,8 +1486,8 @@ export function getCompanyAdminDashboardModel(data: DashboardDataState): Dashboa
         {
           title: "No recent documents",
           description: "New document activity will appear here as soon as files move through the workspace.",
-          actionHref: "/library",
-          actionLabel: "Open library",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
         }
       ),
       recentReports: feedSection(
@@ -1660,8 +1660,8 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
           {
             title: "Review documents in queue",
             description: "Open in-review files and keep approvals moving for the field.",
-            href: "/library",
-            actionLabel: "Open library",
+            href: "/documents",
+            actionLabel: "Open documents",
           },
           {
             title: "Work permit review items",
@@ -1694,8 +1694,8 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
         {
           title: "No recent submissions",
           description: "Recent document or report submissions will show up here as they land.",
-          actionHref: "/library",
-          actionLabel: "Open library",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
         }
       ),
       recentDocuments: feedSection(
@@ -1705,8 +1705,8 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
         {
           title: "No recent documents",
           description: "Document updates will appear here after the next submission lands.",
-          actionHref: "/library",
-          actionLabel: "Open library",
+          actionHref: "/documents",
+          actionLabel: "Open documents",
         }
       ),
       recentReports: feedSection(
@@ -1749,7 +1749,7 @@ export function getSafetyManagerDashboardModel(data: DashboardDataState): Dashbo
             label: "Documents needing review",
             value: `${reviewDocuments}`,
             note: "Items in review that need a decision or follow-up.",
-            href: "/library",
+            href: "/documents",
             tone: reviewDocuments > 0 ? "warning" : "success",
           },
           {
@@ -2311,7 +2311,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
       description:
         "This account does not map to a specialized role dashboard yet, so the home page stays focused on safe defaults and the next obvious workspace actions.",
       actions: [
-        { label: "Open library", href: "/library", variant: "primary" },
+        { label: "Open documents", href: "/documents", variant: "primary" },
         ...documentBuilderHeroActions(data),
         { label: "Search records", href: "/search", variant: "secondary" },
       ],
@@ -2328,7 +2328,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
         ),
         metric(
           "Next action",
-          data.documents.length > 0 ? "Open library" : "Update profile",
+          data.documents.length > 0 ? "Open documents" : "Update profile",
           "Best next step based on what is currently available."
         ),
         metric("Recent activity", `${data.documents.length}`, "Visible records in the current workspace."),
@@ -2349,10 +2349,10 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
         "Open the most useful baseline workspace tools without assuming company-wide access.",
         [
           {
-            title: "Open library",
+            title: "Open documents",
             description: "Review completed or approved records available to this account.",
-            href: "/library",
-            actionLabel: "Open library",
+            href: "/documents",
+            actionLabel: "Open documents",
             tone: "attention",
           },
           {
@@ -2415,7 +2415,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
             label: "Completed documents",
             value: `${approvedCount}`,
             note: "Approved files currently visible in your workspace.",
-            href: "/library",
+            href: "/documents",
             tone: "success",
           },
           {
@@ -2423,7 +2423,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
             label: "Documents in review",
             value: `${pendingCount}`,
             note: "Files still in the review workflow.",
-            href: "/library",
+            href: "/documents",
             tone: "warning",
           },
           ...genericRiskItems(data, "/search").slice(0, 1),
@@ -2455,7 +2455,7 @@ export function getDefaultDashboardModel(data: DashboardDataState): DashboardVie
             label: "Completed records",
             value: `${approvedCount}`,
             note: "Approved and completed records available in your library.",
-            href: "/library",
+            href: "/documents",
             tone: "info",
           },
           {

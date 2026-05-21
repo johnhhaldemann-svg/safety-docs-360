@@ -121,27 +121,31 @@ export async function resolveWeatherLocation(
 
   const fetcher = options.fetcher ?? fetch;
   const timeoutMs = options.timeoutMs ?? 12000;
+  const zip = normalizeZipCode(input.zipCode);
+  if (zip) {
+    const geocodioLocation = await geocodeZipWithGeocodio(zip, {
+      fetcher,
+      timeoutMs,
+      geocodioApiKey: options.geocodioApiKey ?? readEnv("GEOCODIO_API_KEY"),
+    }).catch(() => null);
+    if (geocodioLocation) return geocodioLocation;
+
+    const publicZipLocation = await geocodeZipWithZippopotam(zip, {
+      fetcher,
+      timeoutMs,
+    }).catch(() => null);
+    if (publicZipLocation) return publicZipLocation;
+
+    return null;
+  }
+
   const address = buildWeatherAddress(input);
   const hasStreetAddress = Boolean(input.addressLine1?.trim());
   if (hasStreetAddress && address) {
-    const census = await geocodeAddressWithCensus(address, { fetcher, timeoutMs }).catch(() => null);
-    if (census) return census;
+    return geocodeAddressWithCensus(address, { fetcher, timeoutMs }).catch(() => null);
   }
 
-  const zip = normalizeZipCode(input.zipCode);
-  if (!zip) return null;
-
-  const geocodioLocation = await geocodeZipWithGeocodio(zip, {
-    fetcher,
-    timeoutMs,
-    geocodioApiKey: options.geocodioApiKey ?? readEnv("GEOCODIO_API_KEY"),
-  }).catch(() => null);
-  if (geocodioLocation) return geocodioLocation;
-
-  return geocodeZipWithZippopotam(zip, {
-    fetcher,
-    timeoutMs,
-  }).catch(() => null);
+  return null;
 }
 
 export async function geocodeAddressWithCensus(

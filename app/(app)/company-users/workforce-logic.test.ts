@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWorkforceCommandCenter,
   roleNeedsAssignments,
+  trackedEmployeeNeedsJobsiteAssignment,
   trackedEmployeeNeedsTraining,
 } from "./workforce-logic";
 
@@ -66,6 +67,7 @@ describe("workforce command center logic", () => {
           email: "tess@example.com",
           readiness_status: "needs_training",
           status: "active",
+          jobsiteAssignments: [{ jobsite_id: "site-1", status: "active" }],
         },
       ],
       assignmentMap: {},
@@ -87,6 +89,39 @@ describe("workforce command center logic", () => {
       "resolve_training",
       "review_audit",
     ]);
+  });
+
+  it("tracks non-user jobsite assignment gaps separately", () => {
+    const result = buildWorkforceCommandCenter({
+      users: [],
+      invites: [],
+      trackedEmployees: [
+        {
+          id: "tracked-1",
+          full_name: "Unassigned Uma",
+          email: "uma@example.com",
+          readiness_status: "ready",
+          status: "active",
+          jobsiteAssignments: [],
+        },
+        {
+          id: "tracked-2",
+          full_name: "Assigned Ari",
+          email: "ari@example.com",
+          readiness_status: "ready",
+          status: "active",
+          jobsiteAssignments: [{ jobsite_id: "site-1", status: "active" }],
+        },
+      ],
+      assignmentMap: {},
+      activeJobsiteCount: 1,
+      dataRequestReviewCount: 0,
+      loadState: baseLoadState,
+    });
+
+    expect(result.assignmentGaps).toHaveLength(0);
+    expect(result.trackedAssignmentGaps).toHaveLength(1);
+    expect(result.actionItems.map((item) => item.kind)).toEqual(["assign_tracked_jobsites"]);
   });
 
   it("marks critical load failures as blocked", () => {
@@ -113,5 +148,14 @@ describe("workforce command center logic", () => {
     expect(roleNeedsAssignments("company_admin")).toBe(false);
     expect(trackedEmployeeNeedsTraining({ id: "1", full_name: "Worker", readiness_status: "limited" })).toBe(true);
     expect(trackedEmployeeNeedsTraining({ id: "2", full_name: "Worker", readiness_status: "ready" })).toBe(false);
+    expect(trackedEmployeeNeedsJobsiteAssignment({ id: "3", full_name: "Worker", status: "active" })).toBe(true);
+    expect(
+      trackedEmployeeNeedsJobsiteAssignment({
+        id: "4",
+        full_name: "Worker",
+        status: "active",
+        jobsiteAssignments: [{ jobsite_id: "site-1", status: "active" }],
+      })
+    ).toBe(false);
   });
 });
