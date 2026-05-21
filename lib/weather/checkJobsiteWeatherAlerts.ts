@@ -46,6 +46,16 @@ export type JobsiteWeatherCronResult = {
   jobsitesSkipped: number;
 };
 
+export type CheckJobsiteWeatherAlertsInput = {
+  supabase?: SupabaseClient | null;
+  nwsClient?: NwsClient;
+  fetcher?: typeof fetch;
+  maxJobsites?: number;
+  jobsiteIds?: string[];
+  requireFeatureFlag?: boolean;
+  sendNotifications?: boolean;
+};
+
 function emptyResult(overrides?: Partial<JobsiteWeatherCronResult>): JobsiteWeatherCronResult {
   return {
     ok: true,
@@ -151,13 +161,8 @@ async function upsertWeatherAlertEvent(params: {
   return id;
 }
 
-export async function checkJobsiteWeatherAlerts(input: {
-  supabase?: SupabaseClient | null;
-  nwsClient?: NwsClient;
-  fetcher?: typeof fetch;
-  maxJobsites?: number;
-} = {}): Promise<JobsiteWeatherCronResult> {
-  if (!isJobsiteWeatherNotificationsEnabled()) {
+export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlertsInput = {}): Promise<JobsiteWeatherCronResult> {
+  if (input.requireFeatureFlag !== false && !isJobsiteWeatherNotificationsEnabled()) {
     return emptyResult({ skipped: true });
   }
 
@@ -168,14 +173,25 @@ export async function checkJobsiteWeatherAlerts(input: {
 
   const maxJobsites = input.maxJobsites ?? readPositiveInt("WEATHER_CRON_MAX_JOBSITES", 500, 5000);
   const nwsClient = input.nwsClient ?? new NwsClient({ fetcher: input.fetcher });
+  const targetJobsiteIds = [...new Set((input.jobsiteIds ?? []).map((id) => id.trim()).filter(Boolean))];
+  const sendNotifications = input.sendNotifications !== false;
   const result = emptyResult();
 
-  const jobsitesResult = await supabase
+  if (input.jobsiteIds && targetJobsiteIds.length === 0) {
+    return result;
+  }
+
+  let jobsitesQuery = supabase
     .from("company_jobsites")
     .select("id, company_id, name, zip_code, weather_latitude, weather_longitude")
     .eq("weather_enabled", true)
     .neq("status", "archived")
     .limit(maxJobsites);
+  if (targetJobsiteIds.length > 0) {
+    jobsitesQuery = jobsitesQuery.in("id", targetJobsiteIds);
+  }
+
+  const jobsitesResult = await jobsitesQuery;
 
   if (jobsitesResult.error) {
     return emptyResult({ ok: false, error: jobsitesResult.error.message || "Failed to load weather jobsites." });
@@ -199,13 +215,13 @@ export async function checkJobsiteWeatherAlerts(input: {
   }
   result.locationsSeen = jobsitesByLocation.size;
 
-  const jobsiteIds = jobsites.map((jobsite) => jobsite.id);
+  const weatherJobsiteIds = jobsites.map((jobsite) => jobsite.id);
   const subscriptionsByJobsite = new Map<string, WeatherSubscriptionRow[]>();
-  if (jobsiteIds.length > 0) {
+  if (sendNotifications && weatherJobsiteIds.length > 0) {
     const subscriptionsResult = await supabase
       .from("jobsite_weather_subscriptions")
       .select("id, company_id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end")
-      .in("jobsite_id", jobsiteIds)
+      .in("jobsite_id", weatherJobsiteIds)
       .eq("enabled", true);
 
     if (subscriptionsResult.error) {
@@ -219,10 +235,12 @@ export async function checkJobsiteWeatherAlerts(input: {
     }
   }
 
-  const userEmailMap = await loadUserEmailMap(
-    supabase,
-    [...subscriptionsByJobsite.values()].flat().map((subscription) => subscription.user_id)
-  );
+  const userEmailMap = sendNotifications
+    ? await loadUserEmailMap(
+        supabase,
+        [...subscriptionsByJobsite.values()].flat().map((subscription) => subscription.user_id)
+      )
+    : new Map<string, string | null>();
 
   const globalMinSeverity = getDefaultWeatherAlertMinSeverity();
   for (const group of jobsitesByLocation.values()) {
@@ -247,15 +265,13 @@ export async function checkJobsiteWeatherAlerts(input: {
         .update({ weather_last_checked_at: checkedAt })
         .eq("id", jobsite.id);
 
-      const subscriptions = subscriptionsByJobsite.get(jobsite.id) ?? [];
-      if (subscriptions.length === 0) continue;
-
+      const relevantAlerts: Array<{ alert: WeatherAlert; alertEventId: string }> = [];
       for (const alert of alerts) {
         if (!isWeatherAlertRelevant({ alert, minSeverity: globalMinSeverity })) continue;
 
-        let alertEventId: string;
         try {
-          alertEventId = await upsertWeatherAlertEvent({ supabase, jobsite, alert });
+          const alertEventId = await upsertWeatherAlertEvent({ supabase, jobsite, alert });
+          relevantAlerts.push({ alert, alertEventId });
           result.alertEventsUpserted += 1;
         } catch (error) {
           result.deliveriesFailed += 1;
@@ -266,7 +282,12 @@ export async function checkJobsiteWeatherAlerts(input: {
           });
           continue;
         }
+      }
 
+      const subscriptions = subscriptionsByJobsite.get(jobsite.id) ?? [];
+      if (!sendNotifications || subscriptions.length === 0) continue;
+
+      for (const { alert, alertEventId } of relevantAlerts) {
         for (const subscription of subscriptions) {
           if (isWithinQuietHours(subscription)) {
             result.deliveriesSkipped += 1;

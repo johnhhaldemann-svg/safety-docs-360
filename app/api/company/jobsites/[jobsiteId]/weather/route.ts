@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCompanyScope } from "@/lib/companyScope";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { isAdminRole, normalizeAppRole, authorizeRequest } from "@/lib/rbac";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { normalizeZipCode, resolveWeatherLocationWithNwsPoint } from "@/lib/weather/locationResolver";
 import { NwsClient } from "@/lib/weather/nwsClient";
+import { checkJobsiteWeatherAlerts } from "@/lib/weather/checkJobsiteWeatherAlerts";
 import { normalizeWeatherEventAllowlist, normalizeWeatherSeverityThreshold } from "@/lib/weather/alertFiltering";
 
 export const runtime = "nodejs";
@@ -84,6 +87,10 @@ function normalizeQuietHour(value: unknown) {
   return /^\d{2}:\d{2}$/.test(raw) ? raw : null;
 }
 
+function hasWeatherCoordinate(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
 async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
@@ -138,6 +145,51 @@ async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
   return { auth, scope, jobsiteId, jobsite: jobsiteResult.data as unknown as Record<string, unknown> } as const;
 }
 
+async function loadWeatherOverviewPayload(
+  supabase: SupabaseClient,
+  jobsiteId: string,
+  jobsite: Record<string, unknown>
+) {
+  const [subscriptions, alerts, deliveries] = await Promise.all([
+    supabase
+      .from("jobsite_weather_subscriptions")
+      .select("id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end, created_at, updated_at")
+      .eq("jobsite_id", jobsiteId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("weather_alert_events")
+      .select("id, nws_alert_id, event_name, severity, urgency, certainty, headline, description, instruction, effective_at, expires_at, status, first_seen_at, last_seen_at")
+      .eq("jobsite_id", jobsiteId)
+      .order("last_seen_at", { ascending: false })
+      .limit(12),
+    supabase
+      .from("weather_notification_deliveries")
+      .select("id, weather_alert_event_id, user_id, channel, status, sent_at, error_message, created_at")
+      .eq("jobsite_id", jobsiteId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  if (subscriptions.error || alerts.error || deliveries.error) {
+    return {
+      error:
+        subscriptions.error?.message ||
+        alerts.error?.message ||
+        deliveries.error?.message ||
+        "Failed to load jobsite weather settings.",
+    } as const;
+  }
+
+  return {
+    payload: {
+      jobsite,
+      subscriptions: subscriptions.data ?? [],
+      alerts: alerts.data ?? [],
+      deliveries: deliveries.data ?? [],
+    },
+  } as const;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<Params> }
@@ -145,44 +197,91 @@ export async function GET(
   const resolved = await resolveScopedJobsite(request, params);
   if ("authError" in resolved) return resolved.authError;
 
-  const [subscriptions, alerts, deliveries] = await Promise.all([
-    resolved.auth.supabase
-      .from("jobsite_weather_subscriptions")
-      .select("id, jobsite_id, user_id, enabled, channels, min_severity, event_allowlist, quiet_hours_start, quiet_hours_end, created_at, updated_at")
-      .eq("jobsite_id", resolved.jobsiteId)
-      .order("created_at", { ascending: true }),
-    resolved.auth.supabase
-      .from("weather_alert_events")
-      .select("id, nws_alert_id, event_name, severity, urgency, certainty, headline, description, instruction, effective_at, expires_at, status, first_seen_at, last_seen_at")
-      .eq("jobsite_id", resolved.jobsiteId)
-      .order("last_seen_at", { ascending: false })
-      .limit(12),
-    resolved.auth.supabase
-      .from("weather_notification_deliveries")
-      .select("id, weather_alert_event_id, user_id, channel, status, sent_at, error_message, created_at")
-      .eq("jobsite_id", resolved.jobsiteId)
-      .order("created_at", { ascending: false })
-      .limit(20),
-  ]);
+  const overview = await loadWeatherOverviewPayload(resolved.auth.supabase, resolved.jobsiteId, resolved.jobsite);
+  if ("error" in overview) return NextResponse.json({ error: overview.error }, { status: 500 });
 
-  if (subscriptions.error || alerts.error || deliveries.error) {
+  return NextResponse.json(overview.payload);
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<Params> }
+) {
+  const resolved = await resolveScopedJobsite(request, params);
+  if ("authError" in resolved) return resolved.authError;
+
+  if (!resolved.jobsite.weather_enabled) {
     return NextResponse.json(
-      {
-        error:
-          subscriptions.error?.message ||
-          alerts.error?.message ||
-          deliveries.error?.message ||
-          "Failed to load jobsite weather settings.",
-      },
+      { error: "Turn on weather monitoring and set a resolved jobsite location before refreshing." },
+      { status: 400 }
+    );
+  }
+
+  if (!hasWeatherCoordinate(resolved.jobsite.weather_latitude) || !hasWeatherCoordinate(resolved.jobsite.weather_longitude)) {
+    return NextResponse.json(
+      { error: "The jobsite weather location has not been resolved yet. Save a ZIP, full address, or manual coordinates first." },
+      { status: 400 }
+    );
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: "Missing Supabase service role configuration for manual weather refresh." },
       { status: 500 }
     );
   }
 
+  const result = await checkJobsiteWeatherAlerts({
+    supabase: adminClient,
+    jobsiteIds: [resolved.jobsiteId],
+    maxJobsites: 1,
+    requireFeatureFlag: false,
+    sendNotifications: false,
+  });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error || "Jobsite weather refresh failed.", result },
+      { status: 500 }
+    );
+  }
+  if (result.jobsitesSeen === 0) {
+    return NextResponse.json(
+      { error: "No enabled weather jobsite was available to refresh.", result },
+      { status: 400 }
+    );
+  }
+  if (result.locationsFailed > 0) {
+    return NextResponse.json(
+      { error: "NWS weather refresh failed for this jobsite location.", result },
+      { status: 502 }
+    );
+  }
+
+  const refreshedJobsite = await resolved.auth.supabase
+    .from("company_jobsites")
+    .select(WEATHER_JOBSITE_SELECT)
+    .eq("id", resolved.jobsiteId)
+    .eq("company_id", resolved.scope.companyId)
+    .maybeSingle();
+  if (refreshedJobsite.error) {
+    return NextResponse.json(
+      { error: refreshedJobsite.error.message || "Weather refreshed, but the jobsite summary could not be reloaded." },
+      { status: 500 }
+    );
+  }
+
+  const overview = await loadWeatherOverviewPayload(
+    resolved.auth.supabase,
+    resolved.jobsiteId,
+    (refreshedJobsite.data ?? resolved.jobsite) as unknown as Record<string, unknown>
+  );
+  if ("error" in overview) return NextResponse.json({ error: overview.error }, { status: 500 });
+
   return NextResponse.json({
-    jobsite: resolved.jobsite,
-    subscriptions: subscriptions.data ?? [],
-    alerts: alerts.data ?? [],
-    deliveries: deliveries.data ?? [],
+    ...overview.payload,
+    refresh: result,
+    message: "Jobsite weather refreshed.",
   });
 }
 

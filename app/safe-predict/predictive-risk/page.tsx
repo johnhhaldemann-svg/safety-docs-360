@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, Download, HelpCircle, Lightbulb, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import {
@@ -17,28 +17,71 @@ import {
 } from "@/components/safe-predict/SafePredictPrimitives";
 import {
   forecastConfidenceForSite,
+  forecastReasonsForSite,
   hasSafePredictForecastInputs,
   riskForecastForSite,
+  type SafePredictForecastReasonDriver,
 } from "@/lib/safePredictData";
+import type { SafePredictJobsiteRecord } from "@/lib/safePredictData";
+
+type RecommendedAction = {
+  title: string;
+  detail: string;
+  priority: string;
+  tone: "red" | "amber";
+};
+
+function driverImpact(driver: SafePredictForecastReasonDriver) {
+  return driver.riskLevel === "critical" || driver.riskLevel === "high" ? "High Impact" : "Moderate Impact";
+}
+
+function driverDotCount(score: number) {
+  return Math.max(1, Math.min(5, Math.ceil(score / 8)));
+}
+
+function actionPriority(driver: SafePredictForecastReasonDriver): RecommendedAction["tone"] {
+  return driver.riskLevel === "critical" || driver.riskLevel === "high" ? "red" : "amber";
+}
+
+function recommendedActionsFromDrivers(drivers: SafePredictForecastReasonDriver[]): RecommendedAction[] {
+  return drivers.map((driver) => {
+    const tone = actionPriority(driver);
+    return {
+      title: driver.label,
+      detail: driver.nextAction,
+      priority: tone === "red" ? "HIGH PRIORITY" : "MEDIUM PRIORITY",
+      tone,
+    };
+  });
+}
+
+function scopeLabel(site: SafePredictJobsiteRecord | undefined, siteId: string) {
+  return siteId === "all" ? "All Projects" : site?.name ?? "All Projects";
+}
 
 export default function SafePredictPredictiveRiskPage() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
-  const activeSiteId = selectedJobsiteId === "all" ? dataset.jobsites[0]?.id ?? "all" : selectedJobsiteId;
-  const activeForecast = riskForecastForSite(dataset, activeSiteId);
-  const activeSite = dataset.jobsites.find((site) => site.id === activeSiteId) ?? dataset.jobsites[0];
-  const hasForecastInputs = hasSafePredictForecastInputs(dataset, activeSiteId);
+  const selectedSite = dataset.jobsites.find((site) => site.id === selectedJobsiteId);
+  const scopeSiteId = selectedJobsiteId === "all" || selectedSite ? selectedJobsiteId : "all";
+  const activeForecast = riskForecastForSite(dataset, scopeSiteId);
+  const activeSite = scopeSiteId === "all" ? null : selectedSite ?? null;
+  const activeScopeLabel = scopeLabel(selectedSite, scopeSiteId);
+  const hasForecastInputs = hasSafePredictForecastInputs(dataset, scopeSiteId);
   const hasForecast = hasForecastInputs && activeForecast.length > 0;
-  const forecastConfidence = forecastConfidenceForSite(dataset, activeSiteId);
-  const hasDrivers = dataset.riskDrivers.length > 0;
-  const recommendedActions = dataset.mode === "live" && !hasDrivers
-    ? []
-    : [
-        ["Reinforce Fall Protection", "Conduct toolbox talks and verify fall protection usage this week.", "HIGH PRIORITY", "red"],
-        ["Improve Housekeeping", "Assign daily housekeeping ownership and increase site walkthroughs.", "HIGH PRIORITY", "orange"],
-        ["Control Electrical Exposure", "Review JSA's and ensure proper barricades and LOTO where needed.", "MEDIUM PRIORITY", "amber"],
-        ["Close Training Gaps", "Schedule and complete overdue training for at-risk workers.", "MEDIUM PRIORITY", "amber"],
-      ];
+  const forecastConfidence = forecastConfidenceForSite(dataset, scopeSiteId);
+  const forecastReasons = useMemo(
+    () => forecastReasonsForSite(dataset, scopeSiteId, activeForecast),
+    [activeForecast, dataset, scopeSiteId]
+  );
+  const peakReason = forecastReasons.reduce<(typeof forecastReasons)[number] | null>(
+    (currentPeak, reason) => (!currentPeak || reason.score > currentPeak.score ? reason : currentPeak),
+    null
+  );
+  const scopedDrivers = peakReason?.topDrivers ?? [];
+  const hasDrivers = scopedDrivers.length > 0;
+  const recommendedActions = recommendedActionsFromDrivers(scopedDrivers);
+  const scopeCopy = scopeSiteId === "all" ? "company-wide" : `${activeScopeLabel} project`;
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -58,7 +101,20 @@ export default function SafePredictPredictiveRiskPage() {
             <ExportButton
               fileName="safe-predict-risk-forecast.json"
               label="Export risk forecast"
-              payload={{ company: dataset.company, activeSite, jobsites: dataset.jobsites, forecast: activeForecast, drivers: dataset.riskDrivers, recommendedActions }}
+              payload={{
+                company: dataset.company,
+                scope: {
+                  type: scopeSiteId === "all" ? "company" : "project",
+                  label: activeScopeLabel,
+                  jobsiteId: scopeSiteId === "all" ? null : scopeSiteId,
+                },
+                activeSite,
+                jobsites: dataset.jobsites,
+                forecast: activeForecast,
+                peakReason,
+                drivers: scopedDrivers,
+                recommendedActions,
+              }}
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm"
             >
               <Download className="h-5 w-5" />
@@ -72,7 +128,7 @@ export default function SafePredictPredictiveRiskPage() {
         <Card className="mb-5 border-blue-200 bg-blue-50 p-5">
           <p className="text-sm font-black text-blue-950">How SafetyDoc360 creates this guidance</p>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-blue-900">
-            The MVP combines recent alerts, open corrective actions, inspection findings, training gaps, and permit exposure into a transparent risk forecast.
+            The MVP combines company safety signals, open corrective actions, inspection findings, training gaps, and permit exposure into a transparent risk forecast.
             It is guidance for safety managers, not a guarantee. Every high-risk signal is paired with a recommended action so the team can respond early.
           </p>
         </Card>
@@ -82,17 +138,17 @@ export default function SafePredictPredictiveRiskPage() {
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-[1fr_1fr_1fr_210px]">
           <SelectShell
             label="Project"
-            value={activeSiteId}
+            value={scopeSiteId}
             onChange={setSelectedJobsiteId}
             options={[
-              ...(dataset.jobsites.length > 0
-                ? dataset.jobsites.map((site) => ({ label: site.name, value: site.id }))
-                : [{ label: "No projects yet", value: "all" }]),
+              { label: "All Projects", value: "all" },
+              ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
             ]}
           />
           <SelectShell
             label="Trade"
             value="all"
+            disabled
             options={[
               { label: "All Trades", value: "all" },
               { label: "Electrical", value: "electrical" },
@@ -102,6 +158,7 @@ export default function SafePredictPredictiveRiskPage() {
           <SelectShell
             label="Time Period"
             value="30"
+            disabled
             options={[
               { label: "Next 30 Days", value: "30" },
               { label: "Next 60 Days", value: "60" },
@@ -156,7 +213,7 @@ export default function SafePredictPredictiveRiskPage() {
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-slate-500">Forecast Summary</p>
                     <p className="mt-1 text-sm leading-6 text-slate-700">
-                      Risk forecast is based on connected jobsites, inspections, observations, corrective actions, permits, and workforce readiness.
+                      This {scopeCopy} forecast is based on connected jobsites, inspections, observations, corrective actions, permits, and workforce readiness.
                     </p>
                   </div>
                 </div>
@@ -170,7 +227,7 @@ export default function SafePredictPredictiveRiskPage() {
           ) : (
             <EmptyLivePanel
               title="No live forecast yet"
-              detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive forecast."
+              detail={`Add ${scopeSiteId === "all" ? "company" : "project"} inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows this predictive forecast.`}
             />
           )}
         </Card>
@@ -179,7 +236,7 @@ export default function SafePredictPredictiveRiskPage() {
           <SectionTitle title="Top Drivers of Risk" />
           {hasDrivers ? (
             <div className="mt-4 divide-y divide-slate-100">
-              {dataset.riskDrivers.map((driver, index) => (
+              {scopedDrivers.map((driver, index) => (
               <div key={driver.id} className="grid grid-cols-[72px_1fr] gap-4 py-4 first:pt-0">
                 <div
                   className={cx(
@@ -198,14 +255,14 @@ export default function SafePredictPredictiveRiskPage() {
                 <div className="min-w-0">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="font-black text-slate-900">{driver.name}</p>
+                      <p className="font-black text-slate-900">{driver.label}</p>
                       <p className="mt-1 text-sm leading-5 text-slate-600">{driver.detail}</p>
                     </div>
                     <div className="shrink-0 sm:text-right">
-                      <p className={cx("text-xs font-black uppercase", driver.impact === "High Impact" ? "text-red-500" : "text-amber-500")}>
-                        {driver.impact}
+                      <p className={cx("text-xs font-black uppercase", driverImpact(driver) === "High Impact" ? "text-red-500" : "text-amber-500")}>
+                        {driverImpact(driver)}
                       </p>
-                      <div className="mt-3"><DriverDots count={driver.score} level={driver.riskLevel} /></div>
+                      <div className="mt-3"><DriverDots count={driverDotCount(driver.score)} level={driver.riskLevel} /></div>
                     </div>
                   </div>
                 </div>
@@ -215,7 +272,7 @@ export default function SafePredictPredictiveRiskPage() {
           ) : (
             <EmptyLivePanel
               title="No risk drivers yet"
-              detail="Drivers will appear after live inspections, observations, incidents, and training records are available."
+              detail={`Drivers will appear after ${scopeSiteId === "all" ? "company" : "project"} inspections, observations, incidents, and training records are available.`}
             />
           )}
           {hasDrivers ? (
@@ -228,10 +285,10 @@ export default function SafePredictPredictiveRiskPage() {
 
       <Card className="mt-5 p-5">
         <SectionTitle title="Recommended Actions" />
-        <p className="mt-1 text-sm text-slate-600">Actions you can take now to reduce risk and prevent incidents.</p>
+        <p className="mt-1 text-sm text-slate-600">Actions you can take now to reduce {scopeCopy} risk and prevent incidents.</p>
         {recommendedActions.length > 0 ? (
           <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-            {recommendedActions.map(([title, detail, priority, tone]) => (
+            {recommendedActions.map(({ title, detail, priority, tone }) => (
             <Link key={title} href="/safe-predict/risk-mitigation" className="flex items-start gap-4 rounded-lg border border-slate-100 bg-slate-50 p-4 hover:bg-white 2xl:border-r 2xl:border-slate-200 2xl:bg-white 2xl:pr-4 2xl:last:border-r-0">
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
                 <ShieldCheck className="h-7 w-7" />

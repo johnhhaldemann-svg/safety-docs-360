@@ -175,6 +175,32 @@ describe("safePredictData", () => {
     expect(riskForecastForSite(dataset, "live-high")).toEqual(highForecast);
   });
 
+  it("uses all jobsites for the company-wide forecast instead of the first project", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-low", name: "Low Risk First Site", status: "active" },
+        { id: "live-high", name: "High Risk Second Site", status: "active" },
+      ],
+      liveActions: [
+        { id: "act-low", jobsite_id: "live-low", title: "Closed paint touch-up", status: "verified_closed", severity: "low" },
+        { id: "act-high", jobsite_id: "live-high", title: "Open fall exposure", status: "open", severity: "critical" },
+      ],
+      liveIncidents: [{ id: "inc-high", jobsite_id: "live-high", title: "Open near miss", status: "open", severity: "high" }],
+      liveInspections: [{ id: "audit-high", jobsite_id: "live-high", title: "Failed daily walk", status: "failed", failed_items: 4 }],
+    });
+
+    const companyForecast = riskForecastForSite(dataset, "all");
+    const firstProjectForecast = riskForecastForSite(dataset, "live-low");
+    const highProjectForecast = riskForecastForSite(dataset, "live-high");
+
+    expect(companyForecast).toHaveLength(10);
+    expect(companyForecast[0].predictedRisk).toBeGreaterThan(firstProjectForecast[0]?.predictedRisk ?? -1);
+    expect(companyForecast[0].predictedRisk).toBeLessThan(highProjectForecast[0]?.predictedRisk ?? 101);
+    expect(companyForecast).not.toEqual(firstProjectForecast);
+  });
+
   it("explains forecast points from the highest scoped open risk signals", () => {
     const dataset = buildSafePredictDataset({
       mode: "live",
@@ -278,6 +304,36 @@ describe("safePredictData", () => {
     expect(connected.detail).toContain("source type");
   });
 
+  it("narrows confidence and forecast drivers when a project is selected", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-a", name: "Fall Exposure Site", status: "active" },
+        { id: "live-b", name: "Permit Exposure Site", status: "active" },
+      ],
+      liveActions: [
+        { id: "act-a", jobsite_id: "live-a", title: "Open leading edge", status: "open", severity: "critical", category: "fall_protection" },
+        { id: "act-b", jobsite_id: "live-b", title: "Open hot work review", status: "open", severity: "medium", category: "hot_work" },
+      ],
+      livePermits: [{ id: "permit-b", jobsite_id: "live-b", permit_type: "Hot Work", title: "Hot work permit", status: "expired" }],
+      liveEmployees: [
+        { userId: "worker-a", name: "Sam Rivera", jobsite_id: "live-a", cells: ["gap"] },
+        { userId: "worker-b", name: "Alicia Moore", jobsite_id: "live-b", cells: ["compliant"] },
+      ],
+    });
+
+    const companyConfidence = forecastConfidenceForSite(dataset, "all");
+    const projectConfidence = forecastConfidenceForSite(dataset, "live-a");
+    const [companyReason] = forecastReasonsForSite(dataset, "all", [{ date: "Now", predictedRisk: 90 }]);
+    const [projectReason] = forecastReasonsForSite(dataset, "live-a", [{ date: "Now", predictedRisk: 90 }]);
+
+    expect(companyConfidence.signalCount).toBeGreaterThan(projectConfidence.signalCount);
+    expect(companyReason.topDrivers.map((driver) => driver.evidence).join(" ")).toContain("Hot work permit");
+    expect(projectReason.topDrivers.map((driver) => driver.evidence).join(" ")).toContain("Open leading edge");
+    expect(projectReason.topDrivers.map((driver) => driver.evidence).join(" ")).not.toContain("Hot work permit");
+  });
+
   it("returns low confidence when the selected live scope has no forecast inputs", () => {
     const dataset = buildSafePredictDataset({
       mode: "live",
@@ -286,6 +342,26 @@ describe("safePredictData", () => {
     });
 
     expect(forecastConfidenceForSite(dataset, "live-empty")).toMatchObject({
+      percent: 0,
+      label: "Low",
+      sourceCount: 0,
+      signalCount: 0,
+    });
+  });
+
+  it("returns low confidence for an empty company-wide live scope", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [
+        { id: "live-empty-a", name: "Empty Site A", status: "active" },
+        { id: "live-empty-b", name: "Empty Site B", status: "active" },
+      ],
+    });
+
+    expect(hasSafePredictForecastInputs(dataset, "all")).toBe(false);
+    expect(riskForecastForSite(dataset, "all")).toEqual([]);
+    expect(forecastConfidenceForSite(dataset, "all")).toMatchObject({
       percent: 0,
       label: "Low",
       sourceCount: 0,

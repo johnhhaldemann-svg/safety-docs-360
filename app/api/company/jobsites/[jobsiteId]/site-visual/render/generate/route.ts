@@ -101,24 +101,10 @@ function aiErrorMessageFromJson(status: number, json: unknown) {
 }
 
 async function buildDeterministicRenderImage(
-  signedPreviewUrl: string,
   promptInput: SiteVisualRenderPromptInput,
   overlay: SiteVisualRenderOverlay
 ) {
-  let blueprintDataUrl: string | null = null;
-  const previewResponse = await fetch(signedPreviewUrl).catch(() => null);
-  if (previewResponse?.ok) {
-    const previewBytes = Buffer.from(await previewResponse.arrayBuffer());
-    const normalizedPreview = await sharp(previewBytes)
-      .resize({ width: 1000, height: 620, fit: "inside", withoutEnlargement: true })
-      .png()
-      .toBuffer()
-      .catch(() => null);
-    if (normalizedPreview) {
-      blueprintDataUrl = `data:image/png;base64,${normalizedPreview.toString("base64")}`;
-    }
-  }
-  const svg = buildSiteVisualFallbackRenderSvg(promptInput, overlay, blueprintDataUrl);
+  const svg = buildSiteVisualFallbackRenderSvg(promptInput, overlay);
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
@@ -415,8 +401,8 @@ export async function POST(
   let warning: string | null = null;
   if (!imageBytes) {
     fallbackUsed = true;
-    imageBytes = await buildDeterministicRenderImage(signedPreviewUrl, promptInput, overlay);
-    warning = `${upstreamError ?? "OpenAI image generation is unavailable."} A deterministic detailed visual was generated from the blueprint and work zones instead.`;
+    imageBytes = await buildDeterministicRenderImage(promptInput, overlay);
+    warning = `${upstreamError ?? "OpenAI image generation is unavailable."} A deterministic detailed visual was drawn from the plan reference and work zones instead.`;
   }
 
   const admin = createSupabaseAdminClient();
@@ -471,6 +457,7 @@ export async function POST(
         revisedPrompt,
         fallbackUsed,
         upstreamError,
+        sourceUsage: "reference_only",
         surface: "jobsite.site-visual.render.generate",
       },
       created_by: auth.user.id,
@@ -501,6 +488,7 @@ export async function POST(
       usage,
       fallbackUsed,
       upstreamError,
+      sourceUsage: "reference_only",
     },
     result_snapshot: {
       renderId: insert.data.id,

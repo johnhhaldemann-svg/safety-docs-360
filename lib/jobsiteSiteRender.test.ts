@@ -78,6 +78,8 @@ describe("jobsite site visual render helpers", () => {
     const prompt = buildSiteVisualRenderPrompt(promptInput);
 
     expect(prompt).toContain("multi-level construction cutaway");
+    expect(prompt).toContain("redraw the project as a new");
+    expect(prompt).toContain("Do not paste, screenshot, crop, trace exact linework from, or visibly include the original uploaded PDF/image");
     expect(prompt).toContain("Make overlap clarity the primary goal");
     expect(siteVisualRenderPromptHash(promptInput)).toBe(siteVisualRenderPromptHash(promptInput));
     expect(
@@ -87,15 +89,17 @@ describe("jobsite site visual render helpers", () => {
     ).toEqual({ imageBase64: "abc123", revisedPrompt: "revised" });
   });
 
-  it("builds a deterministic detailed visual fallback SVG from blueprint floor plates and zones", () => {
+  it("builds a deterministic detailed visual fallback SVG from drawn floor plates and zones", () => {
     const scene = buildFallbackSiteVisualScene(input);
     const blueprint = input.blueprint!;
     const promptInput = { jobsite: { name: input.jobsite.name }, blueprint, scene };
-    const svg = buildSiteVisualFallbackRenderSvg(promptInput, undefined, "data:image/png;base64,abc123");
+    const sourceDataUrl = "data:image/png;base64,abc123";
+    const svg = buildSiteVisualFallbackRenderSvg(promptInput);
 
     expect(svg).toContain("<svg");
     expect(svg).toContain("blueprint-plate-0");
-    expect(svg).toContain("data:image/png;base64,abc123");
+    expect(svg).not.toContain(sourceDataUrl);
+    expect(svg).not.toContain("<image");
     expect(svg).toContain("OVERLAP / HAZARD AREAS");
     expect(svg).not.toContain("WORK ACTIVITIES");
     expect(svg).not.toContain("SAFETY INSIGHT");

@@ -178,6 +178,17 @@ type MapPanOffset = {
   y: number;
 };
 
+type MapStateCluster = {
+  stateCode: string;
+  latitude: number;
+  longitude: number;
+  jobsiteCount: number;
+  workforceCount: number;
+  highestRiskScore: number;
+  highestRiskLevel: SafePredictJobsiteRecord["riskLevel"];
+  points: JobsiteMapPoint[];
+};
+
 const TILE_SIZE = 256;
 const REAL_MAP_WIDTH = 1080;
 const REAL_MAP_HEIGHT = 560;
@@ -214,6 +225,16 @@ function normalizeCityStateLookupKey(value?: string | null) {
   const match = String(value ?? "").match(/^\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*$/);
   if (!match) return "";
   return `${match[2].toLowerCase()}|${match[1].trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+function stateCodeForJobsite(jobsite: SafePredictJobsiteRecord) {
+  const explicitState = String(jobsite.state ?? "").trim();
+  if (/^[A-Za-z]{2}$/.test(explicitState)) return explicitState.toUpperCase();
+
+  const cityStateMatch = String(jobsite.cityState ?? "").match(/,\s*([A-Za-z]{2})\s*$/);
+  if (cityStateMatch) return cityStateMatch[1].toUpperCase();
+
+  return "";
 }
 
 async function resolveZipCoordinate(zipCode: string, signal: AbortSignal): Promise<ZipCoordinate | null> {
@@ -368,6 +389,56 @@ function chooseMapZoom(points: JobsiteMapPoint[]) {
   return MIN_REAL_MAP_ZOOM;
 }
 
+function mapPointsPixelCenter(points: JobsiteMapPoint[], zoom: number) {
+  const xs = points.map((point) => longitudeToTileX(point.longitude as number, zoom) * TILE_SIZE);
+  const ys = points.map((point) => latitudeToTileY(point.latitude as number, zoom) * TILE_SIZE);
+
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+  };
+}
+
+function buildMapStateClusters(points: JobsiteMapPoint[]) {
+  const byState = new Map<string, JobsiteMapPoint[]>();
+
+  points.forEach((point) => {
+    if (
+      !point.coordinateBacked ||
+      typeof point.latitude !== "number" ||
+      !Number.isFinite(point.latitude) ||
+      typeof point.longitude !== "number" ||
+      !Number.isFinite(point.longitude)
+    ) {
+      return;
+    }
+
+    const stateCode = stateCodeForJobsite(point.jobsite);
+    if (!stateCode) return;
+
+    byState.set(stateCode, [...(byState.get(stateCode) ?? []), point]);
+  });
+
+  return [...byState.entries()]
+    .map(([stateCode, statePoints]): MapStateCluster => {
+      const highestRiskPoint = statePoints.reduce((highest, point) =>
+        point.jobsite.riskScore > highest.jobsite.riskScore ? point : highest
+      );
+
+      return {
+        stateCode,
+        latitude: statePoints.reduce((total, point) => total + (point.latitude as number), 0) / statePoints.length,
+        longitude: statePoints.reduce((total, point) => total + (point.longitude as number), 0) / statePoints.length,
+        jobsiteCount: statePoints.length,
+        workforceCount: statePoints.reduce((total, point) => total + point.jobsite.workforceCount, 0),
+        highestRiskScore: highestRiskPoint.jobsite.riskScore,
+        highestRiskLevel: highestRiskPoint.jobsite.riskLevel,
+        points: statePoints,
+      };
+    })
+    .sort((left, right) => right.highestRiskScore - left.highestRiskScore || left.stateCode.localeCompare(right.stateCode));
+}
+
 function buildRealMapViewport(points: JobsiteMapPoint[], zoomAdjustment: number, panOffset: MapPanOffset): RealMapViewport | null {
   const locatedPoints = points.filter(
     (point) =>
@@ -440,6 +511,7 @@ function JobsiteRiskMap({
   const [cityCoordinates, setCityCoordinates] = useState<Record<string, ZipCoordinate | null>>({});
   const [mapZoomAdjustment, setMapZoomAdjustment] = useState(0);
   const [mapPanOffset, setMapPanOffset] = useState<MapPanOffset>({ x: 0, y: 0 });
+  const [focusedStateCode, setFocusedStateCode] = useState<string | null>(null);
   const [isMapDragging, setIsMapDragging] = useState(false);
   const mapWheelTargetRef = useRef<HTMLDivElement | null>(null);
   const mapDragState = useRef<{
@@ -532,6 +604,7 @@ function JobsiteRiskMap({
     jobsites[0];
   const locatedMapPoints = mapPoints.filter((point) => point.coordinateBacked);
   const unlocatedMapPoints = mapPoints.filter((point) => !point.coordinateBacked);
+  const stateClusters = useMemo(() => buildMapStateClusters(mapPoints), [mapPoints]);
   const realMapViewport = useMemo(() => buildRealMapViewport(mapPoints, mapZoomAdjustment, mapPanOffset), [mapPanOffset, mapPoints, mapZoomAdjustment]);
   const baseMapZoom = locatedMapPoints.length > 0 ? chooseMapZoom(locatedMapPoints) : MIN_REAL_MAP_ZOOM;
   const currentMapZoom = clampNumber(baseMapZoom + mapZoomAdjustment, MIN_REAL_MAP_ZOOM, MAX_REAL_MAP_ZOOM);
@@ -552,9 +625,37 @@ function JobsiteRiskMap({
       : "Add ZIP or coordinates";
 
   function updateMapZoom(delta: number) {
+    setFocusedStateCode(null);
     setMapZoomAdjustment((value) =>
       clampNumber(value + delta, MIN_REAL_MAP_ZOOM - baseMapZoom, MAX_REAL_MAP_ZOOM - baseMapZoom)
     );
+  }
+
+  function resetMapView() {
+    setFocusedStateCode(null);
+    setMapZoomAdjustment(0);
+    setMapPanOffset({ x: 0, y: 0 });
+  }
+
+  function focusMapOnState(cluster: MapStateCluster) {
+    if (locatedMapPoints.length === 0 || cluster.points.length === 0) return;
+
+    const fitStateZoom = chooseMapZoom(cluster.points);
+    const targetZoom = clampNumber(
+      Math.max(fitStateZoom, cluster.points.length === locatedMapPoints.length ? baseMapZoom + 1 : fitStateZoom),
+      MIN_REAL_MAP_ZOOM,
+      MAX_REAL_MAP_ZOOM
+    );
+    const nextZoomAdjustment = targetZoom - baseMapZoom;
+    const allCenter = mapPointsPixelCenter(locatedMapPoints, targetZoom);
+    const stateCenter = mapPointsPixelCenter(cluster.points, targetZoom);
+
+    setFocusedStateCode(cluster.stateCode);
+    setMapZoomAdjustment(nextZoomAdjustment);
+    setMapPanOffset({
+      x: allCenter.x - stateCenter.x,
+      y: allCenter.y - stateCenter.y,
+    });
   }
 
   useEffect(() => {
@@ -565,6 +666,7 @@ function JobsiteRiskMap({
       if (event.deltaY === 0) return;
 
       event.preventDefault();
+      setFocusedStateCode(null);
       setMapZoomAdjustment((value) =>
         clampNumber(value + (event.deltaY < 0 ? 1 : -1), MIN_REAL_MAP_ZOOM - baseMapZoom, MAX_REAL_MAP_ZOOM - baseMapZoom)
       );
@@ -595,6 +697,7 @@ function JobsiteRiskMap({
       startPanOffset: mapPanOffset,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
+    setFocusedStateCode(null);
     setIsMapDragging(true);
   }
 
@@ -647,6 +750,37 @@ function JobsiteRiskMap({
               </div>
             </div>
           )}
+          {realMapViewport && stateClusters.map((cluster) => {
+            const anchorPoint = cluster.points[0];
+            if (!anchorPoint) return null;
+
+            const isFocused = focusedStateCode === cluster.stateCode;
+            const projected = realMapViewport.project({
+              jobsite: anchorPoint.jobsite,
+              coordinateBacked: true,
+              source: "coordinates",
+              latitude: cluster.latitude,
+              longitude: cluster.longitude,
+            });
+
+            return (
+              <button
+                key={cluster.stateCode}
+                type="button"
+                onClick={() => focusMapOnState(cluster)}
+                aria-pressed={isFocused}
+                aria-label={`${cluster.stateCode} state view, ${cluster.jobsiteCount} jobsites, highest risk ${cluster.highestRiskScore}`}
+                className={cx(
+                  "absolute z-30 -translate-x-1/2 -translate-y-1/2 rounded-md border px-3 py-2 text-left shadow-[0_18px_36px_rgba(0,0,0,0.38)] backdrop-blur transition hover:-translate-y-[55%] hover:bg-white/18 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300",
+                  isFocused ? "border-blue-300 bg-blue-600/80 text-white ring-4 ring-blue-400/25" : "border-white/20 bg-slate-950/72 text-white"
+                )}
+                style={{ left: projected.left, top: projected.top }}
+              >
+                <span className="block text-xs font-black leading-none">{cluster.stateCode}</span>
+                <span className="mt-1 block text-[10px] font-bold text-slate-200">{cluster.jobsiteCount} sites / {riskLabel(cluster.highestRiskLevel)}</span>
+              </button>
+            );
+          })}
           {realMapViewport && locatedMapPoints.map((point) => {
             const isSelected = selectedJobsite?.id === point.jobsite.id;
             const projected = realMapViewport.project(point);
@@ -703,6 +837,40 @@ function JobsiteRiskMap({
           </span>
         </div>
 
+        {realMapViewport && stateClusters.length > 0 ? (
+          <div data-map-control="true" className="absolute left-4 top-16 z-40 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2 xl:max-w-[600px]">
+            <button
+              type="button"
+              onClick={resetMapView}
+              className={cx(
+                "min-h-9 rounded-md border px-3 text-xs font-black uppercase tracking-wide shadow-lg backdrop-blur transition hover:bg-white/12",
+                focusedStateCode ? "border-white/15 bg-slate-950/76 text-slate-200" : "border-white bg-white text-slate-950"
+              )}
+            >
+              All states
+            </button>
+            {stateClusters.map((cluster) => {
+              const isFocused = focusedStateCode === cluster.stateCode;
+
+              return (
+                <button
+                  key={cluster.stateCode}
+                  type="button"
+                  onClick={() => focusMapOnState(cluster)}
+                  aria-pressed={isFocused}
+                  className={cx(
+                    "inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-black uppercase tracking-wide shadow-lg backdrop-blur transition hover:bg-white/12",
+                    isFocused ? "border-blue-300 bg-blue-600/88 text-white" : "border-white/15 bg-slate-950/76 text-slate-200"
+                  )}
+                >
+                  <span>{cluster.stateCode}</span>
+                  <span className="rounded bg-white/12 px-1.5 py-0.5 text-[10px]">{cluster.jobsiteCount}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {realMapViewport ? (
           <div data-map-control="true" className="absolute right-4 top-4 z-40 flex items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-white/15 bg-slate-950/76 text-white shadow-[0_18px_36px_rgba(0,0,0,0.3)] backdrop-blur">
@@ -715,11 +883,8 @@ function JobsiteRiskMap({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setMapZoomAdjustment(0);
-                  setMapPanOffset({ x: 0, y: 0 });
-                }}
-                disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0}
+                onClick={resetMapView}
+                disabled={mapZoomAdjustment === 0 && mapPanOffset.x === 0 && mapPanOffset.y === 0 && !focusedStateCode}
                 className="grid h-10 w-10 place-items-center border-l border-white/10 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-500"
                 aria-label="Center map between all jobsites"
                 title="Center between all jobsites"
@@ -781,7 +946,7 @@ function JobsiteRiskMap({
         ) : null}
 
         {missingLocationCount > 0 ? (
-          <div data-map-control="true" className="absolute left-4 top-20 z-40 max-h-[220px] w-60 overflow-y-auto rounded-lg border border-white/15 bg-slate-950/80 p-3 text-white shadow-[0_18px_36px_rgba(0,0,0,0.42)] backdrop-blur">
+          <div data-map-control="true" className="absolute left-4 top-32 z-40 max-h-[220px] w-60 overflow-y-auto rounded-lg border border-white/15 bg-slate-950/80 p-3 text-white shadow-[0_18px_36px_rgba(0,0,0,0.42)] backdrop-blur">
             <p className="text-xs font-black uppercase tracking-wide text-slate-300">Needs location</p>
             <div className="mt-2 grid gap-2">
               {unlocatedMapPoints.map((point) => (
@@ -848,10 +1013,20 @@ function CommandStatRow({
 function CompanyCommandPanel({
   dataset,
   totals,
+  loading,
 }: {
   dataset: SafePredictDataset;
   totals: ReturnType<typeof summarizeSafePredictDataset>;
+  loading: boolean;
 }) {
+  const isEmptyWorkspace = dataset.mode === "live" && totals.jobsites === 0 && totals.employees === 0 && totals.openActions === 0;
+  const companyName = loading && isEmptyWorkspace ? "Loading workspace" : dataset.company.name;
+  const companyDetail = loading && isEmptyWorkspace
+    ? "Loading live company, jobsite, workforce, action, and risk data..."
+    : isEmptyWorkspace
+      ? "Connect jobsites, workers, permits, and actions to populate this command center."
+      : `Live safety command center for ${dataset.company.name}. Safety lead: ${dataset.company.safetyLead}.`;
+
   return (
     <aside className="rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#06172a_100%)] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Company Account</p>
@@ -865,9 +1040,9 @@ function CompanyCommandPanel({
           )}
         </div>
         <div className="min-w-0">
-          <h2 className="text-xl font-black leading-tight">{dataset.company.name}</h2>
+          <h2 className="text-xl font-black leading-tight">{companyName}</h2>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">
-            {dataset.company.industry} workspace based in {dataset.company.headquarters}. Safety lead: {dataset.company.safetyLead}.
+            {companyDetail}
           </p>
         </div>
       </div>
@@ -875,7 +1050,7 @@ function CompanyCommandPanel({
       <div className="mt-4 flex flex-wrap gap-2">
         <span className="inline-flex items-center gap-2 rounded-md border border-emerald-300/20 bg-emerald-400/14 px-3 py-2 text-xs font-black text-emerald-100">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          {dataset.mode === "live" ? "Live data" : "Workspace data"}
+          {loading && isEmptyWorkspace ? "Loading data" : dataset.mode === "live" ? "Live data" : "Workspace data"}
         </span>
         <span className="rounded-md bg-blue-600 px-3 py-2 text-xs font-black text-white">{totals.jobsites} jobsites</span>
         <span className="rounded-md bg-emerald-500/18 px-3 py-2 text-xs font-black text-emerald-100">{totals.employees} workers</span>
@@ -1189,7 +1364,7 @@ function CommandKpiStrip({
 }
 
 export default function SafePredictDashboardPage() {
-  const { dataset, selectedJobsiteId, setSelectedJobsiteId } = useSafePredictData();
+  const { dataset, selectedJobsiteId, setSelectedJobsiteId, loading } = useSafePredictData();
   const [forecastWindow, setForecastWindow] = useState<ForecastWindow>(30);
   const [selectedForecastPoint, setSelectedForecastPoint] = useState<{ key: string; index: number } | null>(null);
   const totals = summarizeSafePredictDataset(dataset);
@@ -1258,7 +1433,7 @@ export default function SafePredictDashboardPage() {
       </div>
 
       <section className="grid gap-3 2xl:grid-cols-[320px_minmax(0,1fr)_280px]">
-        <CompanyCommandPanel dataset={dataset} totals={totals} />
+        <CompanyCommandPanel dataset={dataset} totals={totals} loading={loading} />
         <div className="min-w-0">
           <JobsiteRiskMap jobsites={dataset.jobsites} selectedJobsiteId={selectedJobsiteId} onSelectJobsite={setSelectedJobsiteId} />
           <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 shadow-sm xl:hidden">

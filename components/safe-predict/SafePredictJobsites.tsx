@@ -21,6 +21,7 @@ import {
   Layers3,
   MapPin,
   Plus,
+  RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -578,9 +579,13 @@ function mergeJobsiteWeatherOverview(
 function JobsiteWeatherOverviewCard({
   site,
   weather,
+  refreshing = false,
+  onRefresh,
 }: {
   site: SafePredictJobsiteRecord;
   weather: JobsiteWeatherOverviewData | null;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
   const jobsiteWeather = weather?.jobsite ?? jobsiteWeatherFromSite(site).jobsite;
   const alerts = weather?.alerts ?? [];
@@ -612,6 +617,22 @@ function JobsiteWeatherOverviewCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing || !enabled}
+              className={cx(
+                "inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-black shadow-sm transition",
+                refreshing || !enabled
+                  ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              )}
+            >
+              <RefreshCw className={cx("h-4 w-4", refreshing ? "animate-spin" : "")} />
+              {refreshing ? "Refreshing" : "Refresh"}
+            </button>
+          ) : null}
           {forecastUrl ? (
             <a href={forecastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 shadow-sm hover:bg-blue-100">
               NWS forecast
@@ -1618,6 +1639,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [permitMessage, setPermitMessage] = useState("");
   const [editingScheduleTask, setEditingScheduleTask] = useState<ScheduledRiskEvent | null>(null);
   const [weatherOverview, setWeatherOverview] = useState<{ jobsiteId: string; data: JobsiteWeatherOverviewData } | null>(null);
+  const [weatherRefreshing, setWeatherRefreshing] = useState(false);
   const weatherAutoEnableAttemptsRef = useRef<Set<string>>(new Set());
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
@@ -1766,6 +1788,52 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
       cancelled = true;
     };
   }, [mode, refreshLiveData, site]);
+
+  async function refreshJobsiteWeather() {
+    if (mode !== "live" || weatherRefreshing) return;
+
+    setWeatherRefreshing(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/weather`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const payload = (await response.json().catch(() => null)) as JobsiteWeatherOverviewData | null;
+      if (!response.ok) {
+        setWeatherOverview({
+          jobsiteId: site.id,
+          data: {
+            ...fallbackWeatherOverview,
+            ...(displayedWeatherOverview ?? {}),
+            error: payload?.error || "Weather refresh failed.",
+          },
+        });
+        return;
+      }
+
+      setWeatherOverview({
+        jobsiteId: site.id,
+        data: mergeJobsiteWeatherOverview(fallbackWeatherOverview, payload),
+      });
+      refreshLiveData();
+    } catch (error) {
+      setWeatherOverview({
+        jobsiteId: site.id,
+        data: {
+          ...fallbackWeatherOverview,
+          ...(displayedWeatherOverview ?? {}),
+          error: error instanceof Error ? error.message : "Weather refresh failed.",
+        },
+      });
+    } finally {
+      setWeatherRefreshing(false);
+    }
+  }
 
   function openPermitForm(permit: SafePredictDataset["permits"][number], nextMode: SafePredictPermitFormMode) {
     setActivePermit(permit);
@@ -2600,7 +2668,12 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
 
       {activeTab === "Overview" ? (
         <div className="space-y-5">
-          <JobsiteWeatherOverviewCard site={site} weather={displayedWeatherOverview} />
+          <JobsiteWeatherOverviewCard
+            site={site}
+            weather={displayedWeatherOverview}
+            refreshing={weatherRefreshing}
+            onRefresh={mode === "live" ? () => void refreshJobsiteWeather() : undefined}
+          />
           <Card className="overflow-hidden border-blue-100 bg-blue-50/40 p-0">
             <div className="flex flex-col gap-4 border-b border-blue-100 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">

@@ -497,6 +497,7 @@ export async function POST(
     latencyMs: ai.meta.latencyMs,
     usage: ai.meta.usage,
     surface: ai.meta.surface,
+    sourceUsage: blueprintResult.blueprint ? "reference_only" : "structured_data_only",
     sourceWarnings: [schedule.warning, activities.warning, permits.warning, observations.warning].filter(Boolean),
   };
 

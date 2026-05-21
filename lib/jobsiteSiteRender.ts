@@ -228,7 +228,9 @@ export function buildSiteVisualRenderPrompt(input: SiteVisualRenderPromptInput, 
   }));
   return [
     `Create a detailed isometric construction safety visual for ${input.jobsite.name}.`,
-    "Use the attached blueprint preview as the layout reference, but transform it into a polished multi-level construction cutaway scene.",
+    "Use the attached blueprint preview only as a private layout reference, then redraw the project as a new polished multi-level construction cutaway scene.",
+    "Do not paste, screenshot, crop, trace exact linework from, or visibly include the original uploaded PDF/image, title block, sheet border, or blueprint texture.",
+    "Preserve broad room, floor, corridor, laydown, and work-area relationships when they are inferable, but represent them as newly drawn 3D geometry and safety overlays.",
     "Match this style: realistic active jobsite, exposed floors and framing, roof/work deck, facade/scaffold/lifts, materials, equipment, visible workers in PPE, numbered colored work-activity callouts, left activity legend, right overlap/safety insight panels.",
     "Use a wide 16:9 composition. Make labels readable. Keep the result professional and visually understandable.",
     "Make overlap clarity the primary goal: draw translucent red/orange hazard footprints where work areas overlap, connect overlapping activities with visible lines, and show an overlap list/matrix with severity labels.",
@@ -249,8 +251,7 @@ function escapeSvgText(value: unknown) {
 
 export function buildSiteVisualFallbackRenderSvg(
   input: SiteVisualRenderPromptInput,
-  overlay = buildSiteVisualRenderOverlay(input.scene),
-  blueprintDataUrl?: string | null
+  overlay = buildSiteVisualRenderOverlay(input.scene)
 ) {
   const width = 1600;
   const height = 900;
@@ -271,16 +272,25 @@ export function buildSiteVisualFallbackRenderSvg(
       const color = deckColors[floor % deckColors.length];
       const clipId = `blueprint-plate-${floor}`;
       const platePoints = `${left},${top + 78} ${right},${top + 8} ${right + skew},${top + 76} ${left + skew},${top + depth}`;
-      const bluePrintTexture = blueprintDataUrl
-        ? `<image href="${escapeSvgText(blueprintDataUrl)}" x="${left + 92}" y="${top + 20}" width="760" height="142" preserveAspectRatio="xMidYMid meet" opacity="0.62" clip-path="url(#${clipId})"/>`
-        : "";
+      const referenceLinework = `
+        <g clip-path="url(#${clipId})" opacity="${0.52 - floor * 0.04}">
+          <rect x="${left + 120}" y="${top + 48}" width="210" height="62" fill="none" stroke="#64748b" stroke-width="2"/>
+          <rect x="${left + 356}" y="${top + 36}" width="168" height="74" fill="none" stroke="#64748b" stroke-width="2"/>
+          <rect x="${left + 548}" y="${top + 44}" width="244" height="58" fill="none" stroke="#64748b" stroke-width="2"/>
+          <line x1="${left + 96}" y1="${top + 118}" x2="${right + 28}" y2="${top + 54}" stroke="#94a3b8" stroke-width="1.5"/>
+          <line x1="${left + 282}" y1="${top + 38}" x2="${left + 380}" y2="${top + 124}" stroke="#94a3b8" stroke-width="1.5"/>
+          <line x1="${left + 506}" y1="${top + 38}" x2="${left + 612}" y2="${top + 122}" stroke="#94a3b8" stroke-width="1.5"/>
+          <path d="M${left + 170} ${top + 82} L${left + 246} ${top + 76} L${left + 254} ${top + 102}" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+          <path d="M${left + 626} ${top + 70} L${left + 710} ${top + 64} L${left + 724} ${top + 90}" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+        </g>
+      `;
       return `
         <g>
           <clipPath id="${clipId}">
             <polygon points="${platePoints}"/>
           </clipPath>
           <polygon points="${platePoints}" fill="${color}" stroke="#475569" stroke-width="3"/>
-          ${bluePrintTexture}
+          ${referenceLinework}
           <polygon points="${left + skew},${top + depth} ${right + skew},${top + 76} ${right + skew},${top + 100} ${left + skew},${top + depth + 26}" fill="#cbd5e1" opacity="0.72"/>
           <line x1="${left + 68}" y1="${top + 88}" x2="${right + 70}" y2="${top + 25}" stroke="#94a3b8" stroke-width="1.5" opacity="0.72"/>
           <line x1="${left + 132}" y1="${top + 132}" x2="${right + 150}" y2="${top + 64}" stroke="#94a3b8" stroke-width="1.5" opacity="0.58"/>
