@@ -623,6 +623,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       hint: `${overview.correctiveActionStatus.overdue} overdue`,
       icon: ClipboardCheck,
       band: riskBandFromCount(overview.correctiveActionStatus.overdue),
+      href: "/field-id-exchange",
     },
     {
       id: "workforce",
@@ -631,6 +632,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       hint: `${cred.expiredCredentials} expired credentials`,
       icon: Users,
       band: trainingSummaryBand,
+      href: "/training-matrix?status=complete",
     },
   ];
   const builderActions = [
@@ -907,8 +909,9 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 const Icon = metric.icon;
                 const tone = commandToneClasses(metric.band);
                 return (
-                  <div
+                  <Link
                     key={metric.id}
+                    href={metric.href ?? "/dashboard"}
                     className={`relative overflow-hidden rounded-lg border ${tone.border} bg-white px-4 py-3 shadow-[0_10px_22px_rgba(31,55,91,0.06)]`}
                   >
                     <span className={`absolute inset-x-0 top-0 h-1 ${tone.strip}`} aria-hidden="true" />
@@ -926,7 +929,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                       </span>
                     </div>
                     <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[var(--app-muted)]">{metric.hint}</p>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -1032,12 +1035,14 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                   value={overview.summary.overdueCorrectiveActions}
                   hint="Missing control follow-through past due date"
                   statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
+                  href="/field-id-exchange?status=overdue"
                 />
                 <MetricCard
                   label="Training readiness rate"
                   value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
                   valueMuted={!trainingMeasured}
                   statusBand={trainingSummaryBand}
+                  href="/training-matrix?status=complete"
                   hint={
                     trainingMeasured
                       ? undefined
@@ -1064,12 +1069,14 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                   value={overview.summary.overdueCorrectiveActions}
                   hint="Missing control follow-through past due date"
                   statusBand={overdueCorrectiveCountBand(overview.summary.overdueCorrectiveActions)}
+                  href="/field-id-exchange?status=overdue"
                 />
                 <MetricCard
                   label="Permit compliance rate"
                   value={permitRateMeasured ? `${Math.round(overview.summary.permitComplianceRate)}%` : "Not enough data yet"}
                   valueMuted={!permitRateMeasured}
                   statusBand={permitSummaryBand}
+                  href="/permits?filter=permit-exposure"
                   hint={
                     permitRateMeasured
                       ? undefined
@@ -1081,6 +1088,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                   value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
                   valueMuted={!trainingMeasured}
                   statusBand={trainingSummaryBand}
+                  href="/training-matrix?status=complete"
                   hint={
                     trainingMeasured
                       ? undefined
@@ -1352,17 +1360,20 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 true,
                 cred.expiredCredentials
               )}
+              href="/training-matrix?status=complete"
             />
             <MetricCard
               label="Expired credentials (docs)"
               value={cred.expiredCredentials}
               hint="Contractor documents past expiry"
               statusBand={cred.expiredCredentials > 0 ? "red" : "green"}
+              href="/training-matrix?status=overdue"
             />
             <MetricCard
               label="Expiring soon (30d)"
               value={cred.expiringSoonCredentials}
               statusBand={cred.expiringSoonCredentials > 0 ? "yellow" : "green"}
+              href="/training-matrix?status=expiring_soon"
             />
           </div>
         ) : (

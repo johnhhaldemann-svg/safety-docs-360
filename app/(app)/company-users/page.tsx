@@ -149,6 +149,24 @@ type WorkspaceData = {
 type TabId = "overview" | "access" | "users" | "training" | "audit";
 type SecurityAuditView = "events" | "data_requests";
 
+type WorkforceDirectoryRow = {
+  id: string;
+  source: "user" | "tracked";
+  name: string;
+  workerType: string;
+  loginAccess: "Active User" | "Invited User" | "Disabled User" | "No Portal Access";
+  companyOrDepartment: string;
+  jobTitleOrTrade: string;
+  assignedJobsite: string;
+  supervisorOrManager: string;
+  readinessStatus: string;
+  trainingStatus: string;
+  permitExposure: string;
+  lastUpdated: string;
+  user?: CompanyUser;
+  trackedEmployee?: TrackedEmployee;
+};
+
 const emptyWorkspace: WorkspaceData = {
   users: [],
   invites: [],
@@ -235,6 +253,22 @@ function formatSecurityEventLabel(value: string) {
 
 function readinessLabel(value?: string | null) {
   return formatSecurityEventLabel(String(value || "ready"));
+}
+
+function friendlyReadinessLabel(value?: string | null) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "travel_ready") return "Ready With Warnings";
+  if (normalized === "limited") return "Restricted";
+  if (normalized === "needs_training") return "Not Ready";
+  if (normalized === "onboarding") return "Pending Review";
+  if (normalized === "inactive" || normalized === "archived") return "Inactive";
+  return "Ready";
+}
+
+function loginAccessLabel(status?: string | null): WorkforceDirectoryRow["loginAccess"] {
+  if (status === "Pending") return "Invited User";
+  if (status === "Suspended" || status === "Inactive") return "Disabled User";
+  return "Active User";
 }
 
 function getProfileHref(userId: string) {
@@ -755,6 +789,73 @@ export default function CompanyUsersPage() {
     () => workspace.trackedEmployees.filter((employee) => employee.status !== "archived"),
     [workspace.trackedEmployees]
   );
+  const workforceDirectoryRows = useMemo<WorkforceDirectoryRow[]>(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const userRows: WorkforceDirectoryRow[] = workspace.users
+      .filter((user) => user.status === "Active" || user.status === "Suspended" || user.status === "Pending")
+      .map((user) => {
+        const assignmentIds = workspace.assignmentMap[user.id] ?? [];
+        const assignedJobsite = assignmentIds.map((id) => jobsiteNameById[id] ?? id).join(", ") || "No jobsite assigned";
+        return {
+          id: user.id,
+          source: "user",
+          name: user.name,
+          workerType: "Employee",
+          loginAccess: loginAccessLabel(user.status),
+          companyOrDepartment: workspace.scopeCompanyName,
+          jobTitleOrTrade: user.role,
+          assignedJobsite,
+          supervisorOrManager: "Not assigned",
+          readinessStatus: user.status === "Suspended" ? "Blocked" : user.status === "Pending" ? "Pending Review" : "Ready",
+          trainingStatus: "Pending Review",
+          permitExposure: "No permit-linked training gaps found",
+          lastUpdated: formatRelative(user.last_sign_in_at ?? user.created_at),
+          user,
+        };
+      });
+    const trackedRows: WorkforceDirectoryRow[] = activeTrackedEmployees.map((employee) => {
+      const assignedJobsite =
+        (employee.jobsiteAssignments ?? [])
+          .map((assignment) => jobsiteNameById[assignment.jobsite_id] ?? assignment.jobsite_id)
+          .filter(Boolean)
+          .join(", ") || "No jobsite assigned";
+      return {
+        id: employee.id,
+        source: "tracked",
+        name: employee.full_name,
+        workerType: "External Worker",
+        loginAccess: "No Portal Access",
+        companyOrDepartment: "Tracked workforce",
+        jobTitleOrTrade: [employee.job_title, employee.trade_specialty].filter(Boolean).join(" / ") || "Not set",
+        assignedJobsite,
+        supervisorOrManager: "Responsible manager not assigned",
+        readinessStatus: friendlyReadinessLabel(employee.readiness_status),
+        trainingStatus: employee.readiness_status === "needs_training" ? "Missing" : "Pending Review",
+        permitExposure: "No permit-linked training gaps found",
+        lastUpdated: "Updated recently",
+        trackedEmployee: employee,
+      };
+    });
+    const rows = [...userRows, ...trackedRows];
+    if (!query) return rows;
+    return rows.filter((row) =>
+      [
+        row.name,
+        row.workerType,
+        row.loginAccess,
+        row.companyOrDepartment,
+        row.jobTitleOrTrade,
+        row.assignedJobsite,
+        row.supervisorOrManager,
+        row.readinessStatus,
+        row.trainingStatus,
+        row.permitExposure,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [activeTrackedEmployees, jobsiteNameById, searchTerm, workspace.assignmentMap, workspace.scopeCompanyName, workspace.users]);
   const filteredUsers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     const users = workspace.users.filter((user) => user.status === "Active" || user.status === "Suspended");
@@ -1215,7 +1316,7 @@ export default function CompanyUsersPage() {
         }));
         resetTrackedEmployeeEditor();
         setTrackedRosterMessageTone("success");
-        setTrackedRosterMessage("Training-only person saved in demo mode.");
+        setTrackedRosterMessage("Tracked worker saved in demo mode.");
         return;
       }
       const token = await getAccessToken();
@@ -1234,7 +1335,7 @@ export default function CompanyUsersPage() {
       await loadWorkspace({ preserveMessage: true });
       setTrackedRosterMessageTone("success");
       setTrackedRosterMessage(
-        editingTrackedEmployee ? "Training-only person updated." : "Training-only person added without app access."
+        editingTrackedEmployee ? "Tracked worker updated." : "Tracked worker added with no portal access."
       );
     } catch (error) {
       setTrackedRosterMessageTone("error");
@@ -1270,7 +1371,7 @@ export default function CompanyUsersPage() {
         }));
         setAssigningTrackedEmployee(null);
         setTrackedRosterMessageTone("success");
-        setTrackedRosterMessage("Training-only jobsite assignments saved in demo mode.");
+        setTrackedRosterMessage("Tracked worker jobsite assignments saved in demo mode.");
         return;
       }
 
@@ -1287,7 +1388,7 @@ export default function CompanyUsersPage() {
       setAssigningTrackedEmployee(null);
       await loadWorkspace({ preserveMessage: true });
       setTrackedRosterMessageTone("success");
-      setTrackedRosterMessage("Training-only jobsite assignments saved.");
+      setTrackedRosterMessage("Tracked worker jobsite assignments saved.");
     } catch (error) {
       setTrackedRosterMessageTone("error");
       setTrackedRosterMessage(
@@ -1471,7 +1572,7 @@ export default function CompanyUsersPage() {
       tone: commandCenter.assignmentGaps.length || commandCenter.trackedAssignmentGaps.length ? ("warning" as const) : ("success" as const),
     },
     {
-      label: "Training-only",
+      label: "Tracked workers",
       value: loadState.loading ? "-" : String(activeTrackedEmployees.length),
       detail: "People tracked without app login seats.",
       icon: ShieldCheck,
@@ -1484,7 +1585,7 @@ export default function CompanyUsersPage() {
       <PageHero
         eyebrow="Company Workspace"
         title="Workforce Operations"
-        description="Manage app access, jobsite scope, training-only roster records, and audit evidence from one action-focused workspace."
+        description="Manage portal users, no-portal tracked workers, jobsite scope, and audit evidence from one action-focused workspace."
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Link href="/training-matrix" className={appButtonSecondaryClassName}>
@@ -1588,7 +1689,7 @@ export default function CompanyUsersPage() {
 
         <SectionCard
           title="Invite And Scope"
-          description={`Workspace: ${workspace.scopeCompanyName}. Invite app users here; add non-login people from the Training-Only tab.`}
+          description={`Workspace: ${workspace.scopeCompanyName}. Invite portal users here; add no-portal tracked workers from the Tracked Workers tab.`}
         >
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
             <input
@@ -1629,7 +1730,7 @@ export default function CompanyUsersPage() {
               <p className="mt-1 text-sm text-[var(--app-text)]">Project, supervisor, foreman, field, read-only, and company users need jobsite picks.</p>
             </div>
             <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Training-only</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Tracked workers</p>
               <p className="mt-1 text-sm text-[var(--app-text)]">Roster records do not create login access or use a licensed seat.</p>
             </div>
           </div>
@@ -1638,13 +1739,13 @@ export default function CompanyUsersPage() {
 
       <SectionCard
         title="Workforce Command Center"
-        description="Switch between action queues, app users, training-only records, and audit evidence."
+        description="Switch between action queues, workforce records, tracked workers, and audit evidence."
         actions={
           <div role="tablist" aria-label="Workforce views" className="flex flex-wrap gap-1 rounded-lg border border-[var(--app-border)] bg-white p-1">
             <TabButton tab="overview" label="Overview" activeTab={activeTab} onClick={setActiveTab} />
             <TabButton tab="access" label="Access Queue" activeTab={activeTab} count={commandCenter.pendingUsers.length + workspace.invites.length + commandCenter.suspendedUsers.length} onClick={setActiveTab} />
-            <TabButton tab="users" label="App Users" activeTab={activeTab} count={filteredUsers.length} onClick={setActiveTab} />
-            <TabButton tab="training" label="Training-Only" activeTab={activeTab} count={activeTrackedEmployees.length} onClick={setActiveTab} />
+            <TabButton tab="users" label="Workforce" activeTab={activeTab} count={workforceDirectoryRows.length} onClick={setActiveTab} />
+            <TabButton tab="training" label="Tracked Workers" activeTab={activeTab} count={activeTrackedEmployees.length} onClick={setActiveTab} />
             <TabButton tab="audit" label="Audit" activeTab={activeTab} count={workspace.securityEvents.length + workspace.dataRequests.length} onClick={setActiveTab} />
           </div>
         }
@@ -1682,13 +1783,15 @@ export default function CompanyUsersPage() {
         ) : null}
 
         {activeTab === "users" ? (
-          <AppUsersView
+          <WorkforceDirectoryView
             loading={loadState.loading}
-            users={filteredUsers}
+            rows={workforceDirectoryRows}
             searchTerm={searchTerm}
             onSearch={setSearchTerm}
             getAssignmentSummary={getAssignmentSummary}
             onManage={openUserManager}
+            onEditTracked={openTrackedEmployeeEditor}
+            onAssignTracked={openTrackedAssignmentManager}
           />
         ) : null}
 
@@ -1983,6 +2086,121 @@ function UserQueueRow({
   );
 }
 
+function WorkforceDirectoryView({
+  loading,
+  rows,
+  searchTerm,
+  onSearch,
+  onManage,
+  onEditTracked,
+  onAssignTracked,
+}: {
+  loading: boolean;
+  rows: WorkforceDirectoryRow[];
+  searchTerm: string;
+  onSearch: (value: string) => void;
+  getAssignmentSummary: (user: CompanyUser) => { label: string; detail: string; tone: "success" | "warning" | "info" };
+  onManage: (user: CompanyUser) => void;
+  onEditTracked: (employee: TrackedEmployee) => void;
+  onAssignTracked: (employee: TrackedEmployee) => void;
+}) {
+  if (loading) return <InlineMessage>Loading workforce directory...</InlineMessage>;
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-center gap-3 rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+        <Search aria-hidden className="h-4 w-4 text-[var(--app-muted)]" />
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Search by worker, company, department, trade, jobsite, manager, or status"
+          className="min-h-9 flex-1 border-0 bg-transparent text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)]"
+        />
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+        <table className="min-w-[1450px] border-collapse text-left text-sm">
+          <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+            <tr>
+              {[
+                "Name",
+                "Worker type",
+                "Login access",
+                "Company / department",
+                "Job title / trade",
+                "Assigned jobsite",
+                "Supervisor / manager",
+                "Readiness status",
+                "Training status",
+                "Permit exposure",
+                "Last updated",
+                "Actions",
+              ].map((header) => (
+                <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.source}-${row.id}`} className="border-b border-[var(--app-border)] align-top hover:bg-[var(--app-accent-surface-06)]">
+                <td className="px-3 py-3">
+                  <p className="font-semibold text-[var(--app-text-strong)]">{row.name}</p>
+                  <p className="mt-0.5 text-xs text-[var(--app-muted)]">{row.source === "tracked" ? "Tracked Worker" : row.user?.email || "No email"}</p>
+                </td>
+                <td className="px-3 py-3">{row.workerType}</td>
+                <td className="px-3 py-3">
+                  <StatusBadge label={row.loginAccess} tone={row.loginAccess === "No Portal Access" ? "info" : row.loginAccess === "Disabled User" ? "error" : "success"} />
+                </td>
+                <td className="px-3 py-3">{row.companyOrDepartment}</td>
+                <td className="px-3 py-3">{row.jobTitleOrTrade}</td>
+                <td className="px-3 py-3">{row.assignedJobsite}</td>
+                <td className="px-3 py-3">{row.supervisorOrManager}</td>
+                <td className="px-3 py-3">
+                  <StatusBadge label={row.readinessStatus} tone={row.readinessStatus === "Ready" ? "success" : row.readinessStatus === "Pending Review" ? "info" : "warning"} />
+                </td>
+                <td className="px-3 py-3">{row.trainingStatus}</td>
+                <td className="px-3 py-3">{row.permitExposure}</td>
+                <td className="px-3 py-3">{row.lastUpdated}</td>
+                <td className="px-3 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    {row.source === "tracked" && row.trackedEmployee ? (
+                      <>
+                        <button type="button" onClick={() => onEditTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Edit worker</button>
+                        <button type="button" onClick={() => onAssignTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Assign responsible manager</button>
+                        <button type="button" onClick={() => onAssignTracked(row.trackedEmployee!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Approve site access</button>
+                        <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Convert to system user</button>
+                        <button type="button" className="text-xs font-bold text-red-700">Expire access</button>
+                      </>
+                    ) : row.user ? (
+                      <>
+                        <Link href={getProfileHref(row.user.id)} className="text-xs font-bold text-[var(--app-accent-primary)]">View profile</Link>
+                        <Link href="/training-matrix" className="text-xs font-bold text-[var(--app-accent-primary)]">Assign training</Link>
+                        <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Upload evidence</button>
+                        <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
+                        <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button>
+                        <button type="button" onClick={() => onManage(row.user!)} className="text-xs font-bold text-[var(--app-accent-primary)]">Edit worker</button>
+                        <button type="button" onClick={() => onManage(row.user!)} className="text-xs font-bold text-red-700">Disable/archive worker</button>
+                      </>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={12} className="px-4 py-8 text-center text-sm text-[var(--app-muted)]">
+                  No workforce records match the current search. Clear filters or add a portal user or tracked worker.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AppUsersView({
   loading,
   users,
@@ -2091,8 +2309,8 @@ function TrainingOnlyView({
       <div className={compactCardClassName}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-base font-semibold text-[var(--app-text-strong)]">{editing ? "Edit Training-Only Person" : "Add Training-Only Person"}</p>
-            <p className="mt-1 text-sm text-[var(--app-text)]">No app login access is created from this roster.</p>
+            <p className="text-base font-semibold text-[var(--app-text-strong)]">{editing ? "Edit Tracked Worker" : "Add Tracked Worker"}</p>
+            <p className="mt-1 text-sm text-[var(--app-text)]">No portal access is created from this roster.</p>
           </div>
           <a href="/api/company/onboarding/import/template?type=employees" className={appButtonSecondaryClassName}>
             <FileDown aria-hidden className="h-4 w-4" />
@@ -2154,7 +2372,7 @@ function TrainingOnlyView({
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onSave} disabled={busyAction === "tracked-save" || !form.full_name.trim()} className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none`}>
-              {busyAction === "tracked-save" ? "Saving..." : editing ? "Save Person" : "Add To Training Matrix"}
+              {busyAction === "tracked-save" ? "Saving..." : editing ? "Save Worker" : "Add To Training Matrix"}
             </button>
             {editing ? (
               <button type="button" onClick={onCancel} className={appButtonSecondaryClassName}>
@@ -2174,7 +2392,7 @@ function TrainingOnlyView({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</p>
-                  <StatusBadge label="No app login" tone="info" />
+                  <StatusBadge label="No Portal Access" tone="info" />
                   <StatusBadge label={readinessLabel(employee.readiness_status)} tone={employee.readiness_status === "needs_training" ? "warning" : "success"} />
                 </div>
                 <p className="mt-1 truncate text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "No email on file"}</p>
@@ -2386,7 +2604,7 @@ function TrackedEmployeeAssignmentModal({
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Assign Jobsites</p>
             <h3 className="mt-1 text-2xl font-bold text-[var(--app-text-strong)]">{employee.full_name}</h3>
-            <p className="mt-1 text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "Training-only person"}</p>
+            <p className="mt-1 text-sm text-[var(--app-muted)]">{employee.email || employee.external_employee_id || "Tracked worker"}</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--app-border)] text-[var(--app-text)] transition hover:bg-[var(--app-panel-soft)]" aria-label="Close jobsite assignment manager">
             <X aria-hidden className="h-4 w-4" />
@@ -2401,7 +2619,7 @@ function TrackedEmployeeAssignmentModal({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-[var(--app-text-strong)]">Jobsite Assignments</p>
-                <p className="mt-1 text-sm text-[var(--app-text)]">Training-only people can be assigned to multiple active jobsites without app access.</p>
+                <p className="mt-1 text-sm text-[var(--app-text)]">Tracked workers can be assigned to multiple active jobsites without portal access.</p>
               </div>
               <StatusBadge label={`${editAssignments.length} selected`} tone={editAssignments.length === 0 ? "warning" : "success"} />
             </div>

@@ -188,6 +188,7 @@ function workspacePrimaryHref(workspace: SafePredictWorkspaceSlug) {
   if (workspace === "inspections") return mapSafePredictOperationHref("/jobsites");
   if (workspace === "training") return mapSafePredictOperationHref("/training-matrix");
   if (workspace === "permits") return mapSafePredictSurfaceHref("/permits");
+  if (workspace === "documents") return mapSafePredictOperationHref("/csep");
   if (workspace === "analytics") return mapSafePredictOperationHref("/analytics");
   if (workspace === "reports") return mapSafePredictOperationHref("/reports");
   return "/safe-predict/settings";
@@ -201,6 +202,7 @@ function WorkspaceIcon({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
   if (workspace === "hazards") return <TriangleAlert className="h-6 w-6" />;
   if (workspace === "training") return <GraduationCap className="h-6 w-6" />;
   if (workspace === "permits") return <FileText className="h-6 w-6" />;
+  if (workspace === "documents") return <FileText className="h-6 w-6" />;
   if (workspace === "analytics") return <BarChart3 className="h-6 w-6" />;
   if (workspace === "reports") return <Download className="h-6 w-6" />;
   return <Settings className="h-6 w-6" />;
@@ -1444,6 +1446,10 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               { label: "Awaiting Verification", value: "Awaiting Verification" },
               { label: "Closed", value: "Closed" },
               { label: "Completed", value: "Completed" },
+              { label: "Draft", value: "Draft" },
+              { label: "Ready", value: "Ready" },
+              { label: "Sent", value: "Sent" },
+              { label: "Approved", value: "Approved" },
               { label: "Expired", value: "Expired" },
             ]}
           />
@@ -1599,6 +1605,7 @@ function moduleMetrics(
   if (workspace === "hazards") return [{ title: "Hazards", value: scoped.hazards.length, detail: "Active drivers", tone: "red" as const, icon: <TriangleAlert className="h-7 w-7" /> }, ...shared, { title: "Needs Control", value: scoped.hazards.filter((row) => row.controlStatus !== "Controlled").length, detail: "Open controls", tone: "orange" as const, icon: <ShieldAlert className="h-7 w-7" /> }];
   if (workspace === "training") return [{ title: "Training Compliance", value: `${summary.workforce.compliantPercent}%`, detail: `${summary.workforce.overdue} overdue`, tone: "green" as const, icon: <GraduationCap className="h-7 w-7" /> }, ...shared, { title: "Workers In Scope", value: scoped.employees.length, detail: "Roster rows", tone: "blue" as const, icon: <Users className="h-7 w-7" /> }];
   if (workspace === "permits") return [{ title: "Permit Records", value: scoped.permits.length, detail: `${summary.permits.expired} expired`, tone: "blue" as const, icon: <FileText className="h-7 w-7" /> }, ...shared, { title: "Expiring Soon", value: scoped.permits.filter((row) => row.status === "Expiring Soon").length, detail: "Renewal needed", tone: "amber" as const, icon: <CalendarCheck className="h-7 w-7" /> }];
+  if (workspace === "documents") return [{ title: "Documents", value: scoped.documents.length, detail: "Controlled records", tone: "blue" as const, icon: <FileText className="h-7 w-7" /> }, ...shared, { title: "Approved", value: scoped.documents.filter((row) => row.status === "Approved").length, detail: "Current versions", tone: "green" as const, icon: <ShieldCheck className="h-7 w-7" /> }];
   if (workspace === "analytics") {
     const signalCount = summary.openActions + summary.inspectionGaps + summary.incidents + summary.observations + summary.hazards + summary.permits.expiringSoon + summary.permits.expired;
     const trendLabel = signalCount === 0 ? "No Data" : summary.riskScore >= 70 ? "High" : summary.riskScore >= 40 ? "Elevated" : "Moderate";
@@ -1707,6 +1714,18 @@ function buildRows({
         secondaryLabel: "Edit",
         secondaryOnClick: () => openPermitComposer(row.siteId, row, "edit"),
       })),
+      rows,
+      rows.map((row) => row.id)
+    );
+  }
+
+  if (workspace === "documents") {
+    const rows = scoped.documents.filter((row) => textMatches([row.title, row.type, row.status]) && statusMatches(row.status));
+    return table(
+      "Document Control Register",
+      ["Document", "Jobsite", "Type", "Status", "Updated", "Open"],
+      rows.map((row) => [row.title, siteName(row.siteId, jobsites), row.type, row.status, row.updatedAt]),
+      rows.map(() => ({ label: "Open", href: mapSafePredictOperationHref("/documents") })),
       rows,
       rows.map((row) => row.id)
     );

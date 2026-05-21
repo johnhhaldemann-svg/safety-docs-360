@@ -1,6 +1,7 @@
 import type { TrafficLightStatus, TrendDirection } from "@/src/lib/dashboard/types";
 import { trafficLightStripeClass } from "@/src/lib/dashboard/dashboardStatusSemantics";
 import { formatTitleCase } from "@/lib/formatTitleCase";
+import Link from "next/link";
 
 export type MetricCardProps = {
   label: string;
@@ -13,6 +14,7 @@ export type MetricCardProps = {
   /** Optional trend arrow label (e.g. vs prior window). */
   trend?: TrendDirection;
   trendLabel?: string;
+  href?: string;
   className?: string;
 };
 
@@ -39,14 +41,13 @@ export function MetricCard({
   hint,
   trend,
   trendLabel,
+  href,
   className = "",
 }: MetricCardProps) {
   const stripeClass = statusBand ? trafficLightStripeClass(statusBand) : "bg-[var(--app-accent-primary)] opacity-45";
   const displayLabel = formatTitleCase(label) || label;
-  return (
-    <div
-      className={`relative min-h-[8.75rem] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white px-4 py-4 shadow-[0_6px_16px_rgba(44,58,86,0.045)] ${className}`.trim()}
-    >
+  const content = (
+    <>
       <span className={`absolute inset-x-4 top-0 h-0.5 rounded-b-full ${stripeClass}`} aria-hidden="true" />
       <div className="pl-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">{displayLabel}</p>
@@ -67,6 +68,14 @@ export function MetricCard({
         </div>
         {hint ? <p className="mt-2 text-xs leading-relaxed text-[var(--app-muted)]">{hint}</p> : null}
       </div>
-    </div>
+    </>
+  );
+  const classes = `relative min-h-[8.75rem] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white px-4 py-4 shadow-[0_6px_16px_rgba(44,58,86,0.045)] ${href ? "block transition hover:-translate-y-0.5 hover:border-[var(--app-accent-border-28)] hover:shadow-[0_12px_24px_rgba(44,58,86,0.09)]" : ""} ${className}`.trim();
+  return href ? (
+    <Link href={href} className={classes}>
+      {content}
+    </Link>
+  ) : (
+    <div className={classes}>{content}</div>
   );
 }

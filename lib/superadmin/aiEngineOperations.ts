@@ -11,8 +11,6 @@ export const AI_ENGINE_SURFACES = [
   "injury-weather",
   "training-records.photo-extract",
   "field-audits.ai-review",
-  "jobsite.site-visual.generate",
-  "jobsite.site-visual.render.generate",
   "embeddings",
 ] as const;
 

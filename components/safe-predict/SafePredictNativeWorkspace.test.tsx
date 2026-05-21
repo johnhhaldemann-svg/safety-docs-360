@@ -21,6 +21,7 @@ vi.mock("@/components/safe-predict/SafePredictDataProvider", async () => {
     ],
     liveIncidents: [{ id: "inc-1", jobsite_id: "live-high", title: "Near miss at stair tower", status: "open", severity: "high" }],
     liveInspections: [{ id: "audit-1", jobsite_id: "live-high", title: "Daily walk", status: "failed", failed_items: 2 }],
+    liveDocuments: [{ id: "doc-1", jobsite_id: "live-high", title: "North Pier JSA", document_type: "JSA", status: "approved" }],
   });
 
   return {
@@ -52,5 +53,14 @@ describe("SafePredictNativeWorkspace analytics", () => {
     expect(html).toContain("Selected jobsite");
     expect(html).toContain("1 jobsites");
     expect(html).toContain("1 open actions");
+  });
+
+  it("renders the new-platform document control register", () => {
+    const html = renderToStaticMarkup(<SafePredictNativeWorkspace workspace="documents" />);
+
+    expect(html).toContain("Documents");
+    expect(html).toContain("Document Control Register");
+    expect(html).toContain("North Pier JSA");
+    expect(html).toContain("/safe-predict/documents");
   });
 });

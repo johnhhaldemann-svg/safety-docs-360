@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, ClipboardCheck, Crosshair, Download, Expand, GraduationCap, Layers, MapPin, Minus, Plus, RotateCcw, Shield, ShieldAlert, ShieldCheck, Target, TrendingUp, Users } from "lucide-react";
 import {
   Card,
@@ -1159,6 +1159,12 @@ function CommandForecastChart({
   const historical = plot("historicalRisk");
   const area = predicted ? `36,235 ${predicted} 556,235` : "";
   const selectedPoint = chartPoints[selectedIndex];
+  const handlePointKeyDown = (event: KeyboardEvent<SVGGElement>, index: number) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelectIndex(index);
+    }
+  };
 
   return (
     <div className="relative mt-3 h-[285px] w-full">
@@ -1184,32 +1190,41 @@ function CommandForecastChart({
         {selectedPoint ? (
           <g aria-hidden>
             <line x1={selectedPoint.x} x2={selectedPoint.x} y1="45" y2="235" stroke="#2563eb" strokeDasharray="4 4" />
-            <circle cx={selectedPoint.x} cy={selectedPoint.y} r="7" fill="#2563eb" stroke="#ffffff" strokeWidth="3" />
+            <circle cx={selectedPoint.x} cy={selectedPoint.y} r="16" fill="#2563eb" opacity="0.14" />
           </g>
         ) : null}
+        {chartPoints.map(({ point, index, x, y }) => {
+          const isSelected = selectedIndex === index;
+          return (
+            <g
+              key={`${point.date}-${index}-point`}
+              role="button"
+              tabIndex={0}
+              data-testid="forecast-risk-point"
+              onClick={() => onSelectIndex(index)}
+              onKeyDown={(event) => handlePointKeyDown(event, index)}
+              aria-pressed={isSelected}
+              aria-label={`Show why risk is elevated on ${point.date}: ${point.predictedRisk} risk score`}
+              className="cursor-pointer focus:outline-none"
+            >
+              <circle cx={x} cy={y} r="13" fill="transparent" />
+              <circle
+                cx={x}
+                cy={y}
+                r={isSelected ? "6.5" : "5"}
+                fill={isSelected ? "#2563eb" : "#f97316"}
+                stroke="#ffffff"
+                strokeWidth={isSelected ? "3" : "2"}
+              />
+            </g>
+          );
+        })}
         {data.map((point, index) => {
           const x = data.length <= 1 ? 36 : 36 + (index / (data.length - 1)) * 520;
           const label = index === 0 ? "Now" : index % 2 === 0 ? point.date : "";
           return label ? <text key={`${point.date}-${index}`} x={x} y="258" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="700">{label}</text> : null;
         })}
       </svg>
-      {chartPoints.map(({ point, index, x, y }) => (
-        <button
-          key={`${point.date}-${index}`}
-          type="button"
-          data-testid="forecast-risk-point"
-          onClick={() => onSelectIndex(index)}
-          aria-pressed={selectedIndex === index}
-          aria-label={`Show why risk is elevated on ${point.date}: ${point.predictedRisk} risk score`}
-          className={cx(
-            "absolute grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-            selectedIndex === index ? "border-blue-600 bg-blue-600/15" : "border-transparent bg-transparent hover:border-orange-300 hover:bg-orange-100/70"
-          )}
-          style={{ left: `${(x / 590) * 100}%`, top: `${(y / 270) * 100}%` }}
-        >
-          <span className={cx("h-2.5 w-2.5 rounded-full", selectedIndex === index ? "bg-blue-600" : "bg-orange-500")} />
-        </button>
-      ))}
     </div>
   );
 }

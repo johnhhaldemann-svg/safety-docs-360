@@ -11,6 +11,7 @@ const nativeOperationRouteMap: Record<string, string> = {
   "/analytics/predictive-model": "/safe-predict/predictive-risk",
   "/analytics/safety-intelligence": "/safe-predict/analytics",
   "/incidents": "/safe-predict/incidents",
+  "/documents": "/safe-predict/documents",
   "/reports": "/safe-predict/reports",
   "/csep": "/safe-predict/csep",
   "/peshep": "/safe-predict/peshep",
@@ -32,7 +33,7 @@ const nativeSurfaceRouteMap: Record<string, string> = {
   "/permits": "/safe-predict/permit-center",
 };
 
-const nativeJobsiteWorkspaceSegments = new Set(["site-visual"]);
+const nativeJobsiteWorkspaceSegments = new Set<string>();
 
 function splitHref(href: string) {
   const [pathAndQuery, hash = ""] = href.split("#");
@@ -66,7 +67,7 @@ function mapLegacyDocumentLibrary(query: string, hash: string) {
     params.delete("tab");
   }
 
-  return appendQueryAndHash("/documents", params.toString(), hash);
+  return appendQueryAndHash("/safe-predict/documents", params.toString(), hash);
 }
 
 export function mapSafePredictOperationHref(href: string) {

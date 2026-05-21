@@ -25,7 +25,6 @@ const SURFACES = [
   { value: "injury-weather", label: "Injury/weather" },
   { value: "training-records.photo-extract", label: "Training photo extract" },
   { value: "field-audits.ai-review", label: "Field audit review" },
-  { value: "jobsite.site-visual", label: "Jobsite visual" },
   { value: "embeddings", label: "Embeddings" },
 ];
 

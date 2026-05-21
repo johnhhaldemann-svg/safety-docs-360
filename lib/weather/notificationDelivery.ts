@@ -5,7 +5,8 @@ import type { WeatherAlert } from "@/lib/weather/alertFiltering";
 export type WeatherNotificationChannel = "in_app" | "email" | "sms" | "push";
 
 export type WeatherNotificationRecipient = {
-  userId: string;
+  userId?: string | null;
+  employeeId?: string | null;
   email?: string | null;
   phone?: string | null;
   channels: WeatherNotificationChannel[];
@@ -57,11 +58,13 @@ function normalizeSmsPhoneNumber(value?: string | null) {
 
 export function createWeatherDeliveryDedupeKey(params: {
   jobsiteId: string;
-  userId: string;
+  userId?: string | null;
+  recipientEmployeeId?: string | null;
   nwsAlertId: string;
   channel: string;
 }) {
-  return [params.jobsiteId, params.userId, params.nwsAlertId, params.channel].join(":");
+  const recipientKey = params.userId || (params.recipientEmployeeId ? `employee:${params.recipientEmployeeId}` : "unknown");
+  return [params.jobsiteId, recipientKey, params.nwsAlertId, params.channel].join(":");
 }
 
 export function buildWeatherNotificationText(context: WeatherNotificationContext) {
@@ -198,6 +201,7 @@ export async function deliverWeatherNotification(params: {
   const dedupeKey = createWeatherDeliveryDedupeKey({
     jobsiteId: params.context.jobsiteId,
     userId: params.recipient.userId,
+    recipientEmployeeId: params.recipient.employeeId,
     nwsAlertId: params.context.alert.id,
     channel: params.channel,
   });
@@ -208,7 +212,8 @@ export async function deliverWeatherNotification(params: {
       weather_alert_event_id: params.context.alertEventId,
       company_id: params.context.companyId,
       jobsite_id: params.context.jobsiteId,
-      user_id: params.recipient.userId,
+      user_id: params.recipient.userId ?? null,
+      recipient_employee_id: params.recipient.employeeId ?? null,
       channel: params.channel,
       status: "pending",
       dedupe_key: dedupeKey,
@@ -230,6 +235,14 @@ export async function deliverWeatherNotification(params: {
   }
 
   if (params.channel === "in_app") {
+    if (!params.recipient.userId) {
+      await params.supabase
+        .from("weather_notification_deliveries")
+        .update({ status: "skipped", error_message: "In-app delivery requires an app user recipient." })
+        .eq("id", deliveryId);
+      return { delivered: false, duplicate: false, skipped: true, error: "In-app delivery requires an app user recipient." };
+    }
+
     await params.supabase
       .from("weather_notification_deliveries")
       .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })

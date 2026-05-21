@@ -13,13 +13,22 @@ import {
 import {
   buildTrackedEmployeeMatrixProfile,
   loadTrackedCompanyEmployees,
-  TRACKED_EMPLOYEE_SOURCE_LABEL,
 } from "@/lib/companyTrackedEmployees";
-import { fetchCompanyTrainingRequirements } from "@/lib/companyTrainingRequirementsDb";
+import {
+  fetchCompanyTrainingRequirements,
+  type TrainingRequirementDbRow,
+} from "@/lib/companyTrainingRequirementsDb";
 import {
   buildProfileCertificationInventory,
   parseCertificationExpirations,
 } from "@/lib/certificationExpirations";
+import {
+  DEFAULT_EXPIRING_SOON_DAYS,
+  buildStage1TrainingDetail,
+  summarizeStage1Training,
+  type Stage1TrainingDetail,
+  type Stage1TrainingSummary,
+} from "@/lib/trainingMatrixStage1";
 import {
   activatesScopedRequirement,
   computeTrainingMatrixRow,
@@ -40,6 +49,28 @@ type ProfileRow = {
   trade_specialty: string | null;
   readiness_status: string | null;
   years_experience?: number | null;
+};
+
+type MatrixRequirementResponse = {
+  id: string;
+  title: string;
+  sortOrder: number;
+  matchKeywords: string[];
+  matchFields: string[];
+  applyTrades: string[];
+  applyPositions: string[];
+  applySubTrades: string[];
+  applyTaskCodes: string[];
+  renewalMonths: number | null;
+  isGenerated: boolean;
+  generatedSourceType: string | null;
+  generatedSourceDocumentId: string | null;
+  generatedSourceOperationKey: string | null;
+  category: string;
+  renewalPeriodDays: number | null;
+  courseOwner: string;
+  courseVersion: string;
+  requiresEvidence: boolean;
 };
 
 type SalesDemoRequirementRow = TrainingRequirementInput & {
@@ -656,22 +687,7 @@ function buildSalesDemoTrainingMatrixResponse(
     return true;
   });
 
-  const requirements = visibleRequirementRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    sortOrder: row.sort_order,
-    matchKeywords: row.match_keywords ?? [],
-    matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
-    applyTrades: row.apply_trades ?? [],
-    applyPositions: row.apply_positions ?? [],
-    applySubTrades: row.apply_sub_trades ?? [],
-    applyTaskCodes: row.apply_task_codes ?? [],
-    renewalMonths: row.renewal_months ?? null,
-    isGenerated: Boolean(row.is_generated),
-    generatedSourceType: row.generated_source_type ?? null,
-    generatedSourceDocumentId: row.generated_source_document_id ?? null,
-    generatedSourceOperationKey: row.generated_source_operation_key ?? null,
-  }));
+  const requirements = visibleRequirementRows.map(toRequirementResponse);
 
   const requirementInputs: TrainingRequirementInput[] = visibleRequirementRows.map((row) => ({
     id: row.id,
@@ -698,6 +714,26 @@ function buildSalesDemoTrainingMatrixResponse(
       matrixContext
     );
 
+    const inventory = buildProfileCertificationInventory(
+      user.profile.certifications,
+      expMap,
+      asOf
+    );
+    const profileFields = {
+      tradeSpecialty: user.profile.trade_specialty,
+      jobTitle: user.profile.job_title,
+      readinessStatus: user.profile.readiness_status,
+      yearsExperience: user.profile.years_experience,
+    };
+    const stage1 = buildStage1Details({
+      requirements,
+      cells,
+      cellDetails,
+      inventory,
+      profileFields,
+      assignedJobsiteCount: 1,
+    });
+
     return {
       userId: user.id,
       name: user.name,
@@ -707,17 +743,18 @@ function buildSalesDemoTrainingMatrixResponse(
       cells,
       cellDetails,
       unmatchedCertifications,
-      certificationInventory: buildProfileCertificationInventory(
-        user.profile.certifications,
-        expMap,
-        asOf
-      ),
-      profileFields: {
-        tradeSpecialty: user.profile.trade_specialty,
-        jobTitle: user.profile.job_title,
-        readinessStatus: user.profile.readiness_status,
-        yearsExperience: user.profile.years_experience,
-      },
+      certificationInventory: inventory,
+      profileFields,
+      workerType: "Employee",
+      loginAccessStatus: loginAccessStatus(user.status),
+      companyOrDepartment: "Demo Construction",
+      jobTitleOrTrade: [profileFields.jobTitle, profileFields.tradeSpecialty].filter(Boolean).join(" / "),
+      assignedJobsites: ["Demo Project"],
+      supervisorOrManager: "Safety team",
+      permitExposureStatus: stage1.trainingSummary.permitLinkedGaps > 0 ? "Permit-linked gaps" : "No permit-linked training gaps found",
+      accessStatus: loginAccessStatus(user.status),
+      trainingRequirements: stage1.trainingRequirements,
+      trainingSummary: stage1.trainingSummary,
     };
   });
 
@@ -765,6 +802,85 @@ function uniqueSorted(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) =>
     left.localeCompare(right)
   );
+}
+
+function loginAccessStatus(status?: string | null): "Active User" | "Invited User" | "Disabled User" | "No Portal Access" {
+  const normalized = String(status ?? "").trim().toLowerCase();
+  if (normalized === "pending" || normalized === "invited") return "Invited User";
+  if (normalized === "inactive" || normalized === "suspended" || normalized === "disabled") return "Disabled User";
+  return "Active User";
+}
+
+function readinessStatusLabel(raw?: string | null): string {
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  if (normalized === "travel_ready") return "Ready With Warnings";
+  if (normalized === "limited") return "Restricted";
+  if (normalized === "needs_training") return "Not Ready";
+  if (normalized === "onboarding") return "Pending Review";
+  if (normalized === "inactive" || normalized === "archived") return "Inactive";
+  return "Ready";
+}
+
+function requirementCategory(title: string): string {
+  const normalized = title.toLowerCase();
+  if (/permit|hot work|confined space|loto/.test(normalized)) return "Permit Critical";
+  if (/equipment|mewp|aerial|forklift|crane|rigging|lift/.test(normalized)) return "Equipment";
+  if (/osha|first aid|cpr|fall protection|hazcom/.test(normalized)) return "Safety";
+  return "General";
+}
+
+function toRequirementResponse(row: SalesDemoRequirementRow | TrainingRequirementDbRow): MatrixRequirementResponse {
+  const renewalMonths = row.renewal_months ?? null;
+  return {
+    id: row.id,
+    title: row.title,
+    sortOrder: row.sort_order,
+    matchKeywords: row.match_keywords ?? [],
+    matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
+    applyTrades: row.apply_trades ?? [],
+    applyPositions: row.apply_positions ?? [],
+    applySubTrades: row.apply_sub_trades ?? [],
+    applyTaskCodes: row.apply_task_codes ?? [],
+    renewalMonths,
+    isGenerated: Boolean(row.is_generated),
+    generatedSourceType: row.generated_source_type ?? null,
+    generatedSourceDocumentId: row.generated_source_document_id ?? null,
+    generatedSourceOperationKey: row.generated_source_operation_key ?? null,
+    category: requirementCategory(row.title),
+    renewalPeriodDays: renewalMonths && renewalMonths > 0 ? renewalMonths * 30 : null,
+    courseOwner: "Safety team",
+    courseVersion: "Current",
+    requiresEvidence: true,
+  };
+}
+
+function buildStage1Details(params: {
+  requirements: MatrixRequirementResponse[];
+  cells: Record<string, "match" | "gap" | "na">;
+  cellDetails: Record<string, any>;
+  inventory: ReturnType<typeof buildProfileCertificationInventory>;
+  profileFields: { jobTitle: string; tradeSpecialty: string; readinessStatus: string };
+  assignedJobsiteCount: number;
+}): { trainingRequirements: Stage1TrainingDetail[]; trainingSummary: Stage1TrainingSummary } {
+  const trainingRequirements = params.requirements.map((requirement) =>
+    buildStage1TrainingDetail({
+      requirement,
+      state: params.cells[requirement.id] ?? "gap",
+      detail: params.cellDetails[requirement.id],
+      inventory: params.inventory,
+      expiringSoonDays: DEFAULT_EXPIRING_SOON_DAYS,
+      worker: {
+        jobTitle: params.profileFields.jobTitle,
+        tradeSpecialty: params.profileFields.tradeSpecialty,
+        readinessStatus: params.profileFields.readinessStatus,
+        assignedJobsiteCount: params.assignedJobsiteCount,
+      },
+    })
+  );
+  return {
+    trainingRequirements,
+    trainingSummary: summarizeStage1Training(trainingRequirements),
+  };
 }
 
 export async function GET(request: Request) {
@@ -869,22 +985,7 @@ async function getTrainingMatrix(request: Request) {
     return true;
   });
 
-  const requirements = visibleRequirementRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    sortOrder: row.sort_order,
-    matchKeywords: row.match_keywords ?? [],
-    matchFields: row.match_fields?.length ? row.match_fields : [...DEFAULT_MATCH_FIELDS],
-    applyTrades: row.apply_trades ?? [],
-    applyPositions: row.apply_positions ?? [],
-    applySubTrades: row.apply_sub_trades ?? [],
-    applyTaskCodes: row.apply_task_codes ?? [],
-    renewalMonths: row.renewal_months ?? null,
-    isGenerated: Boolean(row.is_generated),
-    generatedSourceType: row.generated_source_type ?? null,
-    generatedSourceDocumentId: row.generated_source_document_id ?? null,
-    generatedSourceOperationKey: row.generated_source_operation_key ?? null,
-  }));
+  const requirements = visibleRequirementRows.map(toRequirementResponse);
 
   const requirementInputs: TrainingRequirementInput[] = visibleRequirementRows.map((row) => ({
     id: row.id,
@@ -982,6 +1083,26 @@ async function getTrainingMatrix(request: Request) {
       matrixContext
     );
 
+    const inventory = buildProfileCertificationInventory(
+      profile?.certifications ?? [],
+      expMap,
+      asOf
+    );
+    const profileFields = {
+      tradeSpecialty: profile?.trade_specialty?.trim() || "",
+      jobTitle: profile?.job_title?.trim() || "",
+      readinessStatus: profile?.readiness_status?.trim() || "",
+      yearsExperience: profile?.years_experience ?? null,
+    };
+    const stage1 = buildStage1Details({
+      requirements,
+      cells,
+      cellDetails,
+      inventory,
+      profileFields,
+      assignedJobsiteCount: 0,
+    });
+
     return {
       userId: user.id,
       name: user.name,
@@ -991,19 +1112,23 @@ async function getTrainingMatrix(request: Request) {
       cells,
       cellDetails,
       unmatchedCertifications,
-      certificationInventory: buildProfileCertificationInventory(
-        profile?.certifications ?? [],
-        expMap,
-        asOf
-      ),
-      profileFields: {
-        tradeSpecialty: profile?.trade_specialty?.trim() || "",
-        jobTitle: profile?.job_title?.trim() || "",
-        readinessStatus: profile?.readiness_status?.trim() || "",
-        yearsExperience: profile?.years_experience ?? null,
-      },
+      certificationInventory: inventory,
+      profileFields,
       personType: "licensed_user",
       licenseStatus: "Licensed user",
+      workerType: "Employee",
+      loginAccessStatus: loginAccessStatus(user.status),
+      companyOrDepartment: user.team,
+      jobTitleOrTrade: [profileFields.jobTitle, profileFields.tradeSpecialty].filter(Boolean).join(" / "),
+      assignedJobsites: [],
+      supervisorOrManager: "Not assigned",
+      readinessStatus: stage1.trainingSummary.overallStatus || readinessStatusLabel(profileFields.readinessStatus),
+      trainingStatus: stage1.trainingSummary.overallStatus,
+      permitExposureStatus: stage1.trainingSummary.permitLinkedGaps > 0 ? "Permit-linked gaps" : "No permit-linked training gaps found",
+      accessStatus: loginAccessStatus(user.status),
+      lastUpdated: profile?.user_id ? "Profile current" : user.created_at ?? null,
+      trainingRequirements: stage1.trainingRequirements,
+      trainingSummary: stage1.trainingSummary,
     };
   });
 
@@ -1028,30 +1153,57 @@ async function getTrainingMatrix(request: Request) {
       matrixContext
     );
 
+    const inventory = buildProfileCertificationInventory(
+      profile.certifications,
+      expMap,
+      asOf
+    );
+    const profileFields = {
+      tradeSpecialty: employee.trade_specialty?.trim() || "",
+      jobTitle: employee.job_title?.trim() || "",
+      readinessStatus: employee.readiness_status?.trim() || "",
+      yearsExperience: employee.years_experience ?? null,
+    };
+    const assignedJobsites = (employee.jobsiteAssignments ?? [])
+      .map((assignment) => assignment.jobsite?.name ?? assignment.jobsite_id)
+      .filter(Boolean);
+    const stage1 = buildStage1Details({
+      requirements,
+      cells,
+      cellDetails,
+      inventory,
+      profileFields,
+      assignedJobsiteCount: assignedJobsites.length,
+    });
+
     return {
       userId: `tracked:${employee.id}`,
       trackedEmployeeId: employee.id,
       name: employee.full_name,
       email: employee.email ?? employee.external_employee_id ?? "",
       phone: employee.phone ?? "",
-      role: TRACKED_EMPLOYEE_SOURCE_LABEL,
+      role: "Tracked Worker",
       status: employee.status === "inactive" ? "Inactive" : "Active",
       cells,
       cellDetails,
       unmatchedCertifications,
-      certificationInventory: buildProfileCertificationInventory(
-        profile.certifications,
-        expMap,
-        asOf
-      ),
-      profileFields: {
-        tradeSpecialty: employee.trade_specialty?.trim() || "",
-        jobTitle: employee.job_title?.trim() || "",
-        readinessStatus: employee.readiness_status?.trim() || "",
-        yearsExperience: employee.years_experience ?? null,
-      },
+      certificationInventory: inventory,
+      profileFields,
       personType: "tracked_employee",
-      licenseStatus: TRACKED_EMPLOYEE_SOURCE_LABEL,
+      licenseStatus: "No Portal Access",
+      workerType: "External Worker",
+      loginAccessStatus: "No Portal Access",
+      companyOrDepartment: "Tracked workforce",
+      jobTitleOrTrade: [profileFields.jobTitle, profileFields.tradeSpecialty].filter(Boolean).join(" / "),
+      assignedJobsites,
+      supervisorOrManager: "Responsible manager not assigned",
+      readinessStatus: stage1.trainingSummary.overallStatus || readinessStatusLabel(employee.readiness_status),
+      trainingStatus: stage1.trainingSummary.overallStatus,
+      permitExposureStatus: stage1.trainingSummary.permitLinkedGaps > 0 ? "Permit-linked gaps" : "No permit-linked training gaps found",
+      accessStatus: employee.status === "inactive" ? "Inactive" : "Restricted",
+      lastUpdated: employee.updated_at ?? employee.created_at ?? null,
+      trainingRequirements: stage1.trainingRequirements,
+      trainingSummary: stage1.trainingSummary,
     };
   });
 

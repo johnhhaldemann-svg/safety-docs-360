@@ -60,6 +60,11 @@ const originalSystemLinks: Record<SafePredictWorkspaceSlug | "risk-mitigation", 
     { href: "/jsa", label: "JSA Builder", detail: "Connect permits to pre-task planning.", icon: ClipboardCheck, tone: "blue" },
     { href: "/jobsites", label: "Job Sites", detail: "Open permit activity by project.", icon: MapPinned, tone: "green" },
   ],
+  documents: [
+    { href: "/csep", label: "CSEP Build", detail: "Build and review construction safety execution plans.", icon: FileText, tone: "blue" },
+    { href: "/peshep", label: "PESHEP Build", detail: "Prepare site-specific health and safety plans.", icon: FileCheck, tone: "green" },
+    { href: "/reports", label: "Reports", detail: "Package controlled documents into reporting workflows.", icon: BarChart3, tone: "purple" },
+  ],
   reports: [
     { href: "/reports", label: "Reports", detail: "Open the existing reporting center.", icon: BarChart3, tone: "blue" },
     { href: "/analytics", label: "Safety Analytics", detail: "Review deeper safety metrics.", icon: FileCheck, tone: "purple" },

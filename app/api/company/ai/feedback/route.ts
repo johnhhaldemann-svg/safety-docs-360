@@ -29,8 +29,6 @@ const ALLOWED_SURFACE_PREFIXES = [
   "injury-weather",
   "training-records.photo-extract",
   "field-audits.ai-review",
-  "jobsite.site-visual.generate",
-  "jobsite.site-visual.render.generate",
 ];
 
 const RAW_BODY_FIELDS = new Set([

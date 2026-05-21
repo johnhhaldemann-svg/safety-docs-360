@@ -105,7 +105,6 @@ export const AUTH_APP_DYNAMIC_ROUTES = [
   `/jobsites/${id}/overview`,
   `/jobsites/${id}/analytics`,
   `/jobsites/${id}/schedule`,
-  `/jobsites/${id}/site-visual`,
   `/jobsites/${id}/documents`,
   `/jobsites/${id}/contractor-training`,
   `/jobsites/${id}/jsa`,

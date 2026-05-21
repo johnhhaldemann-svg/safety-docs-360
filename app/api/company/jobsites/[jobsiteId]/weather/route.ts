@@ -199,7 +199,7 @@ async function loadWeatherOverviewPayload(
       .limit(12),
     supabase
       .from("weather_notification_deliveries")
-      .select("id, weather_alert_event_id, user_id, channel, status, sent_at, error_message, created_at")
+      .select("id, weather_alert_event_id, user_id, recipient_employee_id, channel, status, sent_at, error_message, created_at")
       .eq("jobsite_id", jobsiteId)
       .order("created_at", { ascending: false })
       .limit(20),

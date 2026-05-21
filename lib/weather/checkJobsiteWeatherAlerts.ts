@@ -24,7 +24,8 @@ type WeatherSubscriptionRow = {
   id: string;
   company_id: string;
   jobsite_id: string;
-  user_id: string;
+  user_id: string | null;
+  recipient_employee_id?: string | null;
   enabled: boolean;
   channels: string[] | null;
   min_severity: string | null;
@@ -38,6 +39,15 @@ type WeatherUserContact = {
   email: string | null;
   phone: string | null;
   name: string | null;
+};
+
+type WeatherEmployeeContact = {
+  employeeId: string;
+  companyId: string;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+  status: string | null;
 };
 
 type WeatherAssignmentRow = {
@@ -59,6 +69,16 @@ type WeatherProfileRow = {
   full_name: string | null;
   preferred_name: string | null;
   phone: string | null;
+};
+
+type WeatherEmployeeProfileRow = {
+  id: string;
+  company_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  phone_normalized: string | null;
+  status: string | null;
 };
 
 export type JobsiteWeatherCronResult = {
@@ -217,12 +237,37 @@ function contactMatchesLabel(contact: WeatherUserContact | null | undefined, lab
   return [contact.name, contact.email].some((value) => normalizeKey(value) === wanted);
 }
 
-function syntheticWeatherSubscription(jobsite: JobsiteWeatherRow, userId: string): WeatherSubscriptionRow {
+function employeeContactMatchesLabel(contact: WeatherEmployeeContact | null | undefined, label: string | null) {
+  const wanted = normalizeKey(label);
+  if (!wanted || !contact || !isActiveStatus(contact.status)) return false;
+  return [contact.name, contact.email].some((value) => normalizeKey(value) === wanted);
+}
+
+function userRecipientKey(userId: string) {
+  return `user:${userId}`;
+}
+
+function employeeRecipientKey(employeeId: string) {
+  return `employee:${employeeId}`;
+}
+
+function subscriptionRecipientKey(subscription: WeatherSubscriptionRow) {
+  if (subscription.user_id) return userRecipientKey(subscription.user_id);
+  if (subscription.recipient_employee_id) return employeeRecipientKey(subscription.recipient_employee_id);
+  return "";
+}
+
+function syntheticWeatherSubscription(
+  jobsite: JobsiteWeatherRow,
+  recipient: { userId?: string | null; employeeId?: string | null }
+): WeatherSubscriptionRow {
+  const recipientId = recipient.userId ?? recipient.employeeId ?? "unknown";
   return {
-    id: `auto-weather-${jobsite.id}-${userId}`,
+    id: `auto-weather-${jobsite.id}-${recipientId}`,
     company_id: jobsite.company_id,
     jobsite_id: jobsite.id,
-    user_id: userId,
+    user_id: recipient.userId ?? null,
+    recipient_employee_id: recipient.employeeId ?? null,
     enabled: true,
     channels: ["email", "sms"],
     min_severity: null,
@@ -239,9 +284,10 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   const jobsiteIds = [...new Set(params.jobsites.map((jobsite) => jobsite.id).filter(Boolean))];
   const companyIds = [...new Set(params.jobsites.map((jobsite) => jobsite.company_id).filter(Boolean))];
   const subscriptionsByJobsite = new Map<string, WeatherSubscriptionRow[]>();
-  if (jobsiteIds.length === 0 || companyIds.length === 0) return subscriptionsByJobsite;
+  const contactsByRecipientKey = new Map<string, WeatherUserContact | WeatherEmployeeContact>();
+  if (jobsiteIds.length === 0 || companyIds.length === 0) return { subscriptionsByJobsite, contactsByRecipientKey };
 
-  const [assignmentResult, roleResult] = await Promise.all([
+  const [assignmentResult, roleResult, employeeResult] = await Promise.all([
     params.supabase
       .from("company_jobsite_assignments")
       .select("company_id, jobsite_id, user_id, role")
@@ -250,12 +296,17 @@ async function loadPmAndSiteLeadSubscriptions(params: {
       .from("user_roles")
       .select("company_id, user_id, role, account_status")
       .in("company_id", companyIds),
+    params.supabase
+      .from("company_employee_profiles")
+      .select("id, company_id, full_name, email, phone, phone_normalized, status")
+      .in("company_id", companyIds),
   ]);
 
-  if (assignmentResult.error || roleResult.error) {
+  if (assignmentResult.error || roleResult.error || employeeResult.error) {
     throw new Error(
       assignmentResult.error?.message ||
         roleResult.error?.message ||
+        employeeResult.error?.message ||
         "Failed to load PM and Site Lead weather recipients."
     );
   }
@@ -263,6 +314,20 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   const assignments = ((assignmentResult.data ?? []) as WeatherAssignmentRow[]).filter((row) => clean(row.user_id));
   const roles = ((roleResult.data ?? []) as WeatherRoleRow[]).filter((row) => clean(row.user_id));
   const contactsByUserId = await loadUserContactMap(params.supabase, roles.map((row) => row.user_id));
+  for (const [userId, contact] of contactsByUserId.entries()) {
+    contactsByRecipientKey.set(userRecipientKey(userId), contact);
+  }
+  const employeeContacts = ((employeeResult.data ?? []) as WeatherEmployeeProfileRow[]).map((row): WeatherEmployeeContact => ({
+    employeeId: row.id,
+    companyId: row.company_id,
+    email: clean(row.email) || null,
+    phone: clean(row.phone) || clean(row.phone_normalized) || null,
+    name: clean(row.full_name) || null,
+    status: row.status,
+  }));
+  for (const contact of employeeContacts) {
+    contactsByRecipientKey.set(employeeRecipientKey(contact.employeeId), contact);
+  }
   const activeProjectManagers = new Set(
     roles
       .filter((row) => normalizeRole(row.role) === "project_manager" && isActiveStatus(row.account_status))
@@ -277,7 +342,8 @@ async function loadPmAndSiteLeadSubscriptions(params: {
   }
 
   for (const jobsite of params.jobsites) {
-    const recipientIds = new Set<string>();
+    const userRecipientIds = new Set<string>();
+    const employeeRecipientIds = new Set<string>();
     for (const assignment of assignments) {
       if (
         assignment.jobsite_id === jobsite.id &&
@@ -285,7 +351,16 @@ async function loadPmAndSiteLeadSubscriptions(params: {
         normalizeRole(assignment.role) === "project_manager" &&
         activeProjectManagers.has(assignment.user_id)
       ) {
-        recipientIds.add(assignment.user_id);
+        userRecipientIds.add(assignment.user_id);
+      }
+    }
+
+    const projectManagerLabel = clean(jobsite.project_manager);
+    if (projectManagerLabel) {
+      for (const contact of employeeContacts) {
+        if (contact.companyId === jobsite.company_id && employeeContactMatchesLabel(contact, projectManagerLabel)) {
+          employeeRecipientIds.add(contact.employeeId);
+        }
       }
     }
 
@@ -293,20 +368,24 @@ async function loadPmAndSiteLeadSubscriptions(params: {
     if (siteLeadLabel) {
       for (const userId of activeUsersByCompany.get(jobsite.company_id) ?? []) {
         if (contactMatchesLabel(contactsByUserId.get(userId), siteLeadLabel)) {
-          recipientIds.add(userId);
+          userRecipientIds.add(userId);
+        }
+      }
+      for (const contact of employeeContacts) {
+        if (contact.companyId === jobsite.company_id && employeeContactMatchesLabel(contact, siteLeadLabel)) {
+          employeeRecipientIds.add(contact.employeeId);
         }
       }
     }
 
-    if (recipientIds.size > 0) {
-      subscriptionsByJobsite.set(
-        jobsite.id,
-        [...recipientIds].map((userId) => syntheticWeatherSubscription(jobsite, userId))
-      );
-    }
+    const subscriptions = [
+      ...[...userRecipientIds].map((userId) => syntheticWeatherSubscription(jobsite, { userId })),
+      ...[...employeeRecipientIds].map((employeeId) => syntheticWeatherSubscription(jobsite, { employeeId })),
+    ];
+    if (subscriptions.length > 0) subscriptionsByJobsite.set(jobsite.id, subscriptions);
   }
 
-  return subscriptionsByJobsite;
+  return { subscriptionsByJobsite, contactsByRecipientKey };
 }
 
 async function upsertWeatherAlertEvent(params: {
@@ -401,9 +480,13 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
 
   const weatherJobsiteIds = jobsites.map((jobsite) => jobsite.id);
   const subscriptionsByJobsite = new Map<string, WeatherSubscriptionRow[]>();
+  const implicitContactMap = new Map<string, WeatherUserContact | WeatherEmployeeContact>();
   if (sendNotifications && weatherJobsiteIds.length > 0) {
     let subscriptionsResult: { data?: unknown[] | null; error?: { message?: string | null } | null };
-    let implicitSubscriptions: Map<string, WeatherSubscriptionRow[]>;
+    let implicitSubscriptions: {
+      subscriptionsByJobsite: Map<string, WeatherSubscriptionRow[]>;
+      contactsByRecipientKey: Map<string, WeatherUserContact | WeatherEmployeeContact>;
+    };
     try {
       [subscriptionsResult, implicitSubscriptions] = await Promise.all([
         supabase
@@ -429,7 +512,10 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
       rows.push(subscription);
       subscriptionsByJobsite.set(subscription.jobsite_id, rows);
     }
-    for (const [jobsiteId, subscriptions] of implicitSubscriptions.entries()) {
+    for (const [recipientKey, contact] of implicitSubscriptions.contactsByRecipientKey.entries()) {
+      implicitContactMap.set(recipientKey, contact);
+    }
+    for (const [jobsiteId, subscriptions] of implicitSubscriptions.subscriptionsByJobsite.entries()) {
       const rows = subscriptionsByJobsite.get(jobsiteId) ?? [];
       rows.push(...subscriptions);
       subscriptionsByJobsite.set(jobsiteId, rows);
@@ -439,9 +525,16 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
   const userContactMap = sendNotifications
     ? await loadUserContactMap(
         supabase,
-        [...subscriptionsByJobsite.values()].flat().map((subscription) => subscription.user_id)
+        [...subscriptionsByJobsite.values()]
+          .flat()
+          .map((subscription) => subscription.user_id)
+          .filter((userId): userId is string => Boolean(userId))
       )
     : new Map<string, WeatherUserContact>();
+  const contactMap = new Map<string, WeatherUserContact | WeatherEmployeeContact>(implicitContactMap);
+  for (const [userId, contact] of userContactMap.entries()) {
+    contactMap.set(userRecipientKey(userId), contact);
+  }
 
   const globalMinSeverity = getDefaultWeatherAlertMinSeverity();
   for (const group of jobsitesByLocation.values()) {
@@ -500,17 +593,23 @@ export async function checkJobsiteWeatherAlerts(input: CheckJobsiteWeatherAlerts
           }
 
           for (const channel of normalizeChannels(subscription.channels)) {
-            const recipientChannelKey = `${subscription.user_id}:${channel}`;
+            const recipientKey = subscriptionRecipientKey(subscription);
+            if (!recipientKey) {
+              result.deliveriesSkipped += 1;
+              continue;
+            }
+            const recipientChannelKey = `${recipientKey}:${channel}`;
             if (attemptedRecipientChannels.has(recipientChannelKey)) {
               result.deliveriesSkipped += 1;
               continue;
             }
             attemptedRecipientChannels.add(recipientChannelKey);
-            const contact = userContactMap.get(subscription.user_id);
+            const contact = contactMap.get(recipientKey);
             const delivery = await deliverWeatherNotification({
               supabase,
               recipient: {
                 userId: subscription.user_id,
+                employeeId: subscription.recipient_employee_id,
                 email: contact?.email ?? null,
                 phone: contact?.phone ?? null,
                 channels: normalizeChannels(subscription.channels),

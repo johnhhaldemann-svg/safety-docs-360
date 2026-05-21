@@ -6,6 +6,7 @@ export type SafePredictWorkspaceSlug =
   | "hazards"
   | "training"
   | "permits"
+  | "documents"
   | "analytics"
   | "reports"
   | "settings";
@@ -94,6 +95,17 @@ export const safePredictWorkspaceConfigs: Record<SafePredictWorkspaceSlug, SafeP
       { label: "Active Permits", value: "42", detail: "Across 12 sites" },
       { label: "Expiring Soon", value: "11", detail: "Needs renewal" },
       { label: "Expired", value: "2", detail: "Work hold required" },
+    ],
+  },
+  documents: {
+    slug: "documents",
+    title: "Documents",
+    subtitle: "Manage the jobsite document control register inside the new SafetyDoc360 platform.",
+    primaryAction: "Build Document",
+    summary: [
+      { label: "Controlled Documents", value: "10", detail: "Across active jobsites" },
+      { label: "Ready For Use", value: "5", detail: "Current versions" },
+      { label: "Drafts", value: "5", detail: "Needs review" },
     ],
   },
   analytics: {

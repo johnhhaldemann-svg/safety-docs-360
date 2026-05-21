@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Check, Minus, X } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
 import { TableDensityToggle } from "@/components/app-shell/TableDensityToggle";
@@ -14,6 +15,7 @@ import {
   InlineMessage,
   MetricTile,
   SectionCard,
+  StatusBadge,
   appButtonPrimaryClassName,
   appButtonSecondaryClassName,
   appNativeSelectClassName,
@@ -28,6 +30,12 @@ import {
   CONSTRUCTION_TRADES,
 } from "@/lib/constructionProfileOptions";
 import { buildTrainingMatrixActionQueue } from "@/lib/trainingMatrixActionQueue";
+import type {
+  Stage1ReadinessStatus,
+  Stage1TrainingDetail,
+  Stage1TrainingStatus,
+  Stage1TrainingSummary,
+} from "@/lib/trainingMatrixStage1";
 import {
   applyAiReviewToReadinessRows,
   buildEmployeeReadinessRow,
@@ -59,6 +67,11 @@ type Requirement = {
   generatedSourceType?: string | null;
   generatedSourceDocumentId?: string | null;
   generatedSourceOperationKey?: string | null;
+  category?: string;
+  renewalPeriodDays?: number | null;
+  courseOwner?: string;
+  courseVersion?: string;
+  requiresEvidence?: boolean;
 };
 
 type MatrixJobsiteOption = { id: string; name: string };
@@ -72,6 +85,15 @@ type MatrixFilters = {
 
 type MatrixCellState = "match" | "gap" | "na";
 type MatrixViewMode = "readiness" | "all" | "gaps" | "expiring";
+type Stage1MatrixMode = "worker" | "course";
+type Stage1StatusFilter =
+  | "all"
+  | "complete"
+  | "expiring_soon"
+  | "overdue"
+  | "missing"
+  | "permit_critical"
+  | "no_portal";
 
 function mergeJobsiteOptions(current: MatrixJobsiteOption[], next: MatrixJobsiteOption[]) {
   const merged = new Map<string, MatrixJobsiteOption>();
@@ -119,6 +141,19 @@ type MatrixRow = {
     readinessStatus: string;
     yearsExperience: number | null;
   };
+  workerType?: string;
+  loginAccessStatus?: "Active User" | "Invited User" | "Disabled User" | "No Portal Access";
+  companyOrDepartment?: string;
+  jobTitleOrTrade?: string;
+  assignedJobsites?: string[];
+  supervisorOrManager?: string;
+  readinessStatus?: Stage1ReadinessStatus | string;
+  trainingStatus?: Stage1ReadinessStatus | string;
+  permitExposureStatus?: string;
+  accessStatus?: string;
+  lastUpdated?: string | null;
+  trainingRequirements?: Stage1TrainingDetail[];
+  trainingSummary?: Stage1TrainingSummary;
 };
 
 const OFFLINE_DEMO_REQUIREMENTS: Requirement[] = [
@@ -379,6 +414,388 @@ function buildPositionRollup(row: MatrixRow, requirements: Requirement[]): Posit
   const soonProfileCerts = inv.filter((c) => c.expiryStatus === "soon");
 
   return { missing, met, metExpiringSoon, notRequired, expiredProfileCerts, soonProfileCerts };
+}
+
+function stage1StatusTone(status: Stage1TrainingStatus | Stage1ReadinessStatus | string): "success" | "warning" | "error" | "info" | "neutral" {
+  if (status === "Complete" || status === "Ready") return "success";
+  if (status === "Expiring Soon" || status === "Ready With Warnings") return "warning";
+  if (status === "Overdue" || status === "Expired" || status === "Not Ready" || status === "Restricted" || status === "Blocked") return "error";
+  if (status === "In Progress" || status === "Pending Review") return "info";
+  return "neutral";
+}
+
+function stage1RowText(row: MatrixRow): string {
+  return [
+    row.name,
+    row.email,
+    row.workerType,
+    row.loginAccessStatus,
+    row.companyOrDepartment,
+    row.profileFields.jobTitle,
+    row.profileFields.tradeSpecialty,
+    row.assignedJobsites?.join(" "),
+    row.supervisorOrManager,
+    ...(row.trainingRequirements ?? []).map((detail) => `${detail.trainingName} ${detail.requiredBecause}`),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesStage1StatusFilter(row: MatrixRow, filter: Stage1StatusFilter): boolean {
+  const summary = row.trainingSummary;
+  if (filter === "all") return true;
+  if (filter === "complete") return Boolean(summary && summary.requiredCount > 0 && summary.completeCount === summary.requiredCount);
+  if (filter === "expiring_soon") return Boolean(summary && summary.expiringSoonCount > 0);
+  if (filter === "overdue") return Boolean(summary && summary.overdueCount > 0);
+  if (filter === "missing") return Boolean(summary && summary.missingCount > 0);
+  if (filter === "permit_critical") return Boolean(summary && summary.permitLinkedGaps > 0);
+  if (filter === "no_portal") return row.loginAccessStatus === "No Portal Access";
+  return true;
+}
+
+function stage1WorkerHref(row: MatrixRow): string {
+  if (row.personType === "tracked_employee") return "/company-users";
+  return `/profile?userId=${encodeURIComponent(row.userId)}&returnTo=${encodeURIComponent("/training-matrix")}`;
+}
+
+type Stage1CourseRollup = {
+  requirement: Requirement;
+  requiredWorkers: number;
+  complete: number;
+  missing: number;
+  expiringSoon: number;
+  overdue: number;
+  workers: Array<{ row: MatrixRow; detail: Stage1TrainingDetail }>;
+};
+
+function buildStage1CourseRollups(rows: MatrixRow[], requirements: Requirement[]): Stage1CourseRollup[] {
+  return requirements.map((requirement) => {
+    const workers = rows
+      .map((row) => {
+        const detail = row.trainingRequirements?.find((item) => item.requirementId === requirement.id);
+        return detail && detail.status !== "Not Applicable" ? { row, detail } : null;
+      })
+      .filter((item): item is { row: MatrixRow; detail: Stage1TrainingDetail } => Boolean(item));
+    return {
+      requirement,
+      requiredWorkers: workers.length,
+      complete: workers.filter((item) => item.detail.status === "Complete").length,
+      missing: workers.filter((item) => item.detail.status === "Missing").length,
+      expiringSoon: workers.filter((item) => item.detail.status === "Expiring Soon").length,
+      overdue: workers.filter((item) => item.detail.status === "Overdue" || item.detail.status === "Expired").length,
+      workers,
+    };
+  });
+}
+
+function Stage1ComplianceGrid({
+  rows,
+  requirements,
+  mode,
+  onModeChange,
+  search,
+  onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+}: {
+  rows: MatrixRow[];
+  requirements: Requirement[];
+  mode: Stage1MatrixMode;
+  onModeChange: (mode: Stage1MatrixMode) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: Stage1StatusFilter;
+  onStatusFilterChange: (value: Stage1StatusFilter) => void;
+}) {
+  const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
+  const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
+  const filteredRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (!matchesStage1StatusFilter(row, statusFilter)) return false;
+      if (!query) return true;
+      return stage1RowText(row).includes(query);
+    });
+  }, [rows, search, statusFilter]);
+  const courseRollups = useMemo(
+    () =>
+      buildStage1CourseRollups(filteredRows, requirements).filter((rollup) => {
+        if (!search.trim()) return true;
+        const query = search.trim().toLowerCase();
+        return (
+          rollup.requirement.title.toLowerCase().includes(query) ||
+          rollup.requirement.category?.toLowerCase().includes(query) ||
+          rollup.workers.some((item) => stage1RowText(item.row).includes(query))
+        );
+      }),
+    [filteredRows, requirements, search]
+  );
+  const quickFilters: Array<{ id: Stage1StatusFilter; label: string }> = [
+    { id: "all", label: "All workers" },
+    { id: "overdue", label: "Overdue only" },
+    { id: "expiring_soon", label: "Expiring in 30 days" },
+    { id: "no_portal", label: "No portal access" },
+    { id: "permit_critical", label: "Permit-critical workers" },
+    { id: "missing", label: "Missing evidence" },
+  ];
+
+  return (
+    <SectionCard
+      eyebrow="Stage 1 Compliance Grid"
+      title="Training Matrix"
+      description="Detailed compliance grid by worker or by training course, including why each course is required."
+      tone="elevated"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_220px] lg:min-w-[560px]">
+          <label className="text-sm font-medium text-[var(--app-text-strong)]">
+            Search
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Worker, company, trade, jobsite, course, supervisor"
+              className="mt-1 w-full rounded-lg border border-[var(--app-border)] bg-white px-3.5 py-2 text-sm text-[var(--app-text-strong)] outline-none focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]"
+            />
+          </label>
+          <label className="text-sm font-medium text-[var(--app-text-strong)]">
+            Status
+            <select
+              value={statusFilter}
+              onChange={(event) => onStatusFilterChange(event.target.value as Stage1StatusFilter)}
+              className={`mt-1 w-full ${appNativeSelectClassName}`}
+            >
+              {quickFilters.map((filter) => (
+                <option key={filter.id} value={filter.id}>
+                  {filter.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="inline-flex rounded-lg border border-[var(--app-border)] bg-white p-1">
+          {[
+            { value: "worker" as const, label: "By Worker" },
+            { value: "course" as const, label: "By Training Course" },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onModeChange(option.value)}
+              className={
+                mode === option.value
+                  ? "rounded-md bg-[var(--app-accent-primary)] px-3 py-2 text-xs font-bold text-white"
+                  : "rounded-md px-3 py-2 text-xs font-semibold text-[var(--app-text)] hover:bg-[var(--app-panel-soft)]"
+              }
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {quickFilters.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            onClick={() => onStatusFilterChange(filter.id)}
+            className={
+              statusFilter === filter.id
+                ? "rounded-lg bg-[var(--app-accent-primary)] px-3 py-1.5 text-xs font-bold text-white"
+                : "rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] hover:bg-[var(--app-panel-soft)]"
+            }
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "worker" ? (
+        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white">
+          <table className="min-w-[1500px] border-collapse text-left text-sm">
+            <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+              <tr>
+                {[
+                  "Worker",
+                  "Worker type",
+                  "Login access",
+                  "Company / department",
+                  "Job title / trade",
+                  "Jobsite",
+                  "Supervisor / manager",
+                  "Required",
+                  "Complete",
+                  "Missing",
+                  "Expiring soon",
+                  "Overdue",
+                  "Permit-linked gaps",
+                  "Overall status",
+                  "Next due date",
+                  "Actions",
+                ].map((header) => (
+                  <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => {
+                const summary = row.trainingSummary;
+                const expanded = expandedWorkerId === row.userId;
+                return (
+                  <Fragment key={row.userId}>
+                    <tr key={row.userId} className="border-b border-[var(--app-border)] align-top hover:bg-[var(--app-accent-surface-06)]">
+                      <td className="px-3 py-3">
+                        <button type="button" onClick={() => setExpandedWorkerId(expanded ? null : row.userId)} className="font-semibold text-[var(--app-accent-primary)] hover:underline">
+                          {row.name}
+                        </button>
+                        <div className="mt-0.5 text-xs text-[var(--app-muted)]">{row.email || "No email on file"}</div>
+                      </td>
+                      <td className="px-3 py-3">{row.workerType ?? (row.personType === "tracked_employee" ? "External Worker" : "Employee")}</td>
+                      <td className="px-3 py-3"><StatusBadge label={row.loginAccessStatus ?? "Active User"} tone={row.loginAccessStatus === "No Portal Access" ? "info" : "success"} /></td>
+                      <td className="px-3 py-3">{row.companyOrDepartment || "Not set"}</td>
+                      <td className="px-3 py-3">{row.jobTitleOrTrade || [row.profileFields.jobTitle, row.profileFields.tradeSpecialty].filter(Boolean).join(" / ") || "Not set"}</td>
+                      <td className="px-3 py-3">{row.assignedJobsites?.length ? row.assignedJobsites.join(", ") : "No jobsite assigned"}</td>
+                      <td className="px-3 py-3">{row.supervisorOrManager || "Not assigned"}</td>
+                      <td className="px-3 py-3 font-semibold">{summary?.requiredCount ?? 0}</td>
+                      <td className="px-3 py-3">{summary?.completeCount ?? 0}</td>
+                      <td className="px-3 py-3">{summary?.missingCount ?? 0}</td>
+                      <td className="px-3 py-3">{summary?.expiringSoonCount ?? 0}</td>
+                      <td className="px-3 py-3">{summary?.overdueCount ?? 0}</td>
+                      <td className="px-3 py-3">{summary?.permitLinkedGaps ?? 0}</td>
+                      <td className="px-3 py-3"><StatusBadge label={summary?.overallStatus ?? row.readinessStatus ?? "Pending Review"} tone={stage1StatusTone(summary?.overallStatus ?? row.readinessStatus ?? "")} /></td>
+                      <td className="px-3 py-3">{summary?.nextDueDate ?? "No upcoming due date"}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <Link href={stage1WorkerHref(row)} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">View profile</Link>
+                          <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Assign training</button>
+                          {row.loginAccessStatus === "No Portal Access" ? (
+                            <>
+                              <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Convert to system user</button>
+                              <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Approve site access</button>
+                            </>
+                          ) : (
+                            <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {expanded ? (
+                      <tr key={`${row.userId}-expanded`} className="border-b border-[var(--app-border)] bg-[var(--app-panel-soft)]">
+                        <td colSpan={16} className="px-4 py-4">
+                          <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+                            <table className="min-w-full text-left text-xs">
+                              <thead className="bg-[var(--app-panel-soft)] uppercase tracking-wide text-[var(--app-muted)]">
+                                <tr>
+                                  {["Training name", "Required because", "Status", "Completed date", "Expiry date", "Due date", "Evidence", "Trainer / approver", "Course version", "Actions"].map((header) => (
+                                    <th key={header} className="px-3 py-2">{header}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(row.trainingRequirements ?? []).map((detail) => (
+                                  <tr key={detail.requirementId} className="border-t border-[var(--app-border)] align-top">
+                                    <td className="px-3 py-2 font-semibold text-[var(--app-text-strong)]">{detail.trainingName}</td>
+                                    <td className="px-3 py-2">{detail.requiredBecause}</td>
+                                    <td className="px-3 py-2"><StatusBadge label={detail.status} tone={stage1StatusTone(detail.status)} /></td>
+                                    <td className="px-3 py-2">{detail.completedDate ?? "Not complete"}</td>
+                                    <td className="px-3 py-2">{detail.expiryDate ?? "No expiry on file"}</td>
+                                    <td className="px-3 py-2">{detail.dueDate ?? "No due date"}</td>
+                                    <td className="px-3 py-2">{detail.evidenceStatus}</td>
+                                    <td className="px-3 py-2">{detail.trainerOrApprover}</td>
+                                    <td className="px-3 py-2">{detail.courseVersion}</td>
+                                    <td className="px-3 py-2">
+                                      {detail.preventionMessage ? <p className="mb-2 text-[11px] font-semibold text-[var(--semantic-danger)]">{detail.preventionMessage}</p> : null}
+                                      <button type="button" className="font-bold text-[var(--app-accent-primary)]">Create action</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+              {filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={16} className="px-4 py-8 text-center text-sm text-[var(--app-muted)]">
+                    {statusFilter === "overdue" ? "No overdue training found. Workers in this view are currently compliant." : "No workforce records match the current filters."}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white">
+          <table className="min-w-[1100px] border-collapse text-left text-sm">
+            <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
+              <tr>
+                {["Training course", "Category", "Required workers", "Complete", "Missing", "Expiring soon", "Overdue", "Renewal period", "Course owner", "Actions"].map((header) => (
+                  <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {courseRollups.map((rollup) => {
+                const expanded = expandedCourseId === rollup.requirement.id;
+                return (
+                  <Fragment key={rollup.requirement.id}>
+                    <tr key={rollup.requirement.id} className="border-b border-[var(--app-border)] align-top hover:bg-[var(--app-accent-surface-06)]">
+                      <td className="px-3 py-3">
+                        <button type="button" onClick={() => setExpandedCourseId(expanded ? null : rollup.requirement.id)} className="font-semibold text-[var(--app-accent-primary)] hover:underline">
+                          {rollup.requirement.title}
+                        </button>
+                      </td>
+                      <td className="px-3 py-3">{rollup.requirement.category ?? "General"}</td>
+                      <td className="px-3 py-3 font-semibold">{rollup.requiredWorkers}</td>
+                      <td className="px-3 py-3">{rollup.complete}</td>
+                      <td className="px-3 py-3">{rollup.missing}</td>
+                      <td className="px-3 py-3">{rollup.expiringSoon}</td>
+                      <td className="px-3 py-3">{rollup.overdue}</td>
+                      <td className="px-3 py-3">{rollup.requirement.renewalPeriodDays ? `${rollup.requirement.renewalPeriodDays} days` : "Not configured"}</td>
+                      <td className="px-3 py-3">{rollup.requirement.courseOwner ?? "Safety team"}</td>
+                      <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminders</button></td>
+                    </tr>
+                    {expanded ? (
+                      <tr key={`${rollup.requirement.id}-expanded`} className="border-b border-[var(--app-border)] bg-[var(--app-panel-soft)]">
+                        <td colSpan={10} className="px-4 py-4">
+                          <div className="grid gap-2">
+                            {rollup.workers.map(({ row, detail }) => (
+                              <div key={`${rollup.requirement.id}-${row.userId}`} className="flex flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="font-semibold text-[var(--app-text-strong)]">{row.name}</p>
+                                  <p className="text-xs text-[var(--app-muted)]">{row.assignedJobsites?.join(", ") || "No jobsite assigned"} · Due {detail.dueDate ?? "not scheduled"} · Evidence {detail.evidenceStatus}</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge label={detail.status} tone={stage1StatusTone(detail.status)} />
+                                  <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
+                                  <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button>
+                                </div>
+                              </div>
+                            ))}
+                            {rollup.workers.length === 0 ? (
+                              <p className="text-sm text-[var(--app-muted)]">No workers are currently required to complete this course.</p>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  );
 }
 
 function PositionScopeSummary({
@@ -1254,6 +1671,7 @@ function ReadinessMatrixPanel({
 }
 
 export default function TrainingMatrixPage() {
+  const searchParams = useSearchParams();
   const isOfflineDemoUi = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [rows, setRows] = useState<MatrixRow[]>([]);
@@ -1271,6 +1689,13 @@ export default function TrainingMatrixPage() {
   const [personnelTypeFilter, setPersonnelTypeFilter] = useState<ReadinessPersonnelTypeFilter>("all");
   const [matrixPersonTypeFilter, setMatrixPersonTypeFilter] = useState<"all" | "licensed_user" | "tracked_employee">("all");
   const [matrixViewMode, setMatrixViewMode] = useState<MatrixViewMode>("readiness");
+  const [stage1MatrixMode, setStage1MatrixMode] = useState<Stage1MatrixMode>("worker");
+  const [stage1Search, setStage1Search] = useState("");
+  const [stage1StatusFilter, setStage1StatusFilter] = useState<Stage1StatusFilter>(() => {
+    const status = searchParams.get("status");
+    if (status === "complete" || status === "expiring_soon" || status === "overdue") return status;
+    return "all";
+  });
   const [canMutate, setCanMutate] = useState(false);
   const [schemaMigrationNeeded, setSchemaMigrationNeeded] = useState(false);
   const [schemaMigrationBannerDismissed, setSchemaMigrationBannerDismissed] = useState(false);
@@ -1327,6 +1752,13 @@ export default function TrainingMatrixPage() {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status === "complete" || status === "expiring_soon" || status === "overdue") {
+      setStage1StatusFilter(status);
+    }
+  }, [searchParams]);
 
   const dismissSchemaMigrationBanner = useCallback(() => {
     setSchemaMigrationBannerDismissed(true);
@@ -1496,6 +1928,11 @@ export default function TrainingMatrixPage() {
           generatedSourceType: r.generatedSourceType ?? null,
           generatedSourceDocumentId: r.generatedSourceDocumentId ?? null,
           generatedSourceOperationKey: r.generatedSourceOperationKey ?? null,
+          category: r.category ?? "General",
+          renewalPeriodDays: r.renewalPeriodDays ?? null,
+          courseOwner: r.courseOwner ?? "Safety team",
+          courseVersion: r.courseVersion ?? "Current",
+          requiresEvidence: r.requiresEvidence ?? true,
         }))
       );
       setFilters(data?.filters ?? { trades: [], subTrades: [], taskCodes: [] });
@@ -1519,6 +1956,19 @@ export default function TrainingMatrixPage() {
                 ? row.profileFields.yearsExperience
                 : null,
           },
+          workerType: row.workerType ?? (row.personType === "tracked_employee" ? "External Worker" : "Employee"),
+          loginAccessStatus: row.loginAccessStatus ?? (row.personType === "tracked_employee" ? "No Portal Access" : "Active User"),
+          companyOrDepartment: row.companyOrDepartment ?? "",
+          jobTitleOrTrade: row.jobTitleOrTrade ?? "",
+          assignedJobsites: row.assignedJobsites ?? [],
+          supervisorOrManager: row.supervisorOrManager ?? "",
+          readinessStatus: row.readinessStatus ?? "",
+          trainingStatus: row.trainingStatus ?? "",
+          permitExposureStatus: row.permitExposureStatus ?? "",
+          accessStatus: row.accessStatus ?? "",
+          lastUpdated: row.lastUpdated ?? null,
+          trainingRequirements: row.trainingRequirements ?? [],
+          trainingSummary: row.trainingSummary,
         }))
       );
       setCanMutate(Boolean(data?.capabilities?.canMutate));
@@ -2125,6 +2575,17 @@ export default function TrainingMatrixPage() {
         onPersonnelTypeChange={setPersonnelTypeFilter}
       />
 
+      <Stage1ComplianceGrid
+        rows={rows}
+        requirements={requirements}
+        mode={stage1MatrixMode}
+        onModeChange={setStage1MatrixMode}
+        search={stage1Search}
+        onSearchChange={setStage1Search}
+        statusFilter={stage1StatusFilter}
+        onStatusFilterChange={setStage1StatusFilter}
+      />
+
       {canMutate ? (
         <SectionCard
           eyebrow="Work Area"
@@ -2687,4 +3148,3 @@ export default function TrainingMatrixPage() {
     </div>
   );
 }
-

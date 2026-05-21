@@ -115,8 +115,73 @@ describe("weather notification delivery helpers", () => {
         headers: expect.objectContaining({ "Content-Type": "application/x-www-form-urlencoded" }),
       })
     );
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: "user-1",
+        recipient_employee_id: null,
+        channel: "sms",
+      })
+    );
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ status: "sent", sent_at: expect.any(String), error_message: null })
+    );
+  });
+
+  it("records SMS deliveries for workforce profile recipients", async () => {
+    process.env.TWILIO_ACCOUNT_SID = "AC123";
+    process.env.TWILIO_AUTH_TOKEN = "token";
+    process.env.TWILIO_FROM_NUMBER = "+15551234567";
+    delete process.env.TWILIO_MESSAGING_SERVICE_SID;
+
+    const update = vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: null })) }));
+    const insert = vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: { id: "delivery-1" }, error: null })),
+      })),
+    }));
+    const supabase = { from: vi.fn(() => ({ insert, update })) };
+    const fetcher = vi.fn(async () => Response.json({ sid: "SM123" })) as unknown as typeof fetch;
+
+    await expect(
+      deliverWeatherNotification({
+        supabase: supabase as never,
+        recipient: {
+          employeeId: "employee-1",
+          phone: "(555) 222-3333",
+          channels: ["sms"],
+        },
+        channel: "sms",
+        context: {
+          alertEventId: "event-1",
+          companyId: "company-1",
+          jobsiteId: "site-1",
+          jobsiteName: "123 Main Build",
+          zipCode: "10001",
+          alert: {
+            id: "alert-1",
+            eventName: "Winter Storm Warning",
+            severity: "Severe",
+            urgency: "Expected",
+            certainty: "Likely",
+            headline: "Snow expected",
+            description: "Description",
+            instruction: "Review site conditions.",
+            effectiveAt: "2026-05-20T19:45:00Z",
+            expiresAt: "2026-05-20T21:15:00Z",
+            status: "Actual",
+            rawPayload: {},
+          },
+        },
+        fetcher,
+      })
+    ).resolves.toMatchObject({ delivered: true, duplicate: false, skipped: false });
+
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: null,
+        recipient_employee_id: "employee-1",
+        dedupe_key: "site-1:employee:employee-1:alert-1:sms",
+      })
     );
   });
 
