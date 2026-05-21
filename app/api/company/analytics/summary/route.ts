@@ -14,6 +14,7 @@ import {
   coverageStatus,
   explainRecommendation,
   type ExplainableRecommendation,
+  type LeadershipEvidenceRef,
   type LeadershipNextAction,
 } from "@/lib/leadershipTrust";
 
@@ -30,6 +31,29 @@ function isMissingJsaRelationError(message?: string | null) {
 
 function canManage(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager";
+}
+
+function parseRecommendationEvidenceRefs(value: unknown): LeadershipEvidenceRef[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const refs = (value as { evidenceRefs?: unknown }).evidenceRefs;
+  if (!Array.isArray(refs)) return [];
+  const out: LeadershipEvidenceRef[] = [];
+  for (const ref of refs) {
+    if (!ref || typeof ref !== "object") continue;
+    const item = ref as Record<string, unknown>;
+    const id = String(item.id ?? "").trim();
+    const label = String(item.label ?? "").trim();
+    if (!id || !label) continue;
+    out.push({
+      id,
+      label,
+      href: typeof item.href === "string" && item.href ? item.href : "/analytics/predictive-model",
+      sourceModule: String(item.sourceModule ?? item.source_module ?? "predictive_risk"),
+      sourceId: typeof item.sourceId === "string" ? item.sourceId : typeof item.source_id === "string" ? item.source_id : null,
+      detail: typeof item.detail === "string" ? item.detail : undefined,
+    });
+  }
+  return out;
 }
 
 export async function GET(request: Request) {
@@ -546,8 +570,10 @@ export async function GET(request: Request) {
     }),
     auth.supabase
       .from("company_risk_ai_recommendations")
-      .select("id, kind, title, body, confidence, created_at")
+      .select("id, kind, title, body, confidence, created_at, status, priority, owner_user_id, due_at, target_module, target_href, evidence_summary, accepted_at, field_used_at, resolved_at, dismissed_at")
       .eq("company_id", companyScope.companyId)
+      .neq("status", "dismissed")
+      .neq("status", "resolved")
       .eq("dismissed", false)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -577,17 +603,32 @@ export async function GET(request: Request) {
 
   let riskMemoryRecommendations: ExplainableRecommendation[] = [];
   if (!riskRecRes.error) {
-    riskMemoryRecommendations = (riskRecRes.data ?? []).map((rec) =>
-      explainRecommendation({
+    riskMemoryRecommendations = (riskRecRes.data ?? [])
+      .filter((rec) => {
+        const priority = String(rec.priority ?? "medium");
+        return priority === "critical" || priority === "high" || priority === "medium";
+      })
+      .map((rec) =>
+        explainRecommendation({
         id: rec.id,
         kind: rec.kind,
         title: rec.title,
         body: rec.body,
         confidence: rec.confidence,
         created_at: rec.created_at,
-        actionHref: "/analytics?tab=risk",
+        actionHref: rec.target_href ?? "/analytics/predictive-model",
+        status: rec.status ?? "active",
+        priority: rec.priority ?? "medium",
+        ownerUserId: rec.owner_user_id ?? null,
+        dueAt: rec.due_at ?? null,
+        sourceModule: rec.target_module ?? "risk_memory",
+        evidenceRefs: parseRecommendationEvidenceRefs(rec.evidence_summary),
+        acceptedAt: rec.accepted_at ?? null,
+        fieldUsedAt: rec.field_used_at ?? null,
+        resolvedAt: rec.resolved_at ?? null,
+        dismissedAt: rec.dismissed_at ?? null,
       })
-    );
+      );
   }
   const leadershipSourceCoverage = [
     {

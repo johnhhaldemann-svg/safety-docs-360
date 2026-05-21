@@ -14,7 +14,7 @@ import { resolveDashboardRole } from "@/lib/dashboardRole";
 import { canAccessCompanyWorkspaceHref } from "@/lib/companyFeatureAccess";
 import type { PermissionMap } from "@/lib/rbac";
 import type { DashboardBlockId, DashboardDataState } from "@/components/dashboard/types";
-import type { DashboardOverview, EngineHealthItem, TrendPoint } from "@/src/lib/dashboard/types";
+import type { DashboardOverview, EngineHealthItem, TrafficLightStatus, TrendPoint } from "@/src/lib/dashboard/types";
 import { SectionCard } from "@/src/components/dashboard/SectionCard";
 import { MetricCard } from "@/src/components/dashboard/MetricCard";
 import { StatusBadge } from "@/src/components/dashboard/StatusBadge";
@@ -53,7 +53,21 @@ import {
   trendHasPositiveValues,
   workforceReadinessHasSignals,
 } from "@/src/lib/dashboard/overviewDataPresence";
-import { Activity, AlertTriangle, Database, FileText, GraduationCap, ScanLine, ShieldCheck } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ClipboardCheck,
+  Database,
+  FileText,
+  GraduationCap,
+  MapPin,
+  RadioTower,
+  ScanLine,
+  ShieldAlert,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 
 const supabase = getSupabaseBrowserClient();
@@ -144,6 +158,58 @@ type DailyCommandAction = {
 
 function isDailyCommandAction(item: DailyCommandAction | null): item is DailyCommandAction {
   return item !== null;
+}
+
+function commandToneClasses(status: TrafficLightStatus): {
+  border: string;
+  bg: string;
+  text: string;
+  strip: string;
+  glow: string;
+} {
+  if (status === "red") {
+    return {
+      border: "border-red-200",
+      bg: "bg-red-50",
+      text: "text-red-700",
+      strip: "bg-red-500",
+      glow: "shadow-[0_0_0_5px_rgba(239,68,68,0.12)]",
+    };
+  }
+  if (status === "yellow") {
+    return {
+      border: "border-amber-200",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      strip: "bg-amber-500",
+      glow: "shadow-[0_0_0_5px_rgba(245,158,11,0.14)]",
+    };
+  }
+  return {
+    border: "border-emerald-200",
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    strip: "bg-emerald-500",
+    glow: "shadow-[0_0_0_5px_rgba(16,185,129,0.13)]",
+  };
+}
+
+function riskBandFromScore(score: number): TrafficLightStatus {
+  if (score >= 70) return "red";
+  if (score >= 40) return "yellow";
+  return "green";
+}
+
+function riskBandFromCount(count: number): TrafficLightStatus {
+  if (count >= 8) return "red";
+  if (count >= 1) return "yellow";
+  return "green";
+}
+
+function formatJobsiteMeta(jobsite: DashboardDataState["workspaceSummary"]["jobsites"][number] | null): string {
+  if (!jobsite) return "All accessible jobsites";
+  const pieces = [jobsite.location, jobsite.status].filter((item): item is string => Boolean(item?.trim()));
+  return pieces.length > 0 ? pieces.join(" / ") : "Location details pending";
 }
 
 function buildDailyCommandActions(params: {
@@ -489,6 +555,84 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
     credentialGaps: cred,
     documentPipelineTotal: pipelineTotal,
   });
+  const jobsiteRiskScores = new Map(
+    (workspace.analyticsSummary?.jobsiteRiskScore ?? []).map((row) => [row.jobsiteId, row])
+  );
+  const activeJobsiteRows = workspace.workspaceSummary.jobsites.filter((jobsite) =>
+    isActiveJobsite(jobsite.status)
+  );
+  const selectedJobsiteId =
+    searchParams.get("jobsiteId")?.trim() ||
+    workspace.analyticsSummary?.jobsiteRiskScore?.[0]?.jobsiteId ||
+    activeJobsiteRows[0]?.id ||
+    workspace.workspaceSummary.jobsites[0]?.id ||
+    "";
+  const selectedJobsite =
+    workspace.workspaceSummary.jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ??
+    activeJobsiteRows[0] ??
+    workspace.workspaceSummary.jobsites[0] ??
+    null;
+  const selectedRiskScore =
+    (selectedJobsite?.id ? jobsiteRiskScores.get(selectedJobsite.id)?.score : undefined) ??
+    Math.max(overview.summary.openHighRiskItems, overview.summary.overdueCorrectiveActions);
+  const selectedRiskBand = riskBandFromScore(Math.min(100, Math.max(0, selectedRiskScore)));
+  const riskTone = commandToneClasses(selectedRiskBand);
+  const commandPins = (activeJobsiteRows.length > 0 ? activeJobsiteRows : workspace.workspaceSummary.jobsites)
+    .slice(0, 6)
+    .map((jobsite, index) => {
+      const positions = [
+        { left: 64, top: 42 },
+        { left: 46, top: 58 },
+        { left: 73, top: 62 },
+        { left: 34, top: 40 },
+        { left: 57, top: 72 },
+        { left: 80, top: 32 },
+      ];
+      const score = jobsite.id ? jobsiteRiskScores.get(jobsite.id)?.score ?? 0 : 0;
+      return {
+        id: jobsite.id ?? `${jobsite.name}-${index}`,
+        name: formatTitleCase(jobsite.name) || jobsite.name,
+        meta: formatJobsiteMeta(jobsite),
+        score,
+        selected: Boolean(jobsite.id && jobsite.id === selectedJobsite?.id),
+        position: positions[index] ?? { left: 50, top: 50 },
+        band: riskBandFromScore(Math.min(100, Math.max(0, score))),
+      };
+    });
+  const commandMetrics = [
+    {
+      id: "site-risk",
+      label: "Overall site risk",
+      value: `${Math.round(selectedRiskScore)}/100`,
+      hint: selectedJobsite ? formatTitleCase(selectedJobsite.name) || selectedJobsite.name : "Workspace scope",
+      icon: ShieldAlert,
+      band: selectedRiskBand,
+    },
+    {
+      id: "incident-risk",
+      label: "Incident signal",
+      value: outlookLabel(outlook),
+      hint: incidentsHaveData ? "Trend from current window" : "Waiting on incident volume",
+      icon: TrendingUp,
+      band: outlook === "worsening" ? ("red" as const) : outlook === "stable" ? ("yellow" as const) : ("green" as const),
+    },
+    {
+      id: "open-actions",
+      label: "Open corrective actions",
+      value: overview.correctiveActionStatus.open,
+      hint: `${overview.correctiveActionStatus.overdue} overdue`,
+      icon: ClipboardCheck,
+      band: riskBandFromCount(overview.correctiveActionStatus.overdue),
+    },
+    {
+      id: "workforce",
+      label: "Workforce readiness",
+      value: trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "No signal",
+      hint: `${cred.expiredCredentials} expired credentials`,
+      icon: Users,
+      band: trainingSummaryBand,
+    },
+  ];
   const builderActions = [
     canAccessCompanyWorkspaceHref("/csep", workspace.userRole, workspace.permissionMap)
       ? {
@@ -563,17 +707,23 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
       {dashboardLayout.message ? (
         <InlineMessage tone={dashboardLayout.message.tone}>{dashboardLayout.message.text}</InlineMessage>
       ) : null}
-      <section className="overflow-hidden rounded-xl border border-[rgba(121,151,196,0.34)] bg-white text-sm text-[var(--app-text)] shadow-[0_18px_38px_rgba(44,58,86,0.08)]">
-        <div className="border-b border-[var(--app-border-subtle)] px-4 py-4 sm:px-5">
+      <section className="overflow-hidden rounded-lg border border-[rgba(24,45,75,0.18)] bg-[#f8fbff] text-sm text-[var(--app-text)] shadow-[0_22px_52px_rgba(23,42,70,0.12)]">
+        <div className="border-b border-[rgba(87,113,151,0.18)] bg-[linear-gradient(90deg,#07182c_0%,#0c2645_48%,#0f3865_100%)] px-4 py-4 text-white sm:px-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-muted)]">
-                Executive Command View
-              </p>
-              <h2 className="mt-1 font-app-display text-2xl font-bold tracking-tight text-[var(--app-text-strong)] sm:text-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">
+                  <RadioTower className="h-3.5 w-3.5" aria-hidden="true" />
+                  Site Command
+                </span>
+                <span className="rounded-md border border-white/15 bg-white/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-200">
+                  Executive Overview
+                </span>
+              </div>
+              <h2 className="mt-3 font-app-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 {companyName}
               </h2>
-              <p className="mt-1 max-w-3xl text-xs font-semibold uppercase tracking-[0.1em] text-[var(--app-muted)]">
+              <p className="mt-1 max-w-3xl text-xs font-semibold uppercase tracking-[0.12em] text-blue-100/82">
                 {selectedScopeLabel}
               </p>
             </div>
@@ -585,10 +735,10 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                     key={action.href}
                     href={action.href}
                     className={[
-                      "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition",
+                      "inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-bold shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition",
                       action.primary
-                        ? "border border-[var(--app-accent-primary)] bg-[var(--app-accent-primary)] text-white hover:bg-[var(--app-link-hover)]"
-                        : "border border-[var(--app-accent-border-24)] bg-white text-[var(--app-accent-primary)] hover:border-[var(--app-accent-primary)]",
+                        ? "border border-blue-400 bg-blue-500 text-white hover:bg-blue-400"
+                        : "border border-white/18 bg-white/10 text-blue-50 hover:bg-white/16",
                     ].join(" ")}
                   >
                     <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -605,7 +755,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 type="button"
                 onClick={() => void loadDemoEnvironment()}
                 disabled={demoLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)] px-3 py-2 text-xs font-bold text-[var(--app-accent-primary)] shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition hover:border-[var(--app-accent-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md border border-white/18 bg-white/10 px-3 py-2 text-xs font-bold text-blue-50 shadow-[0_10px_24px_rgba(0,0,0,0.12)] transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Database className="h-3.5 w-3.5" />
                 {demoLoading ? "Loading demo..." : "Load Demo Environment"}
@@ -615,7 +765,7 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
                 type="button"
                 onClick={() => void load()}
                 disabled={loading}
-                className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-xs font-bold text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(44,58,86,0.04)] transition hover:border-[var(--app-accent-border-28)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md border border-white/18 bg-white px-3 py-2 text-xs font-bold text-slate-900 shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? "Refreshing..." : "Refresh"}
               </button>
@@ -623,66 +773,227 @@ export function DashboardOverviewShell({ workspace }: { workspace: DashboardData
           </div>
         </div>
 
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.42fr)]">
-          <div className="grid gap-3 border-b border-[var(--app-border-subtle)] p-4 sm:grid-cols-3 sm:p-5 xl:border-b-0 xl:border-r">
-            <MetricCard
-              label="Safety health"
-              value={overview.summary.safetyHealthScore}
-              hint="Composite prevention posture"
-              statusBand={healthCompositeBand}
-              className="min-h-[9.25rem]"
-            />
-            <MetricCard
-              label="Training readiness"
-              value={trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "Not enough data yet"}
-              valueMuted={!trainingMeasured}
-              statusBand={trainingSummaryBand}
-              hint={trainingMeasured ? "Training and credentials connected." : "Training or credential records needed."}
-              className="min-h-[9.25rem]"
-            />
-            <MetricCard
-              label="Document readiness"
-              value={documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "Not enough data yet"}
-              valueMuted={!documentRateMeasured}
-              statusBand={documentSummaryBand}
-              hint={documentRateMeasured ? "Document workflow connected." : "Document workflow records needed."}
-              className="min-h-[9.25rem]"
-            />
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="border-b border-[rgba(87,113,151,0.18)] p-4 sm:p-5 xl:border-b-0 xl:border-r">
+            <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_270px]">
+              <div className="overflow-hidden rounded-lg border border-[rgba(59,91,132,0.22)] bg-white shadow-[0_16px_34px_rgba(31,55,91,0.09)]">
+                <div className="flex flex-col gap-3 border-b border-[rgba(87,113,151,0.14)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
+                      Jobsite Risk Map
+                    </p>
+                    <h3 className="mt-0.5 font-app-display text-xl font-bold tracking-tight text-[var(--app-text-strong)]">
+                      {selectedJobsite ? formatTitleCase(selectedJobsite.name) || selectedJobsite.name : "Workspace Coverage"}
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge label={formatJobsiteMeta(selectedJobsite)} tone="info" />
+                    <StatusBadge
+                      label={`${Math.round(selectedRiskScore)} risk index`}
+                      trafficLight={selectedRiskBand}
+                    />
+                  </div>
+                </div>
+                <div className="relative min-h-[390px] overflow-hidden bg-[#dcecf4]">
+                  <div
+                    className="absolute inset-0 opacity-95"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(25deg, rgba(14,98,134,0.16) 0 1px, transparent 1px 84px), linear-gradient(115deg, rgba(9,69,118,0.13) 0 1px, transparent 1px 96px), radial-gradient(circle at 22% 78%, rgba(13,148,136,0.2), transparent 18%), radial-gradient(circle at 82% 20%, rgba(37,99,235,0.18), transparent 20%), linear-gradient(180deg, #e8f4fb 0%, #c9e5ef 100%)",
+                    }}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute left-[8%] top-[18%] h-[66%] w-[74%] rounded-[48%] border border-blue-900/8 bg-white/14 blur-[0.2px]" aria-hidden="true" />
+                  <div className="absolute left-[12%] top-[20%] h-[52%] w-[54%] rotate-[-8deg] rounded-[45%] border border-blue-900/10 bg-white/20" aria-hidden="true" />
+                  <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
+                    <span className="rounded-md border border-white/70 bg-white/86 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 shadow-sm">
+                      Live Operational View
+                    </span>
+                    <span className="rounded-md border border-white/70 bg-white/86 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 shadow-sm">
+                      {commandPins.length || activeJobsites} sites
+                    </span>
+                  </div>
+                  <div className="absolute inset-0">
+                    {commandPins.map((pin) => {
+                      const pinTone = commandToneClasses(pin.band);
+                      return (
+                        <div
+                          key={pin.id}
+                          className="absolute -translate-x-1/2 -translate-y-1/2"
+                          style={{ left: `${pin.position.left}%`, top: `${pin.position.top}%` }}
+                        >
+                          <div className="group relative">
+                            <span
+                              className={`absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full ${pinTone.bg} opacity-55 ring-1 ring-current/20 ${pinTone.text}`}
+                              aria-hidden="true"
+                            />
+                            <span
+                              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white ${pinTone.border} ${pinTone.text} ${pin.selected ? pinTone.glow : "shadow-[0_8px_18px_rgba(15,23,42,0.16)]"}`}
+                              aria-hidden="true"
+                            >
+                              <MapPin className="h-5 w-5 fill-current/12" />
+                            </span>
+                            {pin.selected ? (
+                              <div className="absolute left-8 top-5 w-52 rounded-lg border border-slate-200 bg-white/96 p-3 text-left shadow-[0_18px_34px_rgba(15,23,42,0.18)]">
+                                <p className="text-xs font-bold text-slate-950">{pin.name}</p>
+                                <p className="mt-1 text-[11px] leading-4 text-slate-500">{pin.meta}</p>
+                                <div className="mt-2 flex items-center justify-between rounded-md bg-slate-50 px-2 py-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Risk</span>
+                                  <span className={`font-app-display text-sm font-bold ${pinTone.text}`}>{Math.round(pin.score)}</span>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="absolute bottom-4 left-4 max-w-sm rounded-lg border border-white/72 bg-white/88 px-3 py-2 text-xs leading-relaxed text-slate-600 shadow-sm">
+                    Site pins are based on accessible workspace jobsites. Select a jobsite filter above to focus the command view.
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <div className={`rounded-lg border ${riskTone.border} ${riskTone.bg} p-4 shadow-[0_14px_30px_rgba(31,55,91,0.08)]`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Risk Beacon</p>
+                      <p className="mt-1 text-sm font-bold text-slate-950">
+                        {selectedJobsite ? formatTitleCase(selectedJobsite.name) || selectedJobsite.name : "Workspace"}
+                      </p>
+                    </div>
+                    <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white ${riskTone.border} ${riskTone.text}`}>
+                      <ShieldAlert className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <div className="mt-5 flex items-center justify-center">
+                    <div className={`relative flex h-40 w-40 items-center justify-center rounded-full border ${riskTone.border} bg-white shadow-inner`}>
+                      <span className={`absolute inset-3 rounded-full border border-dashed ${riskTone.border}`} aria-hidden="true" />
+                      <span className={`absolute inset-7 rounded-full ${riskTone.bg}`} aria-hidden="true" />
+                      <div className="relative text-center">
+                        <p className={`font-app-display text-5xl font-bold leading-none ${riskTone.text}`}>
+                          {Math.round(selectedRiskScore)}
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Risk Index</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs leading-relaxed text-slate-600">
+                    Beacon reflects jobsite risk ranking when available, then open high-risk and overdue control signals.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 2xl:grid-cols-1">
+                  <div className="rounded-lg border border-[rgba(59,91,132,0.18)] bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Open actions</p>
+                    <p className="font-app-display mt-1 text-3xl font-bold text-[var(--app-text-strong)]">
+                      {overview.correctiveActionStatus.open}
+                    </p>
+                    <p className="text-xs text-[var(--app-muted)]">{overview.correctiveActionStatus.overdue} overdue</p>
+                  </div>
+                  <div className="rounded-lg border border-[rgba(59,91,132,0.18)] bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Readiness</p>
+                    <p className="font-app-display mt-1 text-3xl font-bold text-[var(--app-text-strong)]">
+                      {trainingMeasured ? `${Math.round(overview.summary.trainingReadinessRate)}%` : "--"}
+                    </p>
+                    <p className="text-xs text-[var(--app-muted)]">Training compliance</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+              {commandMetrics.map((metric) => {
+                const Icon = metric.icon;
+                const tone = commandToneClasses(metric.band);
+                return (
+                  <div
+                    key={metric.id}
+                    className={`relative overflow-hidden rounded-lg border ${tone.border} bg-white px-4 py-3 shadow-[0_10px_22px_rgba(31,55,91,0.06)]`}
+                  >
+                    <span className={`absolute inset-x-0 top-0 h-1 ${tone.strip}`} aria-hidden="true" />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                          {metric.label}
+                        </p>
+                        <p className="font-app-display mt-1 truncate text-2xl font-bold text-[var(--app-text-strong)]">
+                          {metric.value}
+                        </p>
+                      </div>
+                      <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tone.bg} ${tone.text}`}>
+                        <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                      </span>
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[var(--app-muted)]">{metric.hint}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="p-4 sm:p-5">
+          <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f1f6ff_100%)] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-muted)]">
-                  Priority Queue
+                  Action Rail
                 </p>
                 <h3 className="mt-1 text-base font-bold tracking-tight text-[var(--app-text-strong)]">Clear These First</h3>
               </div>
               <StatusBadge label={dailyActions.length ? `${dailyActions.length} active` : "Clear"} tone={dailyActions.length ? "warning" : "success"} />
             </div>
             {dailyActions.length > 0 ? (
-              <div className="mt-4 divide-y divide-[var(--app-border-subtle)] overflow-hidden rounded-xl border border-[var(--app-border)] bg-white">
-                {dailyActions.map((action) => (
-                  <Link
-                    key={action.id}
-                    href={action.href}
-                    className="group block px-3 py-3 transition hover:bg-[var(--app-panel-soft)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[var(--app-text-strong)]">{action.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--app-muted)]">{action.detail}</p>
+              <div className="mt-4 grid gap-3">
+                {dailyActions.map((action, index) => {
+                  const actionTone =
+                    action.tone === "error" ? commandToneClasses("red") : action.tone === "warning" ? commandToneClasses("yellow") : commandToneClasses("green");
+                  return (
+                    <Link
+                      key={action.id}
+                      href={action.href}
+                      className={`group relative block overflow-hidden rounded-lg border ${actionTone.border} bg-white px-3 py-3 shadow-[0_10px_22px_rgba(31,55,91,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(31,55,91,0.1)]`}
+                    >
+                      <span className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${actionTone.strip}`} aria-hidden="true" />
+                      <div className="flex items-start gap-3 pl-2">
+                        <span className={`font-app-display flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${actionTone.bg} text-sm font-bold ${actionTone.text}`}>
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-[var(--app-text-strong)]">{action.title}</p>
+                            <StatusBadge label={action.meta} tone={action.tone} />
+                          </div>
+                          <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-[var(--app-muted)]">{action.detail}</p>
+                        </div>
                       </div>
-                      <StatusBadge label={action.meta} tone={action.tone} />
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
-              <p className="mt-4 rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-panel-soft)] px-3 py-3 text-sm text-[var(--app-muted)]">
+              <p className="mt-4 rounded-lg border border-[var(--app-border-subtle)] bg-white px-3 py-3 text-sm text-[var(--app-muted)]">
                 No high-priority daily actions are visible for this scope.
               </p>
             )}
+            <div className="mt-4 rounded-lg border border-[rgba(59,91,132,0.18)] bg-white p-3 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--app-muted)]">Control Coverage</p>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md bg-blue-50 px-2 py-2">
+                  <p className="font-app-display text-lg font-bold text-blue-700">{overview.summary.openHighRiskItems}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-700/78">High Risk</p>
+                </div>
+                <div className="rounded-md bg-emerald-50 px-2 py-2">
+                  <p className="font-app-display text-lg font-bold text-emerald-700">
+                    {documentRateMeasured ? `${Math.round(overview.summary.documentReadinessRate)}%` : "--"}
+                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700/78">Docs</p>
+                </div>
+                <div className="rounded-md bg-amber-50 px-2 py-2">
+                  <p className="font-app-display text-lg font-bold text-amber-700">{missingPermitsTotal}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700/78">Permits</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

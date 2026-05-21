@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { PredictiveRiskPayload } from "@/lib/predictiveRisk";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
+import type { ExplainableRecommendation } from "@/lib/leadershipTrust";
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -35,6 +36,20 @@ function behaviorTone(level?: string) {
   if (level === "Elevated") return "text-orange-600";
   if (level === "Moderate") return "text-amber-600";
   return "text-emerald-600";
+}
+
+function recommendationStatusTone(status?: string) {
+  if (status === "field_used" || status === "resolved") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "accepted" || status === "assigned") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (status === "dismissed") return "border-slate-200 bg-slate-50 text-slate-500";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function priorityTone(priority?: string) {
+  if (priority === "critical") return "text-red-700";
+  if (priority === "high") return "text-orange-700";
+  if (priority === "low") return "text-emerald-700";
+  return "text-amber-700";
 }
 
 function TrendChart({ points }: { points: PredictiveRiskPayload["trend"] }) {
@@ -280,6 +295,124 @@ function HumanBehaviorRiskPanel({ data, loading }: { data: PredictiveRiskPayload
   );
 }
 
+function RiskActionLoopPanel({
+  recommendations,
+  loading,
+  message,
+  onGenerate,
+  onUpdateStatus,
+}: {
+  recommendations: ExplainableRecommendation[];
+  loading?: boolean;
+  message?: string;
+  onGenerate?: () => void;
+  onUpdateStatus?: (id: string, status: "accepted" | "assigned" | "field_used" | "resolved" | "dismissed") => void;
+}) {
+  return (
+    <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-teal-700">AI Risk Action Loop</p>
+          <h2 className="mt-2 text-lg font-black text-[var(--app-text-strong)]">Supervisor action plan</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-muted)]">
+            Generate grounded recommendations from predictive risk, Risk Memory, company memory, and current work signals, then track whether leaders accepted and used them.
+          </p>
+        </div>
+        {onGenerate ? (
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[var(--app-accent-primary)] px-4 text-sm font-bold text-white transition hover:bg-[var(--app-link-hover)] disabled:opacity-50"
+          >
+            {loading ? "Generating..." : "Generate action plan"}
+          </button>
+        ) : null}
+      </div>
+
+      {message ? (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+          {message}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3">
+        {recommendations.map((recommendation) => (
+          <details
+            key={recommendation.id}
+            className="rounded-lg border border-[var(--app-border)] bg-slate-50/70 px-3 py-3"
+          >
+            <summary className="cursor-pointer list-none">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${recommendationStatusTone(recommendation.status)}`}>
+                      {(recommendation.status ?? "active").replace("_", " ")}
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${priorityTone(recommendation.priority)}`}>
+                      {recommendation.priority ?? "medium"} priority
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{recommendation.title}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--app-text)]">{recommendation.body}</p>
+                </div>
+                <span className="shrink-0 text-xs font-black text-[var(--app-accent-primary)]">
+                  {Math.round((recommendation.confidence ?? 0) * 100)}% confidence
+                </span>
+              </div>
+            </summary>
+            <div className="mt-3 border-t border-[var(--app-border)] pt-3">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Why this matters</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{recommendation.body}</p>
+              {recommendation.evidence ? <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">{recommendation.evidence}</p> : null}
+              {recommendation.evidenceRefs && recommendation.evidenceRefs.length > 0 ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {recommendation.evidenceRefs.slice(0, 4).map((ref) => (
+                    <Link
+                      key={ref.id}
+                      href={ref.href}
+                      className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2 text-xs transition hover:border-[var(--app-accent-surface-35)]"
+                    >
+                      <span className="font-bold text-[var(--app-text-strong)]">{ref.label}</span>
+                      <span className="mt-1 block text-[var(--app-muted)]">{ref.detail ?? ref.sourceModule}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["accepted", "assigned", "field_used", "resolved", "dismissed"] as const).map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => onUpdateStatus?.(recommendation.id, status)}
+                    disabled={loading || !onUpdateStatus}
+                    className="rounded-md border border-[var(--app-border)] bg-white px-2.5 py-1.5 text-xs font-bold text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)] disabled:opacity-50"
+                  >
+                    {status.replace("_", " ")}
+                  </button>
+                ))}
+                {recommendation.actionHref ? (
+                  <Link
+                    href={recommendation.actionHref}
+                    className="rounded-md border border-[var(--app-border)] bg-white px-2.5 py-1.5 text-xs font-bold text-[var(--app-accent-primary)] transition hover:bg-[var(--app-panel-soft)]"
+                  >
+                    Open target
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </details>
+        ))}
+        {recommendations.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[var(--app-border)] px-4 py-7 text-center text-sm text-[var(--app-muted)]">
+            No AI risk actions have been generated for this view yet.
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export function PredictiveModelView({
   data,
   loading,
@@ -289,6 +422,11 @@ export function PredictiveModelView({
   selectedJobsiteId,
   onJobsiteChange,
   onRefresh,
+  riskActionRecommendations = [],
+  riskActionLoading = false,
+  riskActionMessage = "",
+  onGenerateRiskActionPlan,
+  onUpdateRiskRecommendation,
 }: {
   data: PredictiveRiskPayload | null;
   loading: boolean;
@@ -298,6 +436,11 @@ export function PredictiveModelView({
   selectedJobsiteId?: string;
   onJobsiteChange?: (jobsiteId: string) => void;
   onRefresh?: () => void;
+  riskActionRecommendations?: ExplainableRecommendation[];
+  riskActionLoading?: boolean;
+  riskActionMessage?: string;
+  onGenerateRiskActionPlan?: () => void;
+  onUpdateRiskRecommendation?: (id: string, status: "accepted" | "assigned" | "field_used" | "resolved" | "dismissed") => void;
 }) {
   const locations = data?.locations ?? [];
   const drivers = data?.drivers ?? [];
@@ -411,6 +554,14 @@ export function PredictiveModelView({
         </div>
 
         <HumanBehaviorRiskPanel data={data} loading={loading} />
+
+        <RiskActionLoopPanel
+          recommendations={riskActionRecommendations}
+          loading={riskActionLoading}
+          message={riskActionMessage}
+          onGenerate={onGenerateRiskActionPlan}
+          onUpdateStatus={onUpdateRiskRecommendation}
+        />
 
         {!loading && !hasSignals ? (
           <div className="rounded-lg border border-dashed border-[var(--app-border)] bg-white px-5 py-8 text-center">

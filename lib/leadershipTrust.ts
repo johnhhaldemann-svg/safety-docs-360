@@ -46,13 +46,21 @@ export type ExplainableRecommendation = {
   body: string;
   confidence: number;
   created_at: string;
-  status?: "active" | "accepted" | "dismissed" | "needs_review";
+  status?: "active" | "accepted" | "assigned" | "field_used" | "resolved" | "dismissed" | "needs_review";
+  priority?: "low" | "medium" | "high" | "critical";
   ownerTarget?: string;
+  ownerUserId?: string | null;
+  dueAt?: string | null;
   sourceModule?: string;
   sourceId?: string | null;
   evidence?: string;
+  evidenceRefs?: LeadershipEvidenceRef[];
   businessImpact?: string;
   actionHref?: string;
+  acceptedAt?: string | null;
+  fieldUsedAt?: string | null;
+  resolvedAt?: string | null;
+  dismissedAt?: string | null;
 };
 
 function clampPercent(value: number) {
@@ -138,6 +146,15 @@ export function explainRecommendation(params: {
   sourceModule?: string | null;
   sourceId?: string | null;
   actionHref?: string | null;
+  status?: ExplainableRecommendation["status"] | null;
+  priority?: ExplainableRecommendation["priority"] | null;
+  ownerUserId?: string | null;
+  dueAt?: string | null;
+  evidenceRefs?: LeadershipEvidenceRef[];
+  acceptedAt?: string | null;
+  fieldUsedAt?: string | null;
+  resolvedAt?: string | null;
+  dismissedAt?: string | null;
 }) {
   const confidencePercent = clampPercent(params.confidence * 100);
   const kindLabel = params.kind.replace(/[_-]+/g, " ");
@@ -149,10 +166,14 @@ export function explainRecommendation(params: {
     body: params.body,
     confidence: params.confidence,
     created_at: params.created_at,
-    status: "active",
+    status: params.status ?? "active",
+    priority: params.priority ?? "medium",
     ownerTarget: "Safety leadership",
+    ownerUserId: params.ownerUserId ?? null,
+    dueAt: params.dueAt ?? null,
     sourceModule,
     sourceId: params.sourceId ?? null,
+    evidenceRefs: params.evidenceRefs ?? [],
     evidence:
       params.evidence ||
       `Generated from ${kindLabel} signals with ${confidencePercent}% confidence. Review the source workspace records before assigning work.`,
@@ -163,5 +184,9 @@ export function explainRecommendation(params: {
           ? "Moderate confidence recommendation; useful for triage with supervisor review."
           : "Low confidence recommendation; treat as a prompt for review, not a decision.",
     actionHref: params.actionHref || "/analytics?tab=risk",
+    acceptedAt: params.acceptedAt ?? null,
+    fieldUsedAt: params.fieldUsedAt ?? null,
+    resolvedAt: params.resolvedAt ?? null,
+    dismissedAt: params.dismissedAt ?? null,
   } satisfies ExplainableRecommendation;
 }
