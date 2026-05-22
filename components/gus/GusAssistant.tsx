@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardList, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { GusCompanionStage } from "@/components/gus/GusCompanionStage";
 import { GusConversation } from "@/components/gus/GusConversation";
+import { GusCoachNextStep } from "@/components/gus/GusCoachNextStep";
 import { GusEmailNotificationControls } from "@/components/gus/GusEmailNotificationControls";
 import { GusPlanningMode } from "@/components/gus/GusPlanningMode";
 import { GusSmartBot } from "@/components/gus/GusSmartBot";
 import { GusVoiceControls } from "@/components/gus/GusVoiceControls";
+import { gusFeatureFlags, gusStorageKeys } from "@/components/gus/gusConfig";
 import { useGusAssistant } from "@/components/gus/useGusAssistant";
+import { buildGusCoachDirective, updateGusCoachLoopState } from "@/lib/gus/gusCoachLoop";
 import type { GusContext } from "@/lib/gus/gusContext";
+import type { GusCoachLoopState, GusMessage } from "@/lib/gus/gusTypes";
 
 type GusAssistantProps = {
   currentPage?: string;
@@ -21,8 +25,46 @@ type GusAssistantProps = {
   liveContext?: Partial<GusContext>;
 };
 
+function readCoachLoopState(): GusCoachLoopState {
+  if (typeof window === "undefined") return { unresolvedDirectives: [] };
+  try {
+    const raw = window.localStorage.getItem(gusStorageKeys.activeCoachItems);
+    if (!raw) return { unresolvedDirectives: [] };
+    const parsed = JSON.parse(raw) as Partial<GusCoachLoopState>;
+    return {
+      activeDirective: parsed.activeDirective,
+      unresolvedDirectives: Array.isArray(parsed.unresolvedDirectives) ? parsed.unresolvedDirectives.slice(0, 5) : [],
+      lastFollowUpAt: typeof parsed.lastFollowUpAt === "string" ? parsed.lastFollowUpAt : undefined,
+    };
+  } catch {
+    return { unresolvedDirectives: [] };
+  }
+}
+
+function writeCoachLoopState(state: GusCoachLoopState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(gusStorageKeys.activeCoachItems, JSON.stringify(state));
+  } catch {
+    // Coach memory is session/local convenience only.
+  }
+}
+
+function writeCoachFollowUpTime() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(gusStorageKeys.lastCoachFollowupAt, new Date().toISOString());
+  } catch {
+    // Coach follow-up persistence should fail quietly.
+  }
+}
+
 export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId, liveContext }: GusAssistantProps) {
   const [planningOpen, setPlanningOpen] = useState(false);
+  const [queuedPrompt, setQueuedPrompt] = useState<{ id: number; prompt: string } | null>(null);
+  const [conversationVoiceMessage, setConversationVoiceMessage] = useState<GusMessage | null>(null);
+  const [coachLoopState, setCoachLoopState] = useState<GusCoachLoopState>(readCoachLoopState);
+  const lastCoachDirectiveIdRef = useRef("");
   const {
     open,
     pathname,
@@ -39,6 +81,36 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
     disableForToday,
     recordFeedback,
   } = useGusAssistant({ currentPage, route, companyId, jobsiteId, userId, liveContext });
+  const coachDirective = buildGusCoachDirective(decision, context);
+  const activeCoachDirective = coachLoopState.activeDirective ?? coachDirective;
+  const voiceMessage = conversationVoiceMessage ?? message;
+
+  useEffect(() => {
+    if (!gusFeatureFlags.gusActiveCoachLoopEnabled) return;
+    if (lastCoachDirectiveIdRef.current === coachDirective.directiveId) return;
+    lastCoachDirectiveIdRef.current = coachDirective.directiveId;
+    setCoachLoopState((current) => {
+      const next = updateGusCoachLoopState(current, coachDirective);
+      writeCoachLoopState(next);
+      return next;
+    });
+  }, [coachDirective]);
+
+  function queueCoachPrompt(prompt: string) {
+    writeCoachFollowUpTime();
+    setQueuedPrompt({ id: Date.now(), prompt });
+  }
+
+  function handleConversationReply(answer: string) {
+    setConversationVoiceMessage({
+      messageId: `gus-conversation-reply-${Date.now()}`,
+      category: "voice",
+      priority: 4,
+      message: answer,
+      spokenText: answer,
+      shouldSpeak: true,
+    });
+  }
 
   if (!isVisible) {
     return null;
@@ -80,7 +152,7 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
               Gus Smart AI Safety Bot
             </p>
             <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
-              {decision.kind === "warning" ? "Review signal detected. Human review required." : "Draft guidance only. Human review required."}
+              {decision.kind === "warning" ? "Review needed. Human review required." : "Draft guidance only. Human review required."}
             </p>
           </div>
           <button
@@ -101,6 +173,15 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
             onDismiss={dismissAssistant}
             compact
           />
+
+          {gusFeatureFlags.gusActiveCoachLoopEnabled ? (
+            <GusCoachNextStep
+              directive={activeCoachDirective}
+              unresolvedCount={coachLoopState.unresolvedDirectives.length}
+              onFollowUp={queueCoachPrompt}
+              onPlan={() => setPlanningOpen(true)}
+            />
+          ) : null}
 
           <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
             <p className="text-sm leading-5 text-[var(--app-text-strong)]">{message.message}</p>
@@ -124,9 +205,16 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
             ) : null}
           </div>
 
-          <GusConversation context={context} decision={decision} initialMessage={message.message} />
+          <GusConversation
+            context={context}
+            decision={decision}
+            initialMessage={message.message}
+            queuedPrompt={queuedPrompt}
+            onQueuedPromptHandled={(id) => setQueuedPrompt((current) => (current?.id === id ? null : current))}
+            onAssistantReply={handleConversationReply}
+          />
 
-          <GusVoiceControls message={message} route={pathname} assistantOpen={open} />
+          <GusVoiceControls message={voiceMessage} route={pathname} assistantOpen={open} />
 
           <GusEmailNotificationControls message={message} decision={decision} context={context} />
 

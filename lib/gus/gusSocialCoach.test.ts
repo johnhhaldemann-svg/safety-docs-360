@@ -23,7 +23,7 @@ const baseDecision: GusDecision = {
     messageId: "test-message",
     category: "safety_tip",
     priority: 3,
-    message: "Review open safety signals before the next shift.",
+    message: "Review open safety items before the next shift.",
     reason: "Draft guidance only.",
     shouldSpeak: true,
   },
@@ -79,6 +79,31 @@ describe("Gus social coach", () => {
 
     expect(message.message).not.toContain("Tiny joke");
     expect(message.message).toMatch(/review|reviewer|controls/i);
+  });
+
+  it("avoids awkward signal phrasing in autonomous warning lines", () => {
+    const warning: GusDecision = {
+      ...baseDecision,
+      kind: "warning",
+      attentionLevel: "critical",
+      message: {
+        ...baseDecision.message,
+        priority: 1,
+        category: "warning",
+        message: "Severe risk is showing. Human review is required.",
+      },
+    };
+    const bannedPhrases = /Strong signal on my side|Safety signal on deck|I'm reading the room|This needs eyes on it now/i;
+
+    for (const seed of ["critical-seed-1", "critical-seed-2", "critical-seed-3", "critical-seed-4"]) {
+      const message = createGusAutonomousMessage(warning, context, seed);
+      const proactive = createGusProactiveConversationLine(warning, context, seed);
+
+      expect(message.message).not.toMatch(bannedPhrases);
+      expect(message.spokenText).not.toMatch(bannedPhrases);
+      expect(proactive).not.toMatch(bannedPhrases);
+      expect(proactive).not.toMatch(/approve|submit|release/i);
+    }
   });
 
   it("adds proactive conversation lines that keep Gus social and safety-focused", () => {

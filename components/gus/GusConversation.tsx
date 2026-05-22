@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { RefreshCw, Send, Trash2 } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Mic, MicOff, RefreshCw, Send, Trash2 } from "lucide-react";
+import { useGusSpeechInput } from "@/components/gus/useGusSpeechInput";
 import type { GusContext } from "@/lib/gus/gusContext";
 import { createGusProactiveConversationLine } from "@/lib/gus/gusSocialCoach";
 import type {
@@ -15,6 +16,9 @@ type GusConversationProps = {
   context: GusContext;
   decision: GusDecision;
   initialMessage: string;
+  queuedPrompt?: { id: number; prompt: string } | null;
+  onQueuedPromptHandled?: (id: number) => void;
+  onAssistantReply?: (answer: string) => void;
 };
 
 function makeTurn(role: GusConversationTurn["role"], content: string): GusConversationTurn {
@@ -46,7 +50,14 @@ function isDuplicateOrEcho(proactive: string, currentMessage: string) {
   return proactiveText === currentText || proactiveText.includes(currentText) || currentText.includes(proactiveText);
 }
 
-export function GusConversation({ context, decision, initialMessage }: GusConversationProps) {
+export function GusConversation({
+  context,
+  decision,
+  initialMessage,
+  queuedPrompt,
+  onQueuedPromptHandled,
+  onAssistantReply,
+}: GusConversationProps) {
   const proactiveDecisionRef = useRef("");
   const [turns, setTurns] = useState<GusConversationTurn[]>([]);
   const [draft, setDraft] = useState("");
@@ -76,7 +87,7 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
     return () => window.clearTimeout(timer);
   }, [context, decision, initialMessage]);
 
-  async function sendMessage(message: string) {
+  const sendMessage = useCallback(async (message: string) => {
     const clean = message.replace(/\s+/g, " ").trim();
     if (!clean || loading) return;
 
@@ -109,13 +120,27 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
       }
 
       setSafetyPreferences(payload.safetyPreferences ?? safetyPreferences);
+      onAssistantReply?.(payload.answer as string);
       setTurns((current) => [...current, makeTurn("assistant", payload.answer as string)].slice(-10));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Gus could not answer that yet.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [context, decision, loading, onAssistantReply, safetyPreferences, turns]);
+
+  const speechInput = useGusSpeechInput((transcript) => {
+    void sendMessage(transcript);
+  });
+
+  useEffect(() => {
+    if (!queuedPrompt?.prompt) return;
+    const timer = window.setTimeout(() => {
+      void sendMessage(queuedPrompt.prompt);
+      onQueuedPromptHandled?.(queuedPrompt.id);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [onQueuedPromptHandled, queuedPrompt, sendMessage]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -191,18 +216,46 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
         </div>
       ) : null}
 
+      {speechInput.errorMessage || speechInput.interimTranscript ? (
+        <p className="mx-3 mb-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs font-semibold text-[var(--app-muted)]">
+          {speechInput.interimTranscript || speechInput.errorMessage}
+        </p>
+      ) : null}
+
       <form onSubmit={submit} className="flex gap-2 border-t border-[var(--app-border)] p-3">
         <label className="sr-only" htmlFor="gus-conversation-input">
           Message Gus
         </label>
         <input
           id="gus-conversation-input"
-          value={draft}
+          value={speechInput.interimTranscript || draft}
           onChange={(event) => setDraft(event.currentTarget.value)}
-          placeholder="Ask Gus a safety question..."
+          placeholder={speechInput.isListening ? "Listening to you..." : "Ask Gus a safety question..."}
           className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--app-border)] bg-white px-3 text-sm text-[var(--app-text-strong)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-ring)]"
-          disabled={loading}
+          disabled={loading || speechInput.isListening}
         />
+        {speechInput.enabled ? (
+          <button
+            type="button"
+            onClick={speechInput.toggleListening}
+            disabled={loading || speechInput.status === "unsupported" || speechInput.status === "disabled"}
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              speechInput.isListening
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-[var(--app-border)] bg-white text-[var(--app-text-strong)] hover:bg-[var(--app-panel-soft)]"
+            }`}
+            aria-label={speechInput.isListening ? "Stop talking to Gus" : "Talk to Gus"}
+            title={
+              speechInput.status === "unsupported"
+                ? "Mic input is unavailable in this browser"
+                : speechInput.isListening
+                  ? "Stop listening"
+                  : "Talk to Gus"
+            }
+          >
+            {speechInput.isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+        ) : null}
         <button
           type="submit"
           disabled={loading || !draft.trim()}

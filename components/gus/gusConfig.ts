@@ -36,12 +36,20 @@ export const gusStorageKeys = {
   voiceDisabledUntil: "gus_voice_disabled_until",
   textOnlyMode: "gus_text_only_mode",
   recentSocialLineIds: "gus_recent_social_line_ids",
+  lastSitrepAt: "gus_last_sitrep_at",
+  lastSitrepId: "gus_last_sitrep_id",
+  activeCoachItems: "gus_active_coach_items",
+  lastCoachFollowupAt: "gus_last_coach_followup_at",
+  lastMicTranscript: "gus_last_mic_transcript",
 } as const;
 
 export const gusFeatureFlags = {
   gusSmartBotEnabled: true,
   gusConversationalCoachEnabled: true,
   gusAutonomousSocialCoachEnabled: true,
+  gusSitrepEnabled: true,
+  gusActiveCoachLoopEnabled: true,
+  gusMicInputEnabled: true,
   gusRealtimeVoiceEnabled: false,
 } as const;
 
@@ -53,6 +61,11 @@ export const gusPopupTiming = {
   activeTypingWindowMs: 2_500,
   warningDelayMs: 800,
   maxPopupsPerSession: 6,
+} as const;
+
+export const gusSitrepTiming = {
+  sitrepIntervalMs: 10 * 60_000,
+  sitrepCriticalVoiceOnly: true,
 } as const;
 
 export function gusRouteMatches(pathname: string, route: string) {

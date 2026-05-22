@@ -73,6 +73,35 @@ export type GusCompanionAction = {
   requiresConfirmation?: boolean;
 };
 
+export type GusCoachPriority = "low" | "medium" | "high" | "critical";
+
+export type GusCoachFollowUp = {
+  followUpId: string;
+  prompt: string;
+  actionLabel: string;
+};
+
+export type GusCoachDirective = {
+  directiveId: string;
+  priority: GusCoachPriority;
+  title: string;
+  instruction: string;
+  whyItMatters: string;
+  recommendedActionLabel: string;
+  recommendedActionHref?: string;
+  recommendedActionKey: string;
+  followUps: GusCoachFollowUp[];
+  sourceDecisionId: string;
+  unresolved: boolean;
+  humanReviewRequired: true;
+};
+
+export type GusCoachLoopState = {
+  activeDirective?: GusCoachDirective;
+  unresolvedDirectives: GusCoachDirective[];
+  lastFollowUpAt?: string;
+};
+
 export type GusDecision = {
   decisionId: string;
   kind: GusDecisionKind;

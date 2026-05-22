@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   gusPopupTiming,
   gusRouteMatches,
+  gusSitrepTiming,
   gusStorageKeys,
   gusFeatureFlags,
   isGusAllowedRoute,
@@ -13,6 +14,7 @@ import {
 import { gusFallbackMessage, gusRouteMessages } from "@/components/gus/gusMessages";
 import { decideGusBehavior } from "@/lib/gus/gusBrain";
 import { createGusAutonomousMessage, getGusSocialLineId } from "@/lib/gus/gusSocialCoach";
+import { buildGusSitrepMessage, buildGusSteadySitrepMessage } from "@/lib/gus/gusSitrep";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusMessage, GusMessageCategory } from "@/lib/gus/gusTypes";
 
@@ -167,6 +169,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   const typingUntilRef = useRef(0);
   const popupsThisSessionRef = useRef(0);
   const popupTimerRef = useRef<number | null>(null);
+  const sitrepTimerRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [disabledToday, setDisabledToday] = useState(initialSuppressed);
@@ -206,6 +209,13 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     writeStorageValue(gusStorageKeys.lastMessageId, shownMessage.messageId);
     rememberSocialLineId(shownMessage);
   }, []);
+
+  const rememberSitrepMessage = useCallback((shownMessage: GusMessage) => {
+    const now = new Date().toISOString();
+    writeStorageValue(gusStorageKeys.lastSitrepAt, now);
+    writeStorageValue(gusStorageKeys.lastSitrepId, shownMessage.messageId);
+    rememberShownMessage(shownMessage);
+  }, [rememberShownMessage]);
 
   const canAutoOpen = useCallback(
     (candidate: GusMessage, allowTypingOverride: boolean) => {
@@ -309,6 +319,74 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     rememberShownMessage,
     userId,
     warningShouldOpenImmediately,
+  ]);
+
+  useEffect(() => {
+    if (sitrepTimerRef.current) {
+      window.clearInterval(sitrepTimerRef.current);
+      sitrepTimerRef.current = null;
+    }
+
+    if (!gusFeatureFlags.gusSitrepEnabled || !isVisible || open) return undefined;
+
+    sitrepTimerRef.current = window.setInterval(() => {
+      const nextContext: GusContext = {
+        companyId: companyId ?? undefined,
+        jobsiteId: jobsiteId ?? undefined,
+        userId: userId ?? undefined,
+        ...liveContext,
+        currentPage,
+        route: pathname,
+      };
+      const baseSitrepMessage = buildGusSitrepMessage(nextContext);
+      if (!baseSitrepMessage) return;
+
+      const now = Date.now();
+      const lastSitrepAt = readStorageTimeMs(gusStorageKeys.lastSitrepAt);
+      const lastSitrepId = readStorageValue(gusStorageKeys.lastSitrepId);
+      const sitrepMessage =
+        lastSitrepId === baseSitrepMessage.messageId
+          ? buildGusSteadySitrepMessage(baseSitrepMessage)
+          : baseSitrepMessage;
+      const isCriticalSitrep = sitrepMessage.priority <= 1;
+
+      if (lastSitrepId === sitrepMessage.messageId) return;
+      if (lastSitrepAt && now - lastSitrepAt < gusSitrepTiming.sitrepIntervalMs) return;
+      if (now < typingUntilRef.current) return;
+      if (hasOpenModal()) return;
+
+      if (!isCriticalSitrep) {
+        const lastShownAt = readStorageTimeMs(gusStorageKeys.lastShownAt);
+        const lastDismissedAt = readStorageTimeMs(gusStorageKeys.lastDismissedAt);
+        if (lastShownAt && now - lastShownAt < gusPopupTiming.globalCooldownMs) return;
+        if (lastDismissedAt && now - lastDismissedAt < gusPopupTiming.dismissedCooldownMs) return;
+      }
+
+      const safeSitrep = {
+        ...sitrepMessage,
+        shouldSpeak: gusSitrepTiming.sitrepCriticalVoiceOnly ? sitrepMessage.priority <= 2 : sitrepMessage.shouldSpeak,
+      };
+      setActiveMessage(safeSitrep);
+      rememberSitrepMessage(safeSitrep);
+      setOpen(true);
+    }, gusSitrepTiming.sitrepIntervalMs);
+
+    return () => {
+      if (sitrepTimerRef.current) {
+        window.clearInterval(sitrepTimerRef.current);
+        sitrepTimerRef.current = null;
+      }
+    };
+  }, [
+    companyId,
+    currentPage,
+    isVisible,
+    jobsiteId,
+    liveContext,
+    open,
+    pathname,
+    rememberSitrepMessage,
+    userId,
   ]);
 
   function openAssistant() {

@@ -60,20 +60,20 @@ const criticalVariants: readonly GusLineVariant[] = [
   {
     variantId: "critical-review",
     message: ({ actionLabel, baseMessage }) =>
-      `I'm going to speak up here: ${baseMessage.message} The next step is immediate human safety review${actionLabel ? ` and ${actionLabel.toLowerCase()}` : ""}.`,
-    spokenPrefix: "I'm going to speak up here.",
+      `I'm flagging this for review: ${baseMessage.message} The next step is immediate human safety review${actionLabel ? ` and ${actionLabel.toLowerCase()}` : ""}.`,
+    spokenPrefix: "I'm flagging this for review.",
   },
   {
     variantId: "critical-pause",
     message: ({ baseMessage }) =>
-      `Strong signal on my side: ${baseMessage.message} Pause long enough for the right reviewer to verify the controls.`,
-    spokenPrefix: "Strong signal on my side.",
+      `This needs human safety review before work moves forward: ${baseMessage.message} Pause for the right reviewer to verify the controls.`,
+    spokenPrefix: "This needs human safety review.",
   },
   {
     variantId: "critical-controls",
     message: ({ baseMessage }) =>
-      `This needs eyes on it now: ${baseMessage.message} I can help organize the review items, but I cannot clear the work.`,
-    spokenPrefix: "This needs eyes on it now.",
+      `Here's what needs attention: ${baseMessage.message} I can help organize the review items, but a human reviewer has to make the call.`,
+    spokenPrefix: "Here's what needs attention.",
   },
 ];
 
@@ -81,8 +81,8 @@ const warningVariants: readonly GusLineVariant[] = [
   {
     variantId: "warning-heads-up",
     message: ({ baseMessage }) =>
-      `Heads up from Gus: ${baseMessage.message} I recommend reviewing this before the work plan moves forward.`,
-    spokenPrefix: "Heads up from Gus.",
+      `Heads up: ${baseMessage.message} I recommend reviewing this before the work plan moves forward.`,
+    spokenPrefix: "Heads up.",
   },
   {
     variantId: "warning-pattern",
@@ -93,8 +93,8 @@ const warningVariants: readonly GusLineVariant[] = [
   {
     variantId: "warning-next-step",
     message: ({ actionLabel, baseMessage }) =>
-      `Safety signal on deck: ${baseMessage.message} ${actionLabel ? `${actionLabel} is the practical next step.` : "The practical next step is human review."}`,
-    spokenPrefix: "Safety signal on deck.",
+      `Let's review this before work moves forward: ${baseMessage.message} ${actionLabel ? `${actionLabel} is the practical next step.` : "The practical next step is human review."}`,
+    spokenPrefix: "Let's review this.",
   },
 ];
 
@@ -123,14 +123,14 @@ const socialVariants: readonly GusLineVariant[] = [
   {
     variantId: "social-watch",
     message: ({ baseMessage, pageName }) =>
-      `Quick check-in from Gus: I'm watching ${pageName} for safety signals. ${baseMessage.message}`,
+      `Quick check-in from Gus: I'm watching ${pageName} for safety items that need attention. ${baseMessage.message}`,
     spokenPrefix: "Quick check-in from Gus.",
   },
   {
     variantId: "social-read",
     message: ({ baseMessage, pageName }) =>
-      `I'm reading the room on ${pageName}: ${baseMessage.message} If the data shifts, I'll call out the review step.`,
-    spokenPrefix: "I'm reading the room.",
+      `I'm checking ${pageName}: ${baseMessage.message} If the data shifts, I'll call out the review step.`,
+    spokenPrefix: "I'm checking this page.",
   },
   {
     variantId: "social-coach",
@@ -246,11 +246,11 @@ export function createGusProactiveConversationLine(decision: GusDecision, contex
   const autonomous = createGusAutonomousMessage(decision, context, seed);
 
   if (decision.attentionLevel === "critical") {
-    return `${autonomous.message} I cannot approve or release the work, but I can help organize what needs review.`;
+    return `${autonomous.message} I can help organize what needs review, but a human reviewer has to make the call.`;
   }
 
   if (decision.attentionLevel === "high" || decision.kind === "warning") {
-    return `${autonomous.message} ${signals.length > 0 ? `The signals I see are ${signals.join(" and ")}.` : ""}`;
+    return `${autonomous.message} ${signals.length > 0 ? `I'm watching ${signals.join(" and ")}.` : ""}`;
   }
 
   if (decision.kind === "planning_offer") {
