@@ -5,6 +5,7 @@ export const GUS_TTS_MODEL = "gpt-4o-mini-tts";
 export const GUS_DEFAULT_VOICE = "marin";
 export const GUS_DEFAULT_SPEECH_FORMAT = "mp3";
 export const GUS_MAX_SPEECH_CHARS = 220;
+export const GUS_DEFAULT_SPEECH_BASE_URL = "https://api.openai.com/v1";
 
 export const GUS_TTS_VOICES = [
   "alloy",
@@ -27,6 +28,13 @@ export const GUS_SPEECH_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"] a
 export type GusTtsVoice = (typeof GUS_TTS_VOICES)[number];
 export type GusSpeechFormat = (typeof GUS_SPEECH_FORMATS)[number];
 
+export type GusSpeechApiConfig = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  unavailableReason?: string;
+};
+
 export type GusVoiceSafetyInput = {
   route: string;
   message: Pick<GusMessage, "category" | "priority" | "actionHref" | "shouldSpeak">;
@@ -38,6 +46,58 @@ export type GusVoiceSafetyInput = {
 
 function asTrimmed(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanEnvValue(value: unknown) {
+  const trimmed = asTrimmed(value);
+  if (!trimmed) return "";
+  return trimmed.replace(/^["']|["']$/g, "").trim();
+}
+
+function isVercelAiGatewayBaseUrl(value: string) {
+  return value.toLowerCase().includes("ai-gateway.vercel.sh");
+}
+
+export function resolveGusSpeechApiConfig(
+  env: Record<string, string | undefined> = process.env,
+): GusSpeechApiConfig {
+  const ttsApiKey = cleanEnvValue(env.OPENAI_TTS_API_KEY);
+  const defaultApiKey = cleanEnvValue(env.OPENAI_API_KEY);
+  const requestedBaseUrl = cleanEnvValue(env.OPENAI_TTS_BASE_URL || env.OPENAI_BASE_URL);
+  const model = cleanEnvValue(env.OPENAI_TTS_MODEL) || GUS_TTS_MODEL;
+
+  if (ttsApiKey) {
+    return {
+      apiKey: ttsApiKey,
+      baseUrl: (cleanEnvValue(env.OPENAI_TTS_BASE_URL) || GUS_DEFAULT_SPEECH_BASE_URL).replace(/\/$/, ""),
+      model,
+    };
+  }
+
+  if (!defaultApiKey) {
+    return {
+      apiKey: "",
+      baseUrl: GUS_DEFAULT_SPEECH_BASE_URL,
+      model,
+      unavailableReason: "OPENAI_API_KEY is not configured.",
+    };
+  }
+
+  if (defaultApiKey.startsWith("vck_") || isVercelAiGatewayBaseUrl(requestedBaseUrl)) {
+    return {
+      apiKey: "",
+      baseUrl: GUS_DEFAULT_SPEECH_BASE_URL,
+      model,
+      unavailableReason:
+        "Gus speech needs an OpenAI API key for the audio speech endpoint. Set OPENAI_TTS_API_KEY or use an OpenAI OPENAI_API_KEY.",
+    };
+  }
+
+  return {
+    apiKey: defaultApiKey,
+    baseUrl: (requestedBaseUrl || GUS_DEFAULT_SPEECH_BASE_URL).replace(/\/$/, ""),
+    model,
+  };
 }
 
 export function normalizeGusTtsVoice(value: unknown): GusTtsVoice {

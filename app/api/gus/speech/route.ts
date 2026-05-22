@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { getAiApiBaseUrl, resolveAiModelId } from "@/lib/ai/platform";
 import {
-  GUS_TTS_MODEL,
   gusSpeechContentType,
   normalizeGusSpeechFormat,
   normalizeGusSpeechSpeed,
   normalizeGusTtsVoice,
+  resolveGusSpeechApiConfig,
   sanitizeGusSpeechText,
 } from "@/lib/gus/gusVoice";
 import { authorizeRequest } from "@/lib/rbac";
@@ -30,22 +29,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Speech text is required after safety cleanup." }, { status: 400 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENAI_API_KEY is not configured." }, { status: 503 });
+  const speechConfig = resolveGusSpeechApiConfig();
+  if (!speechConfig.apiKey) {
+    return NextResponse.json(
+      {
+        error: speechConfig.unavailableReason ?? "Gus speech is not configured.",
+      },
+      { status: 503 },
+    );
   }
 
   const voice = normalizeGusTtsVoice(body.voice);
   const responseFormat = normalizeGusSpeechFormat(body.format);
   const speed = normalizeGusSpeechSpeed(body.speed);
-  const upstream = await fetch(`${getAiApiBaseUrl()}/audio/speech`, {
+  const upstream = await fetch(`${speechConfig.baseUrl}/audio/speech`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${speechConfig.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: resolveAiModelId(GUS_TTS_MODEL),
+      model: speechConfig.model,
       input,
       voice,
       speed,

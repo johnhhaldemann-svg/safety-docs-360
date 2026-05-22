@@ -30,6 +30,10 @@ describe("Gus speech API", () => {
       permissionMap: {},
     });
     vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("OPENAI_BASE_URL", "");
+    vi.stubEnv("OPENAI_TTS_API_KEY", "");
+    vi.stubEnv("OPENAI_TTS_BASE_URL", "");
+    vi.stubEnv("OPENAI_TTS_MODEL", "");
   });
 
   it("keeps OPENAI_API_KEY server-side and returns audio", async () => {
@@ -74,5 +78,43 @@ describe("Gus speech API", () => {
 
     expect(response.status).toBe(503);
     expect(body.error).toContain("OPENAI_API_KEY");
+  });
+
+  it("does not send speech requests to Vercel AI Gateway", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "vck_test_gateway_key");
+    vi.stubEnv("OPENAI_BASE_URL", "https://ai-gateway.vercel.sh/v1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = (await POST(speechRequest({ text: "Hello", voice: "marin", speed: 1, format: "mp3" }))) as Response;
+    const body = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(503);
+    expect(body.error).toContain("OPENAI_TTS_API_KEY");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses a dedicated OpenAI speech key when chat uses AI Gateway", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "vck_test_gateway_key");
+    vi.stubEnv("OPENAI_BASE_URL", "https://ai-gateway.vercel.sh/v1");
+    vi.stubEnv("OPENAI_TTS_API_KEY", "sk-test-tts");
+
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      expect(url).toBe("https://api.openai.com/v1/audio/speech");
+      expect(init.headers).toMatchObject({
+        Authorization: "Bearer sk-test-tts",
+      });
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = (await POST(speechRequest({ text: "Hello", voice: "marin", speed: 1, format: "mp3" }))) as Response;
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

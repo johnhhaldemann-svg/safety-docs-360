@@ -189,12 +189,15 @@ export function parseGusConversationRequest(input: unknown):
   const history: GusConversationTurn[] = Array.isArray(body.history)
     ? body.history
         .filter((turn): turn is Record<string, unknown> => Boolean(turn) && typeof turn === "object" && !Array.isArray(turn))
-        .map((turn) => ({
-          id: cleanText(turn.id, 80) || undefined,
-          role: turn.role === "assistant" ? "assistant" : "user",
-          content: cleanText(turn.content, 1_200),
-          createdAt: cleanText(turn.createdAt, 80) || undefined,
-        }))
+        .map((turn): GusConversationTurn => {
+          const role: GusConversationTurn["role"] = turn.role === "assistant" ? "assistant" : "user";
+          return {
+            id: cleanText(turn.id, 80) || undefined,
+            role,
+            content: cleanText(turn.content, 1_200),
+            createdAt: cleanText(turn.createdAt, 80) || undefined,
+          };
+        })
         .filter((turn) => turn.content)
         .slice(-MAX_HISTORY_TURNS)
     : [];

@@ -88,6 +88,9 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
   const stopAudio = useCallback(() => {
     audioRef.current?.pause();
     audioRef.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
@@ -118,6 +121,20 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
 
       setStatus("loading");
       stopAudio();
+      const speakWithBrowserVoice = () => {
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
+        const utterance = new SpeechSynthesisUtterance(cleanedText);
+        utterance.rate = 0.95;
+        utterance.pitch = 1;
+        utterance.onend = () => setStatus("idle");
+        utterance.onerror = () => setStatus("error");
+        setLastSpokenText(cleanedText);
+        setStatus("playing");
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        return true;
+      };
+
       try {
         const response = await fetch("/api/gus/speech", {
           method: "POST",
@@ -129,7 +146,10 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
             format: "mp3",
           }),
         });
-        if (!response.ok) throw new Error("Failed to generate Gus speech.");
+        if (!response.ok) {
+          if (speakWithBrowserVoice()) return;
+          throw new Error("Failed to generate Gus speech.");
+        }
 
         const audioBlob = await response.blob();
         const objectUrl = URL.createObjectURL(audioBlob);
@@ -142,6 +162,7 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
         setStatus("playing");
         await audio.play();
       } catch {
+        if (speakWithBrowserVoice()) return;
         setStatus("error");
       }
     },

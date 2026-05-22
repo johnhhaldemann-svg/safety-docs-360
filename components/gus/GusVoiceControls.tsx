@@ -76,7 +76,7 @@ export function GusVoiceControls({ message, route, assistantOpen }: GusVoiceCont
               ? "Voice is unavailable right now."
               : voice.textOnlyMode
                 ? "Text-only mode is on."
-                : "AI-generated Gus voice is optional."}
+                : "Gus voice is optional and opt-in."}
       </p>
     </div>
   );

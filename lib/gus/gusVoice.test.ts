@@ -4,6 +4,7 @@ import {
   normalizeGusSpeechFormat,
   normalizeGusSpeechSpeed,
   normalizeGusTtsVoice,
+  resolveGusSpeechApiConfig,
   resolveGusReplaySpeechText,
   sanitizeGusSpeechText,
 } from "@/lib/gus/gusVoice";
@@ -39,6 +40,26 @@ describe("Gus voice rules", () => {
     expect(normalizeGusSpeechFormat("exe")).toBe("mp3");
     expect(normalizeGusSpeechSpeed(99)).toBe(4);
     expect(normalizeGusSpeechSpeed(0)).toBe(0.25);
+  });
+
+  it("keeps Gus speech on OpenAI audio instead of Vercel AI Gateway", () => {
+    const gatewayConfig = resolveGusSpeechApiConfig({
+      OPENAI_API_KEY: "vck_test_gateway_key",
+      OPENAI_BASE_URL: "https://ai-gateway.vercel.sh/v1",
+    });
+
+    expect(gatewayConfig.apiKey).toBe("");
+    expect(gatewayConfig.unavailableReason).toContain("OPENAI_TTS_API_KEY");
+
+    const dedicatedSpeechConfig = resolveGusSpeechApiConfig({
+      OPENAI_API_KEY: "vck_test_gateway_key",
+      OPENAI_BASE_URL: "https://ai-gateway.vercel.sh/v1",
+      OPENAI_TTS_API_KEY: "\"sk-test-tts\"",
+    });
+
+    expect(dedicatedSpeechConfig.apiKey).toBe("sk-test-tts");
+    expect(dedicatedSpeechConfig.baseUrl).toBe("https://api.openai.com/v1");
+    expect(dedicatedSpeechConfig.model).toBe("gpt-4o-mini-tts");
   });
 
   it("keeps voice off until the user opts in", () => {
