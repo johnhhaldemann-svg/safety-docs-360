@@ -67,10 +67,10 @@ function GusBotMotionStyles() {
   );
 }
 
-export function GusBotFigure({ state, compact = false }: { state: GusBotState; compact?: boolean }) {
-  const size = compact ? "h-11 w-11" : "h-24 w-24";
-  const headSize = compact ? "h-8 w-9" : "h-14 w-16";
-  const bodySize = compact ? "h-6 w-8" : "h-12 w-16";
+export function GusBotFigure({ state, compact = false, hero = false }: { state: GusBotState; compact?: boolean; hero?: boolean }) {
+  const size = hero ? "h-64 w-52" : compact ? "h-11 w-11" : "h-24 w-24";
+  const headSize = hero ? "h-24 w-28" : compact ? "h-8 w-9" : "h-14 w-16";
+  const bodySize = hero ? "h-24 w-28" : compact ? "h-6 w-8" : "h-12 w-16";
   const eyeSize = compact ? "h-1.5 w-1.5" : "h-2.5 w-2.5";
   const armSize = compact ? "h-1.5 w-4" : "h-2.5 w-8";
 
@@ -83,27 +83,44 @@ export function GusBotFigure({ state, compact = false }: { state: GusBotState; c
       <span className={`absolute inset-1 rounded-full bg-gradient-to-br ${botToneClasses(state)} opacity-15 blur-md`} />
       <span className="absolute bottom-0 h-2 w-3/4 rounded-full bg-slate-900/10 blur-sm" />
       <span className="relative grid place-items-center">
-        <span className="gus-smartbot-antenna absolute -top-1 h-2 w-7 rounded-full bg-amber-400 shadow-sm" />
-        <span className={`relative grid ${headSize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 shadow-[0_10px_24px_rgba(15,23,42,0.16)]`}>
-          <span className="absolute -left-1 top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-blue-500" />
-          <span className="absolute -right-1 top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-blue-500" />
-          <span className="grid place-items-center rounded-full bg-slate-950 px-2 py-1">
-            <span className="flex items-center gap-2">
-              <span className={`gus-smartbot-eye ${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
-              <span className={`gus-smartbot-eye ${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
+        <span className={`gus-smartbot-antenna absolute ${hero ? "-top-5 h-5 w-24 rounded-t-[2rem]" : "-top-1 h-2 w-7 rounded-full"} bg-amber-400 shadow-sm`} />
+        {hero ? (
+          <>
+            <span className="absolute -top-1 z-10 grid h-9 w-12 place-items-center rounded-lg bg-blue-600 text-[10px] font-black text-white shadow-sm">
+              SP
             </span>
-            <span className="gus-smartbot-mouth mt-1 h-0.5 rounded-full bg-cyan-200" />
+            <span className="absolute top-2 z-0 h-8 w-36 rounded-t-full bg-white shadow-[inset_0_-8px_0_rgba(226,232,240,0.9)]" />
+            <span className="absolute top-8 z-10 h-3 w-40 rounded-full bg-slate-200 shadow-sm" />
+          </>
+        ) : null}
+        <span className={`relative grid ${headSize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 shadow-[0_10px_24px_rgba(15,23,42,0.16)] ${hero ? "mt-8 rounded-[2rem]" : ""}`}>
+          <span className={`${hero ? "-left-4 h-12 w-5" : "-left-1 h-3 w-1.5"} absolute top-1/2 -translate-y-1/2 rounded-full bg-blue-500`} />
+          <span className={`${hero ? "-right-4 h-12 w-5" : "-right-1 h-3 w-1.5"} absolute top-1/2 -translate-y-1/2 rounded-full bg-blue-500`} />
+          <span className={`grid place-items-center rounded-full bg-slate-950 ${hero ? "px-5 py-4" : "px-2 py-1"}`}>
+            <span className="flex items-center gap-2">
+              <span className={`gus-smartbot-eye ${hero ? "h-7 w-5" : eyeSize} rounded-full bg-blue-400 shadow-[0_0_16px_rgba(96,165,250,0.95)]`} />
+              <span className={`gus-smartbot-eye ${hero ? "h-7 w-5" : eyeSize} rounded-full bg-blue-400 shadow-[0_0_16px_rgba(96,165,250,0.95)]`} />
+            </span>
+            <span className={`gus-smartbot-mouth mt-2 h-1 rounded-full bg-blue-300 ${hero ? "w-8" : ""}`} />
           </span>
         </span>
-        <span className={`relative -mt-1 grid ${bodySize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br ${botToneClasses(state)} shadow-[0_12px_26px_rgba(37,99,235,0.22)]`}>
-          <Bot className={compact ? "h-3.5 w-3.5 text-white" : "h-5 w-5 text-white"} strokeWidth={2.5} />
-          <span className="absolute -left-3 top-2 gus-smartbot-arm-left">
-            <span className={`block ${armSize} origin-right rounded-full bg-blue-500 shadow-sm`} />
+        <span className={`relative -mt-1 grid ${bodySize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br ${hero ? "from-orange-500 via-orange-400 to-slate-500" : botToneClasses(state)} shadow-[0_12px_26px_rgba(37,99,235,0.22)] ${hero ? "rounded-[1.6rem]" : ""}`}>
+          <span className={hero ? "absolute inset-x-4 top-0 h-full border-x-4 border-yellow-300/90" : "hidden"} />
+          <span className={hero ? "absolute top-3 h-full w-4 bg-slate-700/70" : "hidden"} />
+          <Bot className={compact ? "h-3.5 w-3.5 text-white" : hero ? "h-8 w-8 text-white" : "h-5 w-5 text-white"} strokeWidth={2.5} />
+          <span className={`${hero ? "-left-10 top-4" : "-left-3 top-2"} absolute gus-smartbot-arm-left`}>
+            <span className={`block ${hero ? "h-5 w-16" : armSize} origin-right rounded-full bg-slate-300 shadow-sm`} />
           </span>
-          <span className="absolute -right-3 top-2 gus-smartbot-arm-right">
-            <span className={`block ${armSize} origin-left rounded-full bg-blue-500 shadow-sm`} />
+          <span className={`${hero ? "-right-10 top-4" : "-right-3 top-2"} absolute gus-smartbot-arm-right`}>
+            <span className={`block ${hero ? "h-5 w-16" : armSize} origin-left rounded-full bg-slate-300 shadow-sm`} />
           </span>
         </span>
+        {hero ? (
+          <span className="mt-1 flex w-28 justify-between">
+            <span className="h-6 w-10 rounded-b-xl bg-slate-300 shadow-sm" />
+            <span className="h-6 w-10 rounded-b-xl bg-slate-300 shadow-sm" />
+          </span>
+        ) : null}
       </span>
     </span>
   );

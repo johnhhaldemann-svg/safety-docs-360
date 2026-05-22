@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ClipboardList, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { GusCompanionStage } from "@/components/gus/GusCompanionStage";
 import { GusConversation } from "@/components/gus/GusConversation";
+import { GusEmailNotificationControls } from "@/components/gus/GusEmailNotificationControls";
 import { GusPlanningMode } from "@/components/gus/GusPlanningMode";
 import { GusBotFigure, GusSmartBot } from "@/components/gus/GusSmartBot";
 import { GusVoiceControls } from "@/components/gus/GusVoiceControls";
@@ -74,7 +76,7 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
 
   return (
     <aside
-      className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[25rem]"
+      className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[32rem]"
       aria-label={`Gus AI Safety Coach for ${resolvedCurrentPage}`}
     >
       <div className="overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white shadow-[0_22px_52px_rgba(24,41,73,0.18)] ring-1 ring-[rgba(37,99,235,0.08)]">
@@ -100,6 +102,12 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
         </div>
 
         <div className="space-y-4 p-4">
+          <GusCompanionStage
+            decision={decision}
+            onPlan={() => setPlanningOpen(true)}
+            onDismiss={dismissAssistant}
+          />
+
           <div className="flex gap-3">
             <GusAvatar compact />
             <div className="min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
@@ -128,6 +136,8 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
           <GusConversation context={context} decision={decision} initialMessage={message.message} />
 
           <GusVoiceControls message={message} route={pathname} assistantOpen={open} />
+
+          <GusEmailNotificationControls message={message} decision={decision} context={context} />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button
