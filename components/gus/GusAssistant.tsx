@@ -76,7 +76,7 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
 
   return (
     <aside
-      className="fixed inset-x-2 bottom-2 z-40 sm:inset-x-auto sm:bottom-3 sm:right-3 sm:w-[min(26rem,calc(100vw-1.5rem))]"
+      className="fixed inset-x-2 bottom-2 z-40 sm:inset-x-auto sm:bottom-3 sm:right-2 sm:w-[23rem] sm:max-w-[calc(100vw-1rem)]"
       aria-label={`Gus AI Safety Coach for ${resolvedCurrentPage}`}
     >
       <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--app-border)] bg-white shadow-[0_22px_52px_rgba(24,41,73,0.18)] ring-1 ring-[rgba(37,99,235,0.08)]">

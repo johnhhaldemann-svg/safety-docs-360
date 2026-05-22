@@ -140,7 +140,7 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
         </button>
       </div>
 
-      <div className="max-h-64 space-y-3 overflow-y-auto px-3 py-3">
+      <div className="max-h-36 space-y-3 overflow-y-auto px-3 py-3">
         {turns.map((turn) => (
           <div
             key={turn.id}
