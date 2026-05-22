@@ -31,7 +31,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
               {attentionLabel(decision)}
             </p>
             <p className="mt-2 text-xs leading-5 text-slate-600">
-              Active coach mode. Gus watches risk signals and keeps draft-only review steps close.
+              Gus is checking risk signals now and keeping draft-only review steps close.
             </p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { RefreshCw, Send, Trash2 } from "lucide-react";
 import type { GusContext } from "@/lib/gus/gusContext";
 import { createGusProactiveConversationLine } from "@/lib/gus/gusSocialCoach";
@@ -35,10 +35,20 @@ function defaultPreferences(): GusSafetyPreferenceMemory {
   };
 }
 
+function normalizeTurnContent(value: string) {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isDuplicateOrEcho(proactive: string, currentMessage: string) {
+  const proactiveText = normalizeTurnContent(proactive);
+  const currentText = normalizeTurnContent(currentMessage);
+  if (!proactiveText || !currentText) return false;
+  return proactiveText === currentText || proactiveText.includes(currentText) || currentText.includes(proactiveText);
+}
+
 export function GusConversation({ context, decision, initialMessage }: GusConversationProps) {
-  const firstTurn = useMemo(() => makeTurn("assistant", initialMessage), [initialMessage]);
   const proactiveDecisionRef = useRef("");
-  const [turns, setTurns] = useState<GusConversationTurn[]>([firstTurn]);
+  const [turns, setTurns] = useState<GusConversationTurn[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +62,7 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
       `${decision.decisionId}:${context.route}:conversation`,
     );
     if (!proactive) return undefined;
+    if (isDuplicateOrEcho(proactive, initialMessage)) return undefined;
     if (proactiveDecisionRef.current === decision.decisionId) return undefined;
 
     const timer = window.setTimeout(() => {
@@ -63,7 +74,7 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
     }, decision.attentionLevel === "critical" ? 700 : 1400);
 
     return () => window.clearTimeout(timer);
-  }, [context, decision]);
+  }, [context, decision, initialMessage]);
 
   async function sendMessage(message: string) {
     const clean = message.replace(/\s+/g, " ").trim();
@@ -112,7 +123,7 @@ export function GusConversation({ context, decision, initialMessage }: GusConver
   }
 
   function clearChat() {
-    setTurns([makeTurn("assistant", initialMessage)]);
+    setTurns([]);
     setDraft("");
     setError(null);
     setLastUserMessage(null);

@@ -7,16 +7,10 @@ import { GusCompanionStage } from "@/components/gus/GusCompanionStage";
 import { GusConversation } from "@/components/gus/GusConversation";
 import { GusEmailNotificationControls } from "@/components/gus/GusEmailNotificationControls";
 import { GusPlanningMode } from "@/components/gus/GusPlanningMode";
-import { GusBotFigure, GusSmartBot } from "@/components/gus/GusSmartBot";
+import { GusSmartBot } from "@/components/gus/GusSmartBot";
 import { GusVoiceControls } from "@/components/gus/GusVoiceControls";
 import { useGusAssistant } from "@/components/gus/useGusAssistant";
 import type { GusContext } from "@/lib/gus/gusContext";
-
-function GusAvatar({ compact = false }: { compact?: boolean }) {
-  return (
-    <GusBotFigure state="thinking" compact={compact} />
-  );
-}
 
 type GusAssistantProps = {
   currentPage?: string;
@@ -81,7 +75,6 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
     >
       <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--app-border)] bg-white shadow-[0_22px_52px_rgba(24,41,73,0.18)] ring-1 ring-[rgba(37,99,235,0.08)]">
         <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-[var(--app-border)] bg-[linear-gradient(135deg,_#ffffff_0%,_#eef5ff_100%)] p-3">
-          <GusAvatar compact />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
               Gus Smart AI Safety Bot
@@ -109,29 +102,26 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
             compact
           />
 
-          <div className="flex gap-3">
-            <GusAvatar compact />
-            <div className="min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-sm leading-5 text-[var(--app-text-strong)]">{message.message}</p>
-              {message.reason ? (
-                <p className="mt-2 rounded-lg border border-[var(--app-border-subtle)] bg-white/72 px-3 py-2 text-xs leading-5 text-[var(--app-muted)]">
-                  {message.reason}
-                </p>
-              ) : null}
-              {decision.signals.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {decision.signals.slice(0, 4).map((signal) => (
-                    <span
-                      key={signal.signalId}
-                      className="rounded-full border border-[var(--app-border)] bg-white px-2.5 py-1 text-[11px] font-bold text-[var(--app-text)]"
-                    >
-                      {signal.count ? `${signal.count} ` : ""}
-                      {signal.label}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+          <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
+            <p className="text-sm leading-5 text-[var(--app-text-strong)]">{message.message}</p>
+            {message.reason ? (
+              <p className="mt-2 rounded-lg border border-[var(--app-border-subtle)] bg-white/72 px-3 py-2 text-xs leading-5 text-[var(--app-muted)]">
+                {message.reason}
+              </p>
+            ) : null}
+            {decision.signals.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {decision.signals.slice(0, 4).map((signal) => (
+                  <span
+                    key={signal.signalId}
+                    className="rounded-full border border-[var(--app-border)] bg-white px-2.5 py-1 text-[11px] font-bold text-[var(--app-text)]"
+                  >
+                    {signal.count ? `${signal.count} ` : ""}
+                    {signal.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <GusConversation context={context} decision={decision} initialMessage={message.message} />
