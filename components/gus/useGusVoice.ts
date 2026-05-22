@@ -72,6 +72,11 @@ type UseGusVoiceOptions = {
   voice?: GusTtsVoice;
 };
 
+type SpeakOptions = {
+  force?: boolean;
+  preferBrowserVoice?: boolean;
+};
+
 export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: UseGusVoiceOptions) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -111,7 +116,7 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
   );
 
   const speak = useCallback(
-    async (text: string, options: { force?: boolean } = {}) => {
+    async (text: string, options: SpeakOptions = {}) => {
       const cleanedText = sanitizeGusSpeechText(text);
       if (!cleanedText) return;
       if (!options.force && !canSpeakAtMoment()) {
@@ -122,18 +127,38 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
       setStatus("loading");
       stopAudio();
       const speakWithBrowserVoice = () => {
-        if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
-        const utterance = new SpeechSynthesisUtterance(cleanedText);
-        utterance.rate = 0.95;
-        utterance.pitch = 1;
-        utterance.onend = () => setStatus("idle");
-        utterance.onerror = () => setStatus("error");
-        setLastSpokenText(cleanedText);
-        setStatus("playing");
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-        return true;
+        if (
+          typeof window === "undefined" ||
+          !("speechSynthesis" in window) ||
+          !("SpeechSynthesisUtterance" in window)
+        ) {
+          return false;
+        }
+
+        try {
+          const utterance = new window.SpeechSynthesisUtterance(cleanedText);
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice =
+            voices.find((item) => /english|en-/i.test(`${item.lang} ${item.name}`) && /female|samantha|victoria|zira|google/i.test(item.name)) ??
+            voices.find((item) => /^en/i.test(item.lang));
+
+          if (preferredVoice) utterance.voice = preferredVoice;
+          utterance.rate = 0.95;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+          utterance.onend = () => setStatus("idle");
+          utterance.onerror = () => setStatus("error");
+          setLastSpokenText(cleanedText);
+          setStatus("playing");
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utterance);
+          return true;
+        } catch {
+          return false;
+        }
       };
+
+      if (options.preferBrowserVoice && speakWithBrowserVoice()) return;
 
       try {
         const response = await fetch("/api/gus/speech", {
@@ -205,7 +230,7 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
     setDisabledUntilMs(0);
     setIsSuppressedToday(false);
     setStatus("idle");
-    if (speechText) void speak(speechText, { force: true });
+    if (speechText) void speak(speechText, { force: true, preferBrowserVoice: true });
   }
 
   function muteVoice() {
@@ -235,7 +260,7 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
   function replayLast() {
     const replayText = resolveGusReplaySpeechText(lastSpokenText, speechText);
     if (!replayText) return;
-    void speak(replayText, { force: true });
+    void speak(replayText, { force: true, preferBrowserVoice: true });
   }
 
   return {
