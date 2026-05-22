@@ -54,6 +54,7 @@ describe("Gus voice rules", () => {
 
     expect(instructions).toContain("deep, metallic");
     expect(instructions).toContain("AI construction safety coach");
+    expect(instructions).toContain("consistent voice");
     expect(instructions).not.toMatch(/terminator|arnold|schwarzenegger/i);
     expect(settings.pitch).toBeLessThan(1);
     expect(settings.rate).toBeLessThan(1);
@@ -67,6 +68,18 @@ describe("Gus voice rules", () => {
     ]);
 
     expect(selected?.name).toBe("Google UK English Male");
+  });
+
+  it("keeps the same browser fallback voice after one is selected", () => {
+    const selected = chooseGusBrowserVoice(
+      [
+        { name: "Microsoft David", lang: "en-US" },
+        { name: "Google UK English Male", lang: "en-GB" },
+      ],
+      "Microsoft David",
+    );
+
+    expect(selected?.name).toBe("Microsoft David");
   });
 
   it("keeps Gus speech on OpenAI audio instead of Vercel AI Gateway", () => {

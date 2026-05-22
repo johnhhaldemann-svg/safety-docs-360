@@ -6,11 +6,13 @@ import {
   gusPopupTiming,
   gusRouteMatches,
   gusStorageKeys,
+  gusFeatureFlags,
   isGusAllowedRoute,
   isGusDisabledRoute,
 } from "@/components/gus/gusConfig";
 import { gusFallbackMessage, gusRouteMessages } from "@/components/gus/gusMessages";
 import { decideGusBehavior } from "@/lib/gus/gusBrain";
+import { createGusAutonomousMessage, getGusSocialLineId } from "@/lib/gus/gusSocialCoach";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusMessage, GusMessageCategory } from "@/lib/gus/gusTypes";
 
@@ -37,6 +39,23 @@ function readStorageTimeMs(key: string) {
   if (!value) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readRecentSocialLineIds() {
+  const raw = readStorageValue(gusStorageKeys.recentSocialLineIds);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberSocialLineId(message: GusMessage) {
+  const lineId = getGusSocialLineId(message);
+  const recent = readRecentSocialLineIds().filter((item) => item !== lineId);
+  writeStorageValue(gusStorageKeys.recentSocialLineIds, JSON.stringify([lineId, ...recent].slice(0, 8)));
 }
 
 function getDisabledUntilMs() {
@@ -185,6 +204,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     const now = new Date().toISOString();
     writeStorageValue(gusStorageKeys.lastShownAt, now);
     writeStorageValue(gusStorageKeys.lastMessageId, shownMessage.messageId);
+    rememberSocialLineId(shownMessage);
   }, []);
 
   const canAutoOpen = useCallback(
@@ -254,8 +274,16 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       });
       const nextMessage = nextDecision.message;
       if (!canAutoOpen(nextMessage, warningShouldOpenImmediately)) return;
-      setActiveMessage(nextMessage);
-      rememberShownMessage(nextMessage);
+      const autonomousMessage = gusFeatureFlags.gusAutonomousSocialCoachEnabled
+        ? createGusAutonomousMessage(
+            nextDecision,
+            nextContext,
+            `${nextDecision.decisionId}:${pathname}:${popupsThisSessionRef.current}:${Date.now()}`,
+            readRecentSocialLineIds(),
+          )
+        : nextMessage;
+      setActiveMessage(autonomousMessage);
+      rememberShownMessage(autonomousMessage);
       popupsThisSessionRef.current += 1;
       setOpen(true);
     }, delay);
@@ -290,9 +318,17 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       routeMessage: nextRouteMessage,
       feedback,
       quietMode,
-    }).message;
-    setActiveMessage(nextMessage);
-    rememberShownMessage(nextMessage);
+    });
+    const autonomousMessage = gusFeatureFlags.gusAutonomousSocialCoachEnabled
+      ? createGusAutonomousMessage(
+          nextMessage,
+          context,
+          `${nextMessage.decisionId}:${pathname}:manual:${Date.now()}`,
+          readRecentSocialLineIds(),
+        )
+      : nextMessage.message;
+    setActiveMessage(autonomousMessage);
+    rememberShownMessage(autonomousMessage);
     setDismissed(false);
     setOpen(true);
   }

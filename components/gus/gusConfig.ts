@@ -35,17 +35,19 @@ export const gusStorageKeys = {
   quietMode: "gus_quiet_mode",
   voiceDisabledUntil: "gus_voice_disabled_until",
   textOnlyMode: "gus_text_only_mode",
+  recentSocialLineIds: "gus_recent_social_line_ids",
 } as const;
 
 export const gusFeatureFlags = {
   gusSmartBotEnabled: true,
   gusConversationalCoachEnabled: true,
+  gusAutonomousSocialCoachEnabled: true,
   gusRealtimeVoiceEnabled: false,
 } as const;
 
 export const gusPopupTiming = {
-  minDelayMs: 20_000,
-  maxDelayMs: 45_000,
+  minDelayMs: 12_000,
+  maxDelayMs: 30_000,
   globalCooldownMs: 5 * 60_000,
   dismissedCooldownMs: 10 * 60_000,
   activeTypingWindowMs: 2_500,

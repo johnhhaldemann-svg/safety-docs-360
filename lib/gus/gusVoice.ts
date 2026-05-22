@@ -150,6 +150,7 @@ export function resolveGusVoiceInstructions(style: GusVoiceStyle) {
     return [
       "Speak as Gus, an original AI construction safety coach.",
       "Use a deep, metallic, clipped, calm, authoritative tone.",
+      "Use a consistent voice and cadence across messages.",
       "Keep the message short, practical, and safety-focused.",
       "Do not mimic any real person or fictional character.",
       "Never imply work is approved, compliant, or ready to start.",
@@ -175,7 +176,16 @@ export function resolveGusBrowserSpeechSettings(style: GusVoiceStyle): GusBrowse
   };
 }
 
-export function chooseGusBrowserVoice<T extends GusBrowserSpeechVoice>(voices: readonly T[]) {
+export function chooseGusBrowserVoice<T extends GusBrowserSpeechVoice>(
+  voices: readonly T[],
+  preferredVoiceName?: unknown,
+) {
+  const preferred = asTrimmed(preferredVoiceName);
+  const previouslySelected = preferred
+    ? voices.find((voice) => voice.name.toLowerCase() === preferred.toLowerCase())
+    : undefined;
+  if (previouslySelected) return previouslySelected;
+
   const englishVoices = voices.filter((voice) => /^en\b|english/i.test(`${voice.lang} ${voice.name}`));
   const candidates = englishVoices.length > 0 ? englishVoices : voices;
 
@@ -192,7 +202,7 @@ export function chooseGusBrowserVoice<T extends GusBrowserSpeechVoice>(voices: r
       if (voice.default) score += 1;
       return { voice, score };
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score || a.voice.name.localeCompare(b.voice.name));
 
   return scored[0]?.voice;
 }

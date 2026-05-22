@@ -70,6 +70,8 @@ function isTextEntryElement(target: EventTarget | null) {
   return target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
+const GUS_BROWSER_VOICE_NAME_KEY = "gus_browser_voice_name";
+
 type UseGusVoiceOptions = {
   message: GusMessage;
   route: string;
@@ -80,7 +82,6 @@ type UseGusVoiceOptions = {
 
 type SpeakOptions = {
   force?: boolean;
-  preferBrowserVoice?: boolean;
 };
 
 export function useGusVoice({
@@ -150,10 +151,13 @@ export function useGusVoice({
         try {
           const utterance = new window.SpeechSynthesisUtterance(cleanedText);
           const voices = window.speechSynthesis.getVoices();
-          const preferredVoice = chooseGusBrowserVoice(voices);
+          const preferredVoice = chooseGusBrowserVoice(voices, readStorageValue(GUS_BROWSER_VOICE_NAME_KEY));
           const speechSettings = resolveGusBrowserSpeechSettings(style);
 
-          if (preferredVoice) utterance.voice = preferredVoice;
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
+            writeStorageValue(GUS_BROWSER_VOICE_NAME_KEY, preferredVoice.name);
+          }
           utterance.rate = speechSettings.rate;
           utterance.pitch = speechSettings.pitch;
           utterance.volume = speechSettings.volume;
@@ -168,8 +172,6 @@ export function useGusVoice({
           return false;
         }
       };
-
-      if (options.preferBrowserVoice && speakWithBrowserVoice()) return;
 
       try {
         const response = await fetch("/api/gus/speech", {
@@ -242,7 +244,7 @@ export function useGusVoice({
     setDisabledUntilMs(0);
     setIsSuppressedToday(false);
     setStatus("idle");
-    if (speechText) void speak(speechText, { force: true, preferBrowserVoice: true });
+    if (speechText) void speak(speechText, { force: true });
   }
 
   function muteVoice() {
@@ -272,7 +274,7 @@ export function useGusVoice({
   function replayLast() {
     const replayText = resolveGusReplaySpeechText(lastSpokenText, speechText);
     if (!replayText) return;
-    void speak(replayText, { force: true, preferBrowserVoice: true });
+    void speak(replayText, { force: true });
   }
 
   return {
