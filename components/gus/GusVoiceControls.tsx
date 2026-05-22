@@ -26,7 +26,7 @@ export function GusVoiceControls({ message, route, assistantOpen }: GusVoiceCont
             className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-white"
           >
             <Volume2 className="h-4 w-4" aria-hidden="true" />
-            Turn on Gus voice
+            {voice.textOnlyMode || voice.isSuppressedToday ? "Turn voice back on" : "Turn on Gus voice"}
           </button>
         ) : (
           <button
@@ -75,7 +75,7 @@ export function GusVoiceControls({ message, route, assistantOpen }: GusVoiceCont
             : voice.status === "error"
               ? "Voice is unavailable right now."
               : voice.textOnlyMode
-                ? "Text-only mode is on."
+                ? "Text-only mode is on. Turn voice back on to hear Gus."
                 : "Gus voice is optional and opt-in."}
       </p>
     </div>

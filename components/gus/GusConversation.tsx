@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Send, Trash2 } from "lucide-react";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type {
@@ -34,14 +34,54 @@ function defaultPreferences(): GusSafetyPreferenceMemory {
   };
 }
 
+function proactiveGusMessage(decision: GusDecision) {
+  const action = decision.actions[0]?.label || decision.message.actionLabel;
+  const signals = decision.signals.slice(0, 2).map((signal) => signal.label).filter(Boolean);
+
+  if (decision.attentionLevel === "critical") {
+    return `I'm going to speak up here: ${decision.message.message} The next step is human safety review${action ? ` and ${action.toLowerCase()}` : ""}.`;
+  }
+
+  if (decision.attentionLevel === "high" || decision.kind === "warning") {
+    return `I'm watching this closely: ${decision.message.message} ${signals.length > 0 ? `The signals I see are ${signals.join(" and ")}.` : ""} Let's review the safest next step before this drifts.`;
+  }
+
+  if (decision.kind === "planning_offer") {
+    return "I can help turn this into a draft safe work plan. I’ll keep it draft-only and call out what information is still missing for human review.";
+  }
+
+  if (signals.length > 0) {
+    return `I’m keeping an eye on ${signals.join(" and ")}. If the pattern changes, I’ll call out the review step.`;
+  }
+
+  return "";
+}
+
 export function GusConversation({ context, decision, initialMessage }: GusConversationProps) {
   const firstTurn = useMemo(() => makeTurn("assistant", initialMessage), [initialMessage]);
+  const proactiveDecisionRef = useRef("");
   const [turns, setTurns] = useState<GusConversationTurn[]>([firstTurn]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [safetyPreferences, setSafetyPreferences] = useState<GusSafetyPreferenceMemory>(defaultPreferences);
+
+  useEffect(() => {
+    const proactive = proactiveGusMessage(decision);
+    if (!proactive) return undefined;
+    if (proactiveDecisionRef.current === decision.decisionId) return undefined;
+
+    const timer = window.setTimeout(() => {
+      proactiveDecisionRef.current = decision.decisionId;
+      setTurns((current) => {
+        if (current.some((turn) => turn.role === "assistant" && turn.content === proactive)) return current;
+        return [...current, makeTurn("assistant", proactive)].slice(-10);
+      });
+    }, decision.attentionLevel === "critical" ? 700 : 1400);
+
+    return () => window.clearTimeout(timer);
+  }, [decision]);
 
   async function sendMessage(message: string) {
     const clean = message.replace(/\s+/g, " ").trim();

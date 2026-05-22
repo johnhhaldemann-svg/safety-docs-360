@@ -33,6 +33,40 @@ function shortMessage(message: string) {
   return firstSentence.length > 96 ? `${firstSentence.slice(0, 93).trim()}...` : firstSentence;
 }
 
+function GusBotMotionStyles() {
+  return (
+    <style>{`
+      .gus-smartbot-figure { transform-origin: 50% 100%; animation: gus-float 4s ease-in-out infinite; }
+      .gus-smartbot-figure .gus-smartbot-eye { animation: gus-blink 4.8s ease-in-out infinite; }
+      .gus-smartbot-figure .gus-smartbot-mouth { animation: gus-mouth 2.4s ease-in-out infinite; }
+      .gus-smartbot-figure .gus-smartbot-antenna { animation: gus-glow 2s ease-in-out infinite; }
+      .gus-smartbot-wave .gus-smartbot-arm-right { animation: gus-wave 1.4s ease-in-out infinite; transform-origin: left center; }
+      .gus-smartbot-pointing .gus-smartbot-arm-right { transform: rotate(-22deg) translateX(2px); }
+      .gus-smartbot-warning { animation: gus-warning 1s ease-in-out infinite; }
+      .gus-smartbot-thinking .gus-smartbot-arm-left { animation: gus-think 1.8s ease-in-out infinite; }
+      .gus-smartbot-planning .gus-smartbot-arm-left { transform: rotate(20deg); }
+      @keyframes gus-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+      @keyframes gus-wave { 0%, 100% { transform: rotate(0deg); } 45% { transform: rotate(-34deg); } 70% { transform: rotate(14deg); } }
+      @keyframes gus-warning { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.035); } }
+      @keyframes gus-think { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(18deg); } }
+      @keyframes gus-blink { 0%, 44%, 50%, 100% { transform: scaleY(1); } 47% { transform: scaleY(0.12); } }
+      @keyframes gus-mouth { 0%, 100% { width: 0.75rem; opacity: 0.75; } 50% { width: 1.15rem; opacity: 1; } }
+      @keyframes gus-glow { 0%, 100% { box-shadow: 0 0 0 rgba(251,191,36,0); } 50% { box-shadow: 0 0 16px rgba(251,191,36,0.85); } }
+      @media (prefers-reduced-motion: reduce) {
+        .gus-smartbot-figure,
+        .gus-smartbot-figure .gus-smartbot-eye,
+        .gus-smartbot-figure .gus-smartbot-mouth,
+        .gus-smartbot-figure .gus-smartbot-antenna,
+        .gus-smartbot-wave .gus-smartbot-arm-right,
+        .gus-smartbot-warning,
+        .gus-smartbot-thinking .gus-smartbot-arm-left {
+          animation: none !important;
+        }
+      }
+    `}</style>
+  );
+}
+
 export function GusBotFigure({ state, compact = false }: { state: GusBotState; compact?: boolean }) {
   const size = compact ? "h-11 w-11" : "h-24 w-24";
   const headSize = compact ? "h-8 w-9" : "h-14 w-16";
@@ -45,16 +79,20 @@ export function GusBotFigure({ state, compact = false }: { state: GusBotState; c
       className={`gus-smartbot-figure gus-smartbot-${state} relative grid ${size} shrink-0 place-items-center`}
       aria-hidden="true"
     >
+      <GusBotMotionStyles />
       <span className={`absolute inset-1 rounded-full bg-gradient-to-br ${botToneClasses(state)} opacity-15 blur-md`} />
       <span className="absolute bottom-0 h-2 w-3/4 rounded-full bg-slate-900/10 blur-sm" />
       <span className="relative grid place-items-center">
-        <span className="absolute -top-1 h-2 w-7 rounded-full bg-amber-400 shadow-sm" />
+        <span className="gus-smartbot-antenna absolute -top-1 h-2 w-7 rounded-full bg-amber-400 shadow-sm" />
         <span className={`relative grid ${headSize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 shadow-[0_10px_24px_rgba(15,23,42,0.16)]`}>
           <span className="absolute -left-1 top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-blue-500" />
           <span className="absolute -right-1 top-1/2 h-3 w-1.5 -translate-y-1/2 rounded-full bg-blue-500" />
-          <span className="flex items-center gap-2 rounded-full bg-slate-950 px-2 py-1">
-            <span className={`${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
-            <span className={`${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
+          <span className="grid place-items-center rounded-full bg-slate-950 px-2 py-1">
+            <span className="flex items-center gap-2">
+              <span className={`gus-smartbot-eye ${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
+              <span className={`gus-smartbot-eye ${eyeSize} rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]`} />
+            </span>
+            <span className="gus-smartbot-mouth mt-1 h-0.5 rounded-full bg-cyan-200" />
           </span>
         </span>
         <span className={`relative -mt-1 grid ${bodySize} place-items-center rounded-[1rem] border border-white/70 bg-gradient-to-br ${botToneClasses(state)} shadow-[0_12px_26px_rgba(37,99,235,0.22)]`}>
@@ -77,23 +115,6 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
 
   return (
     <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] items-end gap-3 sm:bottom-5 sm:right-5">
-      <style>{`
-        .gus-smartbot-figure { transform-origin: 50% 100%; animation: gus-float 4s ease-in-out infinite; }
-        .gus-smartbot-wave .gus-smartbot-arm-right { animation: gus-wave 1.4s ease-in-out infinite; transform-origin: left center; }
-        .gus-smartbot-pointing .gus-smartbot-arm-right { transform: rotate(-22deg) translateX(2px); }
-        .gus-smartbot-warning { animation: gus-warning 1s ease-in-out infinite; }
-        .gus-smartbot-thinking .gus-smartbot-arm-left { animation: gus-think 1.8s ease-in-out infinite; }
-        .gus-smartbot-planning .gus-smartbot-arm-left { transform: rotate(20deg); }
-        @keyframes gus-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        @keyframes gus-wave { 0%, 100% { transform: rotate(0deg); } 45% { transform: rotate(-34deg); } 70% { transform: rotate(14deg); } }
-        @keyframes gus-warning { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.035); } }
-        @keyframes gus-think { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(18deg); } }
-        @media (prefers-reduced-motion: reduce) {
-          .gus-smartbot-figure, .gus-smartbot-wave .gus-smartbot-arm-right, .gus-smartbot-warning, .gus-smartbot-thinking .gus-smartbot-arm-left {
-            animation: none !important;
-          }
-        }
-      `}</style>
       <div className="hidden min-w-0 max-w-[18rem] sm:block">
         <div className={`rounded-2xl border px-4 py-3 ${attention}`}>
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-current/70">Gus Smart Safety Bot</p>

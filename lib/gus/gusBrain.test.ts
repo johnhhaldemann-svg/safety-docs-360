@@ -36,6 +36,7 @@ describe("decideGusBehavior", () => {
     expect(decision.botState).toBe("warning");
     expect(decision.attentionLevel).toBe("critical");
     expect(decision.shouldOpen).toBe(true);
+    expect(decision.message.shouldSpeak).toBe(true);
     expect(decision.message.message).toMatch(/Severe risk/i);
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b/i);
   });
@@ -52,6 +53,7 @@ describe("decideGusBehavior", () => {
     expect(decision.kind).toBe("warning");
     expect(decision.botState).toBe("pointing");
     expect(decision.message.category).toBe("permit_alert");
+    expect(decision.message.shouldSpeak).toBe(true);
     expect(decision.actions.map((item) => item.actionKey)).toContain("guide_to_permits");
   });
 
