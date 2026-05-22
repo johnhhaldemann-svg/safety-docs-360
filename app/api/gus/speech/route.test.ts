@@ -38,7 +38,13 @@ describe("Gus speech API", () => {
 
   it("keeps OPENAI_API_KEY server-side and returns audio", async () => {
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
-      const body = JSON.parse(String(init.body)) as { input: string; voice: string; response_format: string };
+      const body = JSON.parse(String(init.body)) as {
+        input: string;
+        voice: string;
+        response_format: string;
+        speed: number;
+        instructions: string;
+      };
 
       expect(init.headers).toMatchObject({
         Authorization: "Bearer test-key",
@@ -47,6 +53,9 @@ describe("Gus speech API", () => {
       expect(body.input).toBe("Heads up. Review permits.");
       expect(body.voice).toBe("marin");
       expect(body.response_format).toBe("mp3");
+      expect(body.speed).toBe(1);
+      expect(body.instructions).toContain("deep, metallic");
+      expect(body.instructions).not.toMatch(/terminator|arnold|schwarzenegger/i);
 
       return new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
@@ -61,6 +70,7 @@ describe("Gus speech API", () => {
         voice: "marin",
         speed: 1,
         format: "mp3",
+        style: "cyborg_coach",
       }),
     )) as Response;
 
@@ -68,6 +78,33 @@ describe("Gus speech API", () => {
     expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(JSON.stringify(response.headers)).not.toContain("test-key");
+  });
+
+  it("uses the cyborg coach voice preset by default", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        voice: string;
+        speed: number;
+        instructions: string;
+      };
+
+      expect(body.voice).toBe("onyx");
+      expect(body.speed).toBe(0.88);
+      expect(body.instructions).toContain("deep, metallic");
+      expect(body.instructions).toContain("authoritative");
+      expect(body.instructions).not.toMatch(/terminator|arnold|schwarzenegger/i);
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = (await POST(speechRequest({ text: "Review the high-risk task first." }))) as Response;
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns a safe error when the API key is missing", async () => {

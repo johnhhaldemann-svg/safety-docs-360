@@ -4,7 +4,10 @@ import {
   normalizeGusSpeechFormat,
   normalizeGusSpeechSpeed,
   normalizeGusTtsVoice,
+  normalizeGusVoiceStyle,
   resolveGusSpeechApiConfig,
+  resolveGusVoiceDefaultSpeed,
+  resolveGusVoiceInstructions,
   sanitizeGusSpeechText,
 } from "@/lib/gus/gusVoice";
 import { authorizeRequest } from "@/lib/rbac";
@@ -39,9 +42,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const style = normalizeGusVoiceStyle(body.style);
   const voice = normalizeGusTtsVoice(body.voice);
   const responseFormat = normalizeGusSpeechFormat(body.format);
-  const speed = normalizeGusSpeechSpeed(body.speed);
+  const speed = normalizeGusSpeechSpeed(body.speed ?? resolveGusVoiceDefaultSpeed(style));
   const upstream = await fetch(`${speechConfig.baseUrl}/audio/speech`, {
     method: "POST",
     headers: {
@@ -54,8 +58,7 @@ export async function POST(request: Request) {
       voice,
       speed,
       response_format: responseFormat,
-      instructions:
-        "Speak as Gus, a calm construction safety coach. Use a clear, concise, practical tone.",
+      instructions: resolveGusVoiceInstructions(style),
     }),
   });
 

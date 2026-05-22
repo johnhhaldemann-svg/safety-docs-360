@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   canGusSpeak,
+  chooseGusBrowserVoice,
   normalizeGusSpeechFormat,
   normalizeGusSpeechSpeed,
   normalizeGusTtsVoice,
+  normalizeGusVoiceStyle,
+  resolveGusBrowserSpeechSettings,
   resolveGusSpeechApiConfig,
+  resolveGusVoiceInstructions,
   resolveGusReplaySpeechText,
   sanitizeGusSpeechText,
 } from "@/lib/gus/gusVoice";
@@ -35,11 +39,34 @@ describe("Gus voice rules", () => {
 
   it("normalizes future voice settings safely", () => {
     expect(normalizeGusTtsVoice("marin")).toBe("marin");
-    expect(normalizeGusTtsVoice("unknown")).toBe("marin");
+    expect(normalizeGusTtsVoice("unknown")).toBe("onyx");
     expect(normalizeGusSpeechFormat("wav")).toBe("wav");
     expect(normalizeGusSpeechFormat("exe")).toBe("mp3");
     expect(normalizeGusSpeechSpeed(99)).toBe(4);
     expect(normalizeGusSpeechSpeed(0)).toBe(0.25);
+    expect(normalizeGusVoiceStyle("cyborg_coach")).toBe("cyborg_coach");
+    expect(normalizeGusVoiceStyle("movie_actor")).toBe("cyborg_coach");
+  });
+
+  it("resolves the cyborg coach style without actor or character imitation", () => {
+    const instructions = resolveGusVoiceInstructions("cyborg_coach");
+    const settings = resolveGusBrowserSpeechSettings("cyborg_coach");
+
+    expect(instructions).toContain("deep, metallic");
+    expect(instructions).toContain("AI construction safety coach");
+    expect(instructions).not.toMatch(/terminator|arnold|schwarzenegger/i);
+    expect(settings.pitch).toBeLessThan(1);
+    expect(settings.rate).toBeLessThan(1);
+  });
+
+  it("prefers deeper English browser voices for fallback speech", () => {
+    const selected = chooseGusBrowserVoice([
+      { name: "Microsoft Zira", lang: "en-US" },
+      { name: "Google UK English Male", lang: "en-GB" },
+      { name: "Samantha", lang: "en-US", default: true },
+    ]);
+
+    expect(selected?.name).toBe("Google UK English Male");
   });
 
   it("keeps Gus speech on OpenAI audio instead of Vercel AI Gateway", () => {

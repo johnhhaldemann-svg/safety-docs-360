@@ -2,7 +2,8 @@ import { isGusAllowedRoute, isGusDisabledRoute, gusRouteMatches } from "@/compon
 import type { GusMessage } from "@/lib/gus/gusTypes";
 
 export const GUS_TTS_MODEL = "gpt-4o-mini-tts";
-export const GUS_DEFAULT_VOICE = "marin";
+export const GUS_DEFAULT_VOICE_STYLE = "cyborg_coach";
+export const GUS_DEFAULT_VOICE = "onyx";
 export const GUS_DEFAULT_SPEECH_FORMAT = "mp3";
 export const GUS_MAX_SPEECH_CHARS = 220;
 export const GUS_DEFAULT_SPEECH_BASE_URL = "https://api.openai.com/v1";
@@ -24,9 +25,23 @@ export const GUS_TTS_VOICES = [
 ] as const;
 
 export const GUS_SPEECH_FORMATS = ["mp3", "opus", "aac", "flac", "wav", "pcm"] as const;
+export const GUS_VOICE_STYLES = ["cyborg_coach"] as const;
 
 export type GusTtsVoice = (typeof GUS_TTS_VOICES)[number];
 export type GusSpeechFormat = (typeof GUS_SPEECH_FORMATS)[number];
+export type GusVoiceStyle = (typeof GUS_VOICE_STYLES)[number];
+
+export type GusBrowserSpeechVoice = {
+  name: string;
+  lang: string;
+  default?: boolean;
+};
+
+export type GusBrowserSpeechSettings = {
+  pitch: number;
+  rate: number;
+  volume: number;
+};
 
 export type GusSpeechApiConfig = {
   apiKey: string;
@@ -105,6 +120,13 @@ export function normalizeGusTtsVoice(value: unknown): GusTtsVoice {
   return GUS_TTS_VOICES.includes(requested as GusTtsVoice) ? (requested as GusTtsVoice) : GUS_DEFAULT_VOICE;
 }
 
+export function normalizeGusVoiceStyle(value: unknown): GusVoiceStyle {
+  const requested = asTrimmed(value).toLowerCase();
+  return GUS_VOICE_STYLES.includes(requested as GusVoiceStyle)
+    ? (requested as GusVoiceStyle)
+    : GUS_DEFAULT_VOICE_STYLE;
+}
+
 export function normalizeGusSpeechFormat(value: unknown): GusSpeechFormat {
   const requested = asTrimmed(value).toLowerCase();
   return GUS_SPEECH_FORMATS.includes(requested as GusSpeechFormat)
@@ -114,8 +136,65 @@ export function normalizeGusSpeechFormat(value: unknown): GusSpeechFormat {
 
 export function normalizeGusSpeechSpeed(value: unknown) {
   const speed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(speed)) return 1;
+  if (!Number.isFinite(speed)) return resolveGusVoiceDefaultSpeed(GUS_DEFAULT_VOICE_STYLE);
   return Math.min(4, Math.max(0.25, Number(speed.toFixed(2))));
+}
+
+export function resolveGusVoiceDefaultSpeed(style: GusVoiceStyle) {
+  if (style === "cyborg_coach") return 0.88;
+  return 1;
+}
+
+export function resolveGusVoiceInstructions(style: GusVoiceStyle) {
+  if (style === "cyborg_coach") {
+    return [
+      "Speak as Gus, an original AI construction safety coach.",
+      "Use a deep, metallic, clipped, calm, authoritative tone.",
+      "Keep the message short, practical, and safety-focused.",
+      "Do not mimic any real person or fictional character.",
+      "Never imply work is approved, compliant, or ready to start.",
+    ].join(" ");
+  }
+
+  return "Speak as Gus, a calm construction safety coach. Use a clear, concise, practical tone.";
+}
+
+export function resolveGusBrowserSpeechSettings(style: GusVoiceStyle): GusBrowserSpeechSettings {
+  if (style === "cyborg_coach") {
+    return {
+      pitch: 0.55,
+      rate: 0.86,
+      volume: 1,
+    };
+  }
+
+  return {
+    pitch: 1,
+    rate: 0.95,
+    volume: 1,
+  };
+}
+
+export function chooseGusBrowserVoice<T extends GusBrowserSpeechVoice>(voices: readonly T[]) {
+  const englishVoices = voices.filter((voice) => /^en\b|english/i.test(`${voice.lang} ${voice.name}`));
+  const candidates = englishVoices.length > 0 ? englishVoices : voices;
+
+  const scored = candidates
+    .map((voice) => {
+      const text = `${voice.name} ${voice.lang}`.toLowerCase();
+      let score = 0;
+      if (/male|david|mark|daniel|george|alex|fred|thomas|james|arthur|ryan|guy|google uk english male/.test(text)) {
+        score += 8;
+      }
+      if (/deep|low|baritone|bass/.test(text)) score += 5;
+      if (/enhanced|premium|natural|neural|online/.test(text)) score += 2;
+      if (/female|samantha|victoria|zira|susan|karen|moira|tessa|veena|fiona/.test(text)) score -= 6;
+      if (voice.default) score += 1;
+      return { voice, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.voice;
 }
 
 function firstTwoSentences(text: string) {

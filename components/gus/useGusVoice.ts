@@ -8,9 +8,14 @@ import {
 } from "@/components/gus/gusConfig";
 import {
   canGusSpeak,
+  chooseGusBrowserVoice,
+  GUS_DEFAULT_VOICE,
+  GUS_DEFAULT_VOICE_STYLE,
+  resolveGusBrowserSpeechSettings,
   resolveGusReplaySpeechText,
   sanitizeGusSpeechText,
   type GusTtsVoice,
+  type GusVoiceStyle,
 } from "@/lib/gus/gusVoice";
 import type { GusMessage } from "@/lib/gus/gusTypes";
 
@@ -70,6 +75,7 @@ type UseGusVoiceOptions = {
   route: string;
   assistantOpen: boolean;
   voice?: GusTtsVoice;
+  style?: GusVoiceStyle;
 };
 
 type SpeakOptions = {
@@ -77,7 +83,13 @@ type SpeakOptions = {
   preferBrowserVoice?: boolean;
 };
 
-export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: UseGusVoiceOptions) {
+export function useGusVoice({
+  message,
+  route,
+  assistantOpen,
+  voice = GUS_DEFAULT_VOICE,
+  style = GUS_DEFAULT_VOICE_STYLE,
+}: UseGusVoiceOptions) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const typingUntilRef = useRef(0);
@@ -138,14 +150,13 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
         try {
           const utterance = new window.SpeechSynthesisUtterance(cleanedText);
           const voices = window.speechSynthesis.getVoices();
-          const preferredVoice =
-            voices.find((item) => /english|en-/i.test(`${item.lang} ${item.name}`) && /female|samantha|victoria|zira|google/i.test(item.name)) ??
-            voices.find((item) => /^en/i.test(item.lang));
+          const preferredVoice = chooseGusBrowserVoice(voices);
+          const speechSettings = resolveGusBrowserSpeechSettings(style);
 
           if (preferredVoice) utterance.voice = preferredVoice;
-          utterance.rate = 0.95;
-          utterance.pitch = 1;
-          utterance.volume = 1;
+          utterance.rate = speechSettings.rate;
+          utterance.pitch = speechSettings.pitch;
+          utterance.volume = speechSettings.volume;
           utterance.onend = () => setStatus("idle");
           utterance.onerror = () => setStatus("error");
           setLastSpokenText(cleanedText);
@@ -167,8 +178,9 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
           body: JSON.stringify({
             text: cleanedText,
             voice,
-            speed: 1,
+            speed: style === "cyborg_coach" ? 0.88 : 1,
             format: "mp3",
+            style,
           }),
         });
         if (!response.ok) {
@@ -191,7 +203,7 @@ export function useGusVoice({ message, route, assistantOpen, voice = "marin" }: 
         setStatus("error");
       }
     },
-    [canSpeakAtMoment, stopAudio, voice, voiceEnabled],
+    [canSpeakAtMoment, stopAudio, style, voice, voiceEnabled],
   );
 
   useEffect(() => {
