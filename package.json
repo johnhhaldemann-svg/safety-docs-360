@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit --incremental false",
     "test": "vitest run --configLoader native --pool=threads",
     "test:navigation": "vitest run --configLoader native --pool=threads lib/appNavigationIntegrity.test.ts",
     "test:links": "vitest run --configLoader native --pool=threads lib/brokenLinkChecker.test.ts",

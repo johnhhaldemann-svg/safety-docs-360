@@ -41,6 +41,7 @@ import { AppLoading } from "@/components/app-shell/AppLoading";
 import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
 import { AppShellSidebar } from "@/components/app-shell/AppShellSidebar";
 import type { ProfileSummary } from "@/components/app-shell/ProfileAvatar";
+import { GusAssistant } from "@/components/gus/GusAssistant";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -895,7 +896,7 @@ export default function AppLayout({
             Accept the platform agreement before continuing
           </h1>
           <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
-            You must accept the Terms of Service, Liability Waiver, and Licensing Agreement before using Safety360Docs. Version {agreementConfig.version}.
+            You must accept the Terms of Service, Liability Waiver, and Licensing Agreement before using SafePredict. Version {agreementConfig.version}.
           </p>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -1041,6 +1042,11 @@ export default function AppLayout({
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
         items={commandPaletteItems}
+      />
+      <GusAssistant
+        currentPage={currentNavItem.label}
+        route={pathname}
+        companyId={companyId}
       />
       <ServiceWorkerRegister />
     </div>
