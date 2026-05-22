@@ -139,7 +139,7 @@ export default function CompanySignupPage() {
               Request a new company workspace.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-[var(--app-text)]">
-              Use this path when your company is not active in Safety360Docs yet. The owner creates one account,
+              Use this path when your company is not active in SafePredict yet. The owner creates one account,
               submits the company request, waits for approval, and then returns to the same account to launch the
               workspace checklist.
             </p>

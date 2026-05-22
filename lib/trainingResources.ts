@@ -16,7 +16,7 @@ export type TrainingResource = {
 export const trainingResources: TrainingResource[] = [
   {
     id: "getting-started",
-    title: "Getting Started With Safety360Docs",
+    title: "Getting Started With SafePredict",
     shortTitle: "Getting Started",
     audience: "All users",
     estimatedTime: "10 min",

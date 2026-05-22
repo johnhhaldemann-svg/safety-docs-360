@@ -850,7 +850,7 @@ export function buildLegacyCsepRenderModel(
   const preparedBy =
     valueOrNA(form.contractor_contact) !== "N/A"
       ? valueOrNA(form.contractor_contact)
-      : "SafetyDocs360 Draft Builder";
+      : "SafePredict Draft Builder";
 
   // Cover subtitle lines: only push tokens that actually carry project
   // identity, never N/A placeholders. Keeps the front matter customer-facing.

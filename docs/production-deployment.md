@@ -1,4 +1,4 @@
-# Production deployment (Safety360Docs)
+# Production deployment (SafePredict)
 
 Use this checklist when cutting over a **new production** environment (Vercel + Supabase). Staging should mirror these steps on its own project.
 

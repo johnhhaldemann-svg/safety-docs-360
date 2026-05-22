@@ -193,7 +193,7 @@ export async function sendTrainingExpirationEmail(params: {
       </p>
       <p style="margin:0;color:#64748b;font-size:14px;">If the button does not open, use this link:<br /><a href="${safeUrl}" style="color:#0284c7;">${safeUrl}</a></p>
     `
-    : `<p style="margin:24px 0 0;color:#64748b;font-size:14px;">Open SafetyDocs360 or contact your safety team to update these records.</p>`;
+    : `<p style="margin:24px 0 0;color:#64748b;font-size:14px;">Open SafePredict or contact your safety team to update these records.</p>`;
 
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:760px;margin:0 auto;padding:24px;">
@@ -213,7 +213,7 @@ export async function sendTrainingExpirationEmail(params: {
     `Training expiration reminder for ${params.companyName || "your company"}.`,
     workerItems.length ? ["Your training renewals:", ...textLines(workerItems)].join("\n\n") : null,
     managerItems.length ? ["Safety manager digest:", ...textLines(managerItems)].join("\n\n") : null,
-    url ?? "Open SafetyDocs360 or contact your safety team to update these records.",
+    url ?? "Open SafePredict or contact your safety team to update these records.",
   ].filter(Boolean).join("\n\n");
 
   const response = await (params.fetcher ?? fetch)("https://api.resend.com/emails", {

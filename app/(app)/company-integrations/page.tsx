@@ -578,7 +578,7 @@ export default function CompanyIntegrationsPage() {
                   </div>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--app-text)]">
                     Link a Microsoft work account that can read the company Project schedules. After Microsoft returns
-                    you to Safety360Docs, run Sync to bring projects and tasks into this workspace.
+                    you to SafePredict, run Sync to bring projects and tasks into this workspace.
                   </p>
                 </div>
                 <span

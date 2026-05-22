@@ -310,7 +310,7 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   site_specific_notes:
     "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
   emergency_procedures:
-    "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+    "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafePredict before shift closeout.",
   required_ppe: ["Hard Hat", "Safety Glasses", "High Visibility Vest", "Gloves", "Steel Toe Boots", "Fall Protection Harness"],
   additional_permits: ["Hot Work Permit", "AWP/MEWP Permit", "LOTO Permit"],
   selected_hazards: ["Falls", "Struck-by", "Caught-in/between", "Electrical"],
@@ -334,7 +334,7 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   enforcement_and_corrective_action_text:
     "Unsafe acts trigger immediate stop-work and documented corrective actions. Repeat violations escalate to removal from task assignment.",
   recordkeeping_text:
-    "Permits, inspections, orientation records, and corrective actions are retained in SafetyDocs360 for audit and handoff.",
+    "Permits, inspections, orientation records, and corrective actions are retained in SafePredict for audit and handoff.",
   continuous_improvement_text:
     "Weekly leadership review analyzes recurring hazards and updates task controls for the next work cycle.",
 };
@@ -427,7 +427,7 @@ function buildOfflineDemoJobsiteScenario(jobsite: CompanyJobsite | undefined): P
     site_specific_notes:
       "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
     emergency_procedures:
-      "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+      "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafePredict before shift closeout.",
     document_number: "CSEP-DEMO-20260425",
   };
 }

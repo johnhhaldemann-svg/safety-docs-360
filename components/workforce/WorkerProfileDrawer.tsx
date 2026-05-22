@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import Link from "next/link";
 import type {
   Stage1ReadinessStatus,
   Stage1TrainingDetail,
@@ -130,6 +131,16 @@ function hasVisibleEvidence(detail: Stage1TrainingDetail) {
   return Boolean(evidence) && evidence !== "Missing evidence" && evidence !== "Not required";
 }
 
+function trainingReminderHref(profile: WorkerProfileRecord, detail?: Stage1TrainingDetail) {
+  const subject = encodeURIComponent(`Training reminder for ${profile.name}`);
+  const body = encodeURIComponent(
+    detail
+      ? `Hi ${profile.name},\n\nPlease review your ${detail.trainingName} training requirement. Current status: ${detail.status}. Due date: ${detail.dueDate ?? "not scheduled"}.\n\nThank you.`
+      : `Hi ${profile.name},\n\nPlease review your training requirements in SafePredict.\n\nThank you.`
+  );
+  return `mailto:${profile.email}?subject=${subject}&body=${body}`;
+}
+
 export function workerProfileIdForDirectoryRow(row: Pick<WorkerProfileDirectoryRow, "id" | "source">) {
   return row.source === "tracked" ? `tracked:${row.id}` : row.id;
 }
@@ -244,6 +255,8 @@ export function WorkerProfileDrawer({
     .map((detail) => detail.preventionMessage)
     .filter((message): message is string => Boolean(cleanText(message, "")));
   const noPortal = profile.loginAccessStatus === "No Portal Access";
+  const teamAccessHref = `/company-users?search=${encodeURIComponent(profile.name)}`;
+  const correctiveActionHref = `/field-id-exchange?search=${encodeURIComponent(profile.name)}`;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/35 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`${profile.name} worker profile`}>
@@ -350,8 +363,12 @@ export function WorkerProfileDrawer({
                         <td className="px-3 py-3">{detail.courseVersion}</td>
                         <td className="px-3 py-3">
                           <div className="flex flex-wrap gap-2">
-                            <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
-                            <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button>
+                            {profile.email ? (
+                              <a href={trainingReminderHref(profile, detail)} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Send reminder</a>
+                            ) : (
+                              <span className="text-xs font-bold text-[var(--app-muted)]">No email on file</span>
+                            )}
+                            <button type="button" onClick={() => onTabChange("actions")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Create action</button>
                           </div>
                         </td>
                       </tr>
@@ -408,7 +425,7 @@ export function WorkerProfileDrawer({
                           <td className="px-3 py-3"><StatusBadge label={profile.accessStatus} tone={statusTone(profile.accessStatus)} /></td>
                           <td className="px-3 py-3">{siteTrainingRows.map((detail) => detail.trainingName).join(", ") || "No site-specific training found"}</td>
                           <td className="px-3 py-3">{missingSiteTraining.map((detail) => detail.trainingName).join(", ") || "No missing site training found"}</td>
-                          <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Review access</button></td>
+                          <td className="px-3 py-3"><button type="button" onClick={() => onTabChange("access")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Review access</button></td>
                         </tr>
                       );
                     })}
@@ -440,7 +457,7 @@ export function WorkerProfileDrawer({
                         <td className="px-3 py-3">{detail.trainerOrApprover}</td>
                         <td className="px-3 py-3">{detail.expiryDate ?? "No expiry on file"}</td>
                         <td className="px-3 py-3"><StatusBadge label={detail.evidenceStatus} tone={detail.evidenceStatus === "On file" ? "success" : "warning"} /></td>
-                        <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">View evidence</button></td>
+                        <td className="px-3 py-3"><span className="text-xs font-bold text-[var(--app-muted)]">Evidence on file</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -478,7 +495,7 @@ export function WorkerProfileDrawer({
                           <td className="px-3 py-3">{profile.supervisorOrManager}</td>
                           <td className="px-3 py-3">{detail.dueDate ?? "No due date"}</td>
                           <td className="px-3 py-3"><StatusBadge label={detail.status === "Expiring Soon" ? "Monitor" : "Open"} tone={detail.status === "Expiring Soon" ? "warning" : "error"} /></td>
-                          <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button></td>
+                          <td className="px-3 py-3"><Link href={correctiveActionHref} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Create action</Link></td>
                         </tr>
                       );
                     })}
@@ -500,8 +517,8 @@ export function WorkerProfileDrawer({
                   <AccessFact label="Assigned jobsite" value={profile.assignedJobsites.join(", ")} />
                   <AccessFact label="Access restrictions" value={profile.restrictions?.join(", ") || "No restrictions recorded"} />
                   <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--app-border)] bg-white p-4">
-                    <button type="button" className={appButtonPrimaryClassName}>Convert to system user</button>
-                    <button type="button" className={appButtonSecondaryClassName}>Approve site access</button>
+                    <Link href={teamAccessHref} className={appButtonPrimaryClassName}>Convert to system user</Link>
+                    <Link href={teamAccessHref} className={appButtonSecondaryClassName}>Approve site access</Link>
                   </div>
                 </>
               ) : (
@@ -512,8 +529,10 @@ export function WorkerProfileDrawer({
                   <AccessFact label="Team access" value={profile.companyOrDepartment} />
                   <AccessFact label="Last updated" value={profile.lastUpdated ?? "Updated recently"} />
                   <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--app-border)] bg-white p-4">
-                    <button type="button" className={appButtonSecondaryClassName}>Send reminder</button>
-                    <button type="button" className={appButtonSecondaryClassName}>Edit worker</button>
+                    {profile.email ? (
+                      <a href={trainingReminderHref(profile)} className={appButtonSecondaryClassName}>Send reminder</a>
+                    ) : null}
+                    <Link href={teamAccessHref} className={appButtonSecondaryClassName}>Edit worker</Link>
                   </div>
                 </>
               )}

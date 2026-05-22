@@ -40,7 +40,7 @@ function getNwsUserAgent(explicit?: string | null) {
   return (
     explicit?.trim() ||
     readEnv("NWS_USER_AGENT") ||
-    "SafetyDocs360/1.0 support@safety360docs.com"
+    "SafePredict/1.0 support@safety360docs.com"
   );
 }
 

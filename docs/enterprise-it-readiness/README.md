@@ -1,4 +1,4 @@
-# Safety360Docs Enterprise IT Readiness Packet
+# SafePredict Enterprise IT Readiness Packet
 
 Status key: `Verified` means repo evidence exists. `Partial` means a control exists but needs environment, dashboard, or process evidence. `Needs Confirmation` means qualified human review or external evidence is still required.
 
@@ -25,4 +25,3 @@ This packet is an internal IT/Cyber validation draft. It is not a public trust c
 | [Pen-Test Prep](pen-test-prep-checklist.md) | Needs Confirmation | Pre-engagement checklist. | External tester required |
 | [Remediation Ticket Template](remediation-ticket-template.md) | Verified | Standard remediation format. | This packet |
 | [Validation Lane](validation-lane.md) | Partial | GitHub Actions, Vercel Preview, Supabase staging flow. | [.github/workflows](../../.github/workflows), [vercel.json](../../vercel.json) |
-

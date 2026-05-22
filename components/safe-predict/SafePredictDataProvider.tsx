@@ -791,7 +791,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           },
           body: JSON.stringify({
             title: input.title,
-            description: input.description || `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
+            description: input.description || `Created from SafePredict ${input.createdFrom}: ${input.linkedRisk}`,
             severity: input.priority,
             category: input.category || "corrective_action",
             status: safePredictStatusToApi(status),
@@ -938,7 +938,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
             },
             body: JSON.stringify({
               title: input.title,
-              description: input.description || `Created from SafetyDoc360 ${input.createdFrom}: ${input.linkedRisk}`,
+              description: input.description || `Created from SafePredict ${input.createdFrom}: ${input.linkedRisk}`,
               severity: input.priority,
               category: input.category || "corrective_action",
               status: safePredictStatusToApi(status),

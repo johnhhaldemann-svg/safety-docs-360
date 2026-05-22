@@ -1512,7 +1512,7 @@ export default function SafePredictDashboardPage() {
               </div>
             </>
           ) : (
-            <EmptySafePredictPanel title="No live forecast yet" detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows a predictive trend." />
+            <EmptySafePredictPanel title="No live forecast yet" detail="Add a jobsite plus inspections, observations, incidents, corrective actions, permits, or workforce records before SafePredict shows a predictive trend." />
           )}
         </Card>
 

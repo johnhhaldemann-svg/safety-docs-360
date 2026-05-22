@@ -66,8 +66,8 @@ export function Card({
 function defaultSectionHint(title: string) {
   const hints: Record<string, string> = {
     "Data Mode": "Switches between authenticated workspace data and the built-in sample fallback used when live workspace records are unavailable.",
-    "Risk Thresholds": "Defines how SafetyDoc360 groups numeric risk scores into low, medium, high, and critical bands.",
-    "Connected SafetyDoc360 Workflows": "Links this SafePredict screen back to the original SafetyDoc360 operating workflows.",
+    "Risk Thresholds": "Defines how SafePredict groups numeric risk scores into low, medium, high, and critical bands.",
+    "Connected SafePredict Workflows": "Links this SafePredict screen back to the connected operating workflows.",
     "Risk Forecast": "Shows projected risk movement using recent events, actions, training readiness, permits, and inspection signals.",
     "Risk Heat Map": "Groups risk by area, trade, or jobsite so high-priority work is easier to spot.",
     "Launch Readiness Snapshot": "Summarizes whether the current workspace has enough records to support a useful SafePredict rollout.",

@@ -33,6 +33,100 @@ export type GusMessage = {
   shouldSpeak?: boolean;
 };
 
+export const GUS_BOT_STATES = [
+  "idle",
+  "thinking",
+  "wave",
+  "pointing",
+  "warning",
+  "planning",
+  "muted",
+] as const;
+
+export type GusBotState = (typeof GUS_BOT_STATES)[number];
+
+export const GUS_DECISION_KINDS = [
+  "silent",
+  "idle",
+  "nudge",
+  "warning",
+  "planning_offer",
+  "draft_action_offer",
+] as const;
+
+export type GusDecisionKind = (typeof GUS_DECISION_KINDS)[number];
+
+export type GusContextSignal = {
+  signalId: string;
+  source: "risk" | "permit" | "training" | "jsa" | "observation" | "weather" | "action" | "planning" | "page";
+  label: string;
+  detail?: string;
+  riskLevel?: GusRiskLevel;
+  count?: number;
+  actionHref?: string;
+};
+
+export type GusCompanionAction = {
+  actionKey: string;
+  label: string;
+  href?: string;
+  requiresConfirmation?: boolean;
+};
+
+export type GusDecision = {
+  decisionId: string;
+  kind: GusDecisionKind;
+  botState: GusBotState;
+  attentionLevel: "none" | "low" | "medium" | "high" | "critical";
+  message: GusMessage;
+  reason?: string;
+  signals: GusContextSignal[];
+  actions: GusCompanionAction[];
+  shouldOpen: boolean;
+  shouldSpeak: boolean;
+};
+
+export type GusConversationTurn = {
+  id?: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: string;
+};
+
+export type GusPersonalityProfile = {
+  profileId: "calm_mentor";
+  displayName: "Calm Mentor";
+  traits: string[];
+  boundaries: string[];
+};
+
+export type GusSafetyPreferenceMemory = {
+  preferredDetailLevel: "concise" | "balanced" | "step_by_step";
+  usefulTopics: string[];
+  repeatedThemes: string[];
+  updatedAt?: string;
+};
+
+export type GusConversationRequest = {
+  message: string;
+  history?: GusConversationTurn[];
+  context?: Partial<import("@/lib/gus/gusContext").GusContext>;
+  decision?: Partial<GusDecision>;
+  safetyPreferences?: Partial<GusSafetyPreferenceMemory>;
+};
+
+export type GusConversationResponse = {
+  answer: string;
+  tone: "calm_mentor";
+  suggestedActions: string[];
+  missingInformation: string[];
+  riskFlags: string[];
+  recommendedControls: string[];
+  safetyPreferences: GusSafetyPreferenceMemory;
+  draftOnly: true;
+  humanReviewRequired: true;
+};
+
 export const GUS_PLAN_STATUSES = [
   "draft_incomplete",
   "draft_ready_for_review",

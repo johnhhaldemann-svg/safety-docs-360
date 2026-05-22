@@ -694,10 +694,10 @@ export function SafePredictWorkforceDashboard() {
         subtitle="A command view for training readiness, permit exposure, and crew-prevention follow-through."
         actions={
           <>
-            <button className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
+            <span className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               <CalendarDays className="h-4 w-4" />
               May 20 - May 26, 2026
-            </button>
+            </span>
             <button
               type="button"
               onClick={refreshLiveData}

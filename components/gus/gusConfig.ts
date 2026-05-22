@@ -38,6 +38,8 @@ export const gusStorageKeys = {
 } as const;
 
 export const gusFeatureFlags = {
+  gusSmartBotEnabled: true,
+  gusConversationalCoachEnabled: true,
   gusRealtimeVoiceEnabled: false,
 } as const;
 

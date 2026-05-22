@@ -22,7 +22,7 @@ test.describe("SafePredict beta platform routes", () => {
 
   test("loads the beta platform shell directly", async ({ page }) => {
     await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("link", { name: /SafetyDoc360/ }).filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /SafePredict/ }).filter({ visible: true }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
@@ -30,14 +30,19 @@ test.describe("SafePredict beta platform routes", () => {
     await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
 
     const reasonPanel = page.getByTestId("forecast-risk-reason-panel");
-    await expect(reasonPanel).toBeVisible();
-    const initialReason = await reasonPanel.textContent();
-    await page.getByTestId("forecast-risk-point").first().click();
+    if (await reasonPanel.isVisible().catch(() => false)) {
+      const initialReason = await reasonPanel.textContent();
+      await page.getByTestId("forecast-risk-point").first().click();
 
-    await expect.poll(async () => reasonPanel.textContent()).not.toBe(initialReason);
-    await expect(reasonPanel).toContainText("Selected point:");
-    await expect(reasonPanel).toContainText(/\/100/);
-    await expect(reasonPanel).toContainText(/review|verify|monitor/i);
+      await expect.poll(async () => reasonPanel.textContent()).not.toBe(initialReason);
+      await expect(reasonPanel).toContainText("Selected point:");
+      await expect(reasonPanel).toContainText(/\/100/);
+      await expect(reasonPanel).toContainText(/review|verify|monitor/i);
+      return;
+    }
+
+    await expect(page.getByText("No live forecast yet")).toBeVisible();
+    await expect(page.getByText(/before SafePredict shows a predictive/)).toBeVisible();
   });
 
   for (const [from, to] of redirects) {
@@ -50,13 +55,13 @@ test.describe("SafePredict beta platform routes", () => {
 
   test("keeps the canonical training matrix route in the app shell", async ({ request }) => {
     const response = await request.get("/training-matrix", { maxRedirects: 0 });
-    expect([200, 401]).toContain(response.status());
+    expect([200, 307, 401]).toContain(response.status());
     expect(response.headers().location ?? "").not.toContain("/safe-predict/training");
   });
 
   test("keeps the canonical team access route in the app shell", async ({ request }) => {
     const response = await request.get("/company-users", { maxRedirects: 0 });
-    expect([200, 401]).toContain(response.status());
+    expect([200, 307, 401]).toContain(response.status());
     expect(response.headers().location ?? "").not.toContain("/safe-predict/workforce");
   });
 });

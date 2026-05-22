@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           <section className="rounded-2xl border border-[var(--app-border)] bg-white/72 p-6">
             <h2 className="text-xl font-bold text-[var(--app-text-strong)]">What this workspace processes</h2>
             <p className="mt-3">
-              Safety360Docs stores account, company, and safety-program data you submit (including documents and
+              SafePredict stores account, company, and safety-program data you submit (including documents and
               workflow metadata) in order to provide the service. Authentication is handled through Supabase Auth.
             </p>
           </section>

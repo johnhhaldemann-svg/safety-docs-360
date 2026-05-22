@@ -16,7 +16,7 @@ describe("NWS client", () => {
       })
     ) as unknown as typeof fetch;
 
-    const client = new NwsClient({ fetcher, userAgent: "SafetyDocs360/1.0 test@example.com" });
+    const client = new NwsClient({ fetcher, userAgent: "SafePredict/1.0 test@example.com" });
     await expect(client.getPointMetadata(40.75, -73.99)).resolves.toEqual({
       gridId: "OKX",
       gridX: 33,
@@ -28,7 +28,7 @@ describe("NWS client", () => {
     expect(fetcher).toHaveBeenCalledWith(
       expect.stringContaining("/points/40.7500,-73.9900"),
       expect.objectContaining({
-        headers: expect.objectContaining({ "User-Agent": "SafetyDocs360/1.0 test@example.com" }),
+        headers: expect.objectContaining({ "User-Agent": "SafePredict/1.0 test@example.com" }),
       })
     );
   });

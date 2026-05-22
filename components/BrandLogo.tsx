@@ -6,11 +6,7 @@ type BrandLogoProps = {
   variant?: "wordmark" | "sidebar-panel";
 };
 
-export function BrandLogo({
-  className = "",
-  imageClassName = "",
-  variant = "wordmark",
-}: BrandLogoProps) {
+export function BrandLogo({ className = "", imageClassName = "", variant = "wordmark" }: BrandLogoProps) {
   if (variant === "sidebar-panel") {
     return (
       <div
@@ -23,7 +19,7 @@ export function BrandLogo({
           <div className="relative mx-1 flex h-[8rem] w-[calc(100%-0.5rem)] items-center justify-center rounded-[1.85rem] border border-[rgba(150,170,199,0.24)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.99)_0%,_rgba(244,247,252,0.96)_100%)] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.94),0_8px_18px_rgba(55,78,120,0.07)]">
             <div className="absolute inset-0 rounded-[1.85rem] bg-[radial-gradient(circle_at_top,_rgba(122,149,214,0.12),_transparent_58%)]" />
             <Image
-              src="/brand/safety360docs-reference-neon-tight.png"
+              src="/brand/safety360docs-reliance-lockup.svg"
               alt="Safety360Docs by Reliance EHS"
               fill
               priority
@@ -49,7 +45,7 @@ export function BrandLogo({
       <div className="absolute inset-x-5 bottom-0 h-px bg-[linear-gradient(90deg,_transparent,_var(--app-accent-border-24),_transparent)]" />
       <div className="relative flex h-full items-center justify-center px-1.5 py-1.5 sm:px-2">
         <Image
-          src="/brand/safety360docs-reference-neon-tight.png"
+          src="/brand/safety360docs-reliance-lockup.svg"
           alt="Safety360Docs by Reliance EHS"
           fill
           priority

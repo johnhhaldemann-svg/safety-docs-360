@@ -36,12 +36,12 @@ const toneClasses: Record<OriginalSystemLink["tone"], string> = {
 
 const originalSystemLinks: Record<SafePredictWorkspaceSlug | "risk-mitigation", OriginalSystemLink[]> = {
   incidents: [
-    { href: "/incidents", label: "Incident Log", detail: "Review incident response records inside SafetyDoc360.", icon: AlertTriangle, tone: "red" },
+    { href: "/incidents", label: "Incident Log", detail: "Review incident response records inside SafePredict.", icon: AlertTriangle, tone: "red" },
     { href: "/field-audits", label: "Field Audits", detail: "Review observations and audit findings in the new operating view.", icon: FileCheck, tone: "amber" },
     { href: "/reports", label: "Reports", detail: "Open report-ready incident summaries.", icon: BarChart3, tone: "blue" },
   ],
   "corrective-actions": [
-    { href: "/field-id-exchange", label: "Field Issues", detail: "Track corrective actions and field issue follow-up in SafetyDoc360.", icon: ClipboardCheck, tone: "blue" },
+    { href: "/field-id-exchange", label: "Field Issues", detail: "Track corrective actions and field issue follow-up in SafePredict.", icon: ClipboardCheck, tone: "blue" },
     { href: "/jobsites", label: "Job Sites", detail: "Open the project command center tied to each action.", icon: MapPinned, tone: "green" },
     { href: "/reports", label: "Reports", detail: "Send action status into leadership reporting.", icon: BarChart3, tone: "purple" },
   ],
@@ -93,7 +93,7 @@ const originalSystemLinks: Record<SafePredictWorkspaceSlug | "risk-mitigation", 
   ],
   analytics: [
     { href: "/analytics", label: "Safety Analytics", detail: "Open the existing analytics workspace.", icon: BarChart3, tone: "blue" },
-    { href: "/analytics/predictive-model", label: "Predictive Model", detail: "Compare SafetyDoc360 forecasts against model lab trends.", icon: Link2, tone: "green" },
+    { href: "/analytics/predictive-model", label: "Predictive Model", detail: "Compare SafePredict forecasts against model lab trends.", icon: Link2, tone: "green" },
     { href: "/reports", label: "Reports", detail: "Package analytics into leadership reporting.", icon: FileText, tone: "purple" },
   ],
 };
@@ -109,7 +109,7 @@ export function SafePredictOriginalSystemLinks({
 
   return (
     <Card className={cx("p-5", compact ? "border-blue-100 bg-blue-50/35 shadow-none" : undefined)}>
-      <SectionTitle title="Connected SafetyDoc360 Workflows" />
+      <SectionTitle title="Connected SafePredict Workflows" />
       <div className={cx("mt-4 grid gap-3", compact ? "lg:grid-cols-2" : "xl:grid-cols-2 2xl:grid-cols-3")}>
         {links.map((item) => {
           const Icon = item.icon;
@@ -119,7 +119,7 @@ export function SafePredictOriginalSystemLinks({
               type="button"
               onClick={() => window.location.assign(mapSafePredictSurfaceHref(item.href))}
               className="group flex w-full items-center gap-3 rounded-lg border border-slate-100 bg-white p-3 text-left shadow-sm transition hover:border-blue-200 hover:shadow-[0_12px_22px_rgba(15,23,42,0.08)]"
-              aria-label={`Open ${item.label} in SafetyDoc360`}
+              aria-label={`Open ${item.label} in SafePredict`}
             >
               <span className={cx("grid h-11 w-11 shrink-0 place-items-center rounded-lg border", toneClasses[item.tone])}>
                 <Icon className="h-5 w-5" aria-hidden />

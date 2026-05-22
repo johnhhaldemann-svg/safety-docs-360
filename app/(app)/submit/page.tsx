@@ -282,7 +282,7 @@ export default function SubmitPage() {
     },
     {
       label: "Admin review",
-      detail: "Safety360Docs reviews, edits, and approves the document set.",
+      detail: "SafePredict reviews, edits, and approves the document set.",
       active: recentSubmissions.some((item) => item.status?.toLowerCase() === "submitted"),
       complete: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
     },

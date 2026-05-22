@@ -151,7 +151,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const report = await generateFieldAuditReportPdf({
-    companyName: companyScope.companyName || "Safety360 Docs",
+    companyName: companyScope.companyName || "SafePredict",
     customerName: customerResult.data?.name ?? null,
     jobsiteName: String(auditLocationResult.data?.name ?? jobsiteResult.data?.name ?? "Audit location"),
     auditDate: (audit.audit_date as string | null) ?? null,

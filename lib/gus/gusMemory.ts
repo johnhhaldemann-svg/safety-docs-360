@@ -8,6 +8,7 @@ import {
   scoreGusFeedback,
   type GusFeedbackInput,
 } from "@/lib/gus/gusScoring";
+import type { GusSafetyPreferenceMemory } from "@/lib/gus/gusTypes";
 
 export type GusMemoryScope = {
   companyId?: string | null;
@@ -28,6 +29,7 @@ export type GusMemorySnapshot = {
   totalScore: number;
   interactions: Record<string, GusFeedbackMemoryEntry>;
   patterns: GusLearningPattern[];
+  safetyPreferences: GusSafetyPreferenceMemory;
   updatedAt: string;
   constraints: {
     mayPrioritizeMessages: true;
@@ -46,6 +48,7 @@ function createEmptyMemory(scope: GusMemoryScope): GusMemorySnapshot {
     totalScore: 0,
     interactions: {},
     patterns: [],
+    safetyPreferences: createDefaultGusSafetyPreferenceMemory(),
     updatedAt: new Date(0).toISOString(),
     constraints: {
       mayPrioritizeMessages: true,
@@ -57,6 +60,19 @@ function createEmptyMemory(scope: GusMemoryScope): GusMemorySnapshot {
 }
 
 const gusMemoryStore = new Map<string, GusMemorySnapshot>();
+
+export function createDefaultGusSafetyPreferenceMemory(): GusSafetyPreferenceMemory {
+  return {
+    preferredDetailLevel: "balanced",
+    usefulTopics: [],
+    repeatedThemes: [],
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+function mergeUniqueStrings(current: string[], next: string[], maxItems: number) {
+  return [...new Set([...current, ...next].map((item) => item.trim()).filter(Boolean))].slice(0, maxItems);
+}
 
 export function getGusMemoryScopeKey(scope: GusMemoryScope) {
   return `${scope.companyId ?? "no-company"}:${scope.jobsiteId ?? "no-jobsite"}:${scope.userId ?? "anonymous"}`;
@@ -118,6 +134,34 @@ export function updateGusMemoryPatterns(
 
   gusMemoryStore.set(key, next);
   return next;
+}
+
+export function updateGusSafetyPreferenceMemory(
+  scope: GusMemoryScope,
+  preferences: Partial<GusSafetyPreferenceMemory>,
+) {
+  const key = getGusMemoryScopeKey(scope);
+  const current = getGusMemory(scope);
+  const existing = current.safetyPreferences ?? createDefaultGusSafetyPreferenceMemory();
+  const nextPreferences: GusSafetyPreferenceMemory = {
+    preferredDetailLevel:
+      preferences.preferredDetailLevel === "concise" ||
+      preferences.preferredDetailLevel === "balanced" ||
+      preferences.preferredDetailLevel === "step_by_step"
+        ? preferences.preferredDetailLevel
+        : existing.preferredDetailLevel,
+    usefulTopics: mergeUniqueStrings(existing.usefulTopics, preferences.usefulTopics ?? [], 8),
+    repeatedThemes: mergeUniqueStrings(existing.repeatedThemes, preferences.repeatedThemes ?? [], 8),
+    updatedAt: new Date().toISOString(),
+  };
+  const next: GusMemorySnapshot = {
+    ...current,
+    safetyPreferences: nextPreferences,
+    updatedAt: new Date().toISOString(),
+  };
+
+  gusMemoryStore.set(key, next);
+  return nextPreferences;
 }
 
 export function resetGusMemoryForTests() {

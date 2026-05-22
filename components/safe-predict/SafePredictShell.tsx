@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -177,47 +177,23 @@ function riskBand(score: number, hasSignals: boolean) {
   return "Low";
 }
 
-function Safety360DocsLockup({
+function SafePredictLockup({
   className,
   compact = false,
-  sizes,
 }: {
   className: string;
   compact?: boolean;
-  sizes: string;
 }) {
   return (
-    <span className={cx("flex items-center overflow-hidden rounded-xl bg-white", compact ? "gap-2 px-2 py-1.5" : "gap-2 px-3 py-2", className)}>
-      <span className={cx("relative shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}>
-        <Image
-          src="/brand/safety360docs-reliance-icon.png"
-          alt=""
-          fill
-          priority
-          sizes={sizes}
-          className="object-contain"
-        />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span
-          className={cx("flex items-baseline leading-none", compact ? "text-[14px]" : "text-[16px]")}
-          style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
-        >
-          <span className="font-black italic text-[#1977cf]">Safety</span>
-          <span className="font-black italic text-[#477a1f]">360</span>
-          <span className="font-black italic text-[#1977cf]">Docs</span>
-        </span>
-        <span
-          className={cx("block italic leading-none text-[#6e7683]", compact ? "mt-0 text-[6px]" : "mt-0.5 text-[8px]")}
-          style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
-        >
-          by Reliance EHS
-        </span>
-        <span className={cx("block bg-[#c52828]", compact ? "mt-1 h-px" : "mt-1.5 h-[2px]")} />
-        <span className={cx("block truncate font-bold leading-none tracking-[0.02em] text-[#c52828]", compact ? "mt-1 text-[5px]" : "mt-1 text-[6.5px]")}>
-          ENVIRONMENT - HEALTH - SAFETY
-        </span>
-      </span>
+    <span className={cx("relative block overflow-hidden rounded-lg bg-white", className)}>
+      <Image
+        src="/brand/safety360docs-reliance-lockup.svg"
+        alt="Safety360Docs by Reliance EHS"
+        fill
+        priority
+        sizes={compact ? "176px" : "212px"}
+        className={cx("object-contain", compact ? "p-1.5" : "p-2")}
+      />
     </span>
   );
 }
@@ -406,9 +382,8 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[252px] flex-col bg-[#061d35] text-white shadow-[18px_0_40px_rgba(5,24,44,0.16)] lg:flex">
         <div className="px-5 pb-4 pt-5">
           <Link href="/safe-predict" className="block" aria-label="Safety360Docs home">
-            <Safety360DocsLockup
+            <SafePredictLockup
               className="h-[74px] w-full border border-blue-100/70 shadow-[0_12px_24px_rgba(5,24,44,0.24)]"
-              sizes="48px"
             />
           </Link>
         </div>
@@ -475,17 +450,16 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-full w-[290px] max-w-[82vw] flex-col bg-[#061d35] text-white shadow-2xl">
             <div className="flex items-center justify-between px-5 py-5">
               <Link href="/safe-predict" onClick={() => setMobileMenuOpen(false)} className="block" aria-label="Safety360Docs home">
-                <Safety360DocsLockup
+                <SafePredictLockup
                   compact
                   className="h-12 w-[176px] border border-blue-100/70 shadow-[0_8px_18px_rgba(5,24,44,0.2)]"
-                  sizes="32px"
                 />
               </Link>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 text-white"
-                aria-label="Close SafetyDoc360 menu"
+                aria-label="Close SafePredict menu"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -514,22 +488,15 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm lg:hidden"
-                aria-label="Open SafetyDoc360 menu"
+                aria-label="Open SafePredict menu"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <Link href="/safe-predict" className="flex min-w-0 items-center gap-2 lg:hidden">
-                <span className="relative h-7 w-7 overflow-hidden rounded-md bg-white">
-                  <Image
-                    src="/brand/safety360docs-reliance-icon.png"
-                    alt="Safety360Docs by Reliance EHS"
-                    fill
-                    priority
-                    sizes="28px"
-                    className="object-contain p-0.5"
-                  />
-                </span>
-                <span className="truncate text-base font-black sm:text-lg">Safety360Docs</span>
+              <Link href="/safe-predict" className="block lg:hidden" aria-label="Safety360Docs home">
+                <SafePredictLockup
+                  compact
+                  className="h-11 w-[180px] border border-slate-200 shadow-sm"
+                />
               </Link>
             </div>
 
@@ -537,7 +504,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               <Link href="/safe-predict/reports" className="hidden h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm md:inline-flex">
                 {dataset.company.name}
               </Link>
-              <Link href="/safe-predict/risk-mitigation" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm" aria-label="Open SafetyDoc360 alerts">
+              <Link href="/safe-predict/risk-mitigation" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm" aria-label="Open SafePredict alerts">
                 <Bell className="h-5 w-5" />
                 <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-red-500 text-[10px] font-black text-white">
                   {elevatedSiteCount}

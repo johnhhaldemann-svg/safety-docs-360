@@ -4,7 +4,7 @@ import { generateFieldAuditReportPdf } from "@/lib/fieldAudits/reportPdf";
 describe("generateFieldAuditReportPdf", () => {
   it("creates a finished audit PDF with a stable filename", async () => {
     const report = await generateFieldAuditReportPdf({
-      companyName: "Safety360 Docs",
+      companyName: "SafePredict",
       customerName: "ABC Customer",
       jobsiteName: "North Tower",
       auditDate: "2026-04-29",

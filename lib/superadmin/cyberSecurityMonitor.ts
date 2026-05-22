@@ -292,7 +292,7 @@ async function probeWebsite(url: URL) {
       cache: "no-store",
       signal: controller.signal,
       headers: {
-        "User-Agent": "Safety360Docs-CyberMonitor/1.0",
+        "User-Agent": "SafePredict-CyberMonitor/1.0",
       },
     });
     responseTimeMs = Date.now() - startedAt;

@@ -47,7 +47,25 @@ export type GusAiTask =
   | "summarize_planning_session"
   | "ask_follow_up_questions"
   | "draft_recommendations"
-  | "improve_wording";
+  | "improve_wording"
+  | "conversation_reply";
+
+export const GUS_PERSONALITY_PROFILE = {
+  profileId: "calm_mentor",
+  displayName: "Calm Mentor",
+  traits: [
+    "warm",
+    "plainspoken",
+    "steady",
+    "practical",
+    "encouraging without minimizing risk",
+  ],
+  boundaries: [
+    "Gus is an AI safety coach, not a human supervisor, competent person, qualified person, engineer, or legal advisor.",
+    "Human traits must support safety work and must not distract from missing information, risk, or required review.",
+    "Gus may be personable, but must never approve, submit, release, close, delete, or claim compliance.",
+  ],
+} as const;
 
 export type GusAiPromptInput = {
   task: GusAiTask;
@@ -59,6 +77,8 @@ export type GusAiPromptInput = {
   verifiedPlatformRules?: string[];
   companyRules?: string[];
   jobsiteContext?: unknown;
+  conversationHistory?: unknown;
+  safetyPreferences?: unknown;
 };
 
 function boundedString(value: string, maxLength: number) {
@@ -96,8 +116,14 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
       jobsiteContext: boundedJson(input.jobsiteContext, 4_000),
       safetyContext: boundedJson(input.safetyContext, 4_000),
       planningSession: boundedJson(input.planningSession, 6_000),
+      conversationHistory: boundedJson(input.conversationHistory, 4_000),
+      safetyPreferences: boundedJson(input.safetyPreferences, 2_000),
+      personalityProfile: input.task === "conversation_reply" ? GUS_PERSONALITY_PROFILE : undefined,
       outputContract: {
-        answer: "Short plain-language response.",
+        answer:
+          input.task === "conversation_reply"
+            ? "Natural, calm mentor response in plain language. Be conversational, but keep safety first."
+            : "Short plain-language response.",
         missingInformation: "Array of exact unknowns or missing details.",
         riskFlags: "Array of safety concerns that need review.",
         recommendedControls: "Array of practical draft controls to consider.",
@@ -112,6 +138,8 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
         "Do not cite OSHA or any regulation unless it is present in verifiedPlatformRules.",
         "If required details are missing, place them in missingInformation and keep the answer conservative.",
         "Keep draftOnly and humanReviewRequired set to true.",
+        "For conversation replies, be warm and human-sounding, but be transparent that Gus is an AI safety coach if identity or authority comes up.",
+        "Do not store or repeat sensitive personal details, personal small talk, or unofficial approvals as memory.",
       ],
     },
     null,

@@ -274,7 +274,7 @@ function createCommentReferenceRun(doc: Document, commentId: string) {
 function appendCommentEntry(commentsDoc: Document, commentId: string, note: string) {
   const commentNode = commentsDoc.createElementNS(WORD_NS, "w:comment");
   commentNode.setAttribute("w:id", commentId);
-  commentNode.setAttribute("w:author", "Safety360Docs Review");
+  commentNode.setAttribute("w:author", "SafePredict Review");
   commentNode.setAttribute("w:initials", "SD");
   commentNode.setAttribute("w:date", new Date().toISOString());
 

@@ -149,7 +149,7 @@ export function createCsepCover(options: CoverOptions): Paragraph[] {
       alignment: AlignmentType.CENTER,
       children: [
         new TextRun({
-          text: "SafetyDocs360",
+          text: "SafePredict",
           font: "Aptos Display",
           bold: true,
           color: COLORS.accentBlue,
@@ -328,7 +328,7 @@ export function createCsepDocument(children: DocChild[]) {
                 style: CSEP_STYLE_IDS.body,
                 children: [
                   new TextRun({
-                    text: `SafetyDocs360 | ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} | Submission-ready CSEP`,
+                    text: `SafePredict | ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} | Submission-ready CSEP`,
                     font: "Aptos",
                     size: 17,
                     color: COLORS.footerGray,

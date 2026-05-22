@@ -10,6 +10,8 @@ import {
   isGusDisabledRoute,
 } from "@/components/gus/gusConfig";
 import { gusFallbackMessage, gusRouteMessages } from "@/components/gus/gusMessages";
+import { decideGusBehavior } from "@/lib/gus/gusBrain";
+import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusMessage, GusMessageCategory } from "@/lib/gus/gusTypes";
 
 function readStorageValue(key: string) {
@@ -126,12 +128,23 @@ type UseGusAssistantOptions = {
   currentPage?: string;
   route?: string;
   companyId?: string | null;
+  jobsiteId?: string | null;
+  userId?: string | null;
+  liveContext?: Partial<GusContext>;
 };
 
 export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   const appPathname = usePathname();
-  const pathname = options.route ?? appPathname;
-  const currentPage = options.currentPage?.trim() || "Current page";
+  const {
+    companyId,
+    currentPage: optionCurrentPage,
+    jobsiteId,
+    liveContext,
+    route,
+    userId,
+  } = options;
+  const pathname = route ?? appPathname;
+  const currentPage = optionCurrentPage?.trim() || "Current page";
   const typingUntilRef = useRef(0);
   const popupsThisSessionRef = useRef(0);
   const popupTimerRef = useRef<number | null>(null);
@@ -145,7 +158,27 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   const isAllowed = isGusAllowedRoute(pathname) && !isGusDisabledRoute(pathname);
   const isVisible = isAllowed && !disabledToday && !dismissed && !quietMode;
   const candidateMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
-  const message = activeMessage ?? candidateMessage;
+  const context: GusContext = {
+    companyId: companyId ?? undefined,
+    jobsiteId: jobsiteId ?? undefined,
+    userId: userId ?? undefined,
+    ...liveContext,
+    currentPage,
+    route: pathname,
+  };
+  const smartDecision = decideGusBehavior({
+    context,
+    routeMessage: candidateMessage,
+    feedback,
+    quietMode,
+  });
+  const message = activeMessage ?? smartDecision.message;
+  const decision = activeMessage
+    ? {
+        ...smartDecision,
+        message,
+      }
+    : smartDecision;
   const warningShouldOpenImmediately = isHighPriorityWarning(message);
 
   const rememberShownMessage = useCallback((shownMessage: GusMessage) => {
@@ -172,18 +205,6 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       return true;
     },
     [isVisible, open],
-  );
-
-  const autoOpenAssistant = useCallback(
-    (allowTypingOverride: boolean) => {
-      const nextMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
-      if (!canAutoOpen(nextMessage, allowTypingOverride)) return;
-      setActiveMessage(nextMessage);
-      rememberShownMessage(nextMessage);
-      popupsThisSessionRef.current += 1;
-      setOpen(true);
-    },
-    [canAutoOpen, pathname, rememberShownMessage],
   );
 
   useEffect(() => {
@@ -216,7 +237,27 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
 
     const delay = warningShouldOpenImmediately ? gusPopupTiming.warningDelayMs : randomDelayMs();
     popupTimerRef.current = window.setTimeout(() => {
-      autoOpenAssistant(warningShouldOpenImmediately);
+      const nextRouteMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
+      const nextContext: GusContext = {
+        companyId: companyId ?? undefined,
+        jobsiteId: jobsiteId ?? undefined,
+        userId: userId ?? undefined,
+        ...liveContext,
+        currentPage,
+        route: pathname,
+      };
+      const nextDecision = decideGusBehavior({
+        context: nextContext,
+        routeMessage: nextRouteMessage,
+        feedback,
+        quietMode,
+      });
+      const nextMessage = nextDecision.message;
+      if (!canAutoOpen(nextMessage, warningShouldOpenImmediately)) return;
+      setActiveMessage(nextMessage);
+      rememberShownMessage(nextMessage);
+      popupsThisSessionRef.current += 1;
+      setOpen(true);
     }, delay);
 
     return () => {
@@ -225,10 +266,31 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
         popupTimerRef.current = null;
       }
     };
-  }, [autoOpenAssistant, isVisible, message.category, open, pathname, warningShouldOpenImmediately]);
+  }, [
+    canAutoOpen,
+    companyId,
+    currentPage,
+    feedback,
+    isVisible,
+    jobsiteId,
+    liveContext,
+    message.category,
+    open,
+    pathname,
+    quietMode,
+    rememberShownMessage,
+    userId,
+    warningShouldOpenImmediately,
+  ]);
 
   function openAssistant() {
-    const nextMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
+    const nextRouteMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
+    const nextMessage = decideGusBehavior({
+      context,
+      routeMessage: nextRouteMessage,
+      feedback,
+      quietMode,
+    }).message;
     setActiveMessage(nextMessage);
     rememberShownMessage(nextMessage);
     setDismissed(false);
@@ -262,8 +324,11 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     open,
     pathname,
     currentPage,
-    companyId: options.companyId ?? null,
+    companyId: companyId ?? null,
+    jobsiteId: jobsiteId ?? null,
+    context,
     message,
+    decision,
     isVisible,
     voiceEnabled,
     feedback,

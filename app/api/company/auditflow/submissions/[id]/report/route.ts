@@ -184,7 +184,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const html = renderReport({
-    companyName: companyScope.companyName || "Safety360 Docs",
+    companyName: companyScope.companyName || "SafePredict",
     templateTitle: String(template.data?.title ?? "AuditFlow Report"),
     jobsiteName: String(jobsite.data?.name ?? "No jobsite"),
     submission: submission.data,

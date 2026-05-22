@@ -208,7 +208,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     .order("created_at", { ascending: true });
 
   const reportPdf = await generateFieldAuditReportPdf({
-    companyName: companyScope.companyName || "Safety360 Docs",
+    companyName: companyScope.companyName || "SafePredict",
     customerName: customerResult.data?.name ?? null,
     jobsiteName: String(auditLocationResult.data?.name ?? jobsiteResult.data?.name ?? "Audit location"),
     auditDate: (audit.audit_date as string | null) ?? null,
@@ -230,7 +230,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const emailResult = await sendCustomerAuditReportEmail({
     toEmail: recipientEmail,
-    companyName: companyScope.companyName || "Safety360 Docs",
+    companyName: companyScope.companyName || "SafePredict",
     jobsiteName: String(auditLocationResult.data?.name ?? jobsiteResult.data?.name ?? "Audit location"),
     auditDate: (audit.audit_date as string | null) ?? null,
     auditors: (audit.auditors as string | null) ?? null,

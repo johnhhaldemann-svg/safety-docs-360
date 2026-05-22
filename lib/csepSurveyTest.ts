@@ -656,7 +656,7 @@ export function buildSurveyTestExportPayload(input: SurveyTestFormData) {
     project_address: input.project_address.trim(),
     owner_client: input.owner_client.trim(),
     gc_cm: normalizeGcCmPartnerEntries(input.gc_cm),
-    contractor_company: input.contractor_company.trim() || "SafetyDocs360",
+    contractor_company: input.contractor_company.trim() || "SafePredict",
     contractor_contact: input.contractor_contact.trim(),
     contractor_phone: input.contractor_phone.trim(),
     contractor_email: input.contractor_email.trim(),

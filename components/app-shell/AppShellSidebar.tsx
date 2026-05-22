@@ -54,9 +54,9 @@ export function AppShellSidebar({
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="p-3.5 pb-1">
-          <div className="relative h-[4.9rem] w-full">
+          <div className="relative h-[4.9rem] w-full" aria-label="Safety360 Docs">
             <Image
-              src="/brand/safety360docs-reference-neon-tight.png"
+              src="/brand/safety360docs-reliance-lockup.svg"
               alt="Safety360Docs by Reliance EHS"
               fill
               priority

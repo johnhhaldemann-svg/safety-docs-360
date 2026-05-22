@@ -75,13 +75,13 @@ function buildTestAlert(): WeatherAlert {
     severity: "Test",
     urgency: "Expected",
     certainty: "Likely",
-    headline: "SafetyDocs360 urgent safety notification test.",
+    headline: "SafePredict urgent safety notification test.",
     description: "This is a test urgent safety notification. No action is required.",
     instruction: "No action required. This confirms urgent safety notification email and SMS delivery setup.",
     effectiveAt: now.toISOString(),
     expiresAt: expires.toISOString(),
     status: "Test",
-    rawPayload: { source: "SafetyDocs360 test notification" },
+    rawPayload: { source: "SafePredict test notification" },
   };
 }
 

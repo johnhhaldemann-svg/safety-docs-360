@@ -126,7 +126,7 @@ export default function SafePredictPredictiveRiskPage() {
 
       {showHowItWorks ? (
         <Card className="mb-5 border-blue-200 bg-blue-50 p-5">
-          <p className="text-sm font-black text-blue-950">How SafetyDoc360 creates this guidance</p>
+          <p className="text-sm font-black text-blue-950">How SafePredict creates this guidance</p>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-blue-900">
             The MVP combines company safety signals, open corrective actions, inspection findings, training gaps, and permit exposure into a transparent risk forecast.
             It is guidance for safety managers, not a guarantee. Every high-risk signal is paired with a recommended action so the team can respond early.
@@ -227,7 +227,7 @@ export default function SafePredictPredictiveRiskPage() {
           ) : (
             <EmptyLivePanel
               title="No live forecast yet"
-              detail={`Add ${scopeSiteId === "all" ? "company" : "project"} inspections, observations, incidents, corrective actions, permits, or workforce records before SafetyDoc360 shows this predictive forecast.`}
+              detail={`Add ${scopeSiteId === "all" ? "company" : "project"} inspections, observations, incidents, corrective actions, permits, or workforce records before SafePredict shows this predictive forecast.`}
             />
           )}
         </Card>

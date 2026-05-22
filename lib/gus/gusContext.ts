@@ -15,6 +15,8 @@ export type GusContext = {
   recentObservationTypes?: string[];
   recentPositiveObservationCount?: number;
   recentNegativeObservationCount?: number;
+  openCorrectiveActionCount?: number;
+  openHighPriorityActionCount?: number;
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;

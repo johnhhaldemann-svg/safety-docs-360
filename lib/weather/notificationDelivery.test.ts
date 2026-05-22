@@ -123,7 +123,7 @@ describe("weather notification delivery helpers", () => {
   it("uses the company invite sender when no dedicated weather sender is configured", async () => {
     process.env.RESEND_API_KEY = "re_test";
     delete process.env.WEATHER_ALERT_FROM_EMAIL;
-    process.env.COMPANY_INVITE_FROM_EMAIL = "SafetyDocs360 <invites@example.com>";
+    process.env.COMPANY_INVITE_FROM_EMAIL = "SafePredict <invites@example.com>";
     delete process.env.RESEND_FROM_EMAIL;
     const fetcher = vi.fn(async () => Response.json({ id: "email-1" })) as unknown as typeof fetch;
 

@@ -337,7 +337,7 @@ async function confirmOpenFile() {
     },
     {
       label: "Admin approval",
-      detail: "Safety360Docs reviews the submission and prepares the final file.",
+      detail: "SafePredict reviews the submission and prepares the final file.",
       active: recentSubmissions.some((item) => item.status?.toLowerCase() === "submitted"),
       complete: recentSubmissions.some((item) => item.status?.toLowerCase() === "approved"),
     },

@@ -243,7 +243,7 @@ function LoginPageContent() {
                     Portal
                   </p>
                   <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">
-                    Sign in to your Safety360Docs workspace.
+                    Sign in to your SafePredict workspace.
                   </p>
                 </div>
 

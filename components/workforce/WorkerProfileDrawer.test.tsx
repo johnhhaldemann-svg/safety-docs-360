@@ -203,4 +203,31 @@ describe("WorkerProfileDrawer", () => {
     expect(renderDrawer(profile, "access")).toContain("Login email");
     expect(renderDrawer(profile, "audit")).toContain("No Audit Log Entries Available");
   });
+
+  it("renders actionable links instead of inert profile buttons", () => {
+    const profile = buildWorkerProfileFromMatrixRow({
+      userId: "worker-actions",
+      name: "Taylor Actions",
+      email: "taylor@example.com",
+      loginAccessStatus: "Active User",
+      jobTitleOrTrade: "Electrician",
+      assignedJobsites: ["Hillcrest Office Fit-Out"],
+      readinessStatus: "Ready With Warnings",
+      trainingStatus: "Expiring Soon",
+      permitExposureStatus: "Permit-linked gaps",
+      accessStatus: "Active User",
+      trainingRequirements: [baseTrainingDetail, completedEvidenceDetail],
+    });
+
+    const trainingHtml = renderDrawer(profile, "training");
+    expect(trainingHtml).toContain("mailto:taylor@example.com?subject=Training%20reminder");
+    expect(trainingHtml).toContain("Create action");
+
+    const actionsHtml = renderDrawer(profile, "actions");
+    expect(actionsHtml).toContain("/field-id-exchange?search=Taylor%20Actions");
+
+    const accessHtml = renderDrawer(profile, "access");
+    expect(accessHtml).toContain("/company-users?search=Taylor%20Actions");
+    expect(accessHtml).toContain("Edit worker");
+  });
 });

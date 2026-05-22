@@ -725,7 +725,7 @@ export function normalizeLiveIncidents(rows: SafePredictLiveRecordRow[], jobsite
         status,
         reportedBy: textValue(row, ["reported_by_name", "reportedBy", "created_by", "createdBy"], "Field Team"),
         reportedAt: relativeDateLabel(row.occurred_at ?? row.created_at ?? row.reported_at),
-        detail: textValue(row, ["description", "detail", "narrative"], "Live incident record from SafetyDocs360."),
+        detail: textValue(row, ["description", "detail", "narrative"], "Live incident record from SafePredict."),
       };
     });
 }
@@ -745,7 +745,7 @@ export function normalizeLiveObservations(rows: SafePredictLiveRecordRow[], jobs
         submittedBy: textValue(row, ["created_by_name", "submittedBy", "created_by", "createdBy"], "Field Team"),
         submittedAt: relativeDateLabel(row.created_at ?? row.updated_at),
         riskLevel: normalizeRiskLevel(textValue(row, ["severity", "priority", "risk_level", "riskLevel"]), "medium"),
-        detail: textValue(row, ["description", "detail"], "Live observation from SafetyDocs360."),
+        detail: textValue(row, ["description", "detail"], "Live observation from SafePredict."),
       };
     });
 }

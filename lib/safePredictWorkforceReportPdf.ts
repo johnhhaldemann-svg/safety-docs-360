@@ -213,7 +213,7 @@ function drawText(
 function drawHeader(writer: PdfWriter, params: SafePredictWorkforceReportParams, generatedAt: Date) {
   writer.page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 146, width: PAGE_WIDTH, height: 146, color: NAVY });
   writer.page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 149, width: PAGE_WIDTH, height: 3, color: BLUE });
-  writer.page.drawText("SafetyDocs360", {
+  writer.page.drawText("SafePredict", {
     x: MARGIN,
     y: PAGE_HEIGHT - 46,
     size: 11,
@@ -539,7 +539,7 @@ function drawPermitReport(writer: PdfWriter, params: SafePredictWorkforceReportP
 
 function drawFooter(writer: PdfWriter, page: PDFPage, pageNumber: number, pageCount: number) {
   page.drawRectangle({ x: MARGIN, y: 48, width: CONTENT_WIDTH, height: 1, color: LINE });
-  page.drawText("SafetyDocs360 - Professional safety report export", {
+  page.drawText("SafePredict - Professional safety report export", {
     x: MARGIN,
     y: 29,
     size: 8,
@@ -559,9 +559,9 @@ export async function generateSafePredictWorkforceReportPdf(params: SafePredictW
   const generatedAt = new Date();
   const doc = await PDFDocument.create();
   doc.setTitle(reportTitles[params.kind]);
-  doc.setSubject("SafetyDocs360 workforce readiness report");
-  doc.setCreator("SafetyDocs360");
-  doc.setProducer("SafetyDocs360");
+  doc.setSubject("SafePredict workforce readiness report");
+  doc.setCreator("SafePredict");
+  doc.setProducer("SafePredict");
   doc.setCreationDate(generatedAt);
   doc.setModificationDate(generatedAt);
 

@@ -1325,7 +1325,7 @@ export async function generateCsepDocx(
   options?: {
     supabase?: GeneratedDocumentDraftLoaderClient;
     companyId?: string | null;
-    /** Workspace company name for every-page DOCX footer (falls back to Safety360Docs when empty). */
+    /** Workspace company name for every-page DOCX footer (falls back to SafePredict when empty). */
     footerCompanyName?: string | null;
   }
 ) {

@@ -79,7 +79,7 @@ describe("POST /api/company/training-expiration-notifications/test", () => {
         toEmail: "safety@example.com",
         companyName: "Summit Builders",
         workerItems: expect.arrayContaining([
-          expect.objectContaining({ trainingTitle: "SafetyDocs360 test renewal", stage: "7d" }),
+          expect.objectContaining({ trainingTitle: "SafePredict test renewal", stage: "7d" }),
         ]),
         managerItems: expect.arrayContaining([
           expect.objectContaining({ trainingTitle: "Example expired training", stage: "expired" }),

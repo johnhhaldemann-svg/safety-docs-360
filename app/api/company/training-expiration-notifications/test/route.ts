@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       {
         workerName: userDisplayName(auth.user),
         workerEmail: recipientEmail,
-        trainingTitle: "SafetyDocs360 test renewal",
+        trainingTitle: "SafePredict test renewal",
         expiresOn: dateOnlyOffset(7),
         daysUntilExpiry: 7,
         stage: "7d",

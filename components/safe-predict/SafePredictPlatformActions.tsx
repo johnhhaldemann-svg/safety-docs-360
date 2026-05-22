@@ -40,7 +40,7 @@ function sourceIcon(source: SafePredictPlatformAction["source"]) {
 }
 
 function actionDescription(action: SafePredictPlatformAction) {
-  return action.description ?? action.primaryActionLabel ?? `Open ${action.label} in SafetyDoc360.`;
+  return action.description ?? action.primaryActionLabel ?? `Open ${action.label} in SafePredict.`;
 }
 
 function sectionMatchesSource(
@@ -70,7 +70,7 @@ export function SafePredictPlatformActions() {
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
         title="Platform Actions"
-        subtitle="All operating functions routed through the SafetyDoc360 launch platform."
+        subtitle="All operating functions routed through the SafePredict platform."
         actions={
           <div className="relative w-full min-w-0 sm:w-[420px]">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -90,10 +90,10 @@ export function SafePredictPlatformActions() {
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-blue-600">Operating system coverage</p>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-              {totalActions} actions available from SafetyDoc360
+              {totalActions} actions available from SafePredict
             </h2>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
-              These cards now route operational work into SafetyDoc360 first. Existing data and
+              These cards now route operational work into SafePredict first. Existing data and
               APIs remain connected behind the scenes.
             </p>
           </div>

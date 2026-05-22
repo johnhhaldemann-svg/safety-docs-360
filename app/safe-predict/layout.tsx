@@ -1,12 +1,12 @@
 import { SafePredictShell } from "@/components/safe-predict/SafePredictShell";
 import { SafePredictDataProvider } from "@/components/safe-predict/SafePredictDataProvider";
-import { GusAssistant } from "@/components/gus/GusAssistant";
+import { SafePredictGusBridge } from "@/components/gus/SafePredictGusBridge";
 
 export default function SafePredictLayout({ children }: { children: React.ReactNode }) {
   return (
     <SafePredictDataProvider>
       <SafePredictShell>{children}</SafePredictShell>
-      <GusAssistant currentPage="SafePredict" />
+      <SafePredictGusBridge />
     </SafePredictDataProvider>
   );
 }

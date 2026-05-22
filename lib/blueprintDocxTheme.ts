@@ -202,7 +202,7 @@ function buildMetadata(draft: GeneratedSafetyPlanDraft): BlueprintDocumentMetada
     contractorName: valueOrNA(draft.projectOverview.contractorCompany),
     issueLabel: todayIssueLabel(),
     statusLabel: "Draft Issue",
-    preparedBy: "SafetyDocs360 Draft Builder",
+    preparedBy: "SafePredict Draft Builder",
   };
 }
 
@@ -848,7 +848,7 @@ function createRunningFooter(metadata: BlueprintDocumentMetadata) {
         rows: [
           new TableRow({
             children: [
-              footerCell("SafetyDocs360", AlignmentType.LEFT),
+              footerCell("SafePredict", AlignmentType.LEFT),
               footerCellWithPageNumbers(metadata.statusLabel),
             ],
           }),

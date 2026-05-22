@@ -724,7 +724,7 @@ export default function AdminUsersPage() {
         description={
           capabilities.canViewAllUsers
             ? "Super Admin directory across internal staff, company owners, and company employees."
-            : "Manage only your internal Safety360Docs employees here. Company workspaces and company employees are handled separately."
+            : "Manage only your internal SafePredict employees here. Company workspaces and company employees are handled separately."
         }
         actions={
           <div className="flex flex-wrap items-center gap-3">

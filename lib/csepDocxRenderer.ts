@@ -111,7 +111,7 @@ export type CsepRenderModel = {
   contractorName: string;
   /**
    * Workspace / configured company name shown in every page footer.
-   * Falls back to "Safety360Docs" when not supplied (see `normalizeRenderModel`).
+   * Falls back to "SafePredict" when not supplied (see `normalizeRenderModel`).
    */
   footerCompanyName: string;
   tradeLabel?: string | null;
@@ -966,7 +966,7 @@ function normalizeTemplateSection(section: CsepTemplateSection): CsepTemplateSec
 function normalizeRenderModel(model: CsepRenderModel): CsepRenderModel {
   return {
     ...model,
-    footerCompanyName: model.footerCompanyName?.trim() || "Safety360Docs",
+    footerCompanyName: model.footerCompanyName?.trim() || "SafePredict",
     frontMatterSections: model.frontMatterSections.map((section) => normalizeTemplateSection(section)),
     sections: model.sections.map((section) => normalizeTemplateSection(section)),
     appendixSections: model.appendixSections.map((section) => normalizeTemplateSection(section)),
@@ -5787,7 +5787,7 @@ function termDefinitionParagraph(term: string, definition: string) {
 }
 
 function createRunningFooter(footerCompanyName: string, contractorName: string) {
-  const owner = footerCompanyName?.trim() || contractorName?.trim() || "Safety360Docs";
+  const owner = footerCompanyName?.trim() || contractorName?.trim() || "SafePredict";
   return new Footer({
     children: [
       makeParagraph(

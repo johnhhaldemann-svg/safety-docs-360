@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       programLabel: "Survey Test CSEP",
       projectName: body.project_name?.trim() || "Survey Test CSEP",
       documentTitle: "Survey / Layout requirements overview",
-      companyName: body.contractor_company?.trim() || "SafetyDocs360",
+      companyName: body.contractor_company?.trim() || "SafePredict",
       additionalReviewerContext:
         "This is a superadmin-only survey test builder. Review whether the derived hazards, permits, training, and document package are ready for a trial DOCX export before live rollout.",
     });

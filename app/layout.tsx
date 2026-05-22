@@ -20,10 +20,10 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Safety360Docs",
+    default: "SafePredict | Safety360Docs",
     template: "%s | Safety360Docs",
   },
-  description: "Enterprise safety and compliance document workspace.",
+  description: "SafePredict by Safety360Docs: safety operations for risk, compliance, documentation, and field execution.",
 };
 
 export default function RootLayout({

@@ -100,7 +100,7 @@ export const safePredictWorkspaceConfigs: Record<SafePredictWorkspaceSlug, SafeP
   documents: {
     slug: "documents",
     title: "Documents",
-    subtitle: "Manage the jobsite document control register inside the new SafetyDoc360 platform.",
+    subtitle: "Manage the jobsite document control register inside SafePredict.",
     primaryAction: "Build Document",
     summary: [
       { label: "Controlled Documents", value: "10", detail: "Across active jobsites" },

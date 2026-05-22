@@ -42,7 +42,7 @@ function normalizeAction(section: NavSection, item: NavItem): SafePredictPlatfor
     source: actionSource(section),
     description:
       nativeHref !== item.href
-        ? item.description ?? `Open ${item.label} in the SafetyDoc360 operating platform.`
+        ? item.description ?? `Open ${item.label} in the SafePredict operating platform.`
         : item.description,
   };
 }
@@ -54,7 +54,7 @@ function sectionToPlatformSection(section: NavSection): SafePredictPlatformActio
     description:
       section.description ??
       (source === "company"
-        ? "Core company workspace tools available through SafetyDoc360."
+        ? "Core company workspace tools available through SafePredict."
         : "Protected platform tools available from the connected system."),
     source,
     items: section.items

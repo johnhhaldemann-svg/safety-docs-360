@@ -38,4 +38,19 @@ supabase/seed.sql
 !.env.example
 .codex-next-*.log
 .codex-*.log
+.codex*/
+.codex-*.zip
 .codex_tmp/
+.codex_worktrees/
+.codex-deploy-snapshot/
+.codex-deploy-snapshot.zip
+
+# Local working artifacts
+annotated_pictures/
+docx_work/
+output/
+repaired-docs/
+safety-mobile/
+scratch/
+streamlit/
+tmp/

@@ -89,7 +89,7 @@ export async function sendCompanyInviteEmail(params: {
     };
   }
 
-  const subject = `You're invited to join ${params.companyName} on Safety360Docs`;
+  const subject = `You're invited to join ${params.companyName} on SafePredict`;
   const safeCompanyName = escapeHtml(params.companyName);
   const safeRoleLabel = escapeHtml(params.roleLabel);
   const safeInvitedByName = escapeHtml(params.invitedByName);
@@ -105,7 +105,7 @@ export async function sendCompanyInviteEmail(params: {
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;padding:24px;">
       <div style="border:1px solid #dbeafe;border-radius:24px;padding:32px;background:#ffffff;">
         <p style="font-size:12px;letter-spacing:0.24em;text-transform:uppercase;color:#0369a1;font-weight:700;margin:0 0 12px;">Company Invite</p>
-        <h1 style="font-size:28px;line-height:1.15;margin:0 0 16px;">Join ${safeCompanyName} on Safety360Docs</h1>
+        <h1 style="font-size:28px;line-height:1.15;margin:0 0 16px;">Join ${safeCompanyName} on SafePredict</h1>
         <p style="margin:0 0 16px;color:#475569;">
           ${safeInvitedByName} invited you to join the company workspace as <strong>${safeRoleLabel}</strong>.
         </p>
@@ -126,7 +126,7 @@ export async function sendCompanyInviteEmail(params: {
   `.trim();
 
   const text = [
-    `You're invited to join ${params.companyName} on Safety360Docs.`,
+    `You're invited to join ${params.companyName} on SafePredict.`,
     `${params.invitedByName} invited you as ${params.roleLabel}.`,
     actionCopy,
     destinationUrl,

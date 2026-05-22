@@ -210,7 +210,7 @@ export default function ReportsPage() {
           "",
           "This demo export confirms the report workflow is wired correctly.",
           "",
-          "- Source: SafetyDoc360 demo workspace",
+          "- Source: SafePredict demo workspace",
           "- Status: Published",
         ].join("\n"));
         setMessageTone("success");
@@ -513,4 +513,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-

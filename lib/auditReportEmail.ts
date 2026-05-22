@@ -93,7 +93,7 @@ export async function sendCustomerAuditReportEmail(params: {
     };
   }
 
-  const safeCompanyName = escapeHtml(params.companyName || "Safety360 Docs");
+  const safeCompanyName = escapeHtml(params.companyName || "SafePredict");
   const safeJobsiteName = escapeHtml(params.jobsiteName || "Jobsite");
   const safeAuditDate = escapeHtml(params.auditDate || "Not specified");
   const safeAuditors = escapeHtml(params.auditors || "Not specified");
@@ -170,7 +170,7 @@ export async function sendCustomerAuditReportEmail(params: {
 
   const text = [
     `Approved field audit report: ${params.jobsiteName || "Jobsite"}`,
-    `Company: ${params.companyName || "Safety360 Docs"}`,
+    `Company: ${params.companyName || "SafePredict"}`,
     `Audit date: ${params.auditDate || "Not specified"}`,
     `Auditor(s): ${params.auditors || "Not specified"}`,
     `Trade/scope: ${(params.selectedTrade || "Field audit").replaceAll("_", " ")}`,

@@ -97,6 +97,13 @@ import {
   type SafePredictScheduleApiItem,
   type SafePredictScheduleEvent,
 } from "@/lib/safePredictScheduleCalendar";
+import {
+  buildJobsiteDailyTodos,
+  dailyTodoResetLabel,
+  getDailyTodoWorkDate,
+  type JobsiteDailyTodoItem,
+  type JobsiteDailyTodoStatus,
+} from "@/lib/jobsiteDailyTodos";
 
 const statusOptions: Array<{ label: string; value: SafePredictJobsiteStatus | "all" }> = [
   { label: "All Statuses", value: "all" },
@@ -263,6 +270,8 @@ type JobsiteCommandSummary = {
   readinessSignals: JobsiteReadinessSignal[];
   activityItems: JobsiteActivityItem[];
 };
+
+type DailyTodoApiItem = JobsiteDailyTodoItem;
 
 type SchedulePermitReadiness = {
   id: string;
@@ -1849,6 +1858,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const [incidentObservationTone, setIncidentObservationTone] = useState<"success" | "error" | "warning" | "neutral">("neutral");
   const [localIncidentLogs, setLocalIncidentLogs] = useState<SafePredictIncidentRecord[]>([]);
   const [localObservationLogs, setLocalObservationLogs] = useState<SafePredictObservationRecord[]>([]);
+  const [dailyTodoServerItems, setDailyTodoServerItems] = useState<DailyTodoApiItem[]>([]);
+  const [dailyTodoStatuses, setDailyTodoStatuses] = useState<Record<string, JobsiteDailyTodoStatus>>({});
+  const [dailyTodoBusyId, setDailyTodoBusyId] = useState<string | null>(null);
+  const [dailyTodoMessage, setDailyTodoMessage] = useState<string | null>(null);
   const weatherAutoEnableAttemptsRef = useRef<Set<string>>(new Set());
   const [scheduleTaskForm, setScheduleTaskForm] = useState<ScheduleTaskForm>({
     title: "",
@@ -2349,6 +2362,184 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     "Documents & Reports": siteDocuments.length + siteReports.length,
     "Activity Timeline": siteEvents.length || dataset.events.length,
   };
+  const [dailyTodoNowMs] = useState(() => Date.now());
+  const dailyTodoWorkDate = getDailyTodoWorkDate();
+  const workforceGapCount = siteEmployees.filter((employee) => employee.status !== "compliant").length;
+  const overdueSiteActionsCount = siteActions.filter(
+    (action) => action.status !== "Closed" && openActionDueValue(action.dueDate) < dailyTodoNowMs
+  ).length;
+  const dailyTodoPermitBlockerCount = blockedSchedulePermitItems.length;
+  const dailyTodoInspectionGapCount =
+    siteInspections.filter((inspection) => inspection.failedItems > 0 || inspection.status === "Overdue" || inspection.status === "Failed Check").length ||
+    site.inspectionGaps;
+  const dailyTodoReadyReportCount = siteReports.filter((report) => report.status === "Ready").length;
+  const dailyTodoFirstScheduleRiskTitle = upcomingRiskEvents[0]?.title ?? null;
+  const dailyTodoSignals = {
+    riskLevel: site.riskLevel,
+    firstScheduleRiskTitle: dailyTodoFirstScheduleRiskTitle,
+    highRiskScheduleCount,
+    openActionsCount: openSiteActionsCount,
+    overdueActionsCount: overdueSiteActionsCount,
+    permitBlockerCount: dailyTodoPermitBlockerCount,
+    inspectionGapCount: dailyTodoInspectionGapCount,
+    readyReportCount: dailyTodoReadyReportCount,
+    workforceGapCount,
+  };
+  const generatedDailyTodos = buildJobsiteDailyTodos({
+    jobsiteId: site.id,
+    jobsiteName: site.name,
+    workDate: dailyTodoWorkDate,
+    ...dailyTodoSignals,
+  });
+  const dailyTodoBaseItems = dailyTodoServerItems.length > 0 ? dailyTodoServerItems : generatedDailyTodos;
+  const dailyTodos = dailyTodoBaseItems.map((todo) => ({
+    ...todo,
+    status: dailyTodoStatuses[todo.id] ?? todo.status,
+  }));
+  const dailyTodoStorageKey = `safe-predict-daily-todos:${site.id}:${dailyTodoWorkDate}`;
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(dailyTodoStorageKey);
+        setDailyTodoStatuses(stored ? (JSON.parse(stored) as Record<string, JobsiteDailyTodoStatus>) : {});
+      } catch {
+        setDailyTodoStatuses({});
+      }
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [dailyTodoStorageKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (mode !== "live") {
+      const handle = window.setTimeout(() => {
+        setDailyTodoServerItems([]);
+        setDailyTodoMessage(null);
+      }, 0);
+      return () => window.clearTimeout(handle);
+    }
+
+    async function loadDailyTodos() {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token ?? null;
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+        const path = `/api/company/jobsites/${encodeURIComponent(site.id)}/daily-todos`;
+        const response = await fetch(`${path}?workDate=${encodeURIComponent(dailyTodoWorkDate)}`, { headers });
+        const payload = (await response.json().catch(() => null)) as {
+          todos?: DailyTodoApiItem[];
+          warning?: string;
+          error?: string;
+        } | null;
+        if (cancelled) return;
+        if (!response.ok) {
+          setDailyTodoServerItems([]);
+          setDailyTodoMessage(payload?.error ?? "Daily todo list is using the generated local fallback.");
+          return;
+        }
+        if (Array.isArray(payload?.todos) && payload.todos.length > 0) {
+          setDailyTodoServerItems(payload.todos);
+          setDailyTodoMessage(payload.warning ?? null);
+          return;
+        }
+
+        const createResponse = await fetch(path, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            workDate: dailyTodoWorkDate,
+            signals: {
+              riskLevel: site.riskLevel,
+              firstScheduleRiskTitle: dailyTodoFirstScheduleRiskTitle,
+              highRiskScheduleCount,
+              openActionsCount: openSiteActionsCount,
+              overdueActionsCount: overdueSiteActionsCount,
+              permitBlockerCount: dailyTodoPermitBlockerCount,
+              inspectionGapCount: dailyTodoInspectionGapCount,
+              readyReportCount: dailyTodoReadyReportCount,
+              workforceGapCount,
+            },
+          }),
+        });
+        const createPayload = (await createResponse.json().catch(() => null)) as {
+          todos?: DailyTodoApiItem[];
+          error?: string;
+        } | null;
+        if (cancelled) return;
+        if (createResponse.ok && Array.isArray(createPayload?.todos) && createPayload.todos.length > 0) {
+          setDailyTodoServerItems(createPayload.todos);
+          setDailyTodoMessage(null);
+        } else {
+          setDailyTodoServerItems([]);
+          setDailyTodoMessage(createPayload?.error ?? payload?.warning ?? null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDailyTodoServerItems([]);
+          setDailyTodoMessage(error instanceof Error ? error.message : "Daily todo list is using the generated local fallback.");
+        }
+      }
+    }
+
+    void loadDailyTodos();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    dailyTodoFirstScheduleRiskTitle,
+    dailyTodoInspectionGapCount,
+    dailyTodoPermitBlockerCount,
+    dailyTodoReadyReportCount,
+    dailyTodoWorkDate,
+    highRiskScheduleCount,
+    mode,
+    openSiteActionsCount,
+    overdueSiteActionsCount,
+    site.id,
+    site.riskLevel,
+    workforceGapCount,
+  ]);
+
+  async function updateDailyTodoStatus(todo: JobsiteDailyTodoItem, status: JobsiteDailyTodoStatus) {
+    const nextStatuses = { ...dailyTodoStatuses, [todo.id]: status };
+    setDailyTodoStatuses(nextStatuses);
+    window.localStorage.setItem(dailyTodoStorageKey, JSON.stringify(nextStatuses));
+
+    if (mode !== "live" || !dailyTodoServerItems.some((item) => item.id === todo.id)) return;
+    setDailyTodoBusyId(todo.id);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      if (!token) return;
+      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(site.id)}/daily-todos`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ todoId: todo.id, status }),
+      });
+      const payload = (await response.json().catch(() => null)) as { todo?: DailyTodoApiItem; error?: string } | null;
+      if (!response.ok) {
+        setDailyTodoMessage(payload?.error ?? "Daily todo status was saved locally but not synced.");
+        return;
+      }
+      if (payload?.todo) {
+        setDailyTodoServerItems((items) => items.map((item) => (item.id === payload.todo?.id ? payload.todo : item)));
+      }
+      setDailyTodoMessage(null);
+    } finally {
+      setDailyTodoBusyId(null);
+    }
+  }
 
   function updateScheduleTaskForm<K extends keyof ScheduleTaskForm>(key: K, value: ScheduleTaskForm[K]) {
     setScheduleTaskForm((current) => ({ ...current, [key]: value }));
@@ -2965,6 +3156,14 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     window.setTimeout(() => document.getElementById(action.id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }
 
+  function openIncidentObservationLog() {
+    setActiveTab("Incidents & Observations");
+    setSelectedJobsiteId(site.id);
+    window.setTimeout(() => {
+      document.getElementById("incident-observation-log")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
@@ -2982,7 +3181,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             <button type="button" onClick={() => setActiveTab("Documents & Reports")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
               Files & reports
             </button>
-            <button type="button" onClick={() => setActiveTab("Incidents & Observations")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100">
+            <button type="button" onClick={openIncidentObservationLog} className="inline-flex h-11 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-black text-amber-800 shadow-sm transition hover:bg-amber-100">
               <AlertTriangle className="h-4 w-4" />
               Log incident / observation
             </button>
@@ -3153,6 +3352,14 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 </button>
               </div>
             </div>
+            <DailyTodoBoard
+              items={dailyTodos}
+              workDate={dailyTodoWorkDate}
+              message={dailyTodoMessage}
+              busyId={dailyTodoBusyId}
+              onOpenTab={(tab) => setActiveTab(tab)}
+              onStatusChange={(todo, status) => void updateDailyTodoStatus(todo, status)}
+            />
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
               <ShiftBoardColumn
                 title="Before Work Starts"
@@ -3848,6 +4055,154 @@ function PredictionField({ label, values, empty }: { label: string; values: stri
   );
 }
 
+function dailyTodoStatusLabel(status: JobsiteDailyTodoStatus) {
+  if (status === "closed_out") return "Closed out";
+  return formatTitleCase(status) || status;
+}
+
+function dailyTodoStatusClass(status: JobsiteDailyTodoStatus) {
+  if (status === "closed_out") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "completed") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "reviewed") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-slate-200 bg-white text-slate-600";
+}
+
+function dailyTodoPriorityClass(priority: JobsiteDailyTodoItem["priority"]) {
+  if (priority === "critical") return "border-l-red-500";
+  if (priority === "high") return "border-l-orange-500";
+  if (priority === "medium") return "border-l-amber-400";
+  return "border-l-emerald-500";
+}
+
+function DailyTodoBoard({
+  items,
+  workDate,
+  message,
+  busyId,
+  onOpenTab,
+  onStatusChange,
+}: {
+  items: JobsiteDailyTodoItem[];
+  workDate: string;
+  message?: string | null;
+  busyId?: string | null;
+  onOpenTab: (tab: DetailTab) => void;
+  onStatusChange: (todo: JobsiteDailyTodoItem, status: JobsiteDailyTodoStatus) => void;
+}) {
+  const completed = items.filter((item) => item.status === "completed" || item.status === "closed_out").length;
+  const grouped = {
+    pm: items.filter((item) => item.role === "pm"),
+    sl: items.filter((item) => item.role === "sl"),
+  };
+
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-blue-600">Daily PM / SL todo list</p>
+          <h3 className="mt-1 text-base font-black text-slate-950">{workDate} shift closeout</h3>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            {dailyTodoResetLabel()} Central. Click a row to open the source area, then mark it reviewed, completed, or closed out.
+          </p>
+        </div>
+        <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-black text-slate-700">
+          <ClipboardCheck className="h-4 w-4 text-blue-600" />
+          {completed}/{items.length} done
+        </span>
+      </div>
+      {message ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">{message}</p>
+      ) : null}
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        {(["pm", "sl"] as const).map((role) => (
+          <div key={role} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                {role === "pm" ? "Project Manager" : "Safety Lead"}
+              </p>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-slate-600">
+                {grouped[role].length} item{grouped[role].length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {grouped[role].map((todo) => (
+                <article
+                  key={todo.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenTab(todo.targetTab)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenTab(todo.targetTab);
+                    }
+                  }}
+                  className={cx(
+                    "cursor-pointer rounded-lg border border-l-4 border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40",
+                    dailyTodoPriorityClass(todo.priority)
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cx("rounded-full border px-2 py-0.5 text-[11px] font-black", dailyTodoStatusClass(todo.status))}>
+                          {dailyTodoStatusLabel(todo.status)}
+                        </span>
+                        <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">{todo.targetTab}</span>
+                      </div>
+                      <p className="mt-2 text-sm font-black leading-5 text-slate-950">{todo.title}</p>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{todo.detail}</p>
+                    </div>
+                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-blue-600" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onStatusChange(todo, "reviewed");
+                      }}
+                      disabled={busyId === todo.id}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-black text-amber-800 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <CalendarCheck className="h-3.5 w-3.5" />
+                      Reviewed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onStatusChange(todo, "completed");
+                      }}
+                      disabled={busyId === todo.id}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[11px] font-black text-blue-700 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Completed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onStatusChange(todo, "closed_out");
+                      }}
+                      disabled={busyId === todo.id}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-800 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Closed out
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ShiftBoardColumn({ title, items }: { title: string; items: string[] }) {
   const displayTitle = formatTitleCase(title) || title;
 
@@ -3984,7 +4339,7 @@ function IncidentObservationLogPanel({
           : "border-blue-100 bg-blue-50 text-blue-800";
 
   return (
-    <Card className="p-5">
+    <Card id="incident-observation-log" className="scroll-mt-28 p-5">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <SectionTitle title="Log Incident Or Observation" hint="Records saved here stay tied to this jobsite and flow into the company registers." />
         <div className="inline-flex w-full rounded-lg border border-slate-200 bg-slate-50 p-1 sm:w-auto">

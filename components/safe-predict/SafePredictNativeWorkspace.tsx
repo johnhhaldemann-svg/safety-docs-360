@@ -685,7 +685,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       siteId: signal.siteId,
       priority: signal.riskLevel === "critical" || signal.riskLevel === "high" ? "high" : "medium",
       createdFrom,
-      description: signal.detail || `Created from SafetyDoc360 ${createdFrom}: ${signal.title}`,
+      description: signal.detail || `Created from SafePredict ${createdFrom}: ${signal.title}`,
       category: workspace === "incidents" ? "incident" : workspace === "hazards" ? "hazard" : signal.category === "near_miss" ? "near_miss" : "corrective_action",
       observationType: "negative",
       sifPotential: false,
@@ -1926,7 +1926,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           <Card className="p-5">
             <SectionTitle title="Launch Readiness Snapshot" />
             <div className="mt-4 space-y-3">
-              <NextStepRow title="Jobsite records connected" detail={`${dataset.jobsites.length} jobsites are available in SafetyDoc360.`} tone="blue" icon={<MapPin className="h-5 w-5" />} href="/safe-predict/jobsites" />
+              <NextStepRow title="Jobsite records connected" detail={`${dataset.jobsites.length} jobsites are available in SafePredict.`} tone="blue" icon={<MapPin className="h-5 w-5" />} href="/safe-predict/jobsites" />
               <NextStepRow title="Open work remains" detail={`${activeSummary.openActions} actions are still open across the platform.`} tone="high" icon={<ClipboardCheck className="h-5 w-5" />} href="/safe-predict/corrective-actions" />
               <NextStepRow title="Training risk visible" detail={`${activeSummary.workforce.overdue} workers have overdue readiness items.`} tone="medium" icon={<Users className="h-5 w-5" />} href="/safe-predict/training" />
             </div>
@@ -1942,7 +1942,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
         <div className="mt-5 grid gap-5 xl:grid-cols-2">
           <Card className="p-5">
             <SectionTitle title="Workspace Data Mode" />
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafetyDoc360 reads authenticated workspace APIs when live data is enabled. If live data is empty or unavailable, the shell company data keeps the platform ready for walkthroughs.</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafePredict reads authenticated workspace APIs when live data is enabled. If live data is empty or unavailable, the shell company data keeps the platform ready for walkthroughs.</p>
             <div className="mt-5 flex flex-wrap gap-3">
               <button type="button" onClick={() => setMode("live")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "live" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Live data</button>
               <button type="button" onClick={() => setMode("demo")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "demo" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Sample data</button>
@@ -2189,7 +2189,7 @@ function buildRows({
     return table("Report Library", ["Report", "Jobsite", "Audience", "Status", "Updated", "Open"], rows.map((row) => [row.title, siteName(row.siteId, jobsites), row.audience, row.status, row.updatedAt]), rows.map(() => ({ label: "Open", href: mapSafePredictOperationHref("/reports") })), rows);
   }
 
-  return table("Platform Settings", ["Setting", "Value", "Status"], [["Data mode", "Live data or sample fallback", "Ready"], ["Risk bands", "Low / Medium / High / Critical", "Ready"], ["Visual system", "Concept-picture SafetyDoc360 theme", "Ready"]], [], []);
+  return table("Platform Settings", ["Setting", "Value", "Status"], [["Data mode", "Live data or sample fallback", "Ready"], ["Risk bands", "Low / Medium / High / Critical", "Ready"], ["Visual system", "SafePredict visual system", "Ready"]], [], []);
 }
 
 function table(title: string, headers: string[], rows: string[][], actions: RowAction[], exportRows: unknown[], rowIds?: string[]) {

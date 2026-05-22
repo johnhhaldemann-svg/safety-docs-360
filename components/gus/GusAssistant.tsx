@@ -2,21 +2,17 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Bot, ClipboardList, MessageCircle, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { ClipboardList, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { GusConversation } from "@/components/gus/GusConversation";
 import { GusPlanningMode } from "@/components/gus/GusPlanningMode";
+import { GusBotFigure, GusSmartBot } from "@/components/gus/GusSmartBot";
 import { GusVoiceControls } from "@/components/gus/GusVoiceControls";
 import { useGusAssistant } from "@/components/gus/useGusAssistant";
+import type { GusContext } from "@/lib/gus/gusContext";
 
 function GusAvatar({ compact = false }: { compact?: boolean }) {
   return (
-    <span
-      className={`grid shrink-0 place-items-center rounded-full bg-[var(--app-accent-primary)] text-white shadow-[var(--app-shadow-primary-button)] ${
-        compact ? "h-10 w-10" : "h-12 w-12"
-      }`}
-      aria-hidden="true"
-    >
-      <Bot className={compact ? "h-5 w-5" : "h-6 w-6"} strokeWidth={2.4} />
-    </span>
+    <GusBotFigure state="thinking" compact={compact} />
   );
 }
 
@@ -24,23 +20,29 @@ type GusAssistantProps = {
   currentPage?: string;
   route?: string;
   companyId?: string | null;
+  jobsiteId?: string | null;
+  userId?: string | null;
+  liveContext?: Partial<GusContext>;
 };
 
-export function GusAssistant({ currentPage, route, companyId }: GusAssistantProps) {
+export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId, liveContext }: GusAssistantProps) {
   const [planningOpen, setPlanningOpen] = useState(false);
   const {
     open,
     pathname,
     currentPage: resolvedCurrentPage,
+    context,
     message,
+    decision,
     isVisible,
+    voiceEnabled,
     feedback,
     openAssistant,
     minimizeAssistant,
     dismissAssistant,
     disableForToday,
     recordFeedback,
-  } = useGusAssistant({ currentPage, route, companyId });
+  } = useGusAssistant({ currentPage, route, companyId, jobsiteId, userId, liveContext });
 
   if (!isVisible) {
     return null;
@@ -48,17 +50,14 @@ export function GusAssistant({ currentPage, route, companyId }: GusAssistantProp
 
   if (!open) {
     return (
-      <div className="fixed bottom-4 right-4 z-40 sm:bottom-5 sm:right-5">
-        <button
-          type="button"
-          onClick={openAssistant}
-          className="group flex h-14 w-14 items-center justify-center rounded-full border border-[var(--app-accent-border-24)] bg-white text-[var(--app-accent-primary)] shadow-[0_16px_36px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-primary-soft)] focus-visible:translate-y-0"
-          aria-label="Open Gus AI Safety Coach"
-          title="Open Gus AI Safety Coach"
-        >
-          <MessageCircle className="h-6 w-6 transition group-hover:scale-105" strokeWidth={2.4} />
-        </button>
-      </div>
+      <GusSmartBot
+        decision={decision}
+        open={open}
+        muted={!voiceEnabled && decision.botState === "muted"}
+        onOpen={openAssistant}
+        onPlan={() => setPlanningOpen(true)}
+        onDismiss={dismissAssistant}
+      />
     );
   }
 
@@ -83,10 +82,10 @@ export function GusAssistant({ currentPage, route, companyId }: GusAssistantProp
           <GusAvatar compact />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
-              Gus AI Safety Coach
+              Gus Smart AI Safety Bot
             </p>
             <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
-              Draft guidance only. Human review required.
+              {decision.kind === "warning" ? "Review signal detected. Human review required." : "Draft guidance only. Human review required."}
             </p>
           </div>
           <button
@@ -110,8 +109,23 @@ export function GusAssistant({ currentPage, route, companyId }: GusAssistantProp
                   {message.reason}
                 </p>
               ) : null}
+              {decision.signals.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {decision.signals.slice(0, 4).map((signal) => (
+                    <span
+                      key={signal.signalId}
+                      className="rounded-full border border-[var(--app-border)] bg-white px-2.5 py-1 text-[11px] font-bold text-[var(--app-text)]"
+                    >
+                      {signal.count ? `${signal.count} ` : ""}
+                      {signal.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
+
+          <GusConversation context={context} decision={decision} initialMessage={message.message} />
 
           <GusVoiceControls message={message} route={pathname} assistantOpen={open} />
 

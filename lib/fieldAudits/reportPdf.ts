@@ -219,7 +219,7 @@ export async function generateFieldAuditReportPdf(params: FieldAuditReportPdfPar
   writer.y -= 8;
 
   drawSectionTitle(writer, "Report details");
-  drawKeyValue(writer, "Company", cleanText(params.companyName, "Safety360 Docs"));
+  drawKeyValue(writer, "Company", cleanText(params.companyName, "SafePredict"));
   drawKeyValue(writer, "Customer", cleanText(params.customerName, "Not specified"));
   drawKeyValue(writer, "Audit date", cleanText(params.auditDate));
   drawKeyValue(writer, "Auditor(s)", cleanText(params.auditors));

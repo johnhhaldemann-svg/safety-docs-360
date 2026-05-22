@@ -3594,7 +3594,7 @@ export type CsepRenderModel = {
   contractorName: string;
   /**
    * Workspace / configured company name shown in every page footer.
-   * Falls back to "Safety360Docs" when not supplied (see `normalizeRenderModel`).
+   * Falls back to "SafePredict" when not supplied (see `normalizeRenderModel`).
    */
   footerCompanyName: string;
   tradeLabel?: string | null;
@@ -4154,7 +4154,7 @@ function normalizeTemplateSection(section: CsepTemplateSection): CsepTemplateSec
 function normalizeRenderModel(model: CsepRenderModel): CsepRenderModel {
   return {
     ...model,
-    footerCompanyName: model.footerCompanyName?.trim() || "Safety360Docs",
+    footerCompanyName: model.footerCompanyName?.trim() || "SafePredict",
     frontMatterSections: model.frontMatterSections.map((section) => normalizeTemplateSection(section)),
     sections: model.sections.map((section) => normalizeTemplateSection(section)),
     appendixSections: model.appendixSections.map((section) => normalizeTemplateSection(section)),
@@ -8586,7 +8586,7 @@ export function createCsepCover(options: CoverOptions): Paragraph[] {
       alignment: AlignmentType.CENTER,
       children: [
         new TextRun({
-          text: "SafetyDocs360",
+          text: "SafePredict",
           font: "Aptos Display",
           bold: true,
           color: COLORS.accentBlue,
@@ -8765,7 +8765,7 @@ export function createCsepDocument(children: DocChild[]) {
                 style: CSEP_STYLE_IDS.body,
                 children: [
                   new TextRun({
-                    text: `SafetyDocs360 | ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} | Submission-ready CSEP`,
+                    text: `SafePredict | ${CONTRACTOR_SAFETY_BLUEPRINT_TITLE} | Submission-ready CSEP`,
                     font: "Aptos",
                     size: 17,
                     color: COLORS.footerGray,
@@ -15025,7 +15025,7 @@ export function buildLegacyCsepRenderModel(
   const preparedBy =
     valueOrNA(form.contractor_contact) !== "N/A"
       ? valueOrNA(form.contractor_contact)
-      : "SafetyDocs360 Draft Builder";
+      : "SafePredict Draft Builder";
 
   // Cover subtitle lines: only push tokens that actually carry project
   // identity, never N/A placeholders. Keeps the front matter customer-facing.
@@ -15892,7 +15892,7 @@ function createCommentReferenceRun(doc: Document, commentId: string) {
 function appendCommentEntry(commentsDoc: Document, commentId: string, note: string) {
   const commentNode = commentsDoc.createElementNS(WORD_NS, "w:comment");
   commentNode.setAttribute("w:id", commentId);
-  commentNode.setAttribute("w:author", "Safety360Docs Review");
+  commentNode.setAttribute("w:author", "SafePredict Review");
   commentNode.setAttribute("w:initials", "SD");
   commentNode.setAttribute("w:date", new Date().toISOString());
 
@@ -16828,7 +16828,7 @@ export function buildSurveyTestExportPayload(input: SurveyTestFormData) {
     project_address: input.project_address.trim(),
     owner_client: input.owner_client.trim(),
     gc_cm: normalizeGcCmPartnerEntries(input.gc_cm),
-    contractor_company: input.contractor_company.trim() || "SafetyDocs360",
+    contractor_company: input.contractor_company.trim() || "SafePredict",
     contractor_contact: input.contractor_contact.trim(),
     contractor_phone: input.contractor_phone.trim(),
     contractor_email: input.contractor_email.trim(),
@@ -18835,7 +18835,7 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   site_specific_notes:
     "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
   emergency_procedures:
-    "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+    "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafePredict before shift closeout.",
   required_ppe: ["Hard Hat", "Safety Glasses", "High Visibility Vest", "Gloves", "Steel Toe Boots", "Fall Protection Harness"],
   additional_permits: ["Hot Work Permit", "AWP/MEWP Permit", "LOTO Permit"],
   selected_hazards: ["Falls", "Struck-by", "Caught-in/between", "Electrical"],
@@ -18859,7 +18859,7 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   enforcement_and_corrective_action_text:
     "Unsafe acts trigger immediate stop-work and documented corrective actions. Repeat violations escalate to removal from task assignment.",
   recordkeeping_text:
-    "Permits, inspections, orientation records, and corrective actions are retained in SafetyDocs360 for audit and handoff.",
+    "Permits, inspections, orientation records, and corrective actions are retained in SafePredict for audit and handoff.",
   continuous_improvement_text:
     "Weekly leadership review analyzes recurring hazards and updates task controls for the next work cycle.",
 };
@@ -18952,7 +18952,7 @@ function buildOfflineDemoJobsiteScenario(jobsite: CompanyJobsite | undefined): P
     site_specific_notes:
       "Demo site rules: maintain exclusion zones under suspended loads, enforce controlled access near leading edges, and require pre-task lift briefings.",
     emergency_procedures:
-      "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafetyDocs360 before shift closeout.",
+      "Stop work, notify supervision via radio channel 1, call 911 for life-threatening events, and report all incidents in SafePredict before shift closeout.",
     document_number: "CSEP-DEMO-20260425",
   };
 }
@@ -23500,7 +23500,7 @@ export async function generateCsepDocx(
   options?: {
     supabase?: GeneratedDocumentDraftLoaderClient;
     companyId?: string | null;
-    /** Workspace company name for every-page DOCX footer (falls back to Safety360Docs when empty). */
+    /** Workspace company name for every-page DOCX footer (falls back to SafePredict when empty). */
     footerCompanyName?: string | null;
   }
 ) {
@@ -24075,7 +24075,7 @@ export async function POST(request: Request) {
       programLabel: "Survey Test CSEP",
       projectName: body.project_name?.trim() || "Survey Test CSEP",
       documentTitle: "Survey / Layout requirements overview",
-      companyName: body.contractor_company?.trim() || "SafetyDocs360",
+      companyName: body.contractor_company?.trim() || "SafePredict",
       additionalReviewerContext:
         "This is a superadmin-only survey test builder. Review whether the derived hazards, permits, training, and document package are ready for a trial DOCX export before live rollout.",
     });

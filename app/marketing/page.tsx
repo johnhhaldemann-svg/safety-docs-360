@@ -64,7 +64,7 @@ export default function MarketingPage() {
             Safety operations command center for construction teams.
           </h1>
           <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--app-text)]">
-            Safety360Docs turns safety documents, jobsites, field workflows, approvals, and risk signals into one
+            SafePredict turns safety documents, jobsites, field workflows, approvals, and risk signals into one
             operating hub. New companies get a guided launch path; active teams start each day from Command Center.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">

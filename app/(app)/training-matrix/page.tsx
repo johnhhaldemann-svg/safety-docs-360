@@ -521,7 +521,7 @@ function Stage1ComplianceGrid({
   onSearchChange: (value: string) => void;
   statusFilter: Stage1StatusFilter;
   onStatusFilterChange: (value: Stage1StatusFilter) => void;
-  onOpenProfile: (workerId: string) => void;
+  onOpenProfile: (workerId: string, tab?: WorkerProfileTab) => void;
 }) {
   const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
@@ -685,15 +685,15 @@ function Stage1ComplianceGrid({
                       <td className="px-3 py-3">{summary?.nextDueDate ?? "No upcoming due date"}</td>
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => onOpenProfile(row.userId)} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">View profile</button>
-                          <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Assign training</button>
+                          <button type="button" onClick={() => onOpenProfile(row.userId, "summary")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">View profile</button>
+                          <button type="button" onClick={() => onOpenProfile(row.userId, "training")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Assign training</button>
                           {row.loginAccessStatus === "No Portal Access" ? (
                             <>
-                              <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Convert to system user</button>
-                              <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Approve site access</button>
+                              <button type="button" onClick={() => onOpenProfile(row.userId, "access")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Convert to system user</button>
+                              <button type="button" onClick={() => onOpenProfile(row.userId, "access")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Approve site access</button>
                             </>
                           ) : (
-                            <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
+                            <button type="button" onClick={() => onOpenProfile(row.userId, "training")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Review reminder</button>
                           )}
                         </div>
                       </td>
@@ -724,7 +724,7 @@ function Stage1ComplianceGrid({
                                     <td className="px-3 py-2">{detail.courseVersion}</td>
                                     <td className="px-3 py-2">
                                       {detail.preventionMessage ? <p className="mb-2 text-[11px] font-semibold text-[var(--semantic-danger)]">{detail.preventionMessage}</p> : null}
-                                      <button type="button" className="font-bold text-[var(--app-accent-primary)]">Create action</button>
+                                      <button type="button" onClick={() => onOpenProfile(row.userId, "actions")} className="font-bold text-[var(--app-accent-primary)] hover:underline">Create action</button>
                                     </td>
                                   </tr>
                                 ))}
@@ -776,7 +776,15 @@ function Stage1ComplianceGrid({
                       <td className="px-3 py-3">{rollup.overdue}</td>
                       <td className="px-3 py-3">{rollup.requirement.renewalPeriodDays ? `${rollup.requirement.renewalPeriodDays} days` : "Not configured"}</td>
                       <td className="px-3 py-3">{rollup.requirement.courseOwner ?? "Safety team"}</td>
-                      <td className="px-3 py-3"><button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminders</button></td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCourseId(expanded ? null : rollup.requirement.id)}
+                          className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline"
+                        >
+                          Review workers
+                        </button>
+                      </td>
                     </tr>
                     {expanded ? (
                       <tr key={`${rollup.requirement.id}-expanded`} className="border-b border-[var(--app-border)] bg-[var(--app-panel-soft)]">
@@ -790,8 +798,8 @@ function Stage1ComplianceGrid({
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <StatusBadge label={detail.status} tone={stage1StatusTone(detail.status)} />
-                                  <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Send reminder</button>
-                                  <button type="button" className="text-xs font-bold text-[var(--app-accent-primary)]">Create action</button>
+                                  <button type="button" onClick={() => onOpenProfile(row.userId, "training")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Review reminder</button>
+                                  <button type="button" onClick={() => onOpenProfile(row.userId, "actions")} className="text-xs font-bold text-[var(--app-accent-primary)] hover:underline">Create action</button>
                                 </div>
                               </div>
                             ))}
@@ -2685,7 +2693,7 @@ export default function TrainingMatrixPage() {
         onSearchChange={setStage1Search}
         statusFilter={stage1StatusFilter}
         onStatusFilterChange={setStage1StatusFilter}
-        onOpenProfile={(workerId) => updateWorkerProfileQuery(workerId, "summary")}
+        onOpenProfile={(workerId, tab = "summary") => updateWorkerProfileQuery(workerId, tab)}
       />
 
       {canMutate ? (

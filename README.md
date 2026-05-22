@@ -1,6 +1,6 @@
-# Safety360Docs
+# SafePredict
 
-Enterprise safety and compliance workspace: document control, company workspaces (jobsites, training, corrective actions), field workflows (observations, JSAs, permits, incidents), and admin tooling. Built with **Next.js** (App Router), **Supabase** (Postgres + Auth + RLS), deployed on **Vercel**.
+Predictive safety operations platform: risk intelligence, document control, company workspaces (jobsites, training, corrective actions), field workflows (observations, JSAs, permits, incidents), and admin tooling. Built with **Next.js** (App Router), **Supabase** (Postgres + Auth + RLS), deployed on **Vercel**.
 
 ## Requirements
 

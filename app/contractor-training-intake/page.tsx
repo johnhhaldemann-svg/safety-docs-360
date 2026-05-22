@@ -174,7 +174,7 @@ export default function ContractorTrainingIntakePage() {
     <main id="main-content" className="min-h-screen bg-[var(--app-bg)] p-4 text-[var(--app-text)] sm:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <PageHero
-          eyebrow="Safety360Docs"
+          eyebrow="SafePredict"
           title="Contractor Training Intake"
           description={`Submit training information${payload.jobsite?.name ? ` for ${payload.jobsite.name}` : ""}.`}
         />

@@ -171,7 +171,7 @@ describe("renderSafetyPlanDocx", () => {
     expect(html).toContain("High-Risk Work Snapshot");
     expect(html).toContain("Revision / Prepared By");
     expect(html).toContain("Trade Package Overview");
-    expect(html).toContain("SafetyDocs360 Draft Builder");
+    expect(html).toContain("SafePredict Draft Builder");
     expect(html).toContain("Contents");
     expect(html).toContain("FRONT MATTER");
     expect(html).toContain("DETAILED SECTIONS");
@@ -221,7 +221,7 @@ describe("renderSafetyPlanDocx", () => {
     expect(html).toContain("CSEP");
     expect(html).toContain("Contractor");
     expect(html).toContain("Prepared By");
-    expect(html).toContain("SafetyDocs360 Draft Builder");
+    expect(html).toContain("SafePredict Draft Builder");
     expect(html).toContain("Trade Package Overview");
     expect(html).toContain("FRONT MATTER");
     expect(html).toContain("DETAILED SECTIONS");

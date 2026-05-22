@@ -28,7 +28,7 @@ export default function TrainingPage() {
     <div className="space-y-8 pb-10">
       <PageHero
         eyebrow="Platform Training"
-        title="Safety360Docs Training"
+        title="SafePredict Training"
         description="Download editable PowerPoint walkthroughs for the workflows teams use most: onboarding, documents, field work, training readiness, and leadership reporting."
         actions={
           <>

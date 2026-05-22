@@ -224,7 +224,7 @@ describe("createBlueprintDocument", () => {
     expect(documentXml).toContain("3.2 Stop-work authority");
     expect(documentXml).toContain("4. References");
     expect(documentXml).toContain("6.1 When It Applies");
-    expect(documentXml).toContain("Prepared by SafetyDocs360 Draft Builder");
+    expect(documentXml).toContain("Prepared by SafePredict Draft Builder");
     expect(documentXml).toContain("6.1.1 Selected work or site conditions create fall exposure.");
     expect(documentXml).toContain("6.1.2 Ladders, scaffolds, or aerial lifts are used for access.");
     expect(documentXml).toContain("6.2.1 OSHA 1926 Subpart M - Fall Protection");

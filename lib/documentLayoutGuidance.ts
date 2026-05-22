@@ -11,7 +11,7 @@ export function getCustomerFacingDocumentLayoutGuidance() {
     "8. Customer-facing language only: never expose internal generator names, system labels, placeholder text, or implementation details.",
     "9. Use task-facing labels such as Key Tasks and Related Tasks. Avoid user-facing phrasing like Permit Triggers or Related Task Triggers unless the section is explicitly about authorization requirements.",
     "10. Do not surface raw risk scores in front matter. Summarize priorities and controls instead.",
-    "11. Keep SafetyDocs360 branding subtle. The customer's project and company identity should remain visually primary.",
+    "11. Keep SafePredict branding subtle. The customer's project and company identity should remain visually primary.",
     "12. The finished document should feel polished, balanced, and print-ready, with a large readable cover title and footer content anchored at the bottom of the page.",
     "13. Keep hierarchical numbering consistent across headings and nested detail items using a formal outline structure such as 1, 1.1, 1.1.1, and 1.1.1.1.",
     "14. Keep narrative fields concise. Use one short paragraph or a brief summary instead of repeating details already shown in tables, bullets, or program sections.",
