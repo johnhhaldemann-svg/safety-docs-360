@@ -76,11 +76,11 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
 
   return (
     <aside
-      className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[32rem]"
+      className="fixed inset-x-2 bottom-2 z-40 sm:inset-x-auto sm:bottom-3 sm:right-3 sm:w-[min(26rem,calc(100vw-1.5rem))]"
       aria-label={`Gus AI Safety Coach for ${resolvedCurrentPage}`}
     >
-      <div className="overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white shadow-[0_22px_52px_rgba(24,41,73,0.18)] ring-1 ring-[rgba(37,99,235,0.08)]">
-        <div className="flex items-start gap-3 border-b border-[var(--app-border)] bg-[linear-gradient(135deg,_#ffffff_0%,_#eef5ff_100%)] p-4">
+      <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--app-border)] bg-white shadow-[0_22px_52px_rgba(24,41,73,0.18)] ring-1 ring-[rgba(37,99,235,0.08)]">
+        <div className="sticky top-0 z-10 flex items-start gap-3 border-b border-[var(--app-border)] bg-[linear-gradient(135deg,_#ffffff_0%,_#eef5ff_100%)] p-3">
           <GusAvatar compact />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-accent-primary)]">
@@ -101,17 +101,18 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
           </button>
         </div>
 
-        <div className="space-y-4 p-4">
+        <div className="space-y-3 p-3">
           <GusCompanionStage
             decision={decision}
             onPlan={() => setPlanningOpen(true)}
             onDismiss={dismissAssistant}
+            compact
           />
 
           <div className="flex gap-3">
             <GusAvatar compact />
             <div className="min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">
-              <p className="text-sm leading-6 text-[var(--app-text-strong)]">{message.message}</p>
+              <p className="text-sm leading-5 text-[var(--app-text-strong)]">{message.message}</p>
               {message.reason ? (
                 <p className="mt-2 rounded-lg border border-[var(--app-border-subtle)] bg-white/72 px-3 py-2 text-xs leading-5 text-[var(--app-muted)]">
                   {message.reason}
