@@ -14,6 +14,7 @@ import {
 import type { PredictiveRiskPayload } from "@/lib/predictiveRisk";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
 import type { ExplainableRecommendation } from "@/lib/leadershipTrust";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -419,6 +420,9 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
   const controls = briefing?.controlsToVerify.slice(0, 5) ?? [];
   const topWork = briefing?.highRiskWork[0];
   const topScoreExplanation = topWork?.scoreExplanation;
+  const topRecommendedControls = topWork?.recommendedControls.slice(0, 3) ?? [];
+  const actionQueue = data?.aiSafetyActionQueue.items.slice(0, 4) ?? [];
+  const approvalState = data?.approvalState;
 
   return (
     <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
@@ -452,6 +456,51 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
         </div>
       ) : null}
 
+      {actionQueue.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Today&apos;s AI safety action queue</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                {data?.aiSafetyActionQueue.headline}
+              </p>
+            </div>
+            <span className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-red-700">
+              {approvalState?.reviewRequiredCount ?? 0} review required
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {actionQueue.map((item) => (
+              <div key={item.id} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(item.riskLevel)}`}>
+                    {item.priority}
+                  </span>
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">
+                    {item.approvalState.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">
+                    {item.ownerRole.replace(/_/g, " ")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{item.recommendedControl}</p>
+                {item.humanApprovalRequired ? (
+                  <p className="mt-2 text-xs font-black leading-5 text-red-700">
+                    Human review required before work proceeds.
+                  </p>
+                ) : null}
+                {item.missingInformation.length > 0 ? (
+                  <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
+                    Missing: {item.missingInformation.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {topScoreExplanation ? (
         <div className="mt-4 grid gap-3 lg:grid-cols-4">
           <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 lg:col-span-2">
@@ -474,6 +523,49 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
       ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-12">
+        {topRecommendedControls.length > 0 ? (
+          <div className="xl:col-span-12">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-700" aria-hidden />
+              <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">AI-recommended controls</h3>
+            </div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-3">
+              {topRecommendedControls.map((control) => (
+                <div key={`${topWork?.id}-${control.hazardFamily}-${control.title}`} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                      {control.controlCategory.replace(/_/g, " ")}
+                    </span>
+                    <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">
+                      {control.basis.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{control.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{control.recommendedAction}</p>
+                  <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">{control.verificationRequired}</p>
+                  {control.humanApprovalRequired ? (
+                    <p className="mt-2 text-xs font-black leading-5 text-red-700">
+                      Human review required before work proceeds.
+                    </p>
+                  ) : null}
+                  <AiFeedbackControls
+                    surface="ai-engine.daily-briefing"
+                    sourceId={`${topWork?.id}-${control.hazardFamily}`}
+                    mode="recommendation"
+                    metadata={{
+                      workflowStep: "predictive_risk_daily_briefing",
+                      hazardFamily: control.hazardFamily,
+                      basis: control.basis,
+                      jobsiteId: topWork?.jobsiteId ?? null,
+                    }}
+                    className="mt-3"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="xl:col-span-4">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-[var(--app-accent-primary)]" aria-hidden />

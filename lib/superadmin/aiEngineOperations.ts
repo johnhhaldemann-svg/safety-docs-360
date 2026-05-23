@@ -4,6 +4,7 @@ import { requestAiResponsesText, type AiExecutionMeta } from "@/lib/ai/responses
 
 export const AI_ENGINE_SURFACES = [
   "safety-intelligence",
+  "ai-engine",
   "company-memory",
   "permit-copilot",
   "csep-review",

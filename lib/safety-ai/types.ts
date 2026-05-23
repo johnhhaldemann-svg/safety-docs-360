@@ -27,6 +27,14 @@ export type SafetyControlType =
   | "ppe"
   | "competent_person_review";
 
+export type SafetyControlRecommendationBasis =
+  | "company_policy"
+  | "jobsite_rule"
+  | "uploaded_document"
+  | "platform_rule"
+  | "general_best_practice"
+  | "unknown";
+
 export type SafetyOwnerRole =
   | "company_admin"
   | "safety_manager"
@@ -57,6 +65,29 @@ export type SafetyRecommendation = {
   controlType: SafetyControlType;
   reason: string;
   suggestedOwnerRole: SafetyOwnerRole;
+};
+
+export type SafetyAiEvidenceRef = {
+  id: string;
+  sourceModule: string;
+  sourceId: string;
+  label: string;
+  href: string | null;
+  detail: string | null;
+};
+
+export type SafetyControlRecommendation = {
+  title: string;
+  recommendedAction: string;
+  hazardFamily: string;
+  controlCategory: SafetyControlType;
+  basis: SafetyControlRecommendationBasis;
+  evidenceRefs: SafetyAiEvidenceRef[];
+  missingInformation: string[];
+  verificationRequired: string;
+  humanApprovalRequired: boolean;
+  humanApprovalReason: string | null;
+  confidence: SafetyAiConfidence;
 };
 
 export type SafetyAiScoreExplanation = {
@@ -134,6 +165,7 @@ export type SafetyAiAssessment = {
   scoreExplanation: SafetyAiScoreExplanation;
   topDrivers: RiskDriver[];
   recommendations: SafetyRecommendation[];
+  controlRecommendations: SafetyControlRecommendation[];
   escalationRequired: boolean;
   stopWorkReviewRecommended: boolean;
   humanApprovalRequired: boolean;

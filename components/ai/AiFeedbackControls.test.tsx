@@ -27,4 +27,22 @@ describe("AiFeedbackControls", () => {
     expect(html).toContain("Field used");
     expect(html).not.toContain("generatedText");
   });
+
+  it("renders AI recommendation feedback labels without raw text", () => {
+    const html = renderToStaticMarkup(
+      <AiFeedbackControls
+        surface="ai-engine.daily-briefing"
+        sourceId="control-1"
+        metadata={{ workflowStep: "daily_safety_command_center" }}
+        mode="recommendation"
+      />
+    );
+
+    expect(html).toContain("Correct");
+    expect(html).toContain("Partially correct");
+    expect(html).toContain("Missing information");
+    expect(html).toContain("Escalate");
+    expect(html).toContain("Ignore for project");
+    expect(html).not.toContain("generatedText");
+  });
 });

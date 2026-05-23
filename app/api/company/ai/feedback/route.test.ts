@@ -121,6 +121,41 @@ describe("/api/company/ai/feedback", () => {
     );
   });
 
+  it("stores AI Engine recommendation feedback labels as reason metadata", async () => {
+    mockedAuthorize.mockResolvedValue(authForRole("safety_manager"));
+
+    const response = expectResponse(await route.POST(
+      request({
+        surface: "ai-engine.daily-briefing",
+        sourceId: "control-1",
+        outcome: "edited",
+        rating: 2,
+        reasonCode: "missing_information",
+        metadata: {
+          workflowStep: "daily_safety_command_center",
+          recommendationFeedback: "missing_information",
+        },
+      })
+    ));
+
+    expect(response.status).toBe(201);
+    expect(mockedRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        surface: "ai-engine.daily-briefing",
+        sourceId: "control-1",
+        outcome: "edited",
+        rating: 2,
+        reason: "missing_information",
+        signalMetadata: expect.objectContaining({
+          workflowStep: "daily_safety_command_center",
+          reasonCode: "missing_information",
+          userRole: "safety_manager",
+        }),
+      })
+    );
+  });
+
   it("allows platform admins to write but blocks unauthenticated users", async () => {
     mockedAuthorize.mockResolvedValueOnce(authForRole("platform_admin"));
     const allowed = expectResponse(await route.POST(request({ surface: "company-memory.assist", outcome: "accepted" })));

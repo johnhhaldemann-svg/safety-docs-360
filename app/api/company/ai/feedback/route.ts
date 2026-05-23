@@ -24,6 +24,7 @@ const ALLOWED_SURFACE_PREFIXES = [
   "company-memory",
   "permit-copilot",
   "builder-document-review",
+  "ai-engine",
   "gc-review",
   "csep-review",
   "injury-weather",

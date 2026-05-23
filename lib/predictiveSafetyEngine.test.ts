@@ -89,6 +89,14 @@ describe("buildPredictiveSafetyEngineBriefing", () => {
       expect.arrayContaining([expect.objectContaining({ type: "control", label: "Critical controls are missing or too generic" })])
     );
     expect(briefing.highRiskWork[0]?.scoreExplanation.humanApprovalRequired).toBe(true);
+    expect(briefing.highRiskWork[0]?.recommendedControls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          hazardFamily: "fall_exposure",
+          humanApprovalRequired: true,
+        }),
+      ])
+    );
   });
 
   it("connects expired training to permit-controlled work", () => {
@@ -155,6 +163,63 @@ describe("buildPredictiveSafetyEngineBriefing", () => {
     expect(briefing.readinessBlockers).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "weather", label: "Weather affects planned high-risk work" })])
     );
+    expect(briefing.highRiskWork[0]?.recommendedControls).toEqual(
+      expect.arrayContaining([expect.objectContaining({ hazardFamily: "weather_exposure" })])
+    );
+  });
+
+  it("recommends task-specific controls for hot work, excavation, energized work, and equipment movement", () => {
+    const briefing = buildPredictiveSafetyEngineBriefing(
+      baseInput({
+        scheduleItems: [
+          {
+            id: "hot",
+            jobsite_id: "j1",
+            title: "Grinding embeds near combustible storage",
+            work_start_date: TODAY,
+            trade: "Steel",
+            risk_level: "high",
+            is_high_risk: true,
+            permit_triggers: ["hot work permit"],
+          },
+          {
+            id: "trench",
+            jobsite_id: "j1",
+            title: "Trench entry for utility tie-in",
+            work_start_date: TODAY,
+            trade: "Civil",
+            risk_level: "high",
+            is_high_risk: true,
+          },
+          {
+            id: "loto",
+            jobsite_id: "j1",
+            title: "Energized panel troubleshooting and LOTO setup",
+            work_start_date: TODAY,
+            trade: "Electrical",
+            risk_level: "high",
+            is_high_risk: true,
+          },
+          {
+            id: "equipment",
+            jobsite_id: "j1",
+            title: "Telehandler backing through shared access route",
+            work_start_date: TODAY,
+            trade: "Logistics",
+            risk_level: "high",
+            is_high_risk: true,
+          },
+        ],
+      })
+    );
+
+    const controls = briefing.highRiskWork.flatMap((work) => work.recommendedControls);
+    expect(controls).toEqual(expect.arrayContaining([expect.objectContaining({ hazardFamily: "hot_work" })]));
+    expect(controls).toEqual(expect.arrayContaining([expect.objectContaining({ hazardFamily: "excavation_trenching" })]));
+    expect(controls).toEqual(expect.arrayContaining([expect.objectContaining({ hazardFamily: "energized_electrical" })]));
+    expect(controls).toEqual(expect.arrayContaining([expect.objectContaining({ hazardFamily: "mobile_equipment" })]));
+    expect(controls.every((control) => control.verificationRequired.length > 0)).toBe(true);
+    expect(controls.some((control) => control.basis === "platform_rule" || control.basis === "general_best_practice")).toBe(true);
   });
 
   it("surfaces repeated SOR, incident, and corrective-action patterns in the same hazard family", () => {
@@ -211,6 +276,7 @@ describe("buildPredictiveSafetyEngineBriefing", () => {
     );
 
     expect(briefing.controlsToVerify.some((item) => item.text.toLowerCase().includes("uploaded rule requirement"))).toBe(true);
+    expect(briefing.highRiskWork[0]?.recommendedControls.some((item) => item.basis === "uploaded_document")).toBe(true);
   });
 
   it("keeps sparse data conservative instead of defaulting to low risk", () => {

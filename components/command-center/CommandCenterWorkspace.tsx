@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { AiFeedbackControls } from "@/components/ai/AiFeedbackControls";
 import { buildAdoptionChecklist } from "@/components/dashboard/onboardingChecklist";
 import { emptyOnboardingState, type OnboardingState } from "@/lib/onboardingState";
 import {
@@ -315,6 +316,230 @@ function RecommendationsList({
         </div>
       ))}
     </div>
+  );
+}
+
+function DailySafetyCommandCenterPanel({
+  predictiveRisk,
+  loading,
+}: {
+  predictiveRisk: PredictiveRiskPayload | null;
+  loading: boolean;
+}) {
+  const briefing = predictiveRisk?.dailyBriefing;
+  const actionQueue = predictiveRisk?.aiSafetyActionQueue;
+  const approvalState = predictiveRisk?.approvalState;
+  const feedbackInfluence = predictiveRisk?.feedbackInfluence;
+  const memoryInfluence = predictiveRisk?.memoryInfluence;
+  const calibrationSummary = predictiveRisk?.calibrationSummary;
+  const highRiskToday = briefing?.highRiskWork.filter((work) => work.timing === "today").slice(0, 3) ?? [];
+  const highRiskTomorrow = briefing?.highRiskWork.filter((work) => work.timing === "tomorrow").slice(0, 3) ?? [];
+  const missingPermits = briefing?.readinessBlockers.filter((blocker) => blocker.type === "permit").slice(0, 3) ?? [];
+  const trainingGaps = briefing?.readinessBlockers.filter((blocker) => blocker.type === "training").slice(0, 3) ?? [];
+  const openActions = briefing?.readinessBlockers.filter((blocker) => blocker.type === "corrective_action").slice(0, 3) ?? [];
+  const weatherRisks = briefing?.readinessBlockers.filter((blocker) => blocker.type === "weather").slice(0, 3) ?? [];
+  const weakJsas = briefing?.readinessBlockers.filter((blocker) => blocker.type === "control").slice(0, 3) ?? [];
+  const repeatedObservations = briefing?.readinessBlockers.filter((blocker) => /repeated/i.test(blocker.label)).slice(0, 3) ?? [];
+  const topWork = briefing?.highRiskWork[0] ?? null;
+  const topControl = topWork?.recommendedControls[0] ?? null;
+  const supervisorActions = [
+    topControl?.recommendedAction,
+    ...missingPermits.map((blocker) => blocker.detail),
+    ...trainingGaps.map((blocker) => blocker.detail),
+    ...openActions.map((blocker) => blocker.detail),
+  ].filter((item): item is string => Boolean(item)).slice(0, 5);
+  const morningBriefing = briefing
+    ? [
+        briefing.headline,
+        ...briefing.whyThisMatters.slice(0, 2),
+        ...(briefing.missingData.length > 0 ? [`Missing data lowers confidence: ${briefing.missingData.slice(0, 2).join("; ")}`] : []),
+      ]
+    : [];
+
+  return (
+    <SectionCard
+      eyebrow="AI Safety Command Center"
+      title="Daily safety briefing"
+      description="Rules-first lookahead for today and tomorrow. Recommendations require human review where risk, readiness, or critical controls demand it."
+      aside={<StatusBadge label={briefing?.confidence ? `${briefing.confidence} confidence` : "Loading"} tone={briefing?.confidence === "high" ? "success" : "warning"} />}
+    >
+      {briefing?.stopWorkReviewRecommended || briefing?.escalationRequired ? (
+        <InlineMessage tone="error">
+          Human review required for critical or high-consequence signals. The AI Engine recommends verification and possible stop-work evaluation; it does not release work or declare compliance.
+        </InlineMessage>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MetricTile
+          eyebrow="Highest risk"
+          title={topWork?.riskLevel ?? "None ranked"}
+          value={topWork ? String(topWork.riskScore) : "-"}
+          detail={topWork ? topWork.title : loading ? "Loading briefing." : "Review missing data before treating the day as low risk."}
+          tone={topWork?.riskLevel === "critical" || topWork?.riskLevel === "high" ? "attention" : "panel"}
+        />
+        <MetricTile eyebrow="Today" title="High-risk work" value={String(highRiskToday.length)} detail="Ranked work starting today." />
+        <MetricTile eyebrow="Tomorrow" title="Predicted risk" value={String(highRiskTomorrow.length)} detail="Lookahead items that need pre-start review." />
+        <MetricTile
+          eyebrow="Approval"
+          title="Review required"
+          value={String(approvalState?.reviewRequiredCount ?? 0)}
+          detail="Human review, assignment, or field verification needed."
+          tone={(approvalState?.reviewRequiredCount ?? 0) > 0 ? "attention" : "panel"}
+        />
+      </div>
+
+      {actionQueue ? (
+        <div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Today&apos;s AI Safety Actions</p>
+              <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">{actionQueue.headline}</p>
+            </div>
+            <StatusBadge
+              label={`${actionQueue.approvalRequiredCount} review required`}
+              tone={actionQueue.approvalRequiredCount > 0 ? "error" : "success"}
+            />
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            {actionQueue.items.slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={item.priority} tone={item.priority === "critical" || item.priority === "high" ? "error" : "warning"} />
+                  <StatusBadge label={item.approvalState.replace(/_/g, " ")} tone={item.humanApprovalRequired ? "error" : "info"} />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">
+                    {item.ownerRole.replace(/_/g, " ")}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.recommendedControl}</p>
+                {item.humanApprovalRequired ? (
+                  <p className="mt-2 text-xs font-bold text-[var(--semantic-danger)]">
+                    {item.humanApprovalReason ?? "Human review required before work proceeds."}
+                  </p>
+                ) : null}
+                {item.missingInformation.length > 0 ? (
+                  <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
+                    Missing information: {item.missingInformation.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            {!loading && actionQueue.items.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)] xl:col-span-2">
+                No AI safety actions were generated from the loaded briefing.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Morning briefing</p>
+          <div className="mt-3 space-y-2">
+            {morningBriefing.map((line) => (
+              <p key={line} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm leading-6 text-[var(--app-text)]">
+                {line}
+              </p>
+            ))}
+            {!loading && morningBriefing.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                No daily briefing is available yet.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Supervisor actions</p>
+          <div className="mt-3 space-y-2">
+            {supervisorActions.map((action) => (
+              <p key={action} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-sm leading-6 text-[var(--app-text)]">
+                {action}
+              </p>
+            ))}
+            {!loading && supervisorActions.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                Supervisor actions appear when the engine ranks work, blockers, or controls.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Top control</p>
+          {topControl && topWork ? (
+            <div className="mt-3 rounded-xl border border-[var(--app-border-strong)] bg-white/90 px-3 py-3 shadow-[var(--app-shadow-soft)]">
+              <StatusBadge label={topControl.basis.replace(/_/g, " ")} tone="info" />
+              <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{topControl.title}</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{topControl.recommendedAction}</p>
+              {topControl.humanApprovalRequired ? (
+                <p className="mt-2 text-xs font-bold text-[var(--semantic-danger)]">Human review required before work proceeds.</p>
+              ) : null}
+              <AiFeedbackControls
+                surface="ai-engine.daily-command-center"
+                sourceId={`${topWork.id}-${topControl.hazardFamily}`}
+                mode="recommendation"
+                metadata={{
+                  workflowStep: "daily_safety_command_center",
+                  hazardFamily: topControl.hazardFamily,
+                  basis: topControl.basis,
+                  jobsiteId: topWork.jobsiteId,
+                }}
+                className="mt-3"
+              />
+            </div>
+          ) : (
+            <p className="mt-3 rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+              Top control appears when high-risk work is ranked.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {[
+          { label: "Missing permits", rows: missingPermits },
+          { label: "Expired or missing training", rows: trainingGaps },
+          { label: "Open corrective actions", rows: openActions },
+          { label: "Weak JSAs", rows: weakJsas },
+          { label: "Weather-related risks", rows: weatherRisks },
+          { label: "Repeated observations", rows: repeatedObservations },
+        ].map((group) => (
+          <div key={group.label} className="rounded-xl border border-[var(--app-border)] bg-white/88 px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">{group.label}</p>
+            <div className="mt-2 space-y-2">
+              {group.rows.map((row) => (
+                <p key={row.id} className="text-xs leading-5 text-[var(--app-text)]">
+                  <span className="font-semibold text-[var(--app-text-strong)]">{row.label}:</span> {row.detail}
+                </p>
+              ))}
+              {group.rows.length === 0 ? <p className="text-xs leading-5 text-[var(--app-muted)]">No loaded blocker in this category.</p> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-3">
+        <div className="rounded-xl border border-[var(--app-border)] bg-white/88 px-3 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Feedback influence</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{feedbackInfluence?.summary ?? "Feedback influence appears after recommendations are acted on."}</p>
+          <p className="mt-2 text-xs font-bold text-[var(--app-muted)]">Confidence: {feedbackInfluence?.confidenceAdjustment ?? "neutral"}</p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-white/88 px-3 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Memory influence</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{memoryInfluence?.summary ?? "Company and jobsite memory was not loaded yet."}</p>
+          <p className="mt-2 text-xs font-bold text-[var(--app-muted)]">{memoryInfluence?.memoryItemCount ?? 0} memory items loaded</p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-white/88 px-3 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Calibration</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{calibrationSummary?.summary ?? "Calibration starts once later field outcomes are available."}</p>
+          <p className="mt-2 text-xs font-bold text-[var(--app-muted)]">
+            {calibrationSummary?.predictedHighRiskCount ?? 0} high-risk predictions tracked
+          </p>
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -671,6 +896,8 @@ export function CommandCenterWorkspace() {
           />
         </div>
       </SectionCard>
+
+      <DailySafetyCommandCenterPanel predictiveRisk={predictiveRisk} loading={predictiveLoading} />
 
       <SectionCard
         eyebrow="Launch"

@@ -28,6 +28,14 @@ import {
   type PredictiveSafetyMemoryItemRow,
   type PredictiveSafetyWeatherAlertRow,
 } from "@/lib/predictiveSafetyEngine";
+import {
+  buildAiSafetyClosedLoopPayload,
+  type AiSafetyActionQueue,
+  type AiSafetyApprovalSummary,
+  type AiSafetyCalibrationSummary,
+  type AiSafetyFeedbackInfluence,
+  type AiSafetyMemoryInfluence,
+} from "@/lib/aiSafetyActionQueue";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -105,6 +113,11 @@ export type PredictiveRiskPayload = {
   behaviorRisk: BehaviorRiskResult;
   safetyAiAssessment: SafetyAiAssessment;
   dailyBriefing: DailyRiskBriefing;
+  aiSafetyActionQueue: AiSafetyActionQueue;
+  approvalState: AiSafetyApprovalSummary;
+  feedbackInfluence: AiSafetyFeedbackInfluence;
+  memoryInfluence: AiSafetyMemoryInfluence;
+  calibrationSummary: AiSafetyCalibrationSummary;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -842,6 +855,11 @@ export function buildPredictiveRiskPayload(input: {
     memoryItems: input.memoryItems,
     safetyAiAssessment,
   });
+  const aiSafetyLoop = buildAiSafetyClosedLoopPayload({
+    dailyBriefing,
+    riskMitigations: input.riskMitigations,
+    memoryItems: input.memoryItems,
+  });
   const accumulators = buildLocationAccumulators({
     rows,
     jobsites: input.jobsites,
@@ -1034,6 +1052,11 @@ export function buildPredictiveRiskPayload(input: {
     behaviorRisk,
     safetyAiAssessment,
     dailyBriefing,
+    aiSafetyActionQueue: aiSafetyLoop.aiSafetyActionQueue,
+    approvalState: aiSafetyLoop.approvalState,
+    feedbackInfluence: aiSafetyLoop.feedbackInfluence,
+    memoryInfluence: aiSafetyLoop.memoryInfluence,
+    calibrationSummary: aiSafetyLoop.calibrationSummary,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };

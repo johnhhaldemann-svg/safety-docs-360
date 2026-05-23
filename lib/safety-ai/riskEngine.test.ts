@@ -185,6 +185,14 @@ describe("assessSafetyRisk", () => {
     expect(result.scoreExplanation.recommendedAction).toBeTruthy();
     expect(result.humanApprovalRequired).toBe(true);
     expect(result.humanApprovalReason).toContain("Permit readiness");
+    expect(result.controlRecommendations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          hazardFamily: "energized_electrical",
+          humanApprovalRequired: true,
+        }),
+      ])
+    );
   });
 
   it("escalates high-consequence work when critical controls are not verified", () => {
@@ -214,6 +222,14 @@ describe("assessSafetyRisk", () => {
     expect(result.stopWorkReviewRecommended).toBe(true);
     expect(result.humanApprovalRequired).toBe(true);
     expect(result.scoreExplanation.humanApprovalReason).toContain("Immediate human review");
+    expect(result.controlRecommendations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Verify competent-person excavation inspection",
+          humanApprovalRequired: true,
+        }),
+      ])
+    );
   });
 
   it("raises likelihood when separate modules converge on the same hazard family", () => {

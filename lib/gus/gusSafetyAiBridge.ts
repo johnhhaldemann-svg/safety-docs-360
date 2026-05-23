@@ -215,7 +215,10 @@ export function buildSafetyAiAssessmentForSafePredict(
 
 export function buildGusContextFromSafetyAiAssessment(assessment: SafetyAiAssessment): Partial<GusContext> {
   const topDrivers = assessment.topDrivers.map((driver) => driver.label);
-  const recommendations = assessment.recommendations.map((recommendation) => recommendation.title);
+  const recommendations = [
+    ...assessment.controlRecommendations.map((recommendation) => recommendation.recommendedAction),
+    ...assessment.recommendations.map((recommendation) => recommendation.title),
+  ];
 
   return {
     aiEngineLinked: true,
@@ -223,7 +226,7 @@ export function buildGusContextFromSafetyAiAssessment(assessment: SafetyAiAssess
     aiEngineCriticalControlGaps: assessment.criticalControlGaps,
     aiEngineReviewTriggers: assessment.reviewTriggers,
     aiEngineActionTimeframe: assessment.actionTimeframe,
-    aiEngineRecommendations: recommendations,
+    aiEngineRecommendations: recommendations.slice(0, 8),
     riskLevel: toGusRiskLevel(assessment.level),
     riskDrivers: [
       ...assessment.criticalControlGaps,
@@ -244,8 +247,24 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
     .filter((blocker) => blocker.type === "control" || blocker.type === "competent_person")
     .map((blocker) => blocker.label)
     .slice(0, 5);
+  const nextRecommendedControl = topWork?.recommendedControls[0];
   const nextControl = briefing.controlsToVerify[0];
   const topAssessment = topWork?.assessment;
+  const controlRecommendations = briefing.highRiskWork.flatMap((work) => work.recommendedControls.map((control) => control.recommendedAction));
+  const actionQueue = [
+    ...briefing.readinessBlockers.slice(0, 5).map((blocker) => `${blocker.label}: ${blocker.detail}`),
+    ...briefing.highRiskWork
+      .filter((work) => work.humanApprovalRequired || work.riskLevel === "critical" || work.riskLevel === "high")
+      .slice(0, 3)
+      .map((work) => `Review ${work.title}: ${work.scoreExplanation.recommendedAction}`),
+  ].slice(0, 8);
+  const memoryInfluence = briefing.highRiskWork
+    .flatMap((work) =>
+      work.recommendedControls
+        .filter((control) => control.basis !== "general_best_practice" && control.basis !== "unknown")
+        .map((control) => `${control.basis.replace(/_/g, " ")}: ${control.title}`),
+    )
+    .slice(0, 5);
 
   return {
     aiEngineLinked: true,
@@ -258,9 +277,17 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
       ...(topAssessment?.reviewTriggers ?? []),
     ].slice(0, 8),
     aiEngineActionTimeframe: topAssessment?.actionTimeframe,
-    aiEngineRecommendations: briefing.controlsToVerify.slice(0, 5).map((control) => control.text),
-    aiEngineRecommendedNextAction: nextControl?.text ?? topAssessment?.recommendations[0]?.title,
+    aiEngineRecommendations: [...controlRecommendations, ...briefing.controlsToVerify.map((control) => control.text)].slice(0, 8),
+    aiEngineRecommendedNextAction: nextRecommendedControl?.recommendedAction ?? nextControl?.text ?? topAssessment?.recommendations[0]?.title,
     aiEngineStopWorkReviewRecommended: briefing.stopWorkReviewRecommended,
+    aiEngineActionQueue: actionQueue,
+    aiEngineApprovalState:
+      briefing.stopWorkReviewRecommended || briefing.escalationRequired || actionQueue.length > 0
+        ? "review_required"
+        : "assigned",
+    aiEngineFeedbackInfluence: ["Use recommendation feedback to tune confidence, duplicate suppression, and missing-information prompts."],
+    aiEngineMemoryInfluence: memoryInfluence,
+    aiEngineCalibrationSummary: "Compare AI Engine predictions with later incidents, near misses, observations, corrective actions, and field-used controls.",
     riskLevel: topWork ? toGusRiskLevel(topWork.riskLevel) : undefined,
     riskDrivers: [
       ...(topWork?.drivers ?? []),

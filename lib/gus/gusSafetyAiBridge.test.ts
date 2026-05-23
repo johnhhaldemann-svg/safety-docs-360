@@ -64,9 +64,12 @@ describe("Gus Safety AI Engine bridge", () => {
           actionTimeframe: "immediate",
           blockers: [],
           controlsToVerify: ["Protective system review"],
+          recommendedControls: [],
           drivers: ["Excavation controls"],
           whyItMatters: "Cave-in exposure requires review.",
           scoreExplanation: assessment.scoreExplanation,
+          humanApprovalRequired: true,
+          humanApprovalReason: "Critical AI Engine risk requires review.",
           evidenceRefs: [],
           assessment,
         },
@@ -115,6 +118,14 @@ describe("Gus Safety AI Engine bridge", () => {
     expect(context.aiEngineLinked).toBe(true);
     expect(context.aiEngineTopHighRiskWork).toBe("Excavation at north trench at North Tower");
     expect(context.aiEngineRecommendedNextAction).toBe("Protective system review");
+    expect(context.aiEngineApprovalState).toBe("review_required");
+    expect(context.aiEngineActionQueue).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Missing active permit or authorization"),
+        expect.stringContaining("Review Excavation at north trench"),
+      ]),
+    );
+    expect(context.aiEngineCalibrationSummary).toContain("Compare AI Engine predictions");
     expect(context.missingPermitTypes).toEqual(["Verify excavation permit."]);
     expect(context.expiredTrainingCount).toBe(1);
     expect(context.riskLevel).toBe("severe");

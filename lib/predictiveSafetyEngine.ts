@@ -1,9 +1,12 @@
 import { buildRuleBasedScheduleHazardPrediction } from "@/lib/scheduleHazardPrediction";
 import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
+import { buildSafetyControlRecommendations } from "@/lib/safety-ai/controlRecommendations";
 import type {
+  SafetyAiEvidenceRef,
   SafetyAiAssessment,
   SafetyAiScoreExplanation,
   SafetyAiSignal,
+  SafetyControlRecommendation,
   SafetyControlType,
   SafetyRiskLevel,
 } from "@/lib/safety-ai/types";
@@ -20,14 +23,7 @@ import type {
   PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
 
-export type PredictiveSafetyEvidenceRef = {
-  id: string;
-  sourceModule: string;
-  sourceId: string;
-  label: string;
-  href: string | null;
-  detail: string | null;
-};
+export type PredictiveSafetyEvidenceRef = SafetyAiEvidenceRef;
 
 export type PredictiveSafetyReadinessBlockerType =
   | "permit"
@@ -64,9 +60,12 @@ export type PredictiveSafetyWorkItem = {
   actionTimeframe: SafetyAiAssessment["actionTimeframe"];
   blockers: PredictiveSafetyReadinessBlocker[];
   controlsToVerify: string[];
+  recommendedControls: SafetyControlRecommendation[];
   drivers: string[];
   whyItMatters: string;
   scoreExplanation: SafetyAiScoreExplanation;
+  humanApprovalRequired: boolean;
+  humanApprovalReason: string | null;
   evidenceRefs: PredictiveSafetyEvidenceRef[];
   assessment: SafetyAiAssessment;
 };
@@ -645,7 +644,19 @@ function buildWorkItem(params: {
     );
   }
 
-  const memoryControls = unique(params.memoryItems.map(memoryControlText), 4);
+  const memoryControlEntries = params.memoryItems
+    .map((item) => ({ item, text: memoryControlText(item) }))
+    .filter((entry): entry is { item: PredictiveSafetyMemoryItemRow; text: string } => Boolean(entry.text));
+  const memoryControls = unique(memoryControlEntries.map((entry) => entry.text), 4);
+  const memoryEvidenceRefs = memoryControlEntries.slice(0, 4).map((entry) =>
+    evidenceRef({
+      sourceModule: "company_memory_items",
+      sourceId: entry.item.id ?? entry.item.title ?? "memory-item",
+      label: entry.item.title ?? entry.text,
+      href: "/safety-intelligence",
+      detail: entry.item.source_type ?? entry.item.source ?? "Uploaded safety document memory",
+    })
+  );
   const controlsToVerify = unique([...params.work.controls, ...memoryControls]);
   const signals = workSignals(params.work, blockers, params.weatherAlerts);
   const assessment = assessSafetyRisk({
@@ -680,6 +691,39 @@ function buildWorkItem(params: {
   if (assessment.level === "low" && blockers.length === 0 && !params.work.highRisk) return null;
 
   const why = assessment.topDrivers[0]?.explanation ?? "This work has enough risk signal to warrant a pre-task readiness check.";
+  const evidenceRefs = [workEvidence, ...memoryEvidenceRefs, ...blockers.flatMap((item) => item.evidenceRefs)].slice(0, 8);
+  const recommendedControls = buildSafetyControlRecommendations({
+    input: {
+      jobsiteId: params.work.jobsiteId,
+      jobsiteName: jobsiteName(params.jobsites, params.work.jobsiteId),
+      taskType: params.work.hazard ?? params.work.title,
+      trade: params.work.trade,
+      crewExposure: params.work.crewSize,
+      highRiskWorkCategories: unique([params.work.hazard, params.work.title, ...params.work.permitTriggers]),
+      observedControls: controlsToVerify,
+      controlEffectiveness: assessment.criticalControlGaps.length > 0
+        ? "partial"
+        : blockers.some((item) => item.type === "control")
+          ? "missing"
+          : controlsToVerify.length > 0
+            ? "effective"
+            : "unknown",
+      signals,
+      missingData: assessment.missingData,
+      imminentDanger: assessment.stopWorkReviewRecommended,
+      fatalityOrCatastrophicPotential: params.work.fatalityOrCatastrophicPotential,
+      missingRequiredPermit: blockers.some((item) => item.type === "permit"),
+      missingRequiredTraining: blockers.some((item) => item.type === "training"),
+      missingCompetentPersonReview: blockers.some((item) => item.type === "competent_person"),
+      overdueCorrectiveActionForHazard: blockers.some((item) => item.type === "corrective_action"),
+    },
+    level: assessment.level,
+    drivers: assessment.topDrivers,
+    signals,
+    evidenceRefs,
+    missingInformation: assessment.missingData,
+    confidence: assessment.confidence,
+  });
   return {
     id: params.work.id,
     title: params.work.title,
@@ -695,10 +739,16 @@ function buildWorkItem(params: {
     actionTimeframe: assessment.actionTimeframe,
     blockers,
     controlsToVerify,
+    recommendedControls,
     drivers: assessment.topDrivers.slice(0, 4).map((driver) => driver.label),
     whyItMatters: why,
     scoreExplanation: assessment.scoreExplanation,
-    evidenceRefs: [workEvidence, ...blockers.flatMap((item) => item.evidenceRefs)].slice(0, 8),
+    humanApprovalRequired: assessment.humanApprovalRequired || recommendedControls.some((control) => control.humanApprovalRequired),
+    humanApprovalReason:
+      assessment.humanApprovalReason ??
+      recommendedControls.find((control) => control.humanApprovalReason)?.humanApprovalReason ??
+      null,
+    evidenceRefs,
     assessment,
   };
 }
@@ -754,16 +804,23 @@ function controlTypeFor(text: string): SafetyControlType {
 function buildControls(workItems: PredictiveSafetyWorkItem[]): PredictiveSafetyControlVerification[] {
   const byText = new Map<string, PredictiveSafetyControlVerification>();
   for (const work of workItems) {
-    for (const control of work.controlsToVerify.slice(0, 8)) {
+    const controlTexts = unique([
+      ...work.controlsToVerify,
+      ...work.recommendedControls.map((control) => control.recommendedAction),
+    ], 12);
+    for (const control of controlTexts.slice(0, 8)) {
       const key = normalizeText(control);
       if (!key) continue;
+      const recommendation = work.recommendedControls.find((item) => normalizeText(item.recommendedAction) === key);
       const existing = byText.get(key) ?? {
         id: `control-${key.replace(/\s+/g, "-").slice(0, 48)}`,
-        controlType: controlTypeFor(control),
+        controlType: recommendation?.controlCategory ?? controlTypeFor(control),
         priority: work.riskLevel === "critical" ? "urgent" : work.riskLevel === "high" ? "before_work" : "routine",
         text: control,
-        whyItMatters: `Linked to ${work.title}; verify before work starts when risk is ${work.riskLevel}.`,
-        ownerRole: controlTypeFor(control) === "competent_person_review" ? "competent_person" : "field_supervisor",
+        whyItMatters: recommendation
+          ? `${recommendation.verificationRequired} Basis: ${recommendation.basis.replace(/_/g, " ")}.`
+          : `Linked to ${work.title}; verify before work starts when risk is ${work.riskLevel}.`,
+        ownerRole: (recommendation?.controlCategory ?? controlTypeFor(control)) === "competent_person_review" ? "competent_person" : "field_supervisor",
         sourceWorkItemIds: [],
         evidenceRefs: [],
       } satisfies PredictiveSafetyControlVerification;

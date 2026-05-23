@@ -28,6 +28,11 @@ export type GusContext = {
   aiEngineTopHighRiskWork?: string;
   aiEngineRecommendedNextAction?: string;
   aiEngineStopWorkReviewRecommended?: boolean;
+  aiEngineActionQueue?: string[];
+  aiEngineApprovalState?: string;
+  aiEngineFeedbackInfluence?: string[];
+  aiEngineMemoryInfluence?: string[];
+  aiEngineCalibrationSummary?: string;
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;

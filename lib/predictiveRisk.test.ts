@@ -163,6 +163,17 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.safetyAiAssessment.explanation).toContain("Based on available data");
     expect(payload.dailyBriefing.highRiskWork.length).toBeGreaterThan(0);
     expect(payload.dailyBriefing.readinessBlockers.some((blocker) => blocker.type === "control")).toBe(true);
+    expect(payload.aiSafetyActionQueue.items.length).toBeGreaterThan(0);
+    expect(payload.aiSafetyActionQueue.items[0]).toEqual(
+      expect.objectContaining({
+        approvalState: "review_required",
+        humanApprovalRequired: true,
+      }),
+    );
+    expect(payload.approvalState.humanReviewRequired).toBe(true);
+    expect(payload.feedbackInfluence.summary).toContain("recommendation");
+    expect(payload.memoryInfluence.summary).toContain("memory");
+    expect(payload.calibrationSummary.trackedMetrics).toContain("missed high-risk events");
   });
 
   it("falls back to forecast categories when no jobsite-aware rows exist", () => {
@@ -190,6 +201,8 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.summary.averageRiskScore).toBe(61);
     expect(payload.summary.averageResidualRiskScore).toBe(49);
     expect(payload.summary.aiRiskReductionPoints).toBe(12);
+    expect(payload.feedbackInfluence.fieldUsedCount).toBe(1);
+    expect(payload.calibrationSummary.riskReductionPoints).toBe(12);
     expect(payload.model.provenanceNote).toContain("No jobsite-aware records");
     expect(payload.behaviorRisk.riskLevel).toBe("Low");
     expect(payload.safetyAiAssessment.confidence).toBe("low");

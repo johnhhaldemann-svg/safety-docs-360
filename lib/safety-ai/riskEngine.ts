@@ -1,4 +1,5 @@
 import { buildSafetyExplanation } from "@/lib/safety-ai/explanations";
+import { buildSafetyControlRecommendations } from "@/lib/safety-ai/controlRecommendations";
 import { buildSafetyRecommendations } from "@/lib/safety-ai/recommendations";
 import type {
   RiskDriver,
@@ -684,6 +685,14 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     humanApprovalRequired,
     humanApprovalReason: humanApprovalReasonValue,
   });
+  const controlRecommendations = buildSafetyControlRecommendations({
+    input,
+    level,
+    drivers: topDrivers,
+    signals,
+    missingInformation: missingData,
+    confidence,
+  });
 
   return {
     score,
@@ -692,6 +701,7 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     scoreExplanation,
     topDrivers,
     recommendations,
+    controlRecommendations,
     escalationRequired,
     stopWorkReviewRecommended,
     humanApprovalRequired,

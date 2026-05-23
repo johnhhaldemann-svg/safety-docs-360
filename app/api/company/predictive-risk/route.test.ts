@@ -305,6 +305,24 @@ describe("/api/company/predictive-risk", () => {
         recommendedAction: expect.any(String),
       })
     );
+    expect(body.dailyBriefing.highRiskWork[0].recommendedControls[0]).toEqual(
+      expect.objectContaining({
+        recommendedAction: expect.any(String),
+        verificationRequired: expect.any(String),
+        humanApprovalRequired: true,
+      })
+    );
+    expect(body.aiSafetyActionQueue.items[0]).toEqual(
+      expect.objectContaining({
+        approvalState: "review_required",
+        humanApprovalRequired: true,
+        recommendedControl: expect.any(String),
+      })
+    );
+    expect(body.approvalState).toEqual(expect.objectContaining({ humanReviewRequired: true }));
+    expect(body.feedbackInfluence).toEqual(expect.objectContaining({ confidenceAdjustment: expect.any(String) }));
+    expect(body.memoryInfluence).toEqual(expect.objectContaining({ memoryItemCount: expect.any(Number) }));
+    expect(body.calibrationSummary).toEqual(expect.objectContaining({ trackedMetrics: expect.arrayContaining(["field-used controls"]) }));
     expect(body.dailyBriefing.readinessBlockers.map((blocker: { type: string }) => blocker.type)).toContain("permit");
     expect(body.leadershipTrust.sourceCoverage).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "scheduleItems", label: "Work schedule", count: 1 })])

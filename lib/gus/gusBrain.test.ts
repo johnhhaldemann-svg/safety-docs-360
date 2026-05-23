@@ -63,6 +63,7 @@ describe("decideGusBehavior", () => {
           },
           topDrivers: [],
           recommendations: [],
+          controlRecommendations: [],
           escalationRequired: true,
           stopWorkReviewRecommended: true,
           humanApprovalRequired: true,
