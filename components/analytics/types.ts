@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExplainableRecommendation, LeadershipTrustMetadata } from "@/lib/leadershipTrust";
+import type { AiSafetyCalibrationReport, AiSafetyExecutiveTrendSummary } from "@/lib/aiSafetyCalibration";
 
 export type HealthIssueRollupItem = {
   injuryType: string;
@@ -131,6 +132,8 @@ export type AnalyticsSummary = {
     derivedRollupConfidence?: number;
   } | null;
   riskMemoryRecommendations?: ExplainableRecommendation[];
+  aiSafetyCalibration?: AiSafetyCalibrationReport;
+  aiExecutiveTrendSummary?: AiSafetyExecutiveTrendSummary;
   leadershipTrust?: LeadershipTrustMetadata;
   riskMemoryTrend?: {
     points: Array<{ date: string; score: number; band: string; windowDays: number }>;

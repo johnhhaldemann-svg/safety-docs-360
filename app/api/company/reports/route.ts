@@ -5,6 +5,10 @@ import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
 import { buildLeadershipTrustMetadata, coverageStatus } from "@/lib/leadershipTrust";
+import {
+  buildAiSafetyCalibrationOutcomeRows,
+  buildAiSafetyCalibrationReport,
+} from "@/lib/aiSafetyCalibration";
 
 export const runtime = "nodejs";
 
@@ -290,7 +294,7 @@ async function buildEodReportPayload({
 
 async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
   const sinceIso = new Date(Date.now() - Math.max(1, days) * 24 * 60 * 60 * 1000).toISOString();
-  const [actionsRes, incidentsRes, submissionsRes, permitsRes, jsasRes, jsaActivitiesRes] =
+  const [actionsRes, incidentsRes, submissionsRes, permitsRes, jsasRes, jsaActivitiesRes, sorRes, aiRecommendationsRes, aiEventsRes] =
     await Promise.all([
     auth.supabase
       .from("company_corrective_actions")
@@ -322,6 +326,29 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
       .select("id, jsa_id, activity_name, status, created_at")
       .eq("company_id", companyId)
       .gte("created_at", sinceIso),
+    auth.supabase
+      .from("company_sor_records")
+      .select("id, date, project, location, trade, category, hazard_category_code, subcategory, description, severity, created_at, status")
+      .eq("company_id", companyId)
+      .eq("is_deleted", false)
+      .neq("status", "superseded")
+      .gte("date", sinceIso.slice(0, 10)),
+    auth.supabase
+      .from("company_risk_ai_recommendations")
+      .select(
+        "id, kind, title, body, status, priority, created_at, due_at, accepted_at, field_used_at, resolved_at, dismissed_at, target_module, target_href, jobsite_id, mitigation_state, risk_reduction_points, evidence_summary"
+      )
+      .eq("company_id", companyId)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    auth.supabase
+      .from("company_risk_recommendation_events")
+      .select("id, recommendation_id, event_type, from_status, to_status, metadata, created_at")
+      .eq("company_id", companyId)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(1000),
     ]);
   if (actionsRes.error) throw new Error(actionsRes.error.message || "Failed loading corrective actions");
   if (incidentsRes.error) throw new Error(incidentsRes.error.message || "Failed loading incidents");
@@ -329,6 +356,9 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
   if (permitsRes.error) throw new Error(permitsRes.error.message || "Failed loading permits");
   if (jsasRes.error) throw new Error(jsasRes.error.message || "Failed loading JSAs");
   if (jsaActivitiesRes.error) throw new Error(jsaActivitiesRes.error.message || "Failed loading JSA activities");
+  if (sorRes.error) throw new Error(sorRes.error.message || "Failed loading SOR observations");
+  if (aiRecommendationsRes.error) throw new Error(aiRecommendationsRes.error.message || "Failed loading AI safety actions");
+  if (aiEventsRes.error) throw new Error(aiEventsRes.error.message || "Failed loading AI action events");
   return {
     actions: actionsRes.data ?? [],
     incidents: incidentsRes.data ?? [],
@@ -336,6 +366,9 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
     permits: permitsRes.data ?? [],
     daps: jsasRes.data ?? [],
     dapActivities: jsaActivitiesRes.data ?? [],
+    sorRows: sorRes.data ?? [],
+    aiRecommendations: aiRecommendationsRes.data ?? [],
+    aiRecommendationEvents: aiEventsRes.data ?? [],
   };
 }
 
@@ -390,14 +423,18 @@ export async function POST(request: Request) {
       company_id: "demo-company",
       jobsite_id: selectedJobsiteId || fallbackJobsite,
       title:
-        reportType === "weekly_summary"
+        reportType === "ai_engine_weekly_summary"
+          ? "AI Engine Weekly Executive Summary"
+          : reportType === "ai_engine_monthly_summary"
+            ? "AI Engine Monthly Executive Summary"
+            : reportType === "weekly_summary"
           ? "Weekly Safety Summary"
           : reportType === "end_of_day"
             ? "End-of-Day Safety Report"
             : "Daily Safety Report",
       report_type: reportType || "daily_report",
       status: "published",
-      source_module: reportType === "end_of_day" ? "eod_generator" : "operations",
+      source_module: reportType.startsWith("ai_engine_") ? "ai_engine_calibration" : reportType === "end_of_day" ? "eod_generator" : "operations",
       file_path: `demo/reports/${reportType || "daily"}-${Date.now()}.md`,
       generated_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -437,11 +474,24 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const reportType = String(body?.reportType ?? "").trim().toLowerCase();
   const reportTypeFinal = reportType || "daily_report";
-  if (!["daily_report", "weekly_summary", "custom", "end_of_day"].includes(reportTypeFinal)) {
-    return NextResponse.json({ error: "reportType must be daily_report, weekly_summary, custom, or end_of_day." }, { status: 400 });
+  const allowedReportTypes = ["daily_report", "weekly_summary", "custom", "end_of_day", "ai_engine_weekly_summary", "ai_engine_monthly_summary"];
+  if (!allowedReportTypes.includes(reportTypeFinal)) {
+    return NextResponse.json(
+      { error: "reportType must be daily_report, weekly_summary, custom, end_of_day, ai_engine_weekly_summary, or ai_engine_monthly_summary." },
+      { status: 400 }
+    );
   }
-  const title = String(body?.title ?? "").trim() || (reportTypeFinal === "weekly_summary" ? "Weekly Safety Summary" : "Daily Safety Report");
-  const days = reportTypeFinal === "weekly_summary" ? 7 : 1;
+  const isAiEngineReport = reportTypeFinal === "ai_engine_weekly_summary" || reportTypeFinal === "ai_engine_monthly_summary";
+  const title =
+    String(body?.title ?? "").trim() ||
+    (reportTypeFinal === "ai_engine_weekly_summary"
+      ? "AI Engine Weekly Executive Summary"
+      : reportTypeFinal === "ai_engine_monthly_summary"
+        ? "AI Engine Monthly Executive Summary"
+        : reportTypeFinal === "weekly_summary"
+          ? "Weekly Safety Summary"
+          : "Daily Safety Report");
+  const days = reportTypeFinal === "ai_engine_monthly_summary" ? 30 : reportTypeFinal === "weekly_summary" || reportTypeFinal === "ai_engine_weekly_summary" ? 7 : 1;
 
   let metrics: Record<string, unknown> = {};
   if (reportTypeFinal === "end_of_day") {
@@ -552,6 +602,16 @@ export async function POST(request: Request) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
         .map(([category, count]) => ({ category, count }));
+      const aiSafetyCalibration = buildAiSafetyCalibrationReport({
+        windowDays: days,
+        recommendations: data.aiRecommendations,
+        events: data.aiRecommendationEvents,
+        outcomes: buildAiSafetyCalibrationOutcomeRows({
+          correctiveActions: data.actions,
+          incidents: data.incidents,
+          observations: data.sorRows,
+        }),
+      });
 
       metrics = {
         leadershipTrust: buildLeadershipTrustMetadata({
@@ -562,6 +622,8 @@ export async function POST(request: Request) {
             { key: "permits", label: "Permits", count: data.permits.length, href: "/permits", status: coverageStatus(data.permits.length) },
             { key: "submissions", label: "Submissions", count: data.submissions.length, href: "/company-safety-forms", status: coverageStatus(data.submissions.length) },
             { key: "jsas", label: "JSAs", count: data.daps.length + data.dapActivities.length, href: "/jsa", status: coverageStatus(data.daps.length + data.dapActivities.length) },
+            { key: "aiSafetyActions", label: "AI Safety Actions", count: data.aiRecommendations.length, href: "/command-center", status: coverageStatus(data.aiRecommendations.length) },
+            { key: "aiActionEvents", label: "AI Action Events", count: data.aiRecommendationEvents.length, href: "/command-center", status: coverageStatus(data.aiRecommendationEvents.length) },
           ],
           evidenceRefs: [
             ...data.actions.slice(0, 2).map((row) => ({
@@ -604,13 +666,18 @@ export async function POST(request: Request) {
               : []),
           ],
           executiveSummary:
-            overdueActions > 0
+            isAiEngineReport
+              ? aiSafetyCalibration.executiveSummary
+              : overdueActions > 0
               ? "Report-ready summary includes overdue corrective action pressure that should be handled before sign-off."
               : "Report-ready summary includes source coverage and no overdue corrective pressure for the selected report window.",
           provenanceNote:
-            "Generated from company-scoped correctives, incidents, permits, submissions, JSAs, and JSA activities.",
+            isAiEngineReport
+              ? "Generated from company-scoped AI safety actions, recommendation events, incidents, near misses, observations, corrective actions, and related operations records."
+              : "Generated from company-scoped correctives, incidents, permits, submissions, JSAs, and JSA activities.",
         }),
         windowDays: days,
+        reportFocus: isAiEngineReport ? "ai_engine_calibration" : "operations",
         totals: {
           correctiveActions: data.actions.length,
           incidents: data.incidents.length,
@@ -618,6 +685,8 @@ export async function POST(request: Request) {
           submissions: data.submissions.length,
           daps: data.daps.length,
           dapActivities: data.dapActivities.length,
+          aiSafetyActions: data.aiRecommendations.length,
+          aiActionEvents: data.aiRecommendationEvents.length,
         },
         status: {
           correctiveOpen: data.actions.filter((item) => item.status !== "verified_closed").length,
@@ -631,8 +700,12 @@ export async function POST(request: Request) {
         },
         kpis: {
           avgClosureHours,
+          aiRecommendationAcceptanceRate: aiSafetyCalibration.actionOutcomes.recommendationAcceptanceRate,
+          aiRiskReductionPoints: aiSafetyCalibration.actionOutcomes.riskReductionPoints,
         },
         topHazardCategories,
+        aiSafetyCalibration,
+        aiExecutiveTrendSummary: aiSafetyCalibration.aiExecutiveTrendSummary,
       };
     } catch (error) {
       return NextResponse.json(
@@ -651,7 +724,7 @@ export async function POST(request: Request) {
     title,
     report_type: reportTypeFinal,
     status: "published",
-    source_module: String(body?.sourceModule ?? "").trim() || "operations",
+    source_module: String(body?.sourceModule ?? "").trim() || (isAiEngineReport ? "ai_engine_calibration" : "operations"),
     file_path: null,
     generated_at: generatedAt,
     created_by: auth.user.id,

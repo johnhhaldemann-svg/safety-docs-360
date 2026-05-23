@@ -569,6 +569,186 @@ function DailySafetyCommandCenterPanel({
   );
 }
 
+function AiSafetyCalibrationPanel({
+  calibration,
+  trendSummary,
+  generatingReport,
+  reportMessage,
+  onGenerateReport,
+}: {
+  calibration: AnalyticsSummary["aiSafetyCalibration"] | undefined;
+  trendSummary: AnalyticsSummary["aiExecutiveTrendSummary"] | undefined;
+  generatingReport: "weekly" | "monthly" | null;
+  reportMessage: string;
+  onGenerateReport: (period: "weekly" | "monthly") => void;
+}) {
+  const actionOutcomes = calibration?.actionOutcomes;
+  const summary = calibration?.summary;
+  const acceptance = actionOutcomes?.recommendationAcceptanceRate;
+  const topHazards = calibration?.trendSummary.topHazards ?? [];
+  const topJobsites = calibration?.trendSummary.topJobsites ?? [];
+  const topTrades = calibration?.trendSummary.topTrades ?? [];
+  const missedSignals = calibration?.predictionOutcomes.missedHighRiskEvents ?? [];
+  const insufficientData = calibration?.predictionOutcomes.insufficientData ?? [];
+  const recommendedActions = trendSummary?.recommendedLeadershipActions ?? [];
+
+  return (
+    <SectionCard
+      eyebrow="AI Engine Calibration"
+      title="Executive safety signal review"
+      description="Company-facing calibration compares AI safety actions with later field outcomes. Treat this as evidence for leadership review, not proof of causation."
+      aside={<StatusBadge label={summary?.confidence ? `${summary.confidence} confidence` : "Awaiting data"} tone={summary?.confidence === "high" ? "success" : "warning"} />}
+    >
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricTile
+          eyebrow="Predicted risk"
+          title="High / critical"
+          value={String(summary?.predictedHighRiskCount ?? 0)}
+          detail={`${summary?.predictedCriticalCount ?? 0} critical action${summary?.predictedCriticalCount === 1 ? "" : "s"} in the window.`}
+          tone={(summary?.predictedCriticalCount ?? 0) > 0 ? "attention" : "panel"}
+        />
+        <MetricTile
+          eyebrow="Action outcomes"
+          title="Accepted rate"
+          value={acceptance == null ? "-" : `${acceptance}%`}
+          detail={`${actionOutcomes?.acceptedCount ?? 0} accepted, ${actionOutcomes?.dismissedCount ?? 0} dismissed.`}
+        />
+        <MetricTile
+          eyebrow="Field follow-through"
+          title="Controls used"
+          value={String(actionOutcomes?.fieldUsedControlCount ?? 0)}
+          detail={`${actionOutcomes?.resolvedCount ?? 0} resolved action${actionOutcomes?.resolvedCount === 1 ? "" : "s"}.`}
+        />
+        <MetricTile
+          eyebrow="Risk reduction"
+          title="Points"
+          value={String(actionOutcomes?.riskReductionPoints ?? 0)}
+          detail="Credit only after field-used or resolved workflow states."
+        />
+        <MetricTile
+          eyebrow="Review pressure"
+          title="Overdue"
+          value={String(actionOutcomes?.overdueCount ?? 0)}
+          detail={`${summary?.missedHighRiskEventCount ?? 0} missed-risk candidate${summary?.missedHighRiskEventCount === 1 ? "" : "s"}.`}
+          tone={(actionOutcomes?.overdueCount ?? 0) > 0 || (summary?.missedHighRiskEventCount ?? 0) > 0 ? "attention" : "panel"}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Executive summary</p>
+          <div className="mt-3 rounded-xl border border-[var(--app-border)] bg-white/90 px-4 py-3">
+            <p className="text-sm leading-6 text-[var(--app-text)]">
+              {calibration?.executiveSummary ?? "Calibration will appear after AI safety actions and later field outcomes are available."}
+            </p>
+            {(trendSummary?.bullets ?? []).length > 0 ? (
+              <ul className="mt-3 space-y-2 text-sm text-[var(--app-text)]">
+                {trendSummary?.bullets.slice(0, 4).map((bullet) => (
+                  <li key={bullet} className="rounded-lg bg-[var(--app-panel-soft)] px-3 py-2">
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Recurring signals</p>
+          <div className="mt-3 grid gap-2">
+            {topHazards.slice(0, 3).map((row) => (
+              <div key={`hazard-${row.label}`} className="flex items-center justify-between rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm">
+                <span className="font-medium text-[var(--app-text-strong)]">{row.label}</span>
+                <strong className="text-[var(--semantic-warning)]">{row.count}</strong>
+              </div>
+            ))}
+            {topJobsites.slice(0, 2).map((row) => (
+              <div key={`jobsite-${row.jobsiteId}`} className="flex items-center justify-between rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm">
+                <span className="font-medium text-[var(--app-text-strong)]">{formatCategory(row.jobsiteId)}</span>
+                <strong className="text-[var(--app-accent-primary)]">{row.count}</strong>
+              </div>
+            ))}
+            {topTrades.slice(0, 2).map((row) => (
+              <div key={`trade-${row.trade}`} className="flex items-center justify-between rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm">
+                <span className="font-medium text-[var(--app-text-strong)]">{formatCategory(row.trade)}</span>
+                <strong>{row.count}</strong>
+              </div>
+            ))}
+            {!calibration || (topHazards.length === 0 && topJobsites.length === 0 && topTrades.length === 0) ? (
+              <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                Recurring hazard, jobsite, and trade signals appear after AI safety actions are synced.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Leadership actions</p>
+          <div className="mt-3 space-y-2">
+            {recommendedActions.slice(0, 4).map((action) => (
+              <p key={action} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-sm leading-6 text-[var(--app-text)]">
+                {action}
+              </p>
+            ))}
+            {recommendedActions.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                Recommended leadership actions appear when overdue, missed-risk, or follow-up-needed signals are present.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {(missedSignals.length > 0 || insufficientData.length > 0) ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Missed or follow-up signals</p>
+            <div className="mt-3 space-y-2">
+              {missedSignals.slice(0, 3).map((item) => (
+                <p key={item.id} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm leading-6 text-[var(--app-text)]">
+                  {item.title}: {item.reason}
+                </p>
+              ))}
+              {missedSignals.length === 0 ? <p className="text-sm text-[var(--app-muted)]">No missed-risk candidates in this window.</p> : null}
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Insufficient data</p>
+            <div className="mt-3 space-y-2">
+              {insufficientData.slice(0, 3).map((item) => (
+                <p key={item.id} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-sm leading-6 text-[var(--app-text)]">
+                  {item.reason}
+                </p>
+              ))}
+              {insufficientData.length === 0 ? <p className="text-sm text-[var(--app-muted)]">No insufficient-data warnings in this window.</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 rounded-xl border border-[var(--app-border)] bg-white/90 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[var(--app-text-strong)]">Generate AI Executive Summary</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">Creates a report-ready weekly or monthly summary from calibration, outcomes, and AI action history.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={appButtonSecondaryClassName} disabled={Boolean(generatingReport)} onClick={() => onGenerateReport("weekly")}>
+            {generatingReport === "weekly" ? "Generating..." : "Weekly summary"}
+          </button>
+          <button type="button" className={appButtonSecondaryClassName} disabled={Boolean(generatingReport)} onClick={() => onGenerateReport("monthly")}>
+            {generatingReport === "monthly" ? "Generating..." : "Monthly summary"}
+          </button>
+        </div>
+      </div>
+      {reportMessage ? (
+        <p className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--app-text)]">
+          {reportMessage}
+        </p>
+      ) : null}
+    </SectionCard>
+  );
+}
+
 export function CommandCenterWorkspace() {
   const [days, setDays] = useState(90);
   const [predictiveJobsiteId, setPredictiveJobsiteId] = useState("");
@@ -593,6 +773,8 @@ export function CommandCenterWorkspace() {
   const [riskSnapWorking, setRiskSnapWorking] = useState(false);
   const [aiActionSyncWorking, setAiActionSyncWorking] = useState(false);
   const [aiActionSyncMessage, setAiActionSyncMessage] = useState("");
+  const [aiExecutiveReportWorking, setAiExecutiveReportWorking] = useState<"weekly" | "monthly" | null>(null);
+  const [aiExecutiveReportMessage, setAiExecutiveReportMessage] = useState("");
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
   const [siWorkloadSummary, setSiWorkloadSummary] = useState<SafetyDashboardPayload["summary"] | null>(null);
   const [builderAccess, setBuilderAccess] = useState<BuilderAccess>({ csep: false, peshep: false });
@@ -772,6 +954,8 @@ export function CommandCenterWorkspace() {
   const companyDashboard = summary?.companyDashboard;
   const benchmarking = summary?.benchmarking;
   const injuryAnalytics = summary?.injuryAnalytics;
+  const aiSafetyCalibration = summary?.aiSafetyCalibration;
+  const aiExecutiveTrendSummary = summary?.aiExecutiveTrendSummary;
   const recommendations = summary?.riskMemoryRecommendations ?? [];
   const workflowRails = useMemo(() => buildSafetyManagerWorkflowRails(openWork), [openWork]);
   const band = risk?.aggregatedWithBaseline?.band ?? risk?.aggregated?.band ?? "-";
@@ -895,6 +1079,30 @@ export function CommandCenterWorkspace() {
     }
   }
 
+  async function generateAiExecutiveReport(period: "weekly" | "monthly") {
+    setAiExecutiveReportWorking(period);
+    setAiExecutiveReportMessage("");
+    setAnalyticsErr("");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const reportType = period === "weekly" ? "ai_engine_weekly_summary" : "ai_engine_monthly_summary";
+      const res = await fetchWithTimeoutSafe(
+        "/api/company/reports",
+        { method: "POST", headers, body: JSON.stringify({ reportType }) },
+        30000,
+        "AI executive summary"
+      );
+      const data = (await res.json().catch(() => null)) as { error?: string; report?: { title?: string | null } } | null;
+      if (!res.ok) throw new Error(data?.error || "Could not generate AI executive summary.");
+      setAiExecutiveReportMessage(`${data?.report?.title ?? "AI executive summary"} generated for leadership review.`);
+      await load();
+    } catch (error) {
+      setAnalyticsErr(error instanceof Error ? error.message : "AI executive summary generation failed.");
+    } finally {
+      setAiExecutiveReportWorking(null);
+    }
+  }
+
   async function dismissRiskRecommendation(id: string) {
     setDismissingRecId(id);
     setAnalyticsErr("");
@@ -965,6 +1173,14 @@ export function CommandCenterWorkspace() {
         syncingActions={aiActionSyncWorking}
         syncMessage={aiActionSyncMessage}
         onSyncActions={syncAiSafetyActions}
+      />
+
+      <AiSafetyCalibrationPanel
+        calibration={aiSafetyCalibration}
+        trendSummary={aiExecutiveTrendSummary}
+        generatingReport={aiExecutiveReportWorking}
+        reportMessage={aiExecutiveReportMessage}
+        onGenerateReport={generateAiExecutiveReport}
       />
 
       <SectionCard

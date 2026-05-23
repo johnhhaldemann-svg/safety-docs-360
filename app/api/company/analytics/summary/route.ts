@@ -10,6 +10,10 @@ import { loadCompanyRiskScoreTrend, summarizeTrendDelta } from "@/lib/riskMemory
 import { buildSalesDemoAnalyticsSummaryResponse } from "@/lib/demoWorkspace";
 import { INJURY_TYPE_LABELS } from "@/lib/incidents/injuryType";
 import {
+  buildAiSafetyCalibrationOutcomeRows,
+  buildAiSafetyCalibrationReport,
+} from "@/lib/aiSafetyCalibration";
+import {
   buildLeadershipTrustMetadata,
   coverageStatus,
   explainRecommendation,
@@ -564,7 +568,7 @@ export async function GET(request: Request) {
       sorRows.filter((item) => String(item.severity ?? "").toLowerCase() === "low").length,
   };
 
-  const [riskMemoryRollup, riskRecRes, riskScoreTrendPoints] = await Promise.all([
+  const [riskMemoryRollup, riskRecRes, riskScoreTrendPoints, aiCalibrationRecRes, aiCalibrationEventRes] = await Promise.all([
     buildRiskMemoryStructuredContext(auth.supabase, companyScope.companyId, {
       days: Math.max(1, days),
     }),
@@ -582,6 +586,22 @@ export async function GET(request: Request) {
       companyId: companyScope.companyId,
       days: 30,
     }),
+    auth.supabase
+      .from("company_risk_ai_recommendations")
+      .select(
+        "id, kind, title, body, status, priority, created_at, due_at, accepted_at, field_used_at, resolved_at, dismissed_at, target_module, target_href, jobsite_id, mitigation_state, risk_reduction_points, evidence_summary"
+      )
+      .eq("company_id", companyScope.companyId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    auth.supabase
+      .from("company_risk_recommendation_events")
+      .select("id, recommendation_id, event_type, from_status, to_status, metadata, created_at")
+      .eq("company_id", companyScope.companyId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1000),
   ]);
   const riskScoreTrendSummary = summarizeTrendDelta(riskScoreTrendPoints);
   const riskMemoryTrend = {
@@ -630,6 +650,16 @@ export async function GET(request: Request) {
       })
       );
   }
+  const aiSafetyCalibration = buildAiSafetyCalibrationReport({
+    windowDays: Math.max(1, days),
+    recommendations: aiCalibrationRecRes.error ? [] : (aiCalibrationRecRes.data ?? []),
+    events: aiCalibrationEventRes.error ? [] : (aiCalibrationEventRes.data ?? []),
+    outcomes: buildAiSafetyCalibrationOutcomeRows({
+      correctiveActions: actions,
+      incidents,
+      observations: sorRows,
+    }),
+  });
   const leadershipSourceCoverage = [
     {
       key: "observations",
@@ -665,6 +695,13 @@ export async function GET(request: Request) {
       count: riskMemoryRollup?.facetCount ?? 0,
       href: "/analytics?tab=risk",
       status: coverageStatus(riskMemoryRollup?.facetCount ?? 0),
+    },
+    {
+      key: "aiSafetyActions",
+      label: "AI Safety Actions",
+      count: aiSafetyCalibration.actionOutcomes.totalAiActions,
+      href: "/command-center",
+      status: coverageStatus(aiSafetyCalibration.actionOutcomes.totalAiActions),
     },
     {
       key: "jobsites",
@@ -718,6 +755,8 @@ export async function GET(request: Request) {
     missingSignals: [
       ...(jsasMissing || jsaActivitiesMissing ? ["JSA tables are not available, so JSA coverage is partial."] : []),
       ...(riskRecRes.error ? ["Stored risk recommendations could not be loaded for this response."] : []),
+      ...(aiCalibrationRecRes.error ? ["AI safety action history could not be loaded for calibration."] : []),
+      ...(aiCalibrationEventRes.error ? ["AI recommendation event history could not be loaded for calibration."] : []),
       ...(riskMemoryRollup?.facetCount ? [] : ["Risk Memory facets are not populated for this window."]),
     ],
     evidenceRefs: [
@@ -797,6 +836,8 @@ export async function GET(request: Request) {
       riskMemory: riskMemoryRollup,
       riskMemoryTrend,
       riskMemoryRecommendations,
+      aiSafetyCalibration,
+      aiExecutiveTrendSummary: aiSafetyCalibration.aiExecutiveTrendSummary,
       leadershipTrust,
       safetyLeadership: {
         trendOfObservationsByWeek: Array.from(weeklyObservations.entries())
