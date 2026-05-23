@@ -448,6 +448,11 @@ function DailySafetyCommandCenterPanel({
                     Missing information: {item.missingInformation.slice(0, 2).join("; ")}
                   </p>
                 ) : null}
+                {item.feedbackInfluence.length > 0 ? (
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-800">
+                    Feedback influenced this recommendation: {item.feedbackInfluence.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
               </div>
             ))}
             {!loading && actionQueue.items.length === 0 ? (

@@ -26,12 +26,17 @@ vi.mock("@/lib/injuryWeather/service", () => ({
   getInjuryWeatherDashboardData: vi.fn(),
 }));
 
+vi.mock("@/lib/supabaseAdmin", () => ({
+  createSupabaseAdminClient: vi.fn(() => null),
+}));
+
 import { GET } from "./route";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope } from "@/lib/jobsiteAccess";
 import { getInjuryWeatherDashboardData } from "@/lib/injuryWeather/service";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import type { InjuryWeatherDashboardData } from "@/lib/injuryWeather/types";
 
 function forecastFixture(): InjuryWeatherDashboardData {
@@ -153,6 +158,7 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
     company_sor_records: queryBuilder({ data: [] }),
     company_jobsite_audit_observations: queryBuilder({ data: [] }),
     company_risk_ai_recommendations: queryBuilder({ data: [] }),
+    company_risk_recommendation_events: queryBuilder({ data: [] }),
     company_employee_training_records: queryBuilder({ data: [] }),
     weather_alert_events: queryBuilder({ data: [] }),
     company_memory_items: queryBuilder({ data: [] }),
@@ -161,6 +167,18 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
   return {
     from: vi.fn((table: string) => builders[table as keyof typeof builders]),
     builders,
+  };
+}
+
+function adminFeedbackFixture(rows: Array<Record<string, unknown>>) {
+  const result = { data: rows, error: null };
+  const limit = vi.fn().mockResolvedValue(result);
+  const order = vi.fn(() => ({ limit }));
+  const gte = vi.fn(() => ({ order }));
+  const eq = vi.fn(() => ({ gte }));
+  const select = vi.fn(() => ({ eq }));
+  return {
+    from: vi.fn(() => ({ select })),
   };
 }
 
@@ -175,6 +193,7 @@ describe("/api/company/predictive-risk", () => {
     vi.mocked(companyHasCsepPlanName).mockResolvedValue(false);
     vi.mocked(getJobsiteAccessScope).mockResolvedValue({ restricted: false, jobsiteIds: [] });
     vi.mocked(getInjuryWeatherDashboardData).mockResolvedValue(forecastFixture());
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(null);
   });
 
   it("returns auth errors", async () => {
@@ -332,6 +351,67 @@ describe("/api/company/predictive-risk", () => {
       jobsiteId: "j1",
       workSchedule: expect.objectContaining({ hoursPerDay: 10 }),
     }));
+  });
+
+  it("includes feedback-influenced queue metadata from AI output feedback", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "feedback",
+            jobsite_id: "j1",
+            title: "Roof edge layout",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            trade: "Roofing",
+            work_area: "Level 3",
+            crew_size: 4,
+            supervisor_name: null,
+            risk_level: "high",
+            is_high_risk: true,
+            hazard_categories: ["fall_protection"],
+            permit_triggers: [],
+            required_controls: [],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      adminFeedbackFixture([
+        {
+          id: 1,
+          surface: "ai-engine.daily-briefing",
+          source_id: "schedule-feedback-fall_protection",
+          outcome: "edited",
+          reason: "missing_information",
+          signal_metadata: { recommendationFeedback: "missing_information", jobsiteId: "j1", hazardFamily: "fall_protection" },
+          created_at: new Date().toISOString(),
+        },
+      ]) as never,
+    );
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.aiSafetyActionQueue.items[0]).toEqual(
+      expect.objectContaining({
+        feedbackInfluence: expect.arrayContaining([expect.stringContaining("missing information")]),
+        feedbackConfidenceAdjustment: "neutral",
+        missingInformation: expect.arrayContaining([expect.stringContaining("missing context")]),
+      }),
+    );
+    expect(body.feedbackInfluence).toEqual(expect.objectContaining({ feedbackSignalCount: expect.any(Number) }));
   });
 
   it("rejects a restricted user requesting an unassigned jobsite", async () => {

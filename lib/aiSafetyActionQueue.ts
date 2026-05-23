@@ -8,6 +8,12 @@ import type {
 import type { PredictiveRiskMitigationRow } from "@/lib/predictiveRisk";
 import type { SafetyRiskLevel } from "@/lib/safety-ai/types";
 import type { RiskActionTargetModule } from "@/types/risk-action-plan";
+import {
+  canSuppressAiSafetyActionByFeedback,
+  feedbackSignalsForAction,
+  type AiSafetyFeedbackConfidenceAdjustment,
+  type AiSafetyFeedbackSignal,
+} from "@/lib/aiSafetyFeedbackInfluence";
 
 export type AiSafetyApprovalState =
   | "review_required"
@@ -54,6 +60,7 @@ export type AiSafetyActionQueueItem = {
   targetModule: RiskActionTargetModule | "weather";
   targetHref: string | null;
   feedbackInfluence: string[];
+  feedbackConfidenceAdjustment: AiSafetyFeedbackConfidenceAdjustment;
   memoryInfluence: string[];
 };
 
@@ -76,6 +83,7 @@ export type AiSafetyActionQueue = {
   approvalRequiredCount: number;
   urgentCount: number;
   suppressedDuplicateCount: number;
+  suppressedFeedbackCount: number;
   missingData: string[];
   recommendedSupervisorActions: string[];
   morningBriefing: string[];
@@ -88,6 +96,7 @@ export type AiSafetyFeedbackInfluence = {
   resolvedCount: number;
   dismissedCount: number;
   suppressedDuplicateCount: number;
+  feedbackSignalCount: number;
   learningSignals: string[];
   missingFeedbackData: string[];
 };
@@ -131,6 +140,7 @@ type BuildAiSafetyClosedLoopInput = {
   dailyBriefing: DailyRiskBriefing;
   riskMitigations?: PredictiveRiskMitigationRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
+  feedbackSignals?: AiSafetyFeedbackSignal[];
   now?: Date;
 };
 
@@ -271,6 +281,50 @@ function memoryInfluenceForWork(work: PredictiveSafetyWorkItem) {
   );
 }
 
+function feedbackInfluenceSummary(signals: AiSafetyFeedbackSignal[]) {
+  return unique(
+    signals.map((signal) => {
+      if (signal.kind === "correct") return "Reviewer feedback marked a similar recommendation correct; confidence is increased.";
+      if (signal.kind === "partially_correct") return "Reviewer feedback marked a similar recommendation partially correct; verify missing context.";
+      if (signal.kind === "not_correct") return "Reviewer feedback marked a similar recommendation not correct; stronger evidence is required.";
+      if (signal.kind === "already_resolved") return "Similar recommendation was already resolved or field-used; verify duplicate status.";
+      if (signal.kind === "missing_information") return "Reviewer feedback flagged missing information for similar recommendations.";
+      if (signal.kind === "escalate") return "Reviewer feedback requested escalation and human review.";
+      return "Reviewer feedback asked to ignore similar non-critical recommendations for this project.";
+    }),
+    4,
+  );
+}
+
+function feedbackConfidenceAdjustment(signals: AiSafetyFeedbackSignal[]): AiSafetyFeedbackConfidenceAdjustment {
+  if (signals.some((signal) => signal.confidenceAdjustment === "decrease")) return "decrease";
+  if (signals.some((signal) => signal.confidenceAdjustment === "increase")) return "increase";
+  return "neutral";
+}
+
+function applyFeedbackSignals(item: AiSafetyActionQueueItem, signals: AiSafetyFeedbackSignal[]) {
+  const matching = feedbackSignalsForAction(item, signals);
+  if (matching.length === 0) return { item, suppressed: false };
+  const forceHumanReview = matching.some((signal) => signal.forceHumanReview);
+  const missingInformation = unique([...item.missingInformation, ...matching.flatMap((signal) => signal.missingInformation)], 8);
+  const feedbackInfluence = unique([...item.feedbackInfluence, ...feedbackInfluenceSummary(matching)], 6);
+  const adjustedItem: AiSafetyActionQueueItem = {
+    ...item,
+    missingInformation,
+    feedbackInfluence,
+    feedbackConfidenceAdjustment: feedbackConfidenceAdjustment(matching),
+    humanApprovalRequired: item.humanApprovalRequired || forceHumanReview,
+    approvalState: item.humanApprovalRequired || forceHumanReview ? "review_required" : item.approvalState,
+    humanApprovalReason:
+      item.humanApprovalReason ??
+      (forceHumanReview ? "Reviewer feedback requested escalation for a similar recommendation; human review is required before work proceeds." : null),
+  };
+  const suppressByFeedback =
+    matching.some((signal) => signal.suppressNonCritical) &&
+    canSuppressAiSafetyActionByFeedback(adjustedItem.riskLevel, adjustedItem.category, adjustedItem.humanApprovalRequired);
+  return { item: adjustedItem, suppressed: suppressByFeedback };
+}
+
 function buildActionFromBlocker(
   work: PredictiveSafetyWorkItem,
   blocker: PredictiveSafetyReadinessBlocker,
@@ -319,6 +373,7 @@ function buildActionFromBlocker(
       targetModule: targetForCategory(category),
       targetHref: evidenceRefs.find((ref) => ref.href)?.href ?? null,
       feedbackInfluence: suppressDuplicate ? ["A similar recommendation was already resolved or field-used for this scope."] : [],
+      feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
       memoryInfluence: memoryInfluenceForWork(work),
     },
   };
@@ -362,6 +417,7 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
       targetModule: "predictive_risk" as const,
       targetHref: work.evidenceRefs.find((ref) => ref.href)?.href ?? "/analytics?tab=risk",
       feedbackInfluence: suppressDuplicate ? ["A similar high-risk review action was already resolved or field-used."] : [],
+      feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
       memoryInfluence: memoryInfluenceForWork(work),
     },
   };
@@ -370,6 +426,8 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
 function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQueue {
   const rawItems: AiSafetyActionQueueItem[] = [];
   let suppressedDuplicateCount = 0;
+  let suppressedFeedbackCount = 0;
+  const feedbackSignals = input.feedbackSignals ?? [];
 
   for (const work of input.dailyBriefing.highRiskWork) {
     for (const blocker of work.blockers) {
@@ -378,7 +436,12 @@ function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQu
         suppressedDuplicateCount += 1;
         continue;
       }
-      rawItems.push(item);
+      const feedbackApplied = applyFeedbackSignals(item, feedbackSignals);
+      if (feedbackApplied.suppressed) {
+        suppressedFeedbackCount += 1;
+        continue;
+      }
+      rawItems.push(feedbackApplied.item);
     }
 
     if (RISK_RANK[work.riskLevel] >= RISK_RANK.high || work.blockers.length === 0) {
@@ -387,7 +450,12 @@ function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQu
         suppressedDuplicateCount += 1;
         continue;
       }
-      rawItems.push(item);
+      const feedbackApplied = applyFeedbackSignals(item, feedbackSignals);
+      if (feedbackApplied.suppressed) {
+        suppressedFeedbackCount += 1;
+        continue;
+      }
+      rawItems.push(feedbackApplied.item);
     }
   }
 
@@ -432,6 +500,7 @@ function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQu
     approvalRequiredCount: items.filter((item) => item.humanApprovalRequired).length,
     urgentCount: items.filter((item) => item.priority === "critical" || item.priority === "high").length,
     suppressedDuplicateCount,
+    suppressedFeedbackCount,
     missingData: input.dailyBriefing.missingData,
     recommendedSupervisorActions,
     morningBriefing,
@@ -484,9 +553,14 @@ function buildFeedbackInfluence(queue: AiSafetyActionQueue, mitigations: Predict
       queue.suppressedDuplicateCount > 0
         ? `${queue.suppressedDuplicateCount} duplicate non-critical action${queue.suppressedDuplicateCount === 1 ? "" : "s"} suppressed by prior resolution.`
         : null,
+      queue.suppressedFeedbackCount > 0
+        ? `${queue.suppressedFeedbackCount} non-critical action${queue.suppressedFeedbackCount === 1 ? "" : "s"} suppressed by reviewer feedback.`
+        : null,
+      ...unique(queue.items.flatMap((item) => item.feedbackInfluence), 4),
     ],
     6,
   );
+  const feedbackSignalCount = queue.items.filter((item) => item.feedbackInfluence.length > 0).length + queue.suppressedFeedbackCount;
 
   return {
     summary:
@@ -498,9 +572,10 @@ function buildFeedbackInfluence(queue: AiSafetyActionQueue, mitigations: Predict
     resolvedCount,
     dismissedCount,
     suppressedDuplicateCount: queue.suppressedDuplicateCount,
+    feedbackSignalCount,
     learningSignals,
     missingFeedbackData:
-      mitigations.length === 0
+      mitigations.length === 0 && feedbackSignalCount === 0
         ? ["No recommendation event history or AI-output feedback rows were available in this predictive payload."]
         : [],
   };

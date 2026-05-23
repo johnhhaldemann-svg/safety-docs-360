@@ -89,7 +89,7 @@ function directiveText(decision: GusDecision, context: GusContext) {
     (context.safetyAiAssessment.stopWorkReviewRecommended || (context.aiEngineCriticalControlGaps?.length ?? 0) > 0)
   ) {
     return {
-      title: context.safetyAiAssessment.level === "critical" ? "Gus says review now" : "Gus recommends review",
+      title: context.safetyAiAssessment.level === "critical" ? "Review critical controls now" : "Review safety controls next",
       instruction:
         context.aiEngineActionTimeframe === "immediate"
           ? "Pause and get the assigned human reviewer to verify critical controls now."

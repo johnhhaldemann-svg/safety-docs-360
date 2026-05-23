@@ -4,6 +4,13 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { companyHasCsepPlanName, csepWorkspaceForbiddenResponse } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { getInjuryWeatherDashboardData } from "@/lib/injuryWeather/service";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import {
+  buildAiSafetyFeedbackSignals,
+  type AiOutputFeedbackSignalRow,
+  type AiSafetyFeedbackEventRow,
+  type AiSafetyFeedbackRecommendationRow,
+} from "@/lib/aiSafetyFeedbackInfluence";
 import {
   buildEmptyPredictiveRiskPayload,
   buildPredictiveRiskPayload,
@@ -32,6 +39,19 @@ type ScopedQueryBuilder<T> = PromiseLike<QueryResult<T>> & {
   neq: (column: string, value: string) => ScopedQueryBuilder<T>;
   gte: (column: string, value: string) => PromiseLike<QueryResult<T>>;
 };
+type AiOutputFeedbackQueryClient = {
+  from: (table: "ai_output_feedback") => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        gte: (column: string, value: string) => {
+          order: (column: string, options: { ascending: boolean }) => {
+            limit: (count: number) => PromiseLike<QueryResult<AiOutputFeedbackSignalRow>>;
+          };
+        };
+      };
+    };
+  };
+};
 
 function parseDays(value: string | null) {
   const n = Number(value ?? "30");
@@ -58,6 +78,29 @@ function applyJobsiteScope<T>(
 
 function dateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
+}
+
+async function loadCurrentUserAiOutputFeedback(params: {
+  userId: string;
+  since: string;
+}): Promise<{ rows: AiOutputFeedbackSignalRow[]; unavailable: boolean }> {
+  const adminClient = createSupabaseAdminClient() as unknown as AiOutputFeedbackQueryClient | null;
+  if (!adminClient) return { rows: [], unavailable: true };
+  const result = await adminClient
+    .from("ai_output_feedback")
+    .select("id,created_at,surface,source_id,outcome,reason,signal_metadata")
+    .eq("created_by", params.userId)
+    .gte("created_at", params.since)
+    .order("created_at", { ascending: false })
+    .limit(250);
+  if (result.error) return { rows: [], unavailable: true };
+  return {
+    rows: (result.data ?? []).filter((row) => {
+      const surface = String(row.surface ?? "").toLowerCase();
+      return surface.startsWith("ai-engine") || surface.startsWith("risk-action-plan");
+    }),
+    unavailable: false,
+  };
 }
 
 function itemOverlapsWindow(item: PredictiveRiskScheduleItemRow, startDate: string, endDate: string) {
@@ -341,6 +384,17 @@ export async function GET(request: Request) {
     .from("company_memory_items")
     .select("id, title, summary, content, body, source, source_type, created_at")
     .eq("company_id", companyId) as unknown as PromiseLike<QueryResult<PredictiveSafetyMemoryItemRow>>;
+  const feedbackRecommendationsQuery = auth.supabase
+    .from("company_risk_ai_recommendations")
+    .select("id, title, status, priority, jobsite_id, evidence_summary")
+    .eq("company_id", companyId)
+    .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFeedbackRecommendationRow>>;
+  const feedbackEventsQuery = auth.supabase
+    .from("company_risk_recommendation_events")
+    .select("id, recommendation_id, event_type, to_status, metadata, created_at")
+    .eq("company_id", companyId)
+    .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFeedbackEventRow>>;
+  const aiOutputFeedbackQuery = loadCurrentUserAiOutputFeedback({ userId: auth.user.id, since });
 
   const [
     jobsitesRes,
@@ -355,6 +409,9 @@ export async function GET(request: Request) {
     trainingRecordsRes,
     weatherAlertsRes,
     memoryItemsRes,
+    feedbackRecommendationsRes,
+    feedbackEventsRes,
+    aiOutputFeedbackRes,
   ] = await Promise.all([
     jobsitesQuery,
     correctiveQuery,
@@ -368,6 +425,9 @@ export async function GET(request: Request) {
     trainingRecordsQuery,
     weatherAlertsQuery,
     memoryItemsQuery,
+    feedbackRecommendationsQuery,
+    feedbackEventsQuery,
+    aiOutputFeedbackQuery,
   ]);
 
   const scheduleItems = scheduleItemsRes.error
@@ -395,7 +455,9 @@ export async function GET(request: Request) {
     (scheduleItemsRes.error && !isMissingTable(scheduleItemsRes.error.message) ? scheduleItemsRes.error.message : null) ||
     (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null) ||
     (fieldAuditObservationsRes.error && !isMissingTable(fieldAuditObservationsRes.error.message) ? fieldAuditObservationsRes.error.message : null) ||
-    (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null);
+    (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null) ||
+    (feedbackRecommendationsRes.error && !isMissingTable(feedbackRecommendationsRes.error.message) ? feedbackRecommendationsRes.error.message : null) ||
+    (feedbackEventsRes.error && !isMissingTable(feedbackEventsRes.error.message) ? feedbackEventsRes.error.message : null);
 
   if (hardError) {
     return NextResponse.json({ error: hardError || "Failed to load predictive risk." }, { status: 500 });
@@ -418,10 +480,17 @@ export async function GET(request: Request) {
       trainingGaps,
       weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
       memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
+      feedbackSignals: buildAiSafetyFeedbackSignals({
+        recommendations: feedbackRecommendationsRes.error ? [] : feedbackRecommendationsRes.data ?? [],
+        events: feedbackEventsRes.error ? [] : feedbackEventsRes.data ?? [],
+        aiOutputFeedback: aiOutputFeedbackRes.rows,
+      }),
       riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
       warning:
         scheduleItemsRes.error && isMissingTable(scheduleItemsRes.error.message)
           ? "Work schedule data is not available yet. Run the latest Supabase migration to include schedule pressure in predictive risk."
+          : aiOutputFeedbackRes.unavailable
+          ? "AI output feedback storage is unavailable; predictive risk is using recommendation workflow events only for feedback influence."
           : jobsiteScope.restricted && !requestedJobsiteId && forecastJobsiteId
           ? "Forecast headline uses your first assigned jobsite; location rankings use all assigned jobsites."
           : undefined,

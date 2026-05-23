@@ -48,6 +48,7 @@ export type AiSafetyActionRecommendationInsert = {
       trade: string | null;
       area: string | null;
       feedbackInfluence: string[];
+      feedbackConfidenceAdjustment: AiSafetyActionQueueItem["feedbackConfidenceAdjustment"];
       memoryInfluence: string[];
     };
   };
@@ -182,6 +183,7 @@ export function buildAiSafetyActionRecommendationCandidate(params: {
           trade: item.trade,
           area: item.area,
           feedbackInfluence: item.feedbackInfluence,
+          feedbackConfidenceAdjustment: item.feedbackConfidenceAdjustment,
           memoryInfluence: item.memoryInfluence,
         },
       },

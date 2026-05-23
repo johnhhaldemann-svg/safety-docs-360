@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildGusCoachDirective, updateGusCoachLoopState } from "@/lib/gus/gusCoachLoop";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusDecision } from "@/lib/gus/gusTypes";
+import type { SafetyAiAssessment } from "@/lib/safety-ai/types";
 
 const baseContext: GusContext = {
   currentPage: "SafePredict",
@@ -32,6 +33,36 @@ const baseDecision: GusDecision = {
   actions: [{ label: "Review risk", href: "/safe-predict/predictive-risk", actionKey: "guide_to_risk" }],
   shouldOpen: true,
   shouldSpeak: true,
+};
+
+const criticalSafetyAiAssessment: SafetyAiAssessment = {
+  score: 95,
+  level: "critical",
+  confidence: "high",
+  scoreExplanation: {
+    score: 95,
+    level: "critical",
+    confidence: "high",
+    reason: "Critical controls need verification.",
+    dataInputs: ["high-risk work"],
+    missingInformation: [],
+    recommendedAction: "Pause and verify critical controls.",
+    humanApprovalRequired: true,
+    humanApprovalReason: "Critical-risk work needs human review.",
+    driverSummary: ["Critical controls need verification."],
+  },
+  topDrivers: [],
+  recommendations: [],
+  controlRecommendations: [],
+  escalationRequired: true,
+  stopWorkReviewRecommended: true,
+  humanApprovalRequired: true,
+  humanApprovalReason: "Critical-risk work needs human review.",
+  explanation: "Critical controls need verification.",
+  missingData: [],
+  criticalControlGaps: ["Fall exposure"],
+  reviewTriggers: ["Energized electrical or LOTO"],
+  actionTimeframe: "immediate",
 };
 
 describe("Gus coach loop", () => {
@@ -73,6 +104,22 @@ describe("Gus coach loop", () => {
     ].join(" ");
 
     expect(combined).not.toMatch(/approved|compliant|safe to start|released for work|I am human|I'm human/i);
+  });
+
+  it("uses direct coach voice for Safety AI review directives", () => {
+    const directive = buildGusCoachDirective(baseDecision, {
+      ...baseContext,
+      aiEngineLinked: true,
+      safetyAiAssessment: criticalSafetyAiAssessment,
+      aiEngineActionTimeframe: "immediate",
+      aiEngineCriticalControlGaps: ["Fall exposure"],
+      aiEngineReviewTriggers: ["Energized electrical or LOTO"],
+    });
+
+    expect(directive.title).toBe("Review critical controls now");
+    expect(directive.title).not.toMatch(/Gus says|Gus recommends/i);
+    expect(directive.instruction).toContain("verify critical controls now");
+    expect(directive.whyItMatters).toContain("Fall exposure");
   });
 
   it("tracks unresolved coach items without duplicating the active directive", () => {

@@ -167,4 +167,141 @@ describe("buildAiSafetyClosedLoopPayload", () => {
       }),
     );
   });
+
+  it("applies feedback signals to confidence, missing information, escalation, and suppression without hiding critical risk", () => {
+    const sourceBriefing = briefing({
+      scheduleItems: [
+        {
+          id: "s1",
+          jobsite_id: "j1",
+          title: "Roof edge layout",
+          work_start_date: "2026-05-22",
+          trade: "Roofing",
+          risk_level: "high",
+          is_high_risk: true,
+        },
+        {
+          id: "s2",
+          jobsite_id: "j1",
+          title: "Temporary access review",
+          work_start_date: "2026-05-22",
+          trade: "General",
+          risk_level: "high",
+          is_high_risk: true,
+        },
+        {
+          id: "s3",
+          jobsite_id: "j1",
+          title: "Critical lift over active access route",
+          work_start_date: "2026-05-22",
+          trade: "Steel",
+          risk_level: "critical",
+          is_high_risk: true,
+        },
+      ],
+    });
+    const dailyBriefing = {
+      ...sourceBriefing,
+      highRiskWork: sourceBriefing.highRiskWork.map((work) =>
+        work.title === "Temporary access review"
+          ? {
+              ...work,
+              blockers: [],
+              riskLevel: "moderate" as const,
+              riskScore: 52,
+              humanApprovalRequired: false,
+              humanApprovalReason: null,
+            }
+          : {
+              ...work,
+              blockers: [],
+            },
+      ),
+      readinessBlockers: [],
+    };
+
+    const loop = buildAiSafetyClosedLoopPayload({
+      dailyBriefing,
+      feedbackSignals: [
+        {
+          id: "missing-info",
+          kind: "missing_information",
+          confidenceAdjustment: "neutral",
+          reason: "Missing info",
+          sourceId: "schedule-s1-fall_protection",
+          sourceKey: null,
+          jobsiteId: "j1",
+          category: "fall_protection",
+          hazardFamily: "fall_protection",
+          sourceWorkTitle: "Roof edge layout",
+          missingInformation: ["Reviewer feedback flagged missing rescue-plan status."],
+          suppressNonCritical: false,
+          forceHumanReview: false,
+          createdAt: null,
+        },
+        {
+          id: "escalate",
+          kind: "escalate",
+          confidenceAdjustment: "neutral",
+          reason: "Escalate",
+          sourceId: "schedule-s1-fall_protection",
+          sourceKey: null,
+          jobsiteId: "j1",
+          category: "fall_protection",
+          hazardFamily: "fall_protection",
+          sourceWorkTitle: "Roof edge layout",
+          missingInformation: [],
+          suppressNonCritical: false,
+          forceHumanReview: true,
+          createdAt: null,
+        },
+        {
+          id: "ignore",
+          kind: "ignore_for_project",
+          confidenceAdjustment: "decrease",
+          reason: "Ignore",
+          sourceId: "schedule-s2-access",
+          sourceKey: null,
+          jobsiteId: "j1",
+          category: "access",
+          hazardFamily: "access",
+          sourceWorkTitle: "Temporary access review",
+          missingInformation: [],
+          suppressNonCritical: true,
+          forceHumanReview: false,
+          createdAt: null,
+        },
+        {
+          id: "critical-ignore",
+          kind: "ignore_for_project",
+          confidenceAdjustment: "decrease",
+          reason: "Ignore",
+          sourceId: "schedule-s3-crane",
+          sourceKey: null,
+          jobsiteId: "j1",
+          category: "crane",
+          hazardFamily: "crane",
+          sourceWorkTitle: "Critical lift over active access route",
+          missingInformation: [],
+          suppressNonCritical: true,
+          forceHumanReview: false,
+          createdAt: null,
+        },
+      ],
+      now: NOW,
+    });
+
+    const roofAction = loop.aiSafetyActionQueue.items.find((item) => item.sourceWorkTitle === "Roof edge layout");
+    expect(roofAction).toEqual(
+      expect.objectContaining({
+        approvalState: "review_required",
+        humanApprovalRequired: true,
+        feedbackConfidenceAdjustment: "neutral",
+      }),
+    );
+    expect(roofAction?.missingInformation).toEqual(expect.arrayContaining(["Reviewer feedback flagged missing rescue-plan status."]));
+    expect(loop.aiSafetyActionQueue.items.some((item) => item.sourceWorkTitle === "Temporary access review")).toBe(false);
+    expect(loop.aiSafetyActionQueue.items.some((item) => item.sourceWorkTitle === "Critical lift over active access route")).toBe(true);
+    expect(loop.feedbackInfluence.learningSignals.join(" ")).toContain("reviewer feedback");
+  });
 });

@@ -34,6 +34,7 @@ function item(category: AiSafetyActionCategory, overrides: Partial<AiSafetyActio
     targetModule: "predictive_risk",
     targetHref: "/analytics/predictive-model",
     feedbackInfluence: [],
+    feedbackConfidenceAdjustment: "neutral",
     memoryInfluence: [],
     ...overrides,
   };

@@ -36,6 +36,7 @@ import {
   type AiSafetyFeedbackInfluence,
   type AiSafetyMemoryInfluence,
 } from "@/lib/aiSafetyActionQueue";
+import type { AiSafetyFeedbackSignal } from "@/lib/aiSafetyFeedbackInfluence";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -812,6 +813,7 @@ export function buildPredictiveRiskPayload(input: {
   trainingGaps?: BehaviorRiskTrainingGapRow[];
   weatherAlerts?: PredictiveSafetyWeatherAlertRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
+  feedbackSignals?: AiSafetyFeedbackSignal[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
@@ -859,6 +861,7 @@ export function buildPredictiveRiskPayload(input: {
     dailyBriefing,
     riskMitigations: input.riskMitigations,
     memoryItems: input.memoryItems,
+    feedbackSignals: input.feedbackSignals,
   });
   const accumulators = buildLocationAccumulators({
     rows,
