@@ -41,6 +41,9 @@ export const gusStorageKeys = {
   activeCoachItems: "gus_active_coach_items",
   lastCoachFollowupAt: "gus_last_coach_followup_at",
   lastMicTranscript: "gus_last_mic_transcript",
+  autonomyState: "gus_autonomy_state",
+  lastAutonomyCheckAt: "gus_last_autonomy_check_at",
+  lastUnresolvedPriority: "gus_last_unresolved_priority",
 } as const;
 
 export const gusFeatureFlags = {
@@ -50,6 +53,8 @@ export const gusFeatureFlags = {
   gusSitrepEnabled: true,
   gusActiveCoachLoopEnabled: true,
   gusMicInputEnabled: true,
+  gusAutonomyLoopEnabled: true,
+  gusSelfMaintenanceStatusEnabled: true,
   gusRealtimeVoiceEnabled: false,
 } as const;
 
@@ -66,6 +71,11 @@ export const gusPopupTiming = {
 export const gusSitrepTiming = {
   sitrepIntervalMs: 10 * 60_000,
   sitrepCriticalVoiceOnly: true,
+} as const;
+
+export const gusAutonomyTiming = {
+  checkIntervalMs: 60_000,
+  unresolvedFollowUpCooldownMs: 5 * 60_000,
 } as const;
 
 export function gusRouteMatches(pathname: string, route: string) {

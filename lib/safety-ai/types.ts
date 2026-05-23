@@ -7,6 +7,8 @@ export type RiskDriverCategory =
   | "likelihood"
   | "exposure"
   | "controls"
+  | "critical_control"
+  | "pattern"
   | "training"
   | "permit"
   | "corrective_action"
@@ -79,6 +81,8 @@ export type SafetyAiSignal = {
   missingRequiredPermit?: boolean | null;
   missingCompetentPersonReview?: boolean | null;
   overdueCorrectiveAction?: boolean | null;
+  controls?: string[] | null;
+  controlEvidence?: string | null;
 };
 
 export type SafetyAiInput = {
@@ -90,6 +94,7 @@ export type SafetyAiInput = {
   equipment?: string[] | null;
   crewExposure?: number | null;
   highRiskWorkCategories?: string[];
+  observedControls?: string[];
   controlEffectiveness?: "missing" | "ineffective" | "partial" | "effective" | "unknown" | null;
   dataCompleteness?: number | null;
   missingData?: string[];
@@ -119,6 +124,9 @@ export type SafetyAiAssessment = {
   stopWorkReviewRecommended: boolean;
   explanation: string;
   missingData: string[];
+  criticalControlGaps: string[];
+  reviewTriggers: string[];
+  actionTimeframe: "routine" | "same_shift" | "before_work_continues" | "immediate";
 };
 
 export type SafetyAiScoreBreakdown = {

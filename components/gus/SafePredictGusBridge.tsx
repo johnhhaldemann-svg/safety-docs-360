@@ -1,8 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { GusAssistant } from "@/components/gus/GusAssistant";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import {
+  buildGusContextFromSafetyAiAssessment,
+  buildSafetyAiAssessmentForSafePredict,
+} from "@/lib/gus/gusSafetyAiBridge";
 import {
   forecastReasonsForSite,
   riskForecastForSite,
@@ -20,6 +25,18 @@ function toGusRiskLevel(level: SafePredictJobsiteRecord["riskLevel"] | "critical
   return "low";
 }
 
+function riskRank(level: GusRiskLevel | undefined) {
+  if (level === "severe") return 4;
+  if (level === "high") return 3;
+  if (level === "moderate") return 2;
+  if (level === "low") return 1;
+  return 0;
+}
+
+function highestRiskLevel(first: GusRiskLevel | undefined, second: GusRiskLevel | undefined): GusRiskLevel | undefined {
+  return riskRank(second) > riskRank(first) ? second : first;
+}
+
 function siteIdsForScope(dataset: SafePredictDataset, selectedJobsiteId: string) {
   if (!selectedJobsiteId || selectedJobsiteId === "all") {
     return new Set(dataset.jobsites.map((site) => site.id));
@@ -27,7 +44,7 @@ function siteIdsForScope(dataset: SafePredictDataset, selectedJobsiteId: string)
   return new Set(dataset.jobsites.some((site) => site.id === selectedJobsiteId) ? [selectedJobsiteId] : []);
 }
 
-function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsiteId: string): Partial<GusContext> {
+function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsiteId: string, route: string): Partial<GusContext> {
   const siteIds = siteIdsForScope(dataset, selectedJobsiteId);
   const summary = summarizeSafePredictDataset(dataset);
   const forecast = riskForecastForSite(dataset, selectedJobsiteId || "all");
@@ -44,13 +61,19 @@ function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsite
     .filter(Boolean);
   const scopedActions = dataset.actions.filter((action) => siteIds.has(action.siteId) && action.status !== "Closed");
   const highPriorityActions = scopedActions.filter((action) => action.priority === "high" || action.priority === "critical");
+  const safetyAiAssessment = buildSafetyAiAssessmentForSafePredict(dataset, selectedJobsiteId || "all");
+  const aiContext = buildGusContextFromSafetyAiAssessment(safetyAiAssessment);
+  const forecastRiskLevel = peakReason ? toGusRiskLevel(peakReason.riskLevel) : toGusRiskLevel(selectedSite?.riskLevel);
+  const forecastDrivers = peakReason?.topDrivers.map((driver) => driver.label) ?? [];
+  const linkedRiskDrivers = [...new Set([...(aiContext.riskDrivers ?? []), ...forecastDrivers])].slice(0, 8);
 
   return {
+    ...aiContext,
     jobsiteId: selectedSite?.id,
     currentPage: selectedSite ? `SafePredict - ${selectedSite.name}` : "SafePredict",
-    route: "/safe-predict",
-    riskLevel: peakReason ? toGusRiskLevel(peakReason.riskLevel) : toGusRiskLevel(selectedSite?.riskLevel),
-    riskDrivers: peakReason?.topDrivers.map((driver) => driver.label) ?? [],
+    route,
+    riskLevel: highestRiskLevel(forecastRiskLevel, aiContext.riskLevel),
+    riskDrivers: linkedRiskDrivers,
     missingPermitTypes: [...new Set(missingPermitTypes)].slice(0, 6),
     expiredTrainingCount: summary.workforce.overdue,
     upcomingTrainingExpirationCount: summary.workforce.expiringSoon,
@@ -72,15 +95,17 @@ function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsite
 
 export function SafePredictGusBridge() {
   const { dataset, selectedJobsiteId } = useSafePredictData();
+  const pathname = usePathname();
   const liveContext = useMemo(
-    () => buildSafePredictGusContext(dataset, selectedJobsiteId),
-    [dataset, selectedJobsiteId],
+    () => buildSafePredictGusContext(dataset, selectedJobsiteId, pathname || "/safe-predict"),
+    [dataset, pathname, selectedJobsiteId],
   );
 
   return (
     <GusAssistant
       currentPage={liveContext.currentPage ?? "SafePredict"}
       jobsiteId={liveContext.jobsiteId}
+      route={liveContext.route}
       liveContext={liveContext}
     />
   );

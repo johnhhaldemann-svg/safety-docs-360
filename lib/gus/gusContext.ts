@@ -1,4 +1,5 @@
 import type { GusRiskLevel } from "@/lib/gus/gusTypes";
+import type { SafetyAiAssessment } from "@/lib/safety-ai/types";
 
 export type GusContext = {
   companyId?: string;
@@ -17,6 +18,12 @@ export type GusContext = {
   recentNegativeObservationCount?: number;
   openCorrectiveActionCount?: number;
   openHighPriorityActionCount?: number;
+  safetyAiAssessment?: SafetyAiAssessment;
+  aiEngineLinked?: boolean;
+  aiEngineCriticalControlGaps?: string[];
+  aiEngineReviewTriggers?: string[];
+  aiEngineActionTimeframe?: SafetyAiAssessment["actionTimeframe"];
+  aiEngineRecommendations?: string[];
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;

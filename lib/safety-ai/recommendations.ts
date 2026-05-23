@@ -16,6 +16,10 @@ function hasDriver(drivers: RiskDriver[], label: string) {
   return drivers.some((driver) => driver.label.toLowerCase().includes(label));
 }
 
+function hasCategory(drivers: RiskDriver[], category: RiskDriver["category"]) {
+  return drivers.some((driver) => driver.category === category);
+}
+
 export function buildSafetyRecommendations(params: {
   input: SafetyAiInput;
   level: SafetyRiskLevel;
@@ -49,12 +53,16 @@ export function buildSafetyRecommendations(params: {
     });
   }
 
-  if (hasDriver(drivers, "control") || highOrCritical) {
+  if (hasDriver(drivers, "control") || hasCategory(drivers, "critical_control") || highOrCritical) {
     recommendations.push({
-      title: "Verify physical controls before work continues",
+      title: hasCategory(drivers, "critical_control")
+        ? "Verify critical controls before the task is released"
+        : "Verify physical controls before work continues",
       priority,
       controlType: "engineering",
-      reason: "Guardrails, barricades, isolation, ventilation, or other physical controls should be verified before relying on reminders or PPE.",
+      reason: hasCategory(drivers, "critical_control")
+        ? "High-consequence work needs positive confirmation of task-specific critical controls, not only a general JSA or PPE reminder."
+        : "Guardrails, barricades, isolation, ventilation, or other physical controls should be verified before relying on reminders or PPE.",
       suggestedOwnerRole: "competent_person",
     });
   }
@@ -90,6 +98,16 @@ export function buildSafetyRecommendations(params: {
       controlType: "administrative",
       reason: "Permit gaps can hide required planning, authorization, and field verification steps.",
       suggestedOwnerRole: "field_supervisor",
+    });
+  }
+
+  if (hasCategory(drivers, "pattern")) {
+    recommendations.push({
+      title: "Run a focused field verification on the repeated hazard pattern",
+      priority: highOrCritical ? "high" : "medium",
+      controlType: "administrative",
+      reason: "Converging or repeated signals should be checked in the field before the pattern is treated as controlled.",
+      suggestedOwnerRole: "safety_manager",
     });
   }
 

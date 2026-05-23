@@ -41,6 +41,38 @@ describe("decideGusBehavior", () => {
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b/i);
   });
 
+  it("prioritizes Safety AI Engine critical control findings", () => {
+    const decision = decideGusBehavior({
+      context: context({
+        aiEngineLinked: true,
+        safetyAiAssessment: {
+          score: 92,
+          level: "critical",
+          confidence: "high",
+          topDrivers: [],
+          recommendations: [],
+          escalationRequired: true,
+          stopWorkReviewRecommended: true,
+          explanation: "Critical control review is needed.",
+          missingData: [],
+          criticalControlGaps: ["Protective system"],
+          reviewTriggers: ["Excavation controls need verification"],
+          actionTimeframe: "immediate",
+        },
+        aiEngineCriticalControlGaps: ["Protective system"],
+        aiEngineReviewTriggers: ["Excavation controls need verification"],
+        aiEngineActionTimeframe: "immediate",
+      }),
+      routeMessage,
+    });
+
+    expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
+    expect(decision.attentionLevel).toBe("critical");
+    expect(decision.message.message).toContain("Safety AI Engine");
+    expect(decision.message.reason).toContain("Protective system");
+    expect(decision.message.message).not.toMatch(/approved|safe to start|released for work/i);
+  });
+
   it("prioritizes permit gaps before generic route tips", () => {
     const decision = decideGusBehavior({
       context: context({

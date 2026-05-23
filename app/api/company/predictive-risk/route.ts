@@ -16,8 +16,12 @@ import {
   type PredictiveRiskMitigationRow,
   type PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
+import type {
+  PredictiveSafetyMemoryItemRow,
+  PredictiveSafetyWeatherAlertRow,
+} from "@/lib/predictiveSafetyEngine";
 import type { WorkScheduleInputs } from "@/lib/injuryWeather/types";
-import type { BehaviorRiskObservationRow } from "@/lib/predictive/behaviorRisk";
+import type { BehaviorRiskObservationRow, BehaviorRiskTrainingGapRow } from "@/lib/predictive/behaviorRisk";
 
 export const runtime = "nodejs";
 
@@ -122,6 +126,36 @@ function applyJobsiteIdScope<T>(
     return query.in("id", options.assignedJobsiteIds);
   }
   return query;
+}
+
+type TrainingRecordRow = {
+  id?: string | null;
+  employee_id?: string | null;
+  title?: string | null;
+  status?: string | null;
+  expires_on?: string | null;
+};
+
+function trainingGapsFromRecords(rows: TrainingRecordRow[], scheduleWindowEnd: string): BehaviorRiskTrainingGapRow[] {
+  return rows
+    .filter((row) => {
+      const status = String(row.status ?? "").toLowerCase();
+      const expiresOn = row.expires_on ?? "";
+      return (
+        status.includes("expired") ||
+        status.includes("missing") ||
+        status.includes("overdue") ||
+        status.includes("not_ready") ||
+        Boolean(expiresOn && expiresOn <= scheduleWindowEnd)
+      );
+    })
+    .map((row): BehaviorRiskTrainingGapRow => ({
+      id: row.id ?? null,
+      worker_id: row.employee_id ?? null,
+      requirement: row.title ?? "Required training",
+      status: row.status ?? null,
+      expires_at: row.expires_on ?? null,
+    }));
 }
 
 export async function GET(request: Request) {
@@ -254,8 +288,35 @@ export async function GET(request: Request) {
     .select("id, title, status, priority, mitigation_state, risk_reduction_points")
     .eq("company_id", companyId)
     .in("status", ["field_used", "resolved"]) as unknown as PromiseLike<QueryResult<PredictiveRiskMitigationRow>>;
+  const trainingRecordsQuery = auth.supabase
+    .from("company_employee_training_records")
+    .select("id, employee_id, title, status, expires_on")
+    .eq("company_id", companyId) as unknown as PromiseLike<QueryResult<TrainingRecordRow>>;
+  const weatherAlertsQuery = applyJobsiteScope(
+    auth.supabase
+      .from("weather_alert_events")
+      .select("id, jobsite_id, event_name, headline, severity, urgency, certainty, effective_at, expires_at, created_at")
+      .eq("company_id", companyId) as unknown as ScopedQueryBuilder<PredictiveSafetyWeatherAlertRow>,
+    scopeOptions
+  ) as unknown as PromiseLike<QueryResult<PredictiveSafetyWeatherAlertRow>>;
+  const memoryItemsQuery = auth.supabase
+    .from("company_memory_items")
+    .select("id, title, summary, content, body, source, source_type, created_at")
+    .eq("company_id", companyId) as unknown as PromiseLike<QueryResult<PredictiveSafetyMemoryItemRow>>;
 
-  const [jobsitesRes, correctiveRes, incidentsRes, permitsRes, jsaActivitiesRes, scheduleItemsRes, observationsRes, mitigationsRes] = await Promise.all([
+  const [
+    jobsitesRes,
+    correctiveRes,
+    incidentsRes,
+    permitsRes,
+    jsaActivitiesRes,
+    scheduleItemsRes,
+    observationsRes,
+    mitigationsRes,
+    trainingRecordsRes,
+    weatherAlertsRes,
+    memoryItemsRes,
+  ] = await Promise.all([
     jobsitesQuery,
     correctiveQuery,
     incidentsQuery,
@@ -264,11 +325,15 @@ export async function GET(request: Request) {
     scheduleItemsQuery,
     observationsQuery,
     mitigationsQuery,
+    trainingRecordsQuery,
+    weatherAlertsQuery,
+    memoryItemsQuery,
   ]);
 
   const scheduleItems = scheduleItemsRes.error
     ? []
     : (scheduleItemsRes.data ?? []).filter((item) => itemOverlapsWindow(item, today, scheduleWindowEnd));
+  const trainingGaps = trainingRecordsRes.error ? undefined : trainingGapsFromRecords(trainingRecordsRes.data ?? [], scheduleWindowEnd);
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
     companyId,
@@ -305,6 +370,9 @@ export async function GET(request: Request) {
       jsaActivities: jsaActivitiesRes.error ? [] : jsaActivitiesRes.data ?? [],
       scheduleItems,
       observations: observationsRes.error ? [] : observationsRes.data ?? [],
+      trainingGaps,
+      weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
+      memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
       riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
       warning:
         scheduleItemsRes.error && isMissingTable(scheduleItemsRes.error.message)

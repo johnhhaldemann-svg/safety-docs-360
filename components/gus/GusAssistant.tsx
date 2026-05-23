@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ClipboardList, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { GusAutonomyStatus } from "@/components/gus/GusAutonomyStatus";
 import { GusCompanionStage } from "@/components/gus/GusCompanionStage";
 import { GusConversation } from "@/components/gus/GusConversation";
 import { GusCoachNextStep } from "@/components/gus/GusCoachNextStep";
@@ -11,6 +12,7 @@ import { GusPlanningMode } from "@/components/gus/GusPlanningMode";
 import { GusSmartBot } from "@/components/gus/GusSmartBot";
 import { GusVoiceControls } from "@/components/gus/GusVoiceControls";
 import { gusFeatureFlags, gusStorageKeys } from "@/components/gus/gusConfig";
+import { useGusAutonomyLoop } from "@/components/gus/useGusAutonomyLoop";
 import { useGusAssistant } from "@/components/gus/useGusAssistant";
 import { buildGusCoachDirective, updateGusCoachLoopState } from "@/lib/gus/gusCoachLoop";
 import type { GusContext } from "@/lib/gus/gusContext";
@@ -84,6 +86,16 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
   const coachDirective = buildGusCoachDirective(decision, context);
   const activeCoachDirective = coachLoopState.activeDirective ?? coachDirective;
   const voiceMessage = conversationVoiceMessage ?? message;
+  const autonomy = useGusAutonomyLoop({
+    context,
+    decision,
+    coachDirective: activeCoachDirective,
+    coachLoopState,
+    isVisible,
+    open,
+    voiceEnabled,
+    onOpen: openAssistant,
+  });
 
   useEffect(() => {
     if (!gusFeatureFlags.gusActiveCoachLoopEnabled) return;
@@ -181,6 +193,10 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
               onFollowUp={queueCoachPrompt}
               onPlan={() => setPlanningOpen(true)}
             />
+          ) : null}
+
+          {gusFeatureFlags.gusSelfMaintenanceStatusEnabled ? (
+            <GusAutonomyStatus status={autonomy.status} />
           ) : null}
 
           <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3">

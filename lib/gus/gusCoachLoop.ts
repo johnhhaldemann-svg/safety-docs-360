@@ -36,6 +36,17 @@ function followUpsFor(decision: GusDecision, context: GusContext): GusCoachFollo
     });
   }
 
+  if ((context.aiEngineCriticalControlGaps?.length ?? 0) > 0 || (context.aiEngineReviewTriggers?.length ?? 0) > 0) {
+    base.push({
+      followUpId: "ai-engine-control-check",
+      prompt: `Help me turn these Safety AI Engine findings into reviewer questions: ${compactList(
+        [...(context.aiEngineCriticalControlGaps ?? []), ...(context.aiEngineReviewTriggers ?? [])],
+        "AI Engine findings",
+      )}.`,
+      actionLabel: "Draft AI review questions",
+    });
+  }
+
   if ((context.missingPermitTypes?.length ?? 0) > 0) {
     base.push({
       followUpId: "draft-permit-review",
@@ -71,6 +82,27 @@ function followUpsFor(decision: GusDecision, context: GusContext): GusCoachFollo
 
 function directiveText(decision: GusDecision, context: GusContext) {
   const action = firstAction(decision);
+
+  if (
+    context.aiEngineLinked &&
+    context.safetyAiAssessment &&
+    (context.safetyAiAssessment.stopWorkReviewRecommended || (context.aiEngineCriticalControlGaps?.length ?? 0) > 0)
+  ) {
+    return {
+      title: context.safetyAiAssessment.level === "critical" ? "AI Engine says review now" : "AI Engine review needed",
+      instruction:
+        context.aiEngineActionTimeframe === "immediate"
+          ? "Pause and get the assigned human reviewer to verify critical controls now."
+          : "Have the assigned human reviewer verify the AI Engine findings before work moves forward.",
+      whyItMatters: `Safety AI Engine findings: ${compactList(
+        [...(context.aiEngineCriticalControlGaps ?? []), ...(context.aiEngineReviewTriggers ?? [])],
+        "critical control gaps or review triggers",
+      )}.`,
+      recommendedActionLabel: action?.label ?? "Review AI risk",
+      recommendedActionHref: action?.href,
+      recommendedActionKey: action?.actionKey ?? "guide_to_risk",
+    };
+  }
 
   if (decision.message.category === "permit_alert") {
     return {

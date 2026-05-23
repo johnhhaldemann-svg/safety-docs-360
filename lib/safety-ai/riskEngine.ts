@@ -18,6 +18,98 @@ const SCORE_WEIGHTS = {
   dataConfidenceConcern: 0.1,
 } as const;
 
+type HazardProfile = {
+  id: string;
+  label: string;
+  keywords: string[];
+  controlTerms: string[];
+  criticalControls: string[];
+  highConsequence: boolean;
+};
+
+type HazardProfileFinding = {
+  profile: HazardProfile;
+  signalCount: number;
+  sourceTypes: string[];
+  missingControls: string[];
+};
+
+type HazardProfileAnalysis = {
+  matchedProfiles: HazardProfileFinding[];
+  criticalControlGaps: string[];
+  reviewTriggers: string[];
+  convergenceCount: number;
+  repeatedHazardCount: number;
+  highConsequenceGap: boolean;
+};
+
+const HAZARD_PROFILES: HazardProfile[] = [
+  {
+    id: "fall_exposure",
+    label: "Fall exposure",
+    keywords: ["fall", "height", "roof", "leading edge", "open edge", "mezzanine", "aerial lift", "mewp", "scaffold", "ladder"],
+    controlTerms: ["guardrail", "anchor", "tie off", "tie-off", "pfas", "harness", "lanyard", "rescue plan", "scaffold inspection"],
+    criticalControls: ["guardrails or verified tie-off", "rescue plan", "competent-person inspection"],
+    highConsequence: true,
+  },
+  {
+    id: "excavation_trenching",
+    label: "Excavation or trenching",
+    keywords: ["excavat", "trench", "shoring", "shore", "bench", "slope", "shield", "cave in", "cave-in"],
+    controlTerms: ["shore", "shoring", "shield", "trench box", "slope", "bench", "egress", "ladder", "competent person"],
+    criticalControls: ["protective system", "safe access or egress", "competent-person inspection"],
+    highConsequence: true,
+  },
+  {
+    id: "energized_electrical",
+    label: "Energized electrical or LOTO",
+    keywords: ["energized", "electrical", "temporary power", "loto", "lockout", "tagout", "arc flash", "breaker", "panel"],
+    controlTerms: ["lockout", "loto", "de-energ", "test before touch", "verify zero energy", "qualified", "arc flash", "barricade"],
+    criticalControls: ["de-energization or LOTO verification", "qualified-worker review", "barricade or arc-flash controls"],
+    highConsequence: true,
+  },
+  {
+    id: "confined_space",
+    label: "Confined space",
+    keywords: ["confined", "tank", "vessel", "manhole", "permit space", "atmosphere", "oxygen", "entrant"],
+    controlTerms: ["air monitor", "atmospheric", "attendant", "rescue", "ventilation", "entry permit", "retrieval"],
+    criticalControls: ["entry permit", "atmospheric monitoring", "attendant and rescue plan"],
+    highConsequence: true,
+  },
+  {
+    id: "hot_work",
+    label: "Hot work or fire exposure",
+    keywords: ["hot work", "weld", "welding", "cutting", "burn", "torch", "spark", "grind", "fire watch"],
+    controlTerms: ["hot work permit", "fire watch", "extinguisher", "combustible", "spark containment", "gas test"],
+    criticalControls: ["hot-work permit", "fire watch", "combustible control"],
+    highConsequence: false,
+  },
+  {
+    id: "crane_rigging",
+    label: "Crane, rigging, or suspended load",
+    keywords: ["crane", "rigging", "critical lift", "suspended load", "hoist", "tag line", "line of fire", "lifting"],
+    controlTerms: ["lift plan", "qualified rigger", "signal person", "exclusion zone", "tag line", "load chart", "pre lift"],
+    criticalControls: ["lift plan", "qualified rigger or signal person", "exclusion zone"],
+    highConsequence: true,
+  },
+  {
+    id: "mobile_equipment",
+    label: "Mobile equipment or struck-by exposure",
+    keywords: ["forklift", "telehandler", "loader", "skid steer", "backing", "struck", "traffic", "equipment route"],
+    controlTerms: ["spotter", "traffic plan", "barricade", "separation", "exclusion zone", "backup alarm", "pedestrian"],
+    criticalControls: ["pedestrian separation", "traffic plan", "spotter or exclusion zone"],
+    highConsequence: false,
+  },
+  {
+    id: "chemical_respiratory",
+    label: "Chemical, silica, or respiratory exposure",
+    keywords: ["chemical", "silica", "dust", "solvent", "respirator", "sds", "hazcom", "asbestos", "lead"],
+    controlTerms: ["sds", "ventilation", "wet method", "hepa", "respirator", "fit test", "containment", "exposure control"],
+    criticalControls: ["exposure control method", "ventilation or containment", "respiratory protection verification"],
+    highConsequence: false,
+  },
+];
+
 function clamp(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, n));
@@ -75,6 +167,136 @@ function sourceCategoryCount(signals: SafetyAiSignal[]) {
   return new Set(signals.map((signal) => signal.type)).size;
 }
 
+function normalizeText(...values: unknown[]) {
+  return values
+    .flatMap((value) => (Array.isArray(value) ? value : [value]))
+    .map((value) => String(value ?? "").toLowerCase())
+    .join(" ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesTerm(text: string, term: string) {
+  return text.includes(term.toLowerCase());
+}
+
+function signalText(signal: SafetyAiSignal) {
+  return normalizeText(
+    signal.label,
+    signal.hazard,
+    signal.task,
+    signal.trade,
+    signal.controls,
+    signal.controlEvidence
+  );
+}
+
+function inputHazardText(input: SafetyAiInput) {
+  return normalizeText(input.taskType, input.trade, input.equipment, input.highRiskWorkCategories, input.observedControls);
+}
+
+function hasExplicitReadinessGap(input: SafetyAiInput, signals: SafetyAiSignal[]) {
+  return Boolean(
+    input.missingRequiredTraining ||
+      input.missingRequiredPermit ||
+      input.missingCompetentPersonReview ||
+      input.overdueCorrectiveActionForHazard ||
+      signals.some((signal) =>
+        Boolean(
+          signal.missingRequiredTraining ||
+            signal.missingRequiredPermit ||
+            signal.missingCompetentPersonReview ||
+            signal.overdueCorrectiveAction ||
+            score1to5(signal.controlGap, 0) >= 4
+        )
+      )
+  );
+}
+
+function controlsEvidenceText(input: SafetyAiInput, signals: SafetyAiSignal[]) {
+  return normalizeText(
+    input.observedControls,
+    signals.flatMap((signal) => signal.controls ?? []),
+    signals.map((signal) => signal.controlEvidence)
+  );
+}
+
+function repeatedHazardCount(signals: SafetyAiSignal[]) {
+  const counts = new Map<string, number>();
+  for (const signal of signals) {
+    const key = normalizeText(signal.hazard ?? signal.task ?? signal.label)
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .split(" ")
+      .filter((part) => part.length >= 4)
+      .slice(0, 4)
+      .join(" ");
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Math.max(0, ...counts.values());
+}
+
+function analyzeHazardProfiles(input: SafetyAiInput, signals: SafetyAiSignal[]): HazardProfileAnalysis {
+  const allText = normalizeText(inputHazardText(input), signals.map(signalText));
+  const controlText = controlsEvidenceText(input, signals);
+  const readinessGap = hasExplicitReadinessGap(input, signals);
+  const controlEffectiveness = input.controlEffectiveness ?? "unknown";
+  const weakOrUnverifiedControls =
+    readinessGap ||
+    controlEffectiveness === "missing" ||
+    controlEffectiveness === "ineffective" ||
+    controlEffectiveness === "partial" ||
+    controlEffectiveness === "unknown";
+
+  const matchedProfiles = HAZARD_PROFILES.flatMap((profile): HazardProfileFinding[] => {
+    const profileMatches = profile.keywords.some((keyword) => includesTerm(allText, keyword));
+    if (!profileMatches) return [];
+
+    const matchingSignals = signals.filter((signal) => profile.keywords.some((keyword) => includesTerm(signalText(signal), keyword)));
+    const sourceTypes = [...new Set(matchingSignals.map((signal) => signal.type))];
+    const hasAnyCriticalControl = profile.controlTerms.some((term) => includesTerm(controlText, term));
+    const shouldVerifyCriticalControls =
+      weakOrUnverifiedControls &&
+      (profile.highConsequence ||
+        input.highRiskWorkCategories?.some((category) => profile.keywords.some((keyword) => includesTerm(normalizeText(category), keyword))) ||
+        matchingSignals.some((signal) => signal.highRisk));
+    const missingControls = shouldVerifyCriticalControls && !hasAnyCriticalControl ? profile.criticalControls : [];
+
+    return [
+      {
+        profile,
+        signalCount: Math.max(matchingSignals.length, profileMatches ? 1 : 0),
+        sourceTypes,
+        missingControls,
+      },
+    ];
+  });
+
+  const convergenceCount = matchedProfiles.filter((finding) => finding.signalCount >= 2 || finding.sourceTypes.length >= 2).length;
+  const criticalControlGaps = matchedProfiles
+    .filter((finding) => finding.missingControls.length > 0)
+    .map((finding) => `${finding.profile.label}: verify ${finding.missingControls.join(", ")}`);
+  const repeatedCount = repeatedHazardCount(signals);
+  const highConsequenceGap = matchedProfiles.some((finding) => finding.profile.highConsequence && finding.missingControls.length > 0);
+  const reviewTriggers = [
+    ...matchedProfiles
+      .filter((finding) => finding.profile.highConsequence && finding.signalCount > 0)
+      .map((finding) => `${finding.profile.label} identified in the available task or signal data.`),
+    ...(convergenceCount > 0 ? ["Multiple signals point to the same high-risk hazard family."] : []),
+    ...(criticalControlGaps.length > 0 ? criticalControlGaps : []),
+  ];
+
+  return {
+    matchedProfiles,
+    criticalControlGaps,
+    reviewTriggers: [...new Set(reviewTriggers)].slice(0, 8),
+    convergenceCount,
+    repeatedHazardCount: repeatedCount,
+    highConsequenceGap,
+  };
+}
+
 function defaultMissingData(input: SafetyAiInput) {
   const missing = new Set(input.missingData ?? []);
   const signals = input.signals ?? [];
@@ -91,16 +313,17 @@ function defaultMissingData(input: SafetyAiInput) {
   return [...missing];
 }
 
-function deriveSeverity(input: SafetyAiInput, signals: SafetyAiSignal[]) {
+function deriveSeverity(input: SafetyAiInput, signals: SafetyAiSignal[], hazardAnalysis: HazardProfileAnalysis) {
   const explicit = input.scores?.severity;
   if (explicit != null) return score1to5(explicit);
   if (input.fatalityOrCatastrophicPotential || signals.some((signal) => signal.fatalityOrCatastrophicPotential)) return 5;
   const signalSeverity = Math.max(1, ...signals.map((signal) => score1to5(signal.severity, 1)));
+  if (hazardAnalysis.highConsequenceGap) return 5;
   if (input.highRiskWorkCategories?.length || signals.some((signal) => signal.highRisk)) return Math.max(signalSeverity, 4);
   return signalSeverity;
 }
 
-function deriveLikelihood(input: SafetyAiInput, signals: SafetyAiSignal[]) {
+function deriveLikelihood(input: SafetyAiInput, signals: SafetyAiSignal[], hazardAnalysis: HazardProfileAnalysis) {
   const explicit = input.scores?.likelihood;
   if (explicit != null) return score1to5(explicit);
   const openSignals = signals.filter((signal) => isOpenStatus(signal.status)).length;
@@ -108,7 +331,9 @@ function deriveLikelihood(input: SafetyAiInput, signals: SafetyAiSignal[]) {
   const incidentSignals = signals.filter((signal) => signal.type === "incident" || signal.type === "near_miss").length;
   const explicitLikelihood = Math.max(1, ...signals.map((signal) => score1to5(signal.likelihood, 1)));
   const volumeLikelihood = 1 + Math.min(4, Math.floor((openSignals + severeSignals + incidentSignals) / 2));
-  return clamp(Math.max(explicitLikelihood, volumeLikelihood), 1, 5);
+  const convergenceLift = hazardAnalysis.convergenceCount > 0 ? 1 : 0;
+  const repeatedLift = hazardAnalysis.repeatedHazardCount >= 3 ? 1 : 0;
+  return clamp(Math.max(explicitLikelihood, volumeLikelihood) + convergenceLift + repeatedLift, 1, 5);
 }
 
 function deriveExposureFrequency(input: SafetyAiInput, signals: SafetyAiSignal[]) {
@@ -120,7 +345,7 @@ function deriveExposureFrequency(input: SafetyAiInput, signals: SafetyAiSignal[]
   return clamp(Math.max(explicitExposure, 1 + crewExposure, scheduledHighRisk >= 2 ? 4 : 1), 1, 5);
 }
 
-function deriveControlGap(input: SafetyAiInput, signals: SafetyAiSignal[]) {
+function deriveControlGap(input: SafetyAiInput, signals: SafetyAiSignal[], hazardAnalysis: HazardProfileAnalysis) {
   const explicit = input.scores?.controlGap;
   if (explicit != null) return score1to5(explicit);
   const effectiveness = input.controlEffectiveness;
@@ -128,6 +353,7 @@ function deriveControlGap(input: SafetyAiInput, signals: SafetyAiSignal[]) {
   if (signals.some((signal) => score1to5(signal.controlGap, 0) >= 4)) base = Math.max(base, 4);
   if (signals.some((signal) => signal.missingRequiredPermit || signal.missingRequiredTraining || signal.missingCompetentPersonReview)) base = Math.max(base, 4);
   if (signals.some((signal) => signal.type === "corrective_action" && isOpenStatus(signal.status))) base = Math.max(base, 3);
+  if (hazardAnalysis.criticalControlGaps.length > 0) base = Math.max(base, hazardAnalysis.highConsequenceGap ? 5 : 4);
   return clamp(base, 1, 5);
 }
 
@@ -170,6 +396,7 @@ function buildDrivers(params: {
   signals: SafetyAiSignal[];
   breakdown: SafetyAiScoreBreakdown;
   missingData: string[];
+  hazardAnalysis: HazardProfileAnalysis;
   imminentDanger: boolean;
   fatalOverride: boolean;
   gapEscalation: boolean;
@@ -194,6 +421,36 @@ function buildDrivers(params: {
   if (breakdown.controlGap >= 3) {
     drivers.push(driver("Control gap", "controls", impactForScore(breakdown.controlGap), "Controls are missing, partial, ineffective, or not verified in the available data."));
   }
+  for (const gap of params.hazardAnalysis.criticalControlGaps.slice(0, 3)) {
+    drivers.push(
+      driver(
+        "Critical control verification gap",
+        "critical_control",
+        params.hazardAnalysis.highConsequenceGap ? "critical" : "high",
+        gap
+      )
+    );
+  }
+  if (params.hazardAnalysis.convergenceCount > 0) {
+    drivers.push(
+      driver(
+        "Converging risk signals",
+        "pattern",
+        params.hazardAnalysis.highConsequenceGap ? "critical" : "high",
+        "Multiple signal types or repeated records point to the same hazard family, increasing confidence that this needs field review."
+      )
+    );
+  }
+  if (params.hazardAnalysis.repeatedHazardCount >= 3) {
+    drivers.push(
+      driver(
+        "Repeated hazard pattern",
+        "pattern",
+        "high",
+        `${params.hazardAnalysis.repeatedHazardCount} available signals appear to reference the same hazard or task pattern.`
+      )
+    );
+  }
   if (input.missingRequiredTraining || signals.some((signal) => signal.missingRequiredTraining || signal.type === "training_gap")) {
     drivers.push(driver("Training readiness gap", "training", "high", "Required or task-specific training appears missing or expired."));
   }
@@ -215,10 +472,11 @@ function buildDrivers(params: {
 export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
   const signals = input.signals ?? [];
   const missingData = defaultMissingData(input);
-  const severity = deriveSeverity(input, signals);
-  const likelihood = deriveLikelihood(input, signals);
+  const hazardAnalysis = analyzeHazardProfiles(input, signals);
+  const severity = deriveSeverity(input, signals, hazardAnalysis);
+  const likelihood = deriveLikelihood(input, signals, hazardAnalysis);
   const exposureFrequency = deriveExposureFrequency(input, signals);
-  const controlGap = deriveControlGap(input, signals);
+  const controlGap = deriveControlGap(input, signals, hazardAnalysis);
   const dataConfidenceConcern = deriveDataConfidenceConcern(input, signals, missingData);
   const weighted = weightedScore({ severity, likelihood, exposureFrequency, controlGap, dataConfidenceConcern });
   const breakdown: SafetyAiScoreBreakdown = {
@@ -234,6 +492,7 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     (input.fatalityOrCatastrophicPotential || signals.some((signal) => signal.fatalityOrCatastrophicPotential)) &&
       controlGap >= 4
   );
+  const criticalControlOverride = hazardAnalysis.highConsequenceGap && controlGap >= 4;
   const highRiskTask = Boolean(input.highRiskWorkCategories?.length || signals.some((signal) => signal.highRisk || signal.type === "high_risk_work"));
   const gapEscalation = Boolean(
     highRiskTask &&
@@ -254,7 +513,8 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
 
   let level = classifySafetyRisk(weighted.score);
   if (gapEscalation) level = increaseLevel(level);
-  if (fatalOverride || imminentDanger) level = "critical";
+  if (criticalControlOverride && (level === "low" || level === "moderate")) level = "high";
+  if (fatalOverride || imminentDanger || (criticalControlOverride && severity >= 5)) level = "critical";
 
   const score = Math.max(weighted.score, minimumScoreForLevel(level));
   const confidence = confidenceFor(input, signals, missingData, dataConfidenceConcern);
@@ -263,6 +523,7 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     signals,
     breakdown,
     missingData,
+    hazardAnalysis,
     imminentDanger,
     fatalOverride,
     gapEscalation,
@@ -294,6 +555,15 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     stopWorkReviewRecommended,
     explanation,
     missingData,
+    criticalControlGaps: hazardAnalysis.criticalControlGaps,
+    reviewTriggers: hazardAnalysis.reviewTriggers,
+    actionTimeframe: stopWorkReviewRecommended
+      ? "immediate"
+      : escalationRequired
+        ? "before_work_continues"
+        : level === "moderate"
+          ? "same_shift"
+          : "routine",
   };
 }
 

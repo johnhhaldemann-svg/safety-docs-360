@@ -22,7 +22,7 @@ describe("assessSafetyRisk", () => {
     expect(result.score).toBeLessThanOrEqual(40);
   });
 
-  it("returns moderate or high when controls are missing", () => {
+  it("raises risk when controls are missing", () => {
     const result = assessSafetyRisk({
       jobsiteName: "North Tower",
       taskType: "Elevated work",
@@ -35,7 +35,7 @@ describe("assessSafetyRisk", () => {
       ],
     });
 
-    expect(["moderate", "high"]).toContain(result.level);
+    expect(["moderate", "high", "critical"]).toContain(result.level);
     expect(result.topDrivers.map((driver) => driver.category)).toContain("controls");
   });
 
@@ -171,5 +171,76 @@ describe("assessSafetyRisk", () => {
     expect(result.explanation).toContain("potential risk");
     expect(result.explanation).toContain("review recommended");
     expect(result.explanation).toContain(result.topDrivers[0]?.label ?? "");
+  });
+
+  it("escalates high-consequence work when critical controls are not verified", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Trench entry for utility tie-in",
+      trade: "Earthwork",
+      controlEffectiveness: "partial",
+      highRiskWorkCategories: ["excavation", "trenching"],
+      signals: [
+        {
+          type: "high_risk_work",
+          label: "Crew scheduled for trench entry",
+          hazard: "excavation trenching",
+          severity: "high",
+          highRisk: true,
+          missingCompetentPersonReview: true,
+          controlEvidence: "Use caution and wear PPE.",
+        },
+      ],
+    });
+
+    expect(result.level).toBe("critical");
+    expect(result.criticalControlGaps[0]).toContain("Excavation or trenching");
+    expect(result.topDrivers.map((driver) => driver.category)).toContain("critical_control");
+    expect(result.actionTimeframe).toBe("immediate");
+    expect(result.stopWorkReviewRecommended).toBe(true);
+  });
+
+  it("raises likelihood when separate modules converge on the same hazard family", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "South Clinic",
+      taskType: "Leading edge deck work",
+      trade: "Steel",
+      controlEffectiveness: "partial",
+      highRiskWorkCategories: ["fall protection"],
+      signals: [
+        { type: "observation", label: "Open edge observed", hazard: "fall protection", severity: "medium", status: "open" },
+        { type: "corrective_action", label: "Guardrail gap remains open", hazard: "fall protection", severity: "high", status: "open" },
+        { type: "high_risk_work", label: "Roof edge layout starts tomorrow", hazard: "fall exposure", severity: "high", highRisk: true },
+      ],
+    });
+
+    expect(result.level).toMatch(/high|critical/);
+    expect(result.topDrivers.map((driver) => driver.label)).toContain("Converging risk signals");
+    expect(result.reviewTriggers).toEqual(expect.arrayContaining(["Multiple signals point to the same high-risk hazard family."]));
+  });
+
+  it("does not report a critical-control gap when strong controls are documented", () => {
+    const result = assessSafetyRisk({
+      jobsiteName: "North Tower",
+      taskType: "Leading edge roof work",
+      trade: "Roofing",
+      controlEffectiveness: "partial",
+      highRiskWorkCategories: ["fall protection"],
+      signals: [
+        {
+          type: "high_risk_work",
+          label: "Roof edge work",
+          hazard: "fall protection",
+          severity: "high",
+          highRisk: true,
+          controls: ["guardrail", "rescue plan", "competent-person inspection"],
+          controlEvidence: "Guardrail installed, rescue plan reviewed, competent person inspection signed.",
+        },
+      ],
+    });
+
+    expect(result.criticalControlGaps).toEqual([]);
+    expect(result.topDrivers.map((driver) => driver.category)).not.toContain("critical_control");
+    expect(result.reviewTriggers.some((trigger) => trigger.includes("Fall exposure"))).toBe(true);
   });
 });

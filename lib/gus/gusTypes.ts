@@ -102,6 +102,44 @@ export type GusCoachLoopState = {
   lastFollowUpAt?: string;
 };
 
+export type GusAutonomyLevel = "monitor_recommend";
+
+export type GusOperatingLimit = "left" | "confirmation" | "right";
+
+export type GusAutonomyAction = {
+  actionKey: string;
+  label: string;
+  limit: GusOperatingLimit;
+  requiresConfirmation: boolean;
+  canModifyOfficialRecords: boolean;
+};
+
+export type GusAutonomyDecision = {
+  decisionId: string;
+  level: GusAutonomyLevel;
+  action: GusAutonomyAction;
+  allowed: boolean;
+  blocked: boolean;
+  reason: string;
+  shouldOpen: boolean;
+  shouldInterrupt: boolean;
+  humanReviewRequired: true;
+};
+
+export type GusAutonomyStatus = {
+  statusId: string;
+  state: "monitoring" | "waiting_on_review" | "blocked" | "limited";
+  label: string;
+  detail: string;
+  voiceAvailable: boolean;
+  micAvailable: boolean;
+  contextAvailable: boolean;
+  memoryAvailable: boolean;
+  conversationAvailable: boolean;
+  aiEngineAvailable: boolean;
+  lastCheckedAt: string;
+};
+
 export type GusDecision = {
   decisionId: string;
   kind: GusDecisionKind;

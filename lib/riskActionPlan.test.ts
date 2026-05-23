@@ -57,6 +57,9 @@ function predictive(overrides?: Partial<PredictiveRiskPayload>): PredictiveRiskP
       stopWorkReviewRecommended: false,
       explanation: "No safety AI signals in test fixture.",
       missingData: [],
+      criticalControlGaps: [],
+      reviewTriggers: [],
+      actionTimeframe: "routine",
     },
     leadershipTrust: {
       lastUpdatedAt: "2026-05-20T00:00:00.000Z",

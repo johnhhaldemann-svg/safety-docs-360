@@ -71,6 +71,13 @@ function routeHref(route: string, fallback: string) {
   return route.startsWith("/safe-predict") ? "/safe-predict/predictive-risk" : fallback;
 }
 
+function aiEngineNextStep(context: GusContext) {
+  if (context.aiEngineActionTimeframe === "immediate") return "Pause and get human safety review now.";
+  if (context.aiEngineActionTimeframe === "before_work_continues") return "Verify controls before work moves forward.";
+  if (context.aiEngineActionTimeframe === "same_shift") return "Review this during the current shift.";
+  return "Keep this in the routine safety review.";
+}
+
 export function decideGusBehavior(input: GusBrainInput): GusDecision {
   const { context, routeMessage, feedback, quietMode } = input;
   const route = context.route || "/";
@@ -90,6 +97,48 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         reason: "Quiet mode is active.",
         shouldSpeak: false,
       },
+    });
+  }
+
+  if (
+    context.aiEngineLinked &&
+    context.safetyAiAssessment &&
+    (context.safetyAiAssessment.stopWorkReviewRecommended || (context.aiEngineCriticalControlGaps?.length ?? 0) > 0)
+  ) {
+    const gaps = context.aiEngineCriticalControlGaps ?? [];
+    const triggers = context.aiEngineReviewTriggers ?? [];
+    const nextStep = aiEngineNextStep(context);
+
+    return decision({
+      decisionId: "gus-ai-engine-review-decision",
+      kind: "warning",
+      botState: "warning",
+      attentionLevel: context.safetyAiAssessment.level === "critical" ? "critical" : "high",
+      shouldOpen: true,
+      message: {
+        messageId: "gus-ai-engine-review",
+        category: "risk_alert",
+        priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
+        message: `The Safety AI Engine is flagging this for review. ${nextStep}`,
+        spokenText: `The Safety AI Engine is flagging this for review. ${nextStep}`,
+        reason: `Review basis: ${compactList([...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
+        shouldSpeak: context.safetyAiAssessment.level === "critical",
+        actionLabel: "Review AI risk",
+        actionHref: routeHref(route, "/risk"),
+        actionKey: "guide_to_risk",
+        confidence: context.safetyAiAssessment.confidence === "high" ? 0.92 : 0.84,
+      },
+      signals: [
+        signal({
+          signalId: "safety-ai-engine-review",
+          source: "risk",
+          label: "Safety AI Engine review",
+          riskLevel: context.safetyAiAssessment.level === "critical" ? "severe" : "high",
+          detail: compactList([...gaps, ...triggers], "AI Engine review triggers"),
+          actionHref: routeHref(route, "/risk"),
+        }),
+      ],
+      actions: [action("Review AI risk", routeHref(route, "/risk"), "guide_to_risk")],
     });
   }
 

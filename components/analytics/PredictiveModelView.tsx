@@ -382,6 +382,164 @@ function SafetyAiAssessmentPanel({ data, loading }: { data: PredictiveRiskPayloa
   );
 }
 
+function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload | null; loading: boolean }) {
+  const briefing = data?.dailyBriefing;
+  const highRiskToday = briefing?.highRiskWork.filter((work) => work.timing === "today").slice(0, 3) ?? [];
+  const highRiskTomorrow = briefing?.highRiskWork.filter((work) => work.timing === "tomorrow").slice(0, 3) ?? [];
+  const blockers = briefing?.readinessBlockers.slice(0, 5) ?? [];
+  const controls = briefing?.controlsToVerify.slice(0, 5) ?? [];
+  const topWork = briefing?.highRiskWork[0];
+
+  return (
+    <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-teal-700">Daily Risk Briefing</p>
+          <h2 className="mt-2 text-lg font-black text-[var(--app-text-strong)]">Work that needs attention before start</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[var(--app-muted)]">
+            {loading ? "Loading today and tomorrow risk briefing." : briefing?.headline ?? "No briefing is available yet."}
+          </p>
+        </div>
+        <div className="grid min-w-[260px] grid-cols-2 gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Highest risk</p>
+            <p className={`mt-1 font-app-display text-2xl font-black ${safetyLevelTone(topWork?.riskLevel)}`}>
+              {loading ? "-" : topWork?.riskLevel ?? "none"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Confidence</p>
+            <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${confidenceBadgeClass(briefing?.confidence)}`}>
+              {briefing?.confidence ?? "low"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {briefing?.stopWorkReviewRecommended || briefing?.escalationRequired ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold leading-5 text-red-800">
+          Critical or high-consequence conditions require human review and possible stop-work evaluation. The engine recommends review; it does not release work or declare compliance.
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-4">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-[var(--app-accent-primary)]" aria-hidden />
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">High risk today</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {highRiskToday.map((work) => (
+              <div key={work.id} className="rounded-lg border border-[var(--app-border)] bg-slate-50/70 px-3 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{work.title}</p>
+                  <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(work.riskLevel)}`}>
+                    {work.riskLevel}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{work.jobsiteName}{work.area ? ` | ${work.area}` : ""}</p>
+              </div>
+            ))}
+            {!loading && highRiskToday.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                No high-risk work ranked for today from loaded data.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-4">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-[var(--app-accent-primary)]" aria-hidden />
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">High risk tomorrow</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {highRiskTomorrow.map((work) => (
+              <div key={work.id} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{work.title}</p>
+                  <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(work.riskLevel)}`}>
+                    {work.riskLevel}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{work.whyItMatters}</p>
+              </div>
+            ))}
+            {!loading && highRiskTomorrow.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                No high-risk work ranked for tomorrow from loaded data.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="xl:col-span-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-600" aria-hidden />
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Missing readiness items</h3>
+          </div>
+          <div className="mt-3 space-y-2">
+            {blockers.map((item) => (
+              <div key={item.id} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${safetyBadgeClass(item.severity)}`}>
+                    {item.type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">{item.severity}</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{item.label}</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{item.detail}</p>
+              </div>
+            ))}
+            {!loading && blockers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)]">
+                No readiness blockers were found in the loaded briefing.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-7">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-700" aria-hidden />
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Controls to verify before work starts</h3>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {controls.map((control) => (
+              <div key={control.id} className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
+                    {control.controlType.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">{control.priority}</span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{control.text}</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{control.whyItMatters}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="xl:col-span-5">
+          <h3 className="text-xs font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Why this matters</h3>
+          <div className="mt-3 rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            {(briefing?.whyThisMatters ?? []).slice(0, 4).map((item) => (
+              <p key={item} className="border-b border-[var(--app-border)] py-2 text-xs leading-5 text-[var(--app-text)] last:border-b-0">
+                {item}
+              </p>
+            ))}
+            {!loading && (briefing?.whyThisMatters.length ?? 0) === 0 ? (
+              <p className="text-xs leading-5 text-[var(--app-muted)]">Reasoning appears when the briefing has work or blocker evidence.</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HumanBehaviorRiskPanel({ data, loading }: { data: PredictiveRiskPayload | null; loading: boolean }) {
   const behaviorRisk = data?.behaviorRisk;
   const topDrivers = behaviorRisk?.topDrivers ?? [];

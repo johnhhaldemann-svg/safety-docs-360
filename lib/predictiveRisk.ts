@@ -22,6 +22,12 @@ import {
 } from "@/lib/predictive/behaviorRisk";
 import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
 import type { SafetyAiAssessment, SafetyAiSignal } from "@/lib/safety-ai/types";
+import {
+  buildPredictiveSafetyEngineBriefing,
+  type DailyRiskBriefing,
+  type PredictiveSafetyMemoryItemRow,
+  type PredictiveSafetyWeatherAlertRow,
+} from "@/lib/predictiveSafetyEngine";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -98,6 +104,7 @@ export type PredictiveRiskPayload = {
   };
   behaviorRisk: BehaviorRiskResult;
   safetyAiAssessment: SafetyAiAssessment;
+  dailyBriefing: DailyRiskBriefing;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -670,6 +677,7 @@ function buildSafetyAiSignals(input: {
         missingCompetentPersonReview: !/competent person|supervisor|verify|verified|foreman|sign[- ]?off/i.test(row.mitigation ?? ""),
         controlGap: /use ppe|be careful|watch your surroundings|use caution|stay aware/i.test(row.mitigation ?? "") ? 4 : undefined,
         fatalityOrCatastrophicPotential: isFatalPotentialText(row.activity_name, row.hazard_category, row.hazard_description, row.planned_risk_level),
+        controlEvidence: row.mitigation ?? null,
       };
     }),
     ...(input.scheduleItems ?? []).map((row): SafetyAiSignal => {
@@ -697,6 +705,8 @@ function buildSafetyAiSignals(input: {
         missingCompetentPersonReview: !row.supervisor_name,
         controlGap: row.is_high_risk && (row.required_controls?.length ?? 0) === 0 ? 5 : undefined,
         fatalityOrCatastrophicPotential: isFatalPotentialText(row.title, row.risk_level, ...(row.hazard_categories ?? [])),
+        controls: row.required_controls ?? [],
+        controlEvidence: row.required_controls?.join(", ") || null,
       };
     }),
     ...(input.trainingGaps ?? []).map((row): SafetyAiSignal => ({
@@ -787,6 +797,8 @@ export function buildPredictiveRiskPayload(input: {
   scheduleItems?: PredictiveRiskScheduleItemRow[];
   observations?: BehaviorRiskObservationRow[];
   trainingGaps?: BehaviorRiskTrainingGapRow[];
+  weatherAlerts?: PredictiveSafetyWeatherAlertRow[];
+  memoryItems?: PredictiveSafetyMemoryItemRow[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
@@ -814,6 +826,21 @@ export function buildPredictiveRiskPayload(input: {
     scheduleItems: input.scheduleItems,
     observations: input.observations,
     trainingGaps: input.trainingGaps,
+  });
+  const dailyBriefing = buildPredictiveSafetyEngineBriefing({
+    days,
+    jobsiteId: input.jobsiteId,
+    jobsites: input.jobsites,
+    correctiveActions: input.correctiveActions,
+    incidents: input.incidents,
+    permits: input.permits,
+    jsaActivities: input.jsaActivities,
+    scheduleItems: input.scheduleItems,
+    observations: input.observations,
+    trainingGaps: input.trainingGaps,
+    weatherAlerts: input.weatherAlerts,
+    memoryItems: input.memoryItems,
+    safetyAiAssessment,
   });
   const accumulators = buildLocationAccumulators({
     rows,
@@ -1006,6 +1033,7 @@ export function buildPredictiveRiskPayload(input: {
     },
     behaviorRisk,
     safetyAiAssessment,
+    dailyBriefing,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };

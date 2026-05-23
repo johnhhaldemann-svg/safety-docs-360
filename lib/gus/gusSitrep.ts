@@ -20,8 +20,16 @@ function riskLabel(level: GusRiskLevel | undefined) {
 }
 
 function severityForContext(context: GusContext): SitrepSeverity {
+  if (
+    context.safetyAiAssessment?.level === "critical" ||
+    context.safetyAiAssessment?.actionTimeframe === "immediate" ||
+    context.safetyAiAssessment?.stopWorkReviewRecommended
+  ) {
+    return "critical";
+  }
   if (context.riskLevel === "severe" || context.weatherRiskLevel === "severe") return "critical";
   if (
+    context.safetyAiAssessment?.level === "high" ||
     context.riskLevel === "high" ||
     context.weatherRiskLevel === "high" ||
     (context.openHighPriorityActionCount ?? 0) > 0 ||
@@ -58,6 +66,8 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
   const drivers = cleanList(context.riskDrivers, 3);
   const permitGaps = cleanList(context.missingPermitTypes, 3);
   const observations = cleanList(context.recentObservationTypes, 3);
+  const aiControlGaps = cleanList(context.aiEngineCriticalControlGaps, 2);
+  const aiReviewTriggers = cleanList(context.aiEngineReviewTriggers, 2);
   const expiredTrainingCount = context.expiredTrainingCount ?? 0;
   const openActionCount = context.openCorrectiveActionCount ?? 0;
   const highActionCount = context.openHighPriorityActionCount ?? 0;
@@ -71,6 +81,8 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
 
   const reviewParts = [
     drivers.length > 0 ? `Top risk drivers: ${drivers.join(", ")}.` : "",
+    aiControlGaps.length > 0 ? `AI Engine critical controls to verify: ${aiControlGaps.join(", ")}.` : "",
+    aiReviewTriggers.length > 0 ? `AI Engine review triggers: ${aiReviewTriggers.join(", ")}.` : "",
     permitGaps.length > 0 ? `Permit items to review: ${permitGaps.join(", ")}.` : "",
     expiredTrainingCount > 0 ? `${plural(expiredTrainingCount, "expired training")} need review.` : "",
     highActionCount > 0
@@ -90,7 +102,7 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
       : "Have the right human reviewer verify controls before work moves forward.";
   const message = sentence([lead, `Current risk is ${risk}.`, ...reviewParts, schedule, nextStep]);
   const reason = sentence([
-    "Based on SafePredict live context.",
+    context.aiEngineLinked ? "Based on SafePredict live context and Safety AI Engine assessment." : "Based on SafePredict live context.",
     drivers.length > 0 ? `Drivers: ${drivers.join(", ")}.` : "",
     "Draft guidance only. Human review required.",
   ]);
@@ -98,6 +110,8 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
     context.route,
     risk,
     drivers.join(","),
+    aiControlGaps.join(","),
+    aiReviewTriggers.join(","),
     permitGaps.join(","),
     String(expiredTrainingCount),
     String(openActionCount),
