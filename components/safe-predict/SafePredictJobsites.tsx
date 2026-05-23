@@ -1637,8 +1637,16 @@ type SafePredictJobsiteAssignment = {
   role?: string | null;
 };
 
+function normalizeSafePredictRole(role?: string | null) {
+  return (role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function safePredictRoleNeedsJobsiteAssignment(role?: string | null) {
-  const normalized = (role ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  const normalized = normalizeSafePredictRole(role);
   return (
     normalized === "project_manager" ||
     normalized === "field_supervisor" ||
@@ -1651,6 +1659,21 @@ function safePredictRoleNeedsJobsiteAssignment(role?: string | null) {
 
 function roleLabel(role: string) {
   return formatTitleCase(role.replace(/_/g, " ")) || role;
+}
+
+function isSpecificSafetyManagerName(value?: string | null) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return Boolean(normalized) && normalized !== "not set" && normalized !== "company safety team";
+}
+
+function jobsiteSafetyManagerName(dataset: SafePredictDataset, site: SafePredictJobsiteRecord) {
+  if (isSpecificSafetyManagerName(site.safetyManager)) return site.safetyManager as string;
+  if (isSpecificSafetyManagerName(dataset.company.safetyLead)) return dataset.company.safetyLead;
+
+  const activeSafetyManager = dataset.assignableUsers.find(
+    (user) => user.status.trim().toLowerCase() === "active" && normalizeSafePredictRole(user.role) === "safety_manager"
+  );
+  return activeSafetyManager?.name ?? "Not assigned";
 }
 
 function JobsiteAssignmentManager({
@@ -1904,6 +1927,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     incidentCount: 0,
     observationCount: 0,
   } satisfies SafePredictJobsiteRecord;
+  const safetyManagerName = jobsiteSafetyManagerName(dataset, site);
   const siteEmployees = dataset.employees.filter((employee) => employee.assignedSiteId === site.id);
   const siteActions = siteScoped(dataset.actions, site.id);
   const siteAlerts = siteScoped(dataset.alerts, site.id);
@@ -3270,9 +3294,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
               <span className={cx("rounded-full border px-2.5 py-1 text-xs font-black", statusClasses(site.status))}>{statusLabel(site.status)}</span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">{site.code}</span>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <InfoTile label="Risk Score" value={`${displayedRiskScore}/100`} tone="text-red-600" helper={SAFE_PREDICT_RISK_INDEX_HELPER} />
               <InfoTile label="Site Lead" value={site.siteLead} />
+              <InfoTile label="Safety Manager" value={safetyManagerName} />
               <InfoTile label="Project Manager" value={site.projectManager} />
               <InfoTile label="Customer" value={site.customerName} />
             </div>

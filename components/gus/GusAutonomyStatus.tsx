@@ -47,7 +47,7 @@ export function GusAutonomyStatus({ status }: GusAutonomyStatusProps) {
               Memory {status.memoryAvailable ? "local" : "off"}
             </span>
             <span className="rounded-full bg-white/70 px-2 py-1">
-              AI Engine {status.aiEngineAvailable ? "linked" : "limited"}
+              Safety context {status.aiEngineAvailable ? "linked" : "limited"}
             </span>
           </div>
         </div>

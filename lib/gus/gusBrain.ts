@@ -121,11 +121,11 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-ai-engine-review",
         category: "risk_alert",
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
-        message: `The Safety AI Engine is flagging this for review.${work} ${nextStep}`,
-        spokenText: `The Safety AI Engine is flagging this for review. ${nextStep}`,
+        message: `Gus is flagging this for review.${work} ${nextStep}`,
+        spokenText: `Gus is flagging this for review. ${nextStep}`,
         reason: `Review basis: ${compactList([...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
-        actionLabel: "Review AI risk",
+        actionLabel: "Review safety risk",
         actionHref: routeHref(route, "/risk"),
         actionKey: "guide_to_risk",
         confidence: context.safetyAiAssessment.confidence === "high" ? 0.92 : 0.84,
@@ -134,13 +134,13 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         signal({
           signalId: "safety-ai-engine-review",
           source: "risk",
-          label: "Safety AI Engine review",
+          label: "Safety review",
           riskLevel: context.safetyAiAssessment.level === "critical" ? "severe" : "high",
-          detail: `${compactList([...gaps, ...triggers], "AI Engine review triggers")}.${recommendation}`,
+          detail: `${compactList([...gaps, ...triggers], "review triggers")}.${recommendation}`,
           actionHref: routeHref(route, "/risk"),
         }),
       ],
-      actions: [action("Review AI risk", routeHref(route, "/risk"), "guide_to_risk")],
+      actions: [action("Review safety risk", routeHref(route, "/risk"), "guide_to_risk")],
     });
   }
 

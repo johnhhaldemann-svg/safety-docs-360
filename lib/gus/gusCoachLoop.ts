@@ -39,11 +39,11 @@ function followUpsFor(decision: GusDecision, context: GusContext): GusCoachFollo
   if ((context.aiEngineCriticalControlGaps?.length ?? 0) > 0 || (context.aiEngineReviewTriggers?.length ?? 0) > 0) {
     base.push({
       followUpId: "ai-engine-control-check",
-      prompt: `Help me turn these Safety AI Engine findings into reviewer questions: ${compactList(
+      prompt: `Help me turn these safety review items into reviewer questions: ${compactList(
         [...(context.aiEngineCriticalControlGaps ?? []), ...(context.aiEngineReviewTriggers ?? [])],
-        "AI Engine findings",
+        "control gaps or review triggers",
       )}.`,
-      actionLabel: "Draft AI review questions",
+      actionLabel: "Draft reviewer questions",
     });
   }
 
@@ -89,16 +89,16 @@ function directiveText(decision: GusDecision, context: GusContext) {
     (context.safetyAiAssessment.stopWorkReviewRecommended || (context.aiEngineCriticalControlGaps?.length ?? 0) > 0)
   ) {
     return {
-      title: context.safetyAiAssessment.level === "critical" ? "AI Engine says review now" : "AI Engine review needed",
+      title: context.safetyAiAssessment.level === "critical" ? "Gus says review now" : "Gus recommends review",
       instruction:
         context.aiEngineActionTimeframe === "immediate"
           ? "Pause and get the assigned human reviewer to verify critical controls now."
-          : "Have the assigned human reviewer verify the AI Engine findings before work moves forward.",
-      whyItMatters: `Safety AI Engine findings: ${compactList(
+          : "Have the assigned human reviewer verify these review items before work moves forward.",
+      whyItMatters: `Review items: ${compactList(
         [...(context.aiEngineCriticalControlGaps ?? []), ...(context.aiEngineReviewTriggers ?? [])],
         "critical control gaps or review triggers",
       )}.`,
-      recommendedActionLabel: action?.label ?? "Review AI risk",
+      recommendedActionLabel: action?.label ?? "Review safety risk",
       recommendedActionHref: action?.href,
       recommendedActionKey: action?.actionKey ?? "guide_to_risk",
     };

@@ -41,7 +41,7 @@ describe("decideGusBehavior", () => {
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b/i);
   });
 
-  it("prioritizes Safety AI Engine critical control findings", () => {
+  it("prioritizes critical control findings without exposing engine wording", () => {
     const decision = decideGusBehavior({
       context: context({
         aiEngineLinked: true,
@@ -85,10 +85,20 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toContain("Safety AI Engine");
+    expect(decision.message.message).toContain("Gus is flagging this for review");
     expect(decision.message.message).toContain("Excavation at North Tower");
     expect(decision.message.reason).toContain("Protective system");
     expect(decision.signals[0]?.detail).toContain("Verify protective system review");
+    expect(
+      [
+        decision.message.message,
+        decision.message.spokenText,
+        decision.message.actionLabel,
+        decision.signals[0]?.label,
+        decision.signals[0]?.detail,
+        decision.actions[0]?.label,
+      ].join(" "),
+    ).not.toMatch(/AI Engine|Safety AI Engine/i);
     expect(decision.message.message).not.toMatch(/approved|safe to start|released for work/i);
   });
 

@@ -44,6 +44,7 @@ export type SafePredictJobsiteRecord = SafePredictDemoJobsite & {
   jobsiteNumber?: string | null;
   projectNumber?: string | null;
   projectManager: string;
+  safetyManager?: string | null;
   customerName: string;
   customerReportEmail: string;
   startDate: string;
@@ -486,6 +487,7 @@ function withSiteMetrics(site: SafePredictDemoJobsite, index: number): SafePredi
     ...site,
     status: site.riskLevel === "high" ? "action-needed" : site.riskLevel === "low" ? "completed" : "active",
     projectManager: ["Jordan Blake", "Priya Shah", "Marcus Lee", "Dana Scott", "Victor Chen"][index] ?? "Jordan Blake",
+    safetyManager: safePredictDemoCompany.safetyLead,
     customerName: ["Riverside Development Group", "Northline Manufacturing", "MetroLogix", "Arlington Utilities", "Mesquite Realty"][index] ?? "Workspace Client",
     customerReportEmail: `client-${site.id}@example.invalid`,
     startDate: `2025-0${(index % 5) + 1}-0${(index % 8) + 1}`,
@@ -648,6 +650,7 @@ export function normalizeLiveJobsites(rows: SafePredictLiveJobsiteRow[]) {
         activePermits: 0,
         siteLead: String(row.safety_lead ?? row.safetyLead ?? "Not set"),
         projectManager: String(row.project_manager ?? row.projectManager ?? "Not assigned"),
+        safetyManager: String(row.safety_manager ?? row.safetyManager ?? "").trim() || null,
         customerName: String(row.customer_company_name ?? row.customerCompanyName ?? "Not set"),
         customerReportEmail: String(row.customer_report_email ?? row.customerReportEmail ?? "Not set"),
         startDate: String(row.start_date ?? row.startDate ?? ""),

@@ -40,6 +40,13 @@ describe("SafePredictJobsiteDetail", () => {
     expect(html).toContain(SAFE_PREDICT_RISK_INDEX_HELPER);
   });
 
+  it("shows the safety manager in the jobsite summary tiles", () => {
+    const html = renderToStaticMarkup(<SafePredictJobsiteDetail jobsiteId="riverside" />);
+
+    expect(html).toContain("Safety Manager");
+    expect(html).toContain("Alex Morgan");
+  });
+
   it("shows permit view and edit actions with readiness", () => {
     const html = renderToStaticMarkup(<SafePredictJobsiteDetail jobsiteId="riverside" />);
 
