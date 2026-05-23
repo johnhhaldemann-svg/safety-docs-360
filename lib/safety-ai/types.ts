@@ -59,6 +59,19 @@ export type SafetyRecommendation = {
   suggestedOwnerRole: SafetyOwnerRole;
 };
 
+export type SafetyAiScoreExplanation = {
+  score: number;
+  level: SafetyRiskLevel;
+  confidence: SafetyAiConfidence;
+  reason: string;
+  dataInputs: string[];
+  missingInformation: string[];
+  recommendedAction: string;
+  humanApprovalRequired: boolean;
+  humanApprovalReason: string | null;
+  driverSummary: string[];
+};
+
 export type SafetyAiSignal = {
   id?: string | null;
   type: SafetySignalType;
@@ -118,10 +131,13 @@ export type SafetyAiAssessment = {
   score: number;
   level: SafetyRiskLevel;
   confidence: SafetyAiConfidence;
+  scoreExplanation: SafetyAiScoreExplanation;
   topDrivers: RiskDriver[];
   recommendations: SafetyRecommendation[];
   escalationRequired: boolean;
   stopWorkReviewRecommended: boolean;
+  humanApprovalRequired: boolean;
+  humanApprovalReason: string | null;
   explanation: string;
   missingData: string[];
   criticalControlGaps: string[];

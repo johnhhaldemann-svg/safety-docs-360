@@ -151,7 +151,11 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
     company_jsa_activities: queryBuilder({ data: [] }),
     company_jobsite_schedule_items: queryBuilder({ data: [] }),
     company_sor_records: queryBuilder({ data: [] }),
+    company_jobsite_audit_observations: queryBuilder({ data: [] }),
     company_risk_ai_recommendations: queryBuilder({ data: [] }),
+    company_employee_training_records: queryBuilder({ data: [] }),
+    weather_alert_events: queryBuilder({ data: [] }),
+    company_memory_items: queryBuilder({ data: [] }),
     ...overrides,
   };
   return {
@@ -247,6 +251,8 @@ describe("/api/company/predictive-risk", () => {
     expect(body.summary.predictedIncidents).toBe(2);
     expect(body.safetyAiAssessment.score).toBeGreaterThan(0);
     expect(body.safetyAiAssessment.explanation).toContain("Based on available data");
+    expect(body.safetyAiAssessment.scoreExplanation).toEqual(expect.objectContaining({ recommendedAction: expect.any(String) }));
+    expect(body.dailyBriefing).toEqual(expect.objectContaining({ engineVersion: "predictive-safety-engine-mvp-rules-v1" }));
     expect(getInjuryWeatherDashboardData).toHaveBeenCalledWith(expect.objectContaining({ companyId: "co1", jobsiteId: "j1" }));
     expect(builders.company_corrective_actions.eq).toHaveBeenCalledWith("jobsite_id", "j1");
   });
@@ -292,6 +298,14 @@ describe("/api/company/predictive-risk", () => {
 
     expect(res.status).toBe(200);
     expect(body.behaviorRisk.topDrivers.map((driver: { driver: string }) => driver.driver)).toContain("schedule_pressure");
+    expect(body.dailyBriefing.highRiskWork[0]).toEqual(expect.objectContaining({ title: "Critical lift over active access route" }));
+    expect(body.dailyBriefing.highRiskWork[0].scoreExplanation).toEqual(
+      expect.objectContaining({
+        humanApprovalRequired: true,
+        recommendedAction: expect.any(String),
+      })
+    );
+    expect(body.dailyBriefing.readinessBlockers.map((blocker: { type: string }) => blocker.type)).toContain("permit");
     expect(body.leadershipTrust.sourceCoverage).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "scheduleItems", label: "Work schedule", count: 1 })])
     );

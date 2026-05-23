@@ -49,10 +49,24 @@ describe("decideGusBehavior", () => {
           score: 92,
           level: "critical",
           confidence: "high",
+          scoreExplanation: {
+            score: 92,
+            level: "critical",
+            confidence: "high",
+            reason: "critical risk was assigned because excavation controls need verification.",
+            dataInputs: ["high risk work: Excavation"],
+            missingInformation: [],
+            recommendedAction: "Verify protective system review",
+            humanApprovalRequired: true,
+            humanApprovalReason: "Critical AI Engine risk requires competent-person or safety-manager review before affected work proceeds.",
+            driverSummary: ["Protective system: Excavation controls need verification"],
+          },
           topDrivers: [],
           recommendations: [],
           escalationRequired: true,
           stopWorkReviewRecommended: true,
+          humanApprovalRequired: true,
+          humanApprovalReason: "Critical AI Engine risk requires competent-person or safety-manager review before affected work proceeds.",
           explanation: "Critical control review is needed.",
           missingData: [],
           criticalControlGaps: ["Protective system"],
@@ -62,6 +76,8 @@ describe("decideGusBehavior", () => {
         aiEngineCriticalControlGaps: ["Protective system"],
         aiEngineReviewTriggers: ["Excavation controls need verification"],
         aiEngineActionTimeframe: "immediate",
+        aiEngineTopHighRiskWork: "Excavation at North Tower",
+        aiEngineRecommendedNextAction: "Verify protective system review",
       }),
       routeMessage,
     });
@@ -69,7 +85,9 @@ describe("decideGusBehavior", () => {
     expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
     expect(decision.attentionLevel).toBe("critical");
     expect(decision.message.message).toContain("Safety AI Engine");
+    expect(decision.message.message).toContain("Excavation at North Tower");
     expect(decision.message.reason).toContain("Protective system");
+    expect(decision.signals[0]?.detail).toContain("Verify protective system review");
     expect(decision.message.message).not.toMatch(/approved|safe to start|released for work/i);
   });
 

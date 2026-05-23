@@ -24,6 +24,10 @@ export type GusContext = {
   aiEngineReviewTriggers?: string[];
   aiEngineActionTimeframe?: SafetyAiAssessment["actionTimeframe"];
   aiEngineRecommendations?: string[];
+  aiEngineHighestDailyRiskLevel?: SafetyAiAssessment["level"];
+  aiEngineTopHighRiskWork?: string;
+  aiEngineRecommendedNextAction?: string;
+  aiEngineStopWorkReviewRecommended?: boolean;
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;

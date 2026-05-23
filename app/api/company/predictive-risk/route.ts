@@ -136,6 +136,21 @@ type TrainingRecordRow = {
   expires_on?: string | null;
 };
 
+type FieldAuditObservationRow = {
+  id?: string | null;
+  jobsite_id?: string | null;
+  trade_code?: string | null;
+  sub_trade_code?: string | null;
+  task_code?: string | null;
+  category_code?: string | null;
+  category_label?: string | null;
+  item_label?: string | null;
+  status?: string | null;
+  severity?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
 function trainingGapsFromRecords(rows: TrainingRecordRow[], scheduleWindowEnd: string): BehaviorRiskTrainingGapRow[] {
   return rows
     .filter((row) => {
@@ -156,6 +171,22 @@ function trainingGapsFromRecords(rows: TrainingRecordRow[], scheduleWindowEnd: s
       status: row.status ?? null,
       expires_at: row.expires_on ?? null,
     }));
+}
+
+function observationsFromFieldAuditRows(rows: FieldAuditObservationRow[]): BehaviorRiskObservationRow[] {
+  return rows.map((row): BehaviorRiskObservationRow => ({
+    id: row.id ?? null,
+    jobsite_id: row.jobsite_id ?? null,
+    trade: row.trade_code ?? row.sub_trade_code ?? null,
+    category: row.category_label ?? row.category_code ?? null,
+    hazard_category_code: row.category_code ?? row.task_code ?? null,
+    subcategory: row.task_code ?? null,
+    description: row.notes ?? row.item_label ?? "Field audit observation",
+    severity: row.severity ?? null,
+    status: row.status === "fail" ? "inspection_failure" : row.status ?? null,
+    observation_type: "field_audit",
+    created_at: row.created_at ?? null,
+  }));
 }
 
 export async function GET(request: Request) {
@@ -283,6 +314,13 @@ export async function GET(request: Request) {
     .eq("company_id", companyId)
     .eq("is_deleted", false)
     .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
+  const fieldAuditObservationsQuery = applyJobsiteScope(
+    auth.supabase
+      .from("company_jobsite_audit_observations")
+      .select("id, jobsite_id, trade_code, sub_trade_code, task_code, category_code, category_label, item_label, status, severity, notes, created_at")
+      .eq("company_id", companyId) as unknown as ScopedQueryBuilder<FieldAuditObservationRow>,
+    scopeOptions
+  ).gte("created_at", since) as PromiseLike<QueryResult<FieldAuditObservationRow>>;
   const mitigationsQuery = auth.supabase
     .from("company_risk_ai_recommendations")
     .select("id, title, status, priority, mitigation_state, risk_reduction_points")
@@ -312,6 +350,7 @@ export async function GET(request: Request) {
     jsaActivitiesRes,
     scheduleItemsRes,
     observationsRes,
+    fieldAuditObservationsRes,
     mitigationsRes,
     trainingRecordsRes,
     weatherAlertsRes,
@@ -324,6 +363,7 @@ export async function GET(request: Request) {
     jsaActivitiesQuery,
     scheduleItemsQuery,
     observationsQuery,
+    fieldAuditObservationsQuery,
     mitigationsQuery,
     trainingRecordsQuery,
     weatherAlertsQuery,
@@ -334,6 +374,10 @@ export async function GET(request: Request) {
     ? []
     : (scheduleItemsRes.data ?? []).filter((item) => itemOverlapsWindow(item, today, scheduleWindowEnd));
   const trainingGaps = trainingRecordsRes.error ? undefined : trainingGapsFromRecords(trainingRecordsRes.data ?? [], scheduleWindowEnd);
+  const observations = [
+    ...(observationsRes.error ? [] : observationsRes.data ?? []),
+    ...(fieldAuditObservationsRes.error ? [] : observationsFromFieldAuditRows(fieldAuditObservationsRes.data ?? [])),
+  ];
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
     companyId,
@@ -350,6 +394,7 @@ export async function GET(request: Request) {
     (jsaActivitiesRes.error && !isMissingTable(jsaActivitiesRes.error.message) ? jsaActivitiesRes.error.message : null) ||
     (scheduleItemsRes.error && !isMissingTable(scheduleItemsRes.error.message) ? scheduleItemsRes.error.message : null) ||
     (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null) ||
+    (fieldAuditObservationsRes.error && !isMissingTable(fieldAuditObservationsRes.error.message) ? fieldAuditObservationsRes.error.message : null) ||
     (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null);
 
   if (hardError) {
@@ -369,7 +414,7 @@ export async function GET(request: Request) {
       permits: permitsRes.data ?? [],
       jsaActivities: jsaActivitiesRes.error ? [] : jsaActivitiesRes.data ?? [],
       scheduleItems,
-      observations: observationsRes.error ? [] : observationsRes.data ?? [],
+      observations,
       trainingGaps,
       weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
       memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],

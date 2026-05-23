@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGusContextFromDailyRiskBriefing,
   buildGusContextFromSafetyAiAssessment,
   buildSafetyAiAssessmentForSafePredict,
 } from "@/lib/gus/gusSafetyAiBridge";
 import { demoSafePredictDataset } from "@/lib/safePredictData";
+import type { DailyRiskBriefing } from "@/lib/predictiveSafetyEngine";
 
 describe("Gus Safety AI Engine bridge", () => {
   it("builds a Safety AI assessment from SafePredict context", () => {
@@ -37,5 +39,84 @@ describe("Gus Safety AI Engine bridge", () => {
     ].join(" ");
 
     expect(combined).not.toMatch(/approved|safe to start|released for work|osha compliant/i);
+  });
+
+  it("maps daily briefing fields into Gus warning context", () => {
+    const assessment = buildSafetyAiAssessmentForSafePredict(demoSafePredictDataset, "all");
+    const briefing: DailyRiskBriefing = {
+      generatedAt: "2026-05-22T12:00:00.000Z",
+      engineVersion: "test",
+      window: { today: "2026-05-22", tomorrow: "2026-05-23", days: 7 },
+      headline: "Critical risk: excavation.",
+      highRiskWork: [
+        {
+          id: "work-1",
+          title: "Excavation at north trench",
+          timing: "today",
+          jobsiteId: "j1",
+          jobsiteName: "North Tower",
+          date: "2026-05-22",
+          trade: "Civil",
+          area: "North trench",
+          crewSize: 6,
+          riskLevel: "critical",
+          riskScore: 91,
+          actionTimeframe: "immediate",
+          blockers: [],
+          controlsToVerify: ["Protective system review"],
+          drivers: ["Excavation controls"],
+          whyItMatters: "Cave-in exposure requires review.",
+          scoreExplanation: assessment.scoreExplanation,
+          evidenceRefs: [],
+          assessment,
+        },
+      ],
+      attentionTargets: [],
+      readinessBlockers: [
+        {
+          id: "permit-1",
+          type: "permit",
+          severity: "critical",
+          label: "Missing active permit or authorization",
+          detail: "Verify excavation permit.",
+          evidenceRefs: [],
+        },
+        {
+          id: "training-1",
+          type: "training",
+          severity: "high",
+          label: "Training readiness gap",
+          detail: "Verify required training.",
+          evidenceRefs: [],
+        },
+      ],
+      controlsToVerify: [
+        {
+          id: "control-1",
+          controlType: "engineering",
+          priority: "urgent",
+          text: "Protective system review",
+          whyItMatters: "Linked to excavation.",
+          ownerRole: "competent_person",
+          sourceWorkItemIds: ["work-1"],
+          evidenceRefs: [],
+        },
+      ],
+      whyThisMatters: ["Cave-in exposure requires review."],
+      missingData: [],
+      confidence: "high",
+      escalationRequired: true,
+      stopWorkReviewRecommended: true,
+      evidenceRefs: [],
+    };
+
+    const context = buildGusContextFromDailyRiskBriefing(briefing);
+
+    expect(context.aiEngineLinked).toBe(true);
+    expect(context.aiEngineTopHighRiskWork).toBe("Excavation at north trench at North Tower");
+    expect(context.aiEngineRecommendedNextAction).toBe("Protective system review");
+    expect(context.missingPermitTypes).toEqual(["Verify excavation permit."]);
+    expect(context.expiredTrainingCount).toBe(1);
+    expect(context.riskLevel).toBe("severe");
   });
 });

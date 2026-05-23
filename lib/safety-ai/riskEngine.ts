@@ -4,9 +4,11 @@ import type {
   RiskDriver,
   RiskDriverImpact,
   SafetyAiAssessment,
+  SafetyAiScoreExplanation,
   SafetyAiInput,
   SafetyAiScoreBreakdown,
   SafetyAiSignal,
+  SafetyRecommendation,
   SafetyRiskLevel,
 } from "@/lib/safety-ai/types";
 
@@ -391,6 +393,111 @@ function driver(label: string, category: RiskDriver["category"], impact: RiskDri
   return { label, category, impact, explanation };
 }
 
+function labelForSignalType(type: SafetyAiSignal["type"]) {
+  return type.replace(/_/g, " ");
+}
+
+function buildScoreDataInputs(signals: SafetyAiSignal[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const signal of signals) {
+    const label = String(signal.label ?? "").trim();
+    const hazard = String(signal.hazard ?? "").trim();
+    const status = String(signal.status ?? "").trim();
+    const value = [
+      `${labelForSignalType(signal.type)}: ${label || hazard || "unnamed signal"}`,
+      hazard && label.toLowerCase() !== hazard.toLowerCase() ? `hazard ${hazard}` : "",
+      status ? `status ${status}` : "",
+    ].filter(Boolean).join("; ");
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out.slice(0, 8);
+}
+
+function recommendationPriorityRank(priority: SafetyRecommendation["priority"]) {
+  if (priority === "urgent") return 4;
+  if (priority === "high") return 3;
+  if (priority === "medium") return 2;
+  return 1;
+}
+
+function topRecommendedAction(recommendations: SafetyRecommendation[], actionTimeframe: SafetyAiAssessment["actionTimeframe"]) {
+  const top = [...recommendations].sort((a, b) => recommendationPriorityRank(b.priority) - recommendationPriorityRank(a.priority))[0];
+  if (top) return top.title;
+  if (actionTimeframe === "immediate") return "Pause affected work for human review.";
+  if (actionTimeframe === "before_work_continues") return "Verify controls before affected work continues.";
+  if (actionTimeframe === "same_shift") return "Review risk controls during the current shift.";
+  return "Continue monitoring and documenting field conditions.";
+}
+
+function humanApprovalReason(params: {
+  level: SafetyRiskLevel;
+  escalationRequired: boolean;
+  stopWorkReviewRecommended: boolean;
+  imminentDanger: boolean;
+  missingRequiredTraining: boolean;
+  missingRequiredPermit: boolean;
+  missingCompetentPersonReview: boolean;
+  criticalControlGaps: string[];
+}) {
+  const reasons: string[] = [];
+  if (params.stopWorkReviewRecommended || params.imminentDanger) {
+    reasons.push("Immediate human review is required because critical or imminent-danger indicators are present.");
+  }
+  if (params.level === "critical") {
+    reasons.push("Critical AI Engine risk requires competent-person or safety-manager review before affected work proceeds.");
+  }
+  if (params.criticalControlGaps.length > 0) {
+    reasons.push("Critical controls need human verification before the task is treated as controlled.");
+  }
+  if (params.missingRequiredPermit) {
+    reasons.push("Permit readiness needs human verification before affected work proceeds.");
+  }
+  if (params.missingRequiredTraining) {
+    reasons.push("Training readiness needs human verification before assignment to affected work.");
+  }
+  if (params.missingCompetentPersonReview) {
+    reasons.push("A competent-person or supervisor review is missing for the affected work.");
+  }
+  if (params.escalationRequired && reasons.length === 0) {
+    reasons.push("High AI Engine risk requires supervisor or safety-manager review before risk is treated as controlled.");
+  }
+  return reasons.length > 0 ? reasons.join(" ") : null;
+}
+
+function buildScoreExplanation(params: {
+  score: number;
+  level: SafetyRiskLevel;
+  confidence: SafetyAiAssessment["confidence"];
+  topDrivers: RiskDriver[];
+  signals: SafetyAiSignal[];
+  missingData: string[];
+  recommendations: SafetyRecommendation[];
+  actionTimeframe: SafetyAiAssessment["actionTimeframe"];
+  humanApprovalRequired: boolean;
+  humanApprovalReason: string | null;
+}): SafetyAiScoreExplanation {
+  const driverSummary = params.topDrivers.slice(0, 5).map((driver) => `${driver.label}: ${driver.explanation}`);
+  const topReason = params.topDrivers[0]?.explanation;
+  return {
+    score: params.score,
+    level: params.level,
+    confidence: params.confidence,
+    reason: topReason
+      ? `${params.level} risk was assigned because ${topReason.charAt(0).toLowerCase()}${topReason.slice(1)}`
+      : `${params.level} risk was assigned from the available AI Engine inputs and source coverage.`,
+    dataInputs: buildScoreDataInputs(params.signals),
+    missingInformation: params.missingData,
+    recommendedAction: topRecommendedAction(params.recommendations, params.actionTimeframe),
+    humanApprovalRequired: params.humanApprovalRequired,
+    humanApprovalReason: params.humanApprovalReason,
+    driverSummary,
+  };
+}
+
 function buildDrivers(params: {
   input: SafetyAiInput;
   signals: SafetyAiSignal[];
@@ -530,6 +637,13 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
   });
   const escalationRequired = level === "high" || level === "critical";
   const stopWorkReviewRecommended = level === "critical" || imminentDanger;
+  const actionTimeframe = stopWorkReviewRecommended
+    ? "immediate"
+    : escalationRequired
+      ? "before_work_continues"
+      : level === "moderate"
+        ? "same_shift"
+        : "routine";
   const recommendations = buildSafetyRecommendations({
     input,
     level,
@@ -544,26 +658,49 @@ export function assessSafetyRisk(input: SafetyAiInput): SafetyAiAssessment {
     missingData,
     breakdown,
   });
+  const missingRequiredTraining = Boolean(input.missingRequiredTraining || signals.some((signal) => signal.missingRequiredTraining || signal.type === "training_gap"));
+  const missingRequiredPermit = Boolean(input.missingRequiredPermit || signals.some((signal) => signal.missingRequiredPermit || signal.type === "permit_gap"));
+  const missingCompetentPersonReview = Boolean(input.missingCompetentPersonReview || signals.some((signal) => signal.missingCompetentPersonReview));
+  const humanApprovalReasonValue = humanApprovalReason({
+    level,
+    escalationRequired,
+    stopWorkReviewRecommended,
+    imminentDanger,
+    missingRequiredTraining,
+    missingRequiredPermit,
+    missingCompetentPersonReview,
+    criticalControlGaps: hazardAnalysis.criticalControlGaps,
+  });
+  const humanApprovalRequired = Boolean(humanApprovalReasonValue);
+  const scoreExplanation = buildScoreExplanation({
+    score,
+    level,
+    confidence,
+    topDrivers,
+    signals,
+    missingData,
+    recommendations,
+    actionTimeframe,
+    humanApprovalRequired,
+    humanApprovalReason: humanApprovalReasonValue,
+  });
 
   return {
     score,
     level,
     confidence,
+    scoreExplanation,
     topDrivers,
     recommendations,
     escalationRequired,
     stopWorkReviewRecommended,
+    humanApprovalRequired,
+    humanApprovalReason: humanApprovalReasonValue,
     explanation,
     missingData,
     criticalControlGaps: hazardAnalysis.criticalControlGaps,
     reviewTriggers: hazardAnalysis.reviewTriggers,
-    actionTimeframe: stopWorkReviewRecommended
-      ? "immediate"
-      : escalationRequired
-        ? "before_work_continues"
-        : level === "moderate"
-          ? "same_shift"
-          : "routine",
+    actionTimeframe,
   };
 }
 

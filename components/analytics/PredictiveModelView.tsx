@@ -254,6 +254,7 @@ function ModelExplanationPanel({
 
 function SafetyAiAssessmentPanel({ data, loading }: { data: PredictiveRiskPayload | null; loading: boolean }) {
   const assessment = data?.safetyAiAssessment;
+  const scoreExplanation = assessment?.scoreExplanation;
   const drivers = assessment?.topDrivers.slice(0, 3) ?? [];
   const recommendations = assessment?.recommendations.slice(0, 4) ?? [];
   const missingData = assessment?.missingData ?? [];
@@ -298,6 +299,34 @@ function SafetyAiAssessmentPanel({ data, loading }: { data: PredictiveRiskPayloa
       ) : (
         <p className="mt-4 text-sm leading-6 text-[var(--app-muted)]">Safety AI assessment will appear after the predictive model loads.</p>
       )}
+
+      {scoreExplanation ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-5">
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3 lg:col-span-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Reason for score</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{scoreExplanation.reason}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Data used</p>
+            <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">
+              {scoreExplanation.dataInputs.slice(0, 3).join(" | ") || "No source signal was available."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Recommended action</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-[var(--app-text-strong)]">{scoreExplanation.recommendedAction}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Human review</p>
+            <p className={scoreExplanation.humanApprovalRequired ? "mt-2 text-xs font-black leading-5 text-red-700" : "mt-2 text-xs font-black leading-5 text-emerald-700"}>
+              {scoreExplanation.humanApprovalRequired ? "Human approval required before work proceeds" : "No extra AI-triggered human approval requirement"}
+            </p>
+            {scoreExplanation.humanApprovalReason ? (
+              <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{scoreExplanation.humanApprovalReason}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-12">
         <div className="xl:col-span-4">
@@ -389,6 +418,7 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
   const blockers = briefing?.readinessBlockers.slice(0, 5) ?? [];
   const controls = briefing?.controlsToVerify.slice(0, 5) ?? [];
   const topWork = briefing?.highRiskWork[0];
+  const topScoreExplanation = topWork?.scoreExplanation;
 
   return (
     <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
@@ -422,6 +452,27 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
         </div>
       ) : null}
 
+      {topScoreExplanation ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-4">
+          <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3 lg:col-span-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Top score reason</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{topScoreExplanation.reason}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Data used</p>
+            <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">
+              {topScoreExplanation.dataInputs.slice(0, 3).join(" | ") || "No source signal was available."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Human review</p>
+            <p className={topScoreExplanation.humanApprovalRequired ? "mt-2 text-xs font-black leading-5 text-red-700" : "mt-2 text-xs font-black leading-5 text-emerald-700"}>
+              {topScoreExplanation.humanApprovalRequired ? "Human approval required before work proceeds" : "No extra AI-triggered human approval requirement"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid gap-4 xl:grid-cols-12">
         <div className="xl:col-span-4">
           <div className="flex items-center gap-2">
@@ -438,6 +489,7 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                   </span>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{work.jobsiteName}{work.area ? ` | ${work.area}` : ""}</p>
+                <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{work.scoreExplanation.recommendedAction}</p>
               </div>
             ))}
             {!loading && highRiskToday.length === 0 ? (
@@ -463,6 +515,7 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                   </span>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">{work.whyItMatters}</p>
+                <p className="mt-2 text-xs font-semibold leading-5 text-[var(--app-text)]">{work.scoreExplanation.recommendedAction}</p>
               </div>
             ))}
             {!loading && highRiskTomorrow.length === 0 ? (
@@ -888,6 +941,8 @@ export function PredictiveModelView({
         {data?.leadershipTrust ? <TrustSummaryPanel trust={data.leadershipTrust} compact /> : null}
 
         <ModelExplanationPanel data={data} days={days} />
+
+        <DailyRiskBriefingPanel data={data} loading={loading} />
 
         <SafetyAiAssessmentPanel data={data} loading={loading} />
 

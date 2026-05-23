@@ -108,6 +108,8 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
     const gaps = context.aiEngineCriticalControlGaps ?? [];
     const triggers = context.aiEngineReviewTriggers ?? [];
     const nextStep = aiEngineNextStep(context);
+    const work = context.aiEngineTopHighRiskWork ? ` Top work: ${context.aiEngineTopHighRiskWork}.` : "";
+    const recommendation = context.aiEngineRecommendedNextAction ? ` Next action: ${context.aiEngineRecommendedNextAction}` : "";
 
     return decision({
       decisionId: "gus-ai-engine-review-decision",
@@ -119,7 +121,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-ai-engine-review",
         category: "risk_alert",
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
-        message: `The Safety AI Engine is flagging this for review. ${nextStep}`,
+        message: `The Safety AI Engine is flagging this for review.${work} ${nextStep}`,
         spokenText: `The Safety AI Engine is flagging this for review. ${nextStep}`,
         reason: `Review basis: ${compactList([...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
@@ -134,7 +136,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
           source: "risk",
           label: "Safety AI Engine review",
           riskLevel: context.safetyAiAssessment.level === "critical" ? "severe" : "high",
-          detail: compactList([...gaps, ...triggers], "AI Engine review triggers"),
+          detail: `${compactList([...gaps, ...triggers], "AI Engine review triggers")}.${recommendation}`,
           actionHref: routeHref(route, "/risk"),
         }),
       ],

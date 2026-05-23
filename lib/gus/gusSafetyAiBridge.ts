@@ -3,6 +3,7 @@ import type { SafetyAiAssessment, SafetyAiSignal } from "@/lib/safety-ai/types";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusRiskLevel } from "@/lib/gus/gusTypes";
 import type { SafePredictDataset, SafePredictJobsiteRecord } from "@/lib/safePredictData";
+import type { DailyRiskBriefing } from "@/lib/predictiveSafetyEngine";
 
 function toGusRiskLevel(level: SafetyAiAssessment["level"]): GusRiskLevel {
   if (level === "critical") return "severe";
@@ -229,5 +230,43 @@ export function buildGusContextFromSafetyAiAssessment(assessment: SafetyAiAssess
       ...assessment.reviewTriggers,
       ...topDrivers,
     ].slice(0, 8),
+  };
+}
+
+export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing): Partial<GusContext> {
+  const topWork = briefing.highRiskWork[0];
+  const missingPermits = briefing.readinessBlockers
+    .filter((blocker) => blocker.type === "permit")
+    .map((blocker) => blocker.detail || blocker.label)
+    .slice(0, 5);
+  const trainingGapCount = briefing.readinessBlockers.filter((blocker) => blocker.type === "training").length;
+  const controlGaps = briefing.readinessBlockers
+    .filter((blocker) => blocker.type === "control" || blocker.type === "competent_person")
+    .map((blocker) => blocker.label)
+    .slice(0, 5);
+  const nextControl = briefing.controlsToVerify[0];
+  const topAssessment = topWork?.assessment;
+
+  return {
+    aiEngineLinked: true,
+    ...(topAssessment ? { safetyAiAssessment: topAssessment } : {}),
+    aiEngineHighestDailyRiskLevel: topWork?.riskLevel,
+    aiEngineTopHighRiskWork: topWork ? `${topWork.title} at ${topWork.jobsiteName}` : undefined,
+    aiEngineCriticalControlGaps: controlGaps.length > 0 ? controlGaps : topAssessment?.criticalControlGaps ?? [],
+    aiEngineReviewTriggers: [
+      ...briefing.readinessBlockers.slice(0, 4).map((blocker) => blocker.label),
+      ...(topAssessment?.reviewTriggers ?? []),
+    ].slice(0, 8),
+    aiEngineActionTimeframe: topAssessment?.actionTimeframe,
+    aiEngineRecommendations: briefing.controlsToVerify.slice(0, 5).map((control) => control.text),
+    aiEngineRecommendedNextAction: nextControl?.text ?? topAssessment?.recommendations[0]?.title,
+    aiEngineStopWorkReviewRecommended: briefing.stopWorkReviewRecommended,
+    riskLevel: topWork ? toGusRiskLevel(topWork.riskLevel) : undefined,
+    riskDrivers: [
+      ...(topWork?.drivers ?? []),
+      ...briefing.readinessBlockers.slice(0, 4).map((blocker) => blocker.label),
+    ].slice(0, 8),
+    missingPermitTypes: missingPermits,
+    expiredTrainingCount: trainingGapCount || undefined,
   };
 }

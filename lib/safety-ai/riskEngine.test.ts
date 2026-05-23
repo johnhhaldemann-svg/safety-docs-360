@@ -171,6 +171,20 @@ describe("assessSafetyRisk", () => {
     expect(result.explanation).toContain("potential risk");
     expect(result.explanation).toContain("review recommended");
     expect(result.explanation).toContain(result.topDrivers[0]?.label ?? "");
+    expect(result.scoreExplanation).toEqual(
+      expect.objectContaining({
+        score: result.score,
+        level: result.level,
+        confidence: result.confidence,
+        humanApprovalRequired: true,
+      })
+    );
+    expect(result.scoreExplanation.reason).toBeTruthy();
+    expect(result.scoreExplanation.dataInputs).toEqual(expect.arrayContaining([expect.stringContaining("Missing electrical permit")]));
+    expect(result.scoreExplanation.missingInformation).toEqual(result.missingData);
+    expect(result.scoreExplanation.recommendedAction).toBeTruthy();
+    expect(result.humanApprovalRequired).toBe(true);
+    expect(result.humanApprovalReason).toContain("Permit readiness");
   });
 
   it("escalates high-consequence work when critical controls are not verified", () => {
@@ -198,6 +212,8 @@ describe("assessSafetyRisk", () => {
     expect(result.topDrivers.map((driver) => driver.category)).toContain("critical_control");
     expect(result.actionTimeframe).toBe("immediate");
     expect(result.stopWorkReviewRecommended).toBe(true);
+    expect(result.humanApprovalRequired).toBe(true);
+    expect(result.scoreExplanation.humanApprovalReason).toContain("Immediate human review");
   });
 
   it("raises likelihood when separate modules converge on the same hazard family", () => {

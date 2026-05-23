@@ -2,6 +2,7 @@ import { buildRuleBasedScheduleHazardPrediction } from "@/lib/scheduleHazardPred
 import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
 import type {
   SafetyAiAssessment,
+  SafetyAiScoreExplanation,
   SafetyAiSignal,
   SafetyControlType,
   SafetyRiskLevel,
@@ -65,6 +66,7 @@ export type PredictiveSafetyWorkItem = {
   controlsToVerify: string[];
   drivers: string[];
   whyItMatters: string;
+  scoreExplanation: SafetyAiScoreExplanation;
   evidenceRefs: PredictiveSafetyEvidenceRef[];
   assessment: SafetyAiAssessment;
 };
@@ -469,6 +471,8 @@ function buildWorkItem(params: {
   permits: PredictiveRiskPermitRow[];
   trainingGaps: BehaviorRiskTrainingGapRow[];
   correctiveActions: PredictiveRiskCorrectiveActionRow[];
+  incidents: PredictiveRiskIncidentRow[];
+  observations: BehaviorRiskObservationRow[];
   weatherAlerts: PredictiveSafetyWeatherAlertRow[];
   memoryItems: PredictiveSafetyMemoryItemRow[];
 }): PredictiveSafetyWorkItem | null {
@@ -572,6 +576,55 @@ function buildWorkItem(params: {
     );
   }
 
+  const workText = normalizeText(`${params.work.title} ${params.work.hazard ?? ""} ${params.work.area ?? ""}`);
+  const historicalMatches = [
+    ...params.incidents.map((row) => ({
+      id: row.id ?? row.title ?? "incident",
+      label: row.title ?? row.category ?? "Incident or near miss",
+      sourceModule: "company_incidents",
+      href: "/incidents",
+      severity: riskFromText(row.severity, row.sif_flag ? "critical" : "moderate"),
+      text: normalizeText(`${row.title ?? ""} ${row.category ?? ""} ${row.description ?? ""}`),
+    })),
+    ...params.observations.map((row) => ({
+      id: row.id ?? row.description ?? "observation",
+      label: row.description ?? row.category ?? row.hazard_category_code ?? "Safety observation",
+      sourceModule: "company_sor_records",
+      href: "/observations",
+      severity: riskFromText(row.severity, "moderate"),
+      text: normalizeText(`${row.description ?? ""} ${row.category ?? ""} ${row.hazard_category_code ?? ""} ${row.subcategory ?? ""}`),
+    })),
+    ...params.correctiveActions.map((row) => ({
+      id: row.id ?? row.title ?? "corrective-action",
+      label: row.title ?? row.category ?? "Corrective action",
+      sourceModule: "company_corrective_actions",
+      href: "/field-id-exchange",
+      severity: riskFromText(row.severity ?? row.priority, row.sif_potential ? "critical" : "moderate"),
+      text: normalizeText(`${row.title ?? ""} ${row.category ?? ""}`),
+    })),
+  ].filter((row) => row.text.split(/\s+/).some((token) => token.length > 4 && workText.includes(token)));
+
+  if (historicalMatches.length >= 2) {
+    const worst = historicalMatches.reduce<SafetyRiskLevel>((level, row) => riskMax(level, row.severity), "moderate");
+    blockers.push(
+      blocker({
+        type: "corrective_action",
+        severity: worst,
+        label: "Repeated hazard pattern near planned work",
+        detail: `${historicalMatches.length} recent observation, incident, or corrective-action signals match this hazard family.`,
+        evidenceRefs: historicalMatches.slice(0, 4).map((match) =>
+          evidenceRef({
+            sourceModule: match.sourceModule,
+            sourceId: match.id,
+            label: match.label,
+            href: match.href,
+            detail: titleCaseLabel(match.severity, match.severity),
+          })
+        ),
+      })
+    );
+  }
+
   for (const alert of params.weatherAlerts.filter((weather) => weatherAppliesToWork(weather, params.work)).slice(0, 2)) {
     blockers.push(
       blocker({
@@ -644,6 +697,7 @@ function buildWorkItem(params: {
     controlsToVerify,
     drivers: assessment.topDrivers.slice(0, 4).map((driver) => driver.label),
     whyItMatters: why,
+    scoreExplanation: assessment.scoreExplanation,
     evidenceRefs: [workEvidence, ...blockers.flatMap((item) => item.evidenceRefs)].slice(0, 8),
     assessment,
   };
@@ -783,6 +837,8 @@ export function buildPredictiveSafetyEngineBriefing(input: PredictiveSafetyEngin
         permits: input.permits,
         trainingGaps: input.trainingGaps ?? [],
         correctiveActions: input.correctiveActions,
+        incidents: input.incidents,
+        observations: input.observations ?? [],
         weatherAlerts: input.weatherAlerts ?? [],
         memoryItems: input.memoryItems ?? [],
       })

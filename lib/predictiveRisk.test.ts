@@ -161,6 +161,8 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.safetyAiAssessment.score).toBeGreaterThan(0);
     expect(payload.safetyAiAssessment.topDrivers.length).toBeGreaterThan(0);
     expect(payload.safetyAiAssessment.explanation).toContain("Based on available data");
+    expect(payload.dailyBriefing.highRiskWork.length).toBeGreaterThan(0);
+    expect(payload.dailyBriefing.readinessBlockers.some((blocker) => blocker.type === "control")).toBe(true);
   });
 
   it("falls back to forecast categories when no jobsite-aware rows exist", () => {
@@ -192,6 +194,8 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.behaviorRisk.riskLevel).toBe("Low");
     expect(payload.safetyAiAssessment.confidence).toBe("low");
     expect(payload.safetyAiAssessment.missingData).toContain("recent safety signals");
+    expect(payload.dailyBriefing.confidence).toBe("low");
+    expect(payload.dailyBriefing.missingData).toContain("Sparse data: do not interpret this as low risk by default.");
   });
 
   it("does not flag a JSA permit gap when an active matching permit exists", () => {
@@ -247,7 +251,7 @@ describe("buildPredictiveRiskPayload", () => {
           id: "s1",
           title: "Hot work on roof screen",
           jobsite_id: "j1",
-          work_start_date: "2026-05-22",
+          work_start_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
           trade: "Mechanical",
           risk_level: "high",
           is_high_risk: true,
@@ -263,6 +267,8 @@ describe("buildPredictiveRiskPayload", () => {
 
     expect(payload.safetyAiAssessment.topDrivers.map((driver) => driver.label)).toContain("Permit readiness gap");
     expect(payload.safetyAiAssessment.escalationRequired).toBe(true);
+    expect(payload.dailyBriefing.readinessBlockers.map((blocker) => blocker.type)).toContain("permit");
+    expect(payload.dailyBriefing.highRiskWork[0]?.controlsToVerify).toEqual(expect.arrayContaining(["fire watch", "extinguisher"]));
   });
 
   it("builds a populated sales demo payload", () => {
@@ -273,5 +279,7 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.behaviorRisk.behaviorRiskScore).toBeGreaterThan(0);
     expect(payload.safetyAiAssessment.level).toBe("critical");
     expect(payload.safetyAiAssessment.stopWorkReviewRecommended).toBe(true);
+    expect(payload.dailyBriefing.highRiskWork.length).toBeGreaterThan(0);
+    expect(payload.dailyBriefing.stopWorkReviewRecommended).toBe(true);
   });
 });
