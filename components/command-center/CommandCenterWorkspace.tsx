@@ -322,9 +322,15 @@ function RecommendationsList({
 function DailySafetyCommandCenterPanel({
   predictiveRisk,
   loading,
+  syncingActions,
+  syncMessage,
+  onSyncActions,
 }: {
   predictiveRisk: PredictiveRiskPayload | null;
   loading: boolean;
+  syncingActions: boolean;
+  syncMessage: string;
+  onSyncActions: () => void;
 }) {
   const briefing = predictiveRisk?.dailyBriefing;
   const actionQueue = predictiveRisk?.aiSafetyActionQueue;
@@ -391,15 +397,30 @@ function DailySafetyCommandCenterPanel({
       {actionQueue ? (
         <div>
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Today&apos;s AI Safety Actions</p>
-              <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">{actionQueue.headline}</p>
-            </div>
-            <StatusBadge
-              label={`${actionQueue.approvalRequiredCount} review required`}
-              tone={actionQueue.approvalRequiredCount > 0 ? "error" : "success"}
-            />
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Today&apos;s AI Safety Actions</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">{actionQueue.headline}</p>
           </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge
+                label={`${actionQueue.approvalRequiredCount} review required`}
+                tone={actionQueue.approvalRequiredCount > 0 ? "error" : "success"}
+              />
+              <button
+                type="button"
+                className={appButtonSecondaryClassName}
+                onClick={onSyncActions}
+                disabled={syncingActions || actionQueue.items.length === 0}
+              >
+                {syncingActions ? "Syncing..." : "Create/Sync AI Actions"}
+              </button>
+            </div>
+          </div>
+          {syncMessage ? (
+            <p className="mt-2 rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-2 text-xs leading-5 text-[var(--app-text)]">
+              {syncMessage}
+            </p>
+          ) : null}
           <div className="mt-3 grid gap-3 xl:grid-cols-2">
             {actionQueue.items.slice(0, 6).map((item) => (
               <div key={item.id} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
@@ -416,6 +437,11 @@ function DailySafetyCommandCenterPanel({
                   <p className="mt-2 text-xs font-bold text-[var(--semantic-danger)]">
                     {item.humanApprovalReason ?? "Human review required before work proceeds."}
                   </p>
+                ) : null}
+                {syncMessage ? (
+                  <Link href="/analytics/predictive-model" className="mt-2 inline-flex text-xs font-bold text-[var(--app-accent-primary)]">
+                    Open persisted recommendation workflow
+                  </Link>
                 ) : null}
                 {item.missingInformation.length > 0 ? (
                   <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
@@ -565,6 +591,8 @@ export function CommandCenterWorkspace() {
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
   const [riskRecWorking, setRiskRecWorking] = useState(false);
   const [riskSnapWorking, setRiskSnapWorking] = useState(false);
+  const [aiActionSyncWorking, setAiActionSyncWorking] = useState(false);
+  const [aiActionSyncMessage, setAiActionSyncMessage] = useState("");
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
   const [siWorkloadSummary, setSiWorkloadSummary] = useState<SafetyDashboardPayload["summary"] | null>(null);
   const [builderAccess, setBuilderAccess] = useState<BuilderAccess>({ csep: false, peshep: false });
@@ -833,6 +861,40 @@ export function CommandCenterWorkspace() {
     }
   }
 
+  async function syncAiSafetyActions() {
+    setAiActionSyncWorking(true);
+    setAiActionSyncMessage("");
+    setPredictiveErr("");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const res = await fetchWithTimeoutSafe(
+        "/api/company/ai/safety-action-queue/sync",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            days,
+            ...(predictiveJobsiteId ? { jobsiteId: predictiveJobsiteId } : {}),
+          }),
+        },
+        30000,
+        "AI safety action sync"
+      );
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; insertedCount?: number; skippedDuplicateCount?: number; existingActionCount?: number }
+        | null;
+      if (!res.ok) throw new Error(data?.error || "Could not sync AI safety actions.");
+      setAiActionSyncMessage(
+        `${data?.insertedCount ?? 0} action${data?.insertedCount === 1 ? "" : "s"} created; ${data?.skippedDuplicateCount ?? 0} duplicate${data?.skippedDuplicateCount === 1 ? "" : "s"} skipped.`
+      );
+      await load();
+    } catch (error) {
+      setPredictiveErr(error instanceof Error ? error.message : "AI safety action sync failed.");
+    } finally {
+      setAiActionSyncWorking(false);
+    }
+  }
+
   async function dismissRiskRecommendation(id: string) {
     setDismissingRecId(id);
     setAnalyticsErr("");
@@ -897,7 +959,13 @@ export function CommandCenterWorkspace() {
         </div>
       </SectionCard>
 
-      <DailySafetyCommandCenterPanel predictiveRisk={predictiveRisk} loading={predictiveLoading} />
+      <DailySafetyCommandCenterPanel
+        predictiveRisk={predictiveRisk}
+        loading={predictiveLoading}
+        syncingActions={aiActionSyncWorking}
+        syncMessage={aiActionSyncMessage}
+        onSyncActions={syncAiSafetyActions}
+      />
 
       <SectionCard
         eyebrow="Launch"

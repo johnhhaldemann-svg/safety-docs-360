@@ -31,6 +31,7 @@ export type AiSafetyActionPriority = "low" | "medium" | "high" | "critical";
 
 export type AiSafetyActionQueueItem = {
   id: string;
+  sourceKey: string;
   title: string;
   detail: string;
   category: AiSafetyActionCategory;
@@ -221,6 +222,23 @@ function fallbackControlForCategory(category: AiSafetyActionCategory, detail: st
   return detail || "Verify critical controls before work starts.";
 }
 
+function sourceKeyForAction(parts: {
+  category: AiSafetyActionCategory;
+  workId: string | null;
+  blockerId?: string | null;
+  jobsiteId: string | null;
+  dueAt: string | null;
+}) {
+  return [
+    "ai-safety-action",
+    parts.category,
+    parts.jobsiteId ?? "all-jobsites",
+    parts.workId ?? "unlinked-work",
+    parts.blockerId ?? "work-review",
+    parts.dueAt?.slice(0, 10) ?? "no-due-date",
+  ].join(":");
+}
+
 function approvalReasonFor(work: PredictiveSafetyWorkItem, category: AiSafetyActionCategory, blocker?: PredictiveSafetyReadinessBlocker) {
   if (work.humanApprovalReason) return work.humanApprovalReason;
   if (work.riskLevel === "critical") return "Critical risk requires safety-manager or competent-person review before work proceeds.";
@@ -272,6 +290,13 @@ function buildActionFromBlocker(
     suppressed: suppressDuplicate,
     item: {
       id: `ai-action-${work.id}-${blocker.id}`,
+      sourceKey: sourceKeyForAction({
+        category,
+        workId: work.id,
+        blockerId: blocker.id,
+        jobsiteId: work.jobsiteId,
+        dueAt: dueAtForWork(work),
+      }),
       title,
       detail: blocker.detail,
       category,
@@ -308,6 +333,13 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
     suppressed: suppressDuplicate,
     item: {
       id: `ai-action-${work.id}-high-risk-review`,
+      sourceKey: sourceKeyForAction({
+        category: "high_risk_work",
+        workId: work.id,
+        blockerId: "high-risk-review",
+        jobsiteId: work.jobsiteId,
+        dueAt: dueAtForWork(work),
+      }),
       title,
       detail: work.whyItMatters,
       category: "high_risk_work" as const,
