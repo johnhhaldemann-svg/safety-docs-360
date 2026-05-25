@@ -338,6 +338,10 @@ function DailySafetyCommandCenterPanel({
   const feedbackInfluence = predictiveRisk?.feedbackInfluence;
   const memoryInfluence = predictiveRisk?.memoryInfluence;
   const calibrationSummary = predictiveRisk?.calibrationSummary;
+  const reasoningFrame = predictiveRisk?.aiSafetyReasoningFrame;
+  const decisionQuality = predictiveRisk?.decisionQuality;
+  const uncertaintySummary = predictiveRisk?.uncertaintySummary;
+  const nextBestActions = predictiveRisk?.nextBestActions.slice(0, 4) ?? [];
   const conflicts = predictiveRisk?.aiSafetyConflictMap.findings.slice(0, 4) ?? [];
   const highRiskToday = briefing?.highRiskWork.filter((work) => work.timing === "today").slice(0, 3) ?? [];
   const highRiskTomorrow = briefing?.highRiskWork.filter((work) => work.timing === "tomorrow").slice(0, 3) ?? [];
@@ -393,6 +397,74 @@ function DailySafetyCommandCenterPanel({
           detail="Human review, assignment, or field verification needed."
           tone={(approvalState?.reviewRequiredCount ?? 0) > 0 ? "attention" : "panel"}
         />
+      </div>
+
+      <div className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">AI reasoning frame</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">
+              {reasoningFrame?.goal ?? "Structured AI reasoning appears after the predictive risk model loads."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge
+              label={`quality ${decisionQuality?.score ?? 0}`}
+              tone={decisionQuality?.level === "high" ? "success" : decisionQuality?.level === "medium" ? "warning" : "error"}
+            />
+            <StatusBadge
+              label={`${uncertaintySummary?.level ?? "pending"} uncertainty`}
+              tone={uncertaintySummary?.level === "low" ? "success" : uncertaintySummary?.level === "medium" ? "warning" : "error"}
+            />
+          </div>
+        </div>
+        {uncertaintySummary ? (
+          <p className="mt-2 text-xs leading-5 text-[var(--app-text)]">{uncertaintySummary.summary}</p>
+        ) : null}
+        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+          <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Evidence basis</p>
+            <div className="mt-2 space-y-1">
+              {(reasoningFrame?.supportingEvidence.slice(0, 3) ?? []).map((item) => (
+                <p key={`${item.source}-${item.label}`} className="text-xs leading-5 text-[var(--app-text)]">
+                  <span className="font-semibold text-[var(--app-text-strong)]">{item.label}:</span> {item.detail}
+                </p>
+              ))}
+              {!loading && (reasoningFrame?.supportingEvidence.length ?? 0) === 0 ? (
+                <p className="text-xs leading-5 text-[var(--app-muted)]">No supporting evidence has been loaded yet.</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Uncertainty drivers</p>
+            <div className="mt-2 space-y-1">
+              {(uncertaintySummary?.drivers.slice(0, 4) ?? []).map((driver) => (
+                <p key={driver} className="text-xs leading-5 text-[var(--app-text)]">{driver}</p>
+              ))}
+              {!loading && (uncertaintySummary?.drivers.length ?? 0) === 0 ? (
+                <p className="text-xs leading-5 text-[var(--app-muted)]">No major uncertainty driver was flagged.</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Next best actions</p>
+            <div className="mt-2 space-y-1">
+              {nextBestActions.slice(0, 3).map((item) => (
+                <p key={item.id} className="text-xs leading-5 text-[var(--app-text)]">
+                  <span className="font-semibold text-[var(--app-text-strong)]">{item.title}:</span> {item.detail}
+                </p>
+              ))}
+              {!loading && nextBestActions.length === 0 ? (
+                <p className="text-xs leading-5 text-[var(--app-muted)]">No next-best action was generated.</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {(reasoningFrame?.fieldEvidenceSignals.length ?? 0) > 0 ? (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            Field/photo evidence is treated as an input signal only and needs field verification before work proceeds.
+          </p>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
@@ -500,6 +572,11 @@ function DailySafetyCommandCenterPanel({
                 {item.feedbackInfluence.length > 0 ? (
                   <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-800">
                     Feedback influenced this recommendation: {item.feedbackInfluence.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
+                {item.reasoningMetadata ? (
+                  <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-xs leading-5 text-sky-800">
+                    Reasoning quality {item.reasoningMetadata.decisionQualityScore}/100; uncertainty {item.reasoningMetadata.uncertaintyLevel}. {item.reasoningMetadata.uncertaintySummary}
                   </p>
                 ) : null}
               </div>

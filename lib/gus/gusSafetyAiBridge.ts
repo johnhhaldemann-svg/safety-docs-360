@@ -4,6 +4,7 @@ import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusRiskLevel } from "@/lib/gus/gusTypes";
 import type { SafePredictDataset, SafePredictJobsiteRecord } from "@/lib/safePredictData";
 import type { DailyRiskBriefing } from "@/lib/predictiveSafetyEngine";
+import type { AiSafetyReasoningFrame } from "@/lib/aiSafetyReasoningFrame";
 
 function toGusRiskLevel(level: SafetyAiAssessment["level"]): GusRiskLevel {
   if (level === "critical") return "severe";
@@ -300,5 +301,35 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
     ].slice(0, 8),
     missingPermitTypes: missingPermits,
     expiredTrainingCount: trainingGapCount || undefined,
+  };
+}
+
+export function buildGusContextFromAiSafetyReasoningFrame(frame: AiSafetyReasoningFrame): Partial<GusContext> {
+  const nextBestActions = frame.nextBestActions.slice(0, 5);
+  const evidenceLabels = frame.supportingEvidence.slice(0, 4).map((item) => item.label);
+  const missingOrConflicting = [
+    ...frame.missingInformation.slice(0, 3),
+    ...frame.conflictingEvidence.slice(0, 2).map((item) => item.label),
+  ];
+
+  return {
+    aiEngineLinked: true,
+    aiEngineReasoningFrame: frame,
+    aiEngineDecisionQuality: frame.decisionQuality,
+    aiEngineUncertaintySummary: frame.uncertainty,
+    aiEngineNextBestActions: nextBestActions,
+    aiEngineRecommendedNextAction: nextBestActions[0]?.detail,
+    aiEngineApprovalState: frame.humanReviewRequired ? "review_required" : "assigned",
+    aiEngineActionQueue: nextBestActions.map((item) => `${item.title}: ${item.detail}`),
+    aiEngineReviewTriggers: missingOrConflicting.slice(0, 8),
+    aiEngineRecommendations: nextBestActions.map((item) => item.detail),
+    aiEngineFeedbackInfluence: [frame.decisionQuality.feedbackDirection, ...frame.conflictingEvidence.map((item) => item.detail)]
+      .filter(Boolean)
+      .slice(0, 5),
+    aiEngineCalibrationSummary:
+      frame.decisionQuality.calibrationSupport === "supported"
+        ? "Calibration has field outcome support for this reasoning frame."
+        : "Calibration still needs outcome data for this reasoning frame.",
+    riskDrivers: evidenceLabels,
   };
 }

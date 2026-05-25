@@ -272,6 +272,16 @@ describe("/api/company/predictive-risk", () => {
     expect(body.safetyAiAssessment.explanation).toContain("Based on available data");
     expect(body.safetyAiAssessment.scoreExplanation).toEqual(expect.objectContaining({ recommendedAction: expect.any(String) }));
     expect(body.dailyBriefing).toEqual(expect.objectContaining({ engineVersion: "predictive-safety-engine-mvp-rules-v1" }));
+    expect(body.aiSafetyReasoningFrame).toEqual(
+      expect.objectContaining({
+        goal: expect.stringContaining("rules-first reasoning"),
+        decisionQuality: expect.objectContaining({ score: expect.any(Number) }),
+        uncertainty: expect.objectContaining({ summary: expect.any(String) }),
+      }),
+    );
+    expect(body.decisionQuality).toEqual(expect.objectContaining({ evidenceCoverage: expect.any(Number) }));
+    expect(body.uncertaintySummary).toEqual(expect.objectContaining({ drivers: expect.any(Array) }));
+    expect(body.nextBestActions).toEqual(expect.any(Array));
     expect(getInjuryWeatherDashboardData).toHaveBeenCalledWith(expect.objectContaining({ companyId: "co1", jobsiteId: "j1" }));
     expect(builders.company_corrective_actions.eq).toHaveBeenCalledWith("jobsite_id", "j1");
   });
@@ -342,6 +352,10 @@ describe("/api/company/predictive-risk", () => {
         approvalState: "review_required",
         humanApprovalRequired: true,
         recommendedControl: expect.any(String),
+        reasoningMetadata: expect.objectContaining({
+          decisionQualityScore: expect.any(Number),
+          uncertaintyLevel: expect.any(String),
+        }),
       })
     );
     expect(body.approvalState).toEqual(expect.objectContaining({ humanReviewRequired: true }));

@@ -50,6 +50,7 @@ export type AiSafetyActionRecommendationInsert = {
       feedbackInfluence: string[];
       feedbackConfidenceAdjustment: AiSafetyActionQueueItem["feedbackConfidenceAdjustment"];
       memoryInfluence: string[];
+      reasoningMetadata?: AiSafetyActionQueueItem["reasoningMetadata"];
     };
   };
 };
@@ -186,6 +187,7 @@ export function buildAiSafetyActionRecommendationCandidate(params: {
           feedbackInfluence: item.feedbackInfluence,
           feedbackConfidenceAdjustment: item.feedbackConfidenceAdjustment,
           memoryInfluence: item.memoryInfluence,
+          ...(item.reasoningMetadata ? { reasoningMetadata: item.reasoningMetadata } : {}),
         },
       },
     },

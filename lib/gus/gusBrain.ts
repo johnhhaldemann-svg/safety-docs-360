@@ -72,6 +72,8 @@ function routeHref(route: string, fallback: string) {
 }
 
 function aiEngineNextStep(context: GusContext) {
+  const reasoningAction = context.aiEngineNextBestActions?.[0];
+  if (reasoningAction?.humanReviewRequired) return `Verify first: ${reasoningAction.detail}`;
   if (context.aiEngineActionTimeframe === "immediate") return "Pause and get human safety review now.";
   if (context.aiEngineActionTimeframe === "before_work_continues") return "Verify controls before work moves forward.";
   if (context.aiEngineActionTimeframe === "same_shift") return "Review this during the current shift.";
@@ -112,6 +114,11 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
     const recommendation = context.aiEngineRecommendedNextAction ? ` Next action: ${context.aiEngineRecommendedNextAction}` : "";
     const conflicts = context.aiEngineWorkfaceConflicts ?? [];
     const conflictNote = conflicts.length > 0 ? ` Workface conflict: ${compactList(conflicts, "predicted workface conflict")}.` : "";
+    const uncertainty = context.aiEngineUncertaintySummary;
+    const uncertaintyNote = uncertainty ? ` Uncertainty: ${uncertainty.summary}` : "";
+    const evidenceNote = context.aiEngineReasoningFrame?.supportingEvidence?.length
+      ? ` Evidence: ${compactList(context.aiEngineReasoningFrame.supportingEvidence.map((item) => item.label), "loaded AI Engine evidence")}.`
+      : "";
 
     return decision({
       decisionId: "gus-ai-engine-review-decision",
@@ -125,7 +132,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
         message: `I'm flagging this for review.${work}${conflictNote} ${nextStep}`,
         spokenText: `I'm flagging this for review. ${nextStep}`,
-        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
+        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}.${evidenceNote}${uncertaintyNote} Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
         actionLabel: "Review safety risk",
         actionHref: routeHref(route, "/risk"),

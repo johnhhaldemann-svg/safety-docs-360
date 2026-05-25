@@ -64,6 +64,14 @@ export type AiSafetyActionQueueItem = {
   feedbackInfluence: string[];
   feedbackConfidenceAdjustment: AiSafetyFeedbackConfidenceAdjustment;
   memoryInfluence: string[];
+  reasoningMetadata?: {
+    decisionQualityScore: number;
+    decisionQualityLevel: "low" | "medium" | "high";
+    uncertaintyLevel: "low" | "medium" | "high";
+    uncertaintySummary: string;
+    nextBestActions: string[];
+    humanReviewRequired: boolean;
+  };
 };
 
 export type AiSafetyApprovalSummary = {

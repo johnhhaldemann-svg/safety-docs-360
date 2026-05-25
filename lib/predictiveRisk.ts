@@ -42,6 +42,14 @@ import {
   type AiSafetyConflictMap,
   type AiSafetyConflictFinding,
 } from "@/lib/aiSafetyConflictMap";
+import {
+  buildAiSafetyReasoningFrame,
+  type AiSafetyDecisionQuality,
+  type AiSafetyFieldEvidenceSignal,
+  type AiSafetyReasoningFrame,
+  type AiSafetyReasoningNextBestAction,
+  type AiSafetyUncertaintySummary,
+} from "@/lib/aiSafetyReasoningFrame";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -125,6 +133,10 @@ export type PredictiveRiskPayload = {
   feedbackInfluence: AiSafetyFeedbackInfluence;
   memoryInfluence: AiSafetyMemoryInfluence;
   calibrationSummary: AiSafetyCalibrationSummary;
+  aiSafetyReasoningFrame: AiSafetyReasoningFrame;
+  decisionQuality: AiSafetyDecisionQuality;
+  uncertaintySummary: AiSafetyUncertaintySummary;
+  nextBestActions: AiSafetyReasoningNextBestAction[];
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -838,6 +850,28 @@ function dailyBriefingWithConflicts(dailyBriefing: DailyRiskBriefing, conflictMa
   };
 }
 
+function actionQueueWithReasoningMetadata(
+  queue: AiSafetyActionQueue,
+  reasoningFrame: AiSafetyReasoningFrame,
+): AiSafetyActionQueue {
+  const metadata = {
+    decisionQualityScore: reasoningFrame.decisionQuality.score,
+    decisionQualityLevel: reasoningFrame.decisionQuality.level,
+    uncertaintyLevel: reasoningFrame.uncertainty.level,
+    uncertaintySummary: reasoningFrame.uncertainty.summary,
+    nextBestActions: reasoningFrame.nextBestActions.slice(0, 4).map((item) => `${item.title}: ${item.detail}`),
+    humanReviewRequired: reasoningFrame.humanReviewRequired,
+  } satisfies NonNullable<AiSafetyActionQueue["items"][number]["reasoningMetadata"]>;
+
+  return {
+    ...queue,
+    items: queue.items.map((item) => ({
+      ...item,
+      reasoningMetadata: metadata,
+    })),
+  };
+}
+
 export function buildPredictiveRiskPayload(input: {
   projectId?: string | null;
   days: number;
@@ -855,6 +889,7 @@ export function buildPredictiveRiskPayload(input: {
   weatherAlerts?: PredictiveSafetyWeatherAlertRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
   feedbackSignals?: AiSafetyFeedbackSignal[];
+  fieldEvidenceSignals?: AiSafetyFieldEvidenceSignal[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
@@ -913,6 +948,17 @@ export function buildPredictiveRiskPayload(input: {
     memoryItems: input.memoryItems,
     feedbackSignals: input.feedbackSignals,
   });
+  const aiSafetyReasoningFrame = buildAiSafetyReasoningFrame({
+    safetyAiAssessment,
+    dailyBriefing,
+    conflictMap: aiSafetyConflictMap,
+    actionQueue: aiSafetyLoop.aiSafetyActionQueue,
+    memoryInfluence: aiSafetyLoop.memoryInfluence,
+    feedbackInfluence: aiSafetyLoop.feedbackInfluence,
+    calibrationSummary: aiSafetyLoop.calibrationSummary,
+    fieldEvidenceSignals: input.fieldEvidenceSignals,
+  });
+  const aiSafetyActionQueue = actionQueueWithReasoningMetadata(aiSafetyLoop.aiSafetyActionQueue, aiSafetyReasoningFrame);
   const accumulators = buildLocationAccumulators({
     rows,
     jobsites: input.jobsites,
@@ -1106,11 +1152,15 @@ export function buildPredictiveRiskPayload(input: {
     safetyAiAssessment,
     dailyBriefing,
     aiSafetyConflictMap,
-    aiSafetyActionQueue: aiSafetyLoop.aiSafetyActionQueue,
+    aiSafetyActionQueue,
     approvalState: aiSafetyLoop.approvalState,
     feedbackInfluence: aiSafetyLoop.feedbackInfluence,
     memoryInfluence: aiSafetyLoop.memoryInfluence,
     calibrationSummary: aiSafetyLoop.calibrationSummary,
+    aiSafetyReasoningFrame,
+    decisionQuality: aiSafetyReasoningFrame.decisionQuality,
+    uncertaintySummary: aiSafetyReasoningFrame.uncertainty,
+    nextBestActions: aiSafetyReasoningFrame.nextBestActions,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };

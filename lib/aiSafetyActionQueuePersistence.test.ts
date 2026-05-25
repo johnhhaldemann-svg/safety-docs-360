@@ -36,6 +36,14 @@ function item(category: AiSafetyActionCategory, overrides: Partial<AiSafetyActio
     feedbackInfluence: [],
     feedbackConfidenceAdjustment: "neutral",
     memoryInfluence: [],
+    reasoningMetadata: {
+      decisionQualityScore: 72,
+      decisionQualityLevel: "medium",
+      uncertaintyLevel: "medium",
+      uncertaintySummary: "Verify missing permit status before work proceeds.",
+      nextBestActions: ["Verify critical controls before work proceeds."],
+      humanReviewRequired: true,
+    },
     ...overrides,
   };
 }
@@ -97,6 +105,10 @@ describe("AI safety action queue persistence mapping", () => {
         sourceKey: candidate.sourceKey,
         approvalState: "review_required",
         recommendedControl: "Verify critical controls before work proceeds.",
+        reasoningMetadata: expect.objectContaining({
+          decisionQualityScore: 72,
+          uncertaintyLevel: "medium",
+        }),
       }),
     );
   });

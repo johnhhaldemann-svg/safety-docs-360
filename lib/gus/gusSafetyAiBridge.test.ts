@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGusContextFromAiSafetyReasoningFrame,
   buildGusContextFromDailyRiskBriefing,
   buildGusContextFromSafetyAiAssessment,
   buildSafetyAiAssessmentForSafePredict,
@@ -141,5 +142,60 @@ describe("Gus Safety AI Engine bridge", () => {
     expect(context.missingPermitTypes).toEqual(["Verify excavation permit."]);
     expect(context.expiredTrainingCount).toBe(1);
     expect(context.riskLevel).toBe("severe");
+  });
+
+  it("maps reasoning frames into Gus evidence and uncertainty context", () => {
+    const context = buildGusContextFromAiSafetyReasoningFrame({
+      goal: "Prioritize pre-start safety review.",
+      hypotheses: [],
+      supportingEvidence: [
+        { label: "Missing permit", detail: "Permit status is not active.", source: "daily_briefing", evidenceRefs: [] },
+      ],
+      conflictingEvidence: [
+        { label: "Calibration needs outcome data", detail: "Later outcomes are not linked yet.", source: "calibration", evidenceRefs: [] },
+      ],
+      missingInformation: ["training status"],
+      uncertainty: { level: "medium", summary: "Training status should be verified first.", drivers: ["training status"] },
+      decisionBasis: ["High-risk work has missing readiness items."],
+      nextBestActions: [
+        {
+          id: "next-1",
+          priority: "before_work",
+          title: "Verify permit",
+          detail: "Verify permit and training before work proceeds.",
+          ownerRole: "safety_manager",
+          targetHref: "/permits",
+          humanReviewRequired: true,
+          reason: "Missing readiness items require review.",
+        },
+      ],
+      humanReviewRequired: true,
+      doNotClaim: ["Do not approve permits."],
+      decisionQuality: {
+        score: 64,
+        level: "medium",
+        evidenceCoverage: 70,
+        missingDataBurden: 24,
+        conflictingSignalCount: 1,
+        feedbackDirection: "neutral",
+        calibrationSupport: "insufficient_data",
+        humanReviewSeverity: "high",
+      },
+      operatingPlan: {
+        generatedAt: "2026-05-24T12:00:00.000Z",
+        headline: "Review one action.",
+        priorities: ["Verify permit"],
+        followUps: ["Follow up on permit review."],
+        morningBriefing: ["Verify permit"],
+        noExternalNotifications: true,
+      },
+      fieldEvidenceSignals: [],
+    });
+
+    expect(context.aiEngineReasoningFrame?.goal).toContain("Prioritize");
+    expect(context.aiEngineDecisionQuality?.score).toBe(64);
+    expect(context.aiEngineUncertaintySummary?.summary).toContain("Training status");
+    expect(context.aiEngineRecommendedNextAction).toContain("Verify permit");
+    expect(context.aiEngineApprovalState).toBe("review_required");
   });
 });

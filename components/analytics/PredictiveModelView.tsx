@@ -424,6 +424,10 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
   const actionQueue = data?.aiSafetyActionQueue.items.slice(0, 4) ?? [];
   const conflicts = data?.aiSafetyConflictMap.findings.slice(0, 3) ?? [];
   const approvalState = data?.approvalState;
+  const reasoningFrame = data?.aiSafetyReasoningFrame;
+  const decisionQuality = data?.decisionQuality;
+  const uncertaintySummary = data?.uncertaintySummary;
+  const nextBestActions = data?.nextBestActions.slice(0, 4) ?? [];
 
   return (
     <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
@@ -454,6 +458,56 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
       {briefing?.stopWorkReviewRecommended || briefing?.escalationRequired ? (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold leading-5 text-red-800">
           Critical or high-consequence conditions require human review and possible stop-work evaluation. The engine recommends review; it does not release work or declare compliance.
+        </div>
+      ) : null}
+
+      {reasoningFrame ? (
+        <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-800">AI reasoning frame</p>
+              <p className="mt-1 text-xs leading-5 text-sky-950">{reasoningFrame.goal}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-md border border-sky-300 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-800">
+                Quality {decisionQuality?.score ?? 0}/100
+              </span>
+              <span className="rounded-md border border-amber-300 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-800">
+                {uncertaintySummary?.level ?? "low"} uncertainty
+              </span>
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-sky-950">
+            {uncertaintySummary?.summary ?? "Uncertainty summary appears after the AI Engine has enough evidence to reason over."}
+          </p>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            <div className="rounded-md border border-sky-200 bg-white px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Evidence used</p>
+              {(reasoningFrame.supportingEvidence.slice(0, 3)).map((item) => (
+                <p key={`${item.source}-${item.label}`} className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                  {item.label}
+                </p>
+              ))}
+            </div>
+            <div className="rounded-md border border-sky-200 bg-white px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Missing or conflicting</p>
+              {(uncertaintySummary?.drivers.slice(0, 3) ?? []).map((driver) => (
+                <p key={driver} className="mt-1 text-xs leading-5 text-[var(--app-text)]">{driver}</p>
+              ))}
+              {(uncertaintySummary?.drivers.length ?? 0) === 0 ? (
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">No major uncertainty driver was flagged.</p>
+              ) : null}
+            </div>
+            <div className="rounded-md border border-sky-200 bg-white px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-muted)]">Verify first</p>
+              {nextBestActions.slice(0, 3).map((item) => (
+                <p key={item.id} className="mt-1 text-xs leading-5 text-[var(--app-text)]">{item.detail}</p>
+              ))}
+              {nextBestActions.length === 0 ? (
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">No next-best action was generated.</p>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -526,6 +580,11 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                 {item.feedbackInfluence.length > 0 ? (
                   <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-5 text-amber-800">
                     Feedback influenced this recommendation: {item.feedbackInfluence.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
+                {item.reasoningMetadata ? (
+                  <p className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs leading-5 text-sky-800">
+                    Reasoning quality {item.reasoningMetadata.decisionQualityScore}/100; uncertainty {item.reasoningMetadata.uncertaintyLevel}.
                   </p>
                 ) : null}
               </div>

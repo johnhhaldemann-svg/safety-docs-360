@@ -1,4 +1,10 @@
 import type { GusRiskLevel } from "@/lib/gus/gusTypes";
+import type {
+  AiSafetyDecisionQuality,
+  AiSafetyReasoningFrame,
+  AiSafetyReasoningNextBestAction,
+  AiSafetyUncertaintySummary,
+} from "@/lib/aiSafetyReasoningFrame";
 import type { SafetyAiAssessment } from "@/lib/safety-ai/types";
 
 export type GusContext = {
@@ -34,6 +40,10 @@ export type GusContext = {
   aiEngineMemoryInfluence?: string[];
   aiEngineCalibrationSummary?: string;
   aiEngineWorkfaceConflicts?: string[];
+  aiEngineReasoningFrame?: AiSafetyReasoningFrame;
+  aiEngineDecisionQuality?: AiSafetyDecisionQuality;
+  aiEngineUncertaintySummary?: AiSafetyUncertaintySummary;
+  aiEngineNextBestActions?: AiSafetyReasoningNextBestAction[];
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;
