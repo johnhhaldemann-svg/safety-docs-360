@@ -13,6 +13,8 @@ import {
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { emergencyActionPlanStatusLabel, type EmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
+import type { JobsiteLaunchReadiness, JobsiteLaunchStationStatus, JobsiteLaunchStatus } from "@/lib/jobsiteLaunchReadiness";
+import type { JobsiteTopRisk, JobsiteTopRiskLevel } from "@/lib/jobsiteTopRisks";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -119,6 +121,66 @@ function emergencyReadinessTone(readiness?: string | null): "success" | "warning
   if (readiness === "complete") return "success";
   if (readiness === "missing_critical_info") return "error";
   return "warning";
+}
+
+function topRiskTone(level: JobsiteTopRiskLevel): "neutral" | "success" | "warning" | "error" | "info" {
+  if (level === "critical") return "error";
+  if (level === "high") return "warning";
+  if (level === "moderate") return "info";
+  return "success";
+}
+
+function topRiskLabel(level: JobsiteTopRiskLevel) {
+  if (level === "moderate") return "Moderate";
+  return labelize(level);
+}
+
+function sourceLabel(type: string) {
+  return labelize(type === "corrective_action" ? "corrective actions" : type);
+}
+
+function launchStatusLabel(status: JobsiteLaunchStatus | JobsiteLaunchStationStatus | undefined) {
+  if (status === "go") return "GO";
+  if (status === "hold") return "HOLD";
+  if (status === "review") return "REVIEW";
+  return "NO SIGNAL";
+}
+
+function launchBadgeTone(status: JobsiteLaunchStatus | JobsiteLaunchStationStatus | undefined): "neutral" | "success" | "warning" | "error" | "info" {
+  if (status === "go") return "success";
+  if (status === "hold") return "error";
+  if (status === "review") return "warning";
+  return "neutral";
+}
+
+function launchPanelClass(status: JobsiteLaunchStatus | JobsiteLaunchStationStatus | undefined) {
+  if (status === "hold") return "border-red-500/45 bg-red-950/24";
+  if (status === "review") return "border-amber-500/45 bg-amber-950/20";
+  if (status === "go") return "border-emerald-500/40 bg-emerald-950/18";
+  return "border-slate-700/80 bg-slate-950/45";
+}
+
+function fallbackLaunchReadiness(links: Record<string, string>, eapReadiness: EmergencyActionPlanReadiness): JobsiteLaunchReadiness {
+  const emergencyStatus = eapReadiness === "complete" ? "go" : eapReadiness === "missing_critical_info" ? "hold" : "review";
+  const stations: JobsiteLaunchReadiness["stations"] = [
+    { id: "emergency", label: "Emergency", status: emergencyStatus, summary: emergencyStatus === "go" ? "Emergency profile ready" : "EAP needs review", detail: "Emergency readiness is derived from the jobsite Emergency Action Plan.", href: links.emergencyActionPlan },
+    { id: "risk", label: "Risk", status: "no_signal", summary: "Risk board loading", detail: "Top 10 risk signals are not available in this payload.", href: links.liveView },
+    { id: "work_plan", label: "Work Plan", status: "no_signal", summary: "No plan signal", detail: "Daily work plan signal is not available.", href: links.schedule },
+    { id: "permits", label: "Permits", status: "no_signal", summary: "No permit signal", detail: "Permit readiness is not available.", href: links.permits },
+    { id: "workforce", label: "Workforce", status: "no_signal", summary: "No workforce signal", detail: "Workforce readiness is not available.", href: links.team },
+    { id: "documents", label: "Documents", status: "no_signal", summary: "No document signal", detail: "Document readiness is not available.", href: links.documents },
+    { id: "incidents", label: "Incidents", status: "no_signal", summary: "No incident signal", detail: "Incident readiness is not available.", href: links.incidents },
+    { id: "activity", label: "Activity", status: "no_signal", summary: "No activity signal", detail: "Activity readiness is not available.", href: links.liveView },
+  ];
+  return {
+    status: emergencyStatus === "hold" ? "hold" : "review",
+    headline: emergencyStatus === "hold" ? "Launch hold: immediate review needed before work is released." : "Launch review: verify station signals before work proceeds.",
+    primaryBlocker: stations.find((station) => station.status !== "go")?.summary ?? "No active blocker detected.",
+    nextAction: "Confirm station records and refresh the jobsite overview before releasing work.",
+    stations,
+    criticalCount: stations.filter((station) => station.status === "hold").length,
+    warningCount: stations.filter((station) => station.status === "review" || station.status === "no_signal").length,
+  };
 }
 
 function roleNeedsJobsiteAssignment(role?: string | null) {
@@ -276,7 +338,7 @@ export function JobsiteSurfaceClient({
   );
 }
 
-function OverviewWidgets({
+export function OverviewWidgets({
   payload,
   onReload,
 }: {
@@ -287,6 +349,7 @@ function OverviewWidgets({
   const overview = (payload?.overview as Record<string, unknown> | undefined) ?? {};
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
   const emergencyActionPlan = (payload?.emergencyActionPlan as Record<string, unknown> | undefined) ?? {};
+  const topJobsiteRisks = ((payload?.topJobsiteRisks as JobsiteTopRisk[] | undefined) ?? []).slice(0, 10);
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
   const payloadUsers = payload?.users;
@@ -298,6 +361,9 @@ function OverviewWidgets({
   const [editing, setEditing] = useState(false);
   const eapReadiness = String(emergencyActionPlan.readiness ?? "needs_review") as EmergencyActionPlanReadiness;
   const eapMissingFields = ((emergencyActionPlan.missingFields as Array<{ label?: string; severity?: string }> | undefined) ?? []);
+  const launchReadiness =
+    (payload?.launchReadiness as JobsiteLaunchReadiness | undefined) ??
+    fallbackLaunchReadiness(links, eapReadiness);
   const cards = [
     { label: "Work Planned Today", value: Number(widgets.workPlannedToday ?? 0) },
     { label: "Active Permits", value: Number(widgets.activePermits ?? 0) },
@@ -397,41 +463,95 @@ function OverviewWidgets({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-3xl border border-slate-700/80 bg-slate-950/50 p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              Project Home
+      <div className="overflow-hidden rounded-3xl border border-slate-700/80 bg-[#07111f] shadow-[0_24px_60px_rgba(2,6,23,0.34)]">
+        <div className="border-b border-slate-700/70 bg-[linear-gradient(90deg,#06101f_0%,#0b2341_54%,#123a5f_100%)] p-5 sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-sky-100">
+                  Mission Control
+                </span>
+                <StatusBadge label={launchStatusLabel(launchReadiness.status)} tone={launchBadgeTone(launchReadiness.status)} />
+                <StatusBadge label={labelize(jobsite?.status ?? "active")} tone="info" />
+              </div>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                {jobsite?.name ?? "Jobsite"}
+              </h2>
+              <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-sky-100/80">
+                {launchReadiness.headline}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {jobsite?.jobsite_number ? <StatusBadge label={`Jobsite ${jobsite.jobsite_number}`} tone="success" /> : null}
+                {jobsite?.project_number ? <StatusBadge label={jobsite.project_number} tone="info" /> : null}
+                {jobsite?.location ? <StatusBadge label={jobsite.location} tone="neutral" /> : null}
+              </div>
             </div>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-100">
-              {jobsite?.name ?? "Jobsite"}
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge label={labelize(jobsite?.status ?? "active")} tone="success" />
-              {jobsite?.jobsite_number ? <StatusBadge label={`Jobsite ${jobsite.jobsite_number}`} tone="success" /> : null}
-              {jobsite?.project_number ? <StatusBadge label={jobsite.project_number} tone="info" /> : null}
-              {jobsite?.location ? <StatusBadge label={jobsite.location} tone="neutral" /> : null}
+            <div className="flex flex-wrap gap-3 xl:justify-end">
+              <button type="button" onClick={() => setEditing((current) => !current)} className="inline-flex items-center justify-center rounded-xl border border-white/18 bg-white/10 px-4 py-2.5 text-sm font-bold text-sky-50 transition hover:bg-white/16">
+                {editing ? "Close Editor" : "Edit Jobsite Info"}
+              </button>
+              <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/contractor-training`} className="inline-flex items-center justify-center rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-bold text-white shadow-[0_14px_28px_rgba(14,165,233,0.25)] transition hover:bg-sky-400">
+                Contractor Training
+              </Link>
+              <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/live-view`} className="inline-flex items-center justify-center rounded-xl border border-white/18 bg-white px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-sky-50">
+                Live View
+              </Link>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => setEditing((current) => !current)} className={appButtonQuietClassName}>
-              {editing ? "Close Editor" : "Edit Jobsite Info"}
-            </button>
-            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/contractor-training`} className={appButtonPrimaryClassName}>
-              Contractor Training
-            </Link>
-            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/live-view`} className={appButtonSecondaryClassName}>
-              Live View
-            </Link>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <FieldCard label="Location" value={jobsite?.location ?? "No location listed"} />
-          <FieldCard label="Jobsite number" value={jobsite?.jobsite_number ?? "Not assigned"} />
-          <FieldCard label="Project number" value={jobsite?.project_number ?? "Not assigned"} />
-          <FieldCard label="Project manager" value={jobsite?.project_manager ?? "Not assigned"} />
-          <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.45fr)]">
+          <div className={`border-b border-slate-700/70 p-5 sm:p-6 xl:border-b-0 xl:border-r ${launchPanelClass(launchReadiness.status)}`}>
+            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Launch Readiness</div>
+            <div className="mt-4 flex items-end gap-4">
+              <div className="text-6xl font-black leading-none tracking-tight text-white sm:text-7xl">
+                {launchStatusLabel(launchReadiness.status)}
+              </div>
+              <div className="pb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                {launchReadiness.criticalCount} hold / {launchReadiness.warningCount} review
+              </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-slate-700/80 bg-slate-950/55 p-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Primary blocker</div>
+              <p className="mt-2 text-base font-black leading-6 text-slate-100">{launchReadiness.primaryBlocker}</p>
+              <div className="mt-4 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next action</div>
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">{launchReadiness.nextAction}</p>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <FieldCard label="Project manager" value={jobsite?.project_manager ?? "Not assigned"} />
+              <FieldCard label="Safety lead" value={jobsite?.safety_lead ?? "Not assigned"} />
+              <FieldCard label="Location" value={jobsite?.location ?? "No location listed"} />
+              <FieldCard label="Project number" value={jobsite?.project_number ?? "Not assigned"} />
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Operational Stations</div>
+                <h3 className="mt-1 text-xl font-black text-slate-100">Maintain the jobsite for launch</h3>
+              </div>
+              <StatusBadge label="Station checks are conservative" tone="info" />
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {launchReadiness.stations.map((station) => (
+                <Link
+                  key={station.id}
+                  href={station.href ?? `/jobsites/${encodeURIComponent(jobsiteId)}/overview`}
+                  className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-sky-500/55 ${launchPanelClass(station.status)}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{station.label}</div>
+                      <p className="mt-2 text-sm font-black leading-5 text-slate-100">{station.summary}</p>
+                    </div>
+                    <StatusBadge label={launchStatusLabel(station.status)} tone={launchBadgeTone(station.status)} />
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{station.detail}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -447,51 +567,125 @@ function OverviewWidgets({
         />
       ) : null}
 
-      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-              Emergency Action Plan
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                Emergency Action Plan
+              </div>
+              <h3 className="mt-2 text-xl font-black tracking-tight text-slate-100">
+                {emergencyActionPlanStatusLabel(eapReadiness)}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Emergency contacts, responder access, muster, AED / first aid, and nearest medical resource details.
+              </p>
             </div>
-            <h3 className="mt-2 text-xl font-black tracking-tight text-slate-100">
-              {emergencyActionPlanStatusLabel(eapReadiness)}
-            </h3>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Field emergency contact, responder access, muster, AED / first aid, and nearest medical resource details for this jobsite.
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge label={emergencyActionPlanStatusLabel(eapReadiness)} tone={emergencyReadinessTone(eapReadiness)} />
+              {Boolean(emergencyActionPlan.reviewStale) ? <StatusBadge label="Review stale" tone="warning" /> : null}
+              {Boolean(emergencyActionPlan.immediateReviewNeeded) ? <StatusBadge label="Immediate review needed" tone="error" /> : null}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge label={emergencyActionPlanStatusLabel(eapReadiness)} tone={emergencyReadinessTone(eapReadiness)} />
-            {Boolean(emergencyActionPlan.reviewStale) ? <StatusBadge label="Review stale" tone="warning" /> : null}
-            {Boolean(emergencyActionPlan.immediateReviewNeeded) ? <StatusBadge label="Immediate review needed" tone="error" /> : null}
+          {eapMissingFields.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {eapMissingFields.slice(0, 4).map((field, index) => (
+                <StatusBadge
+                  key={`${field.label ?? "missing"}-${index}`}
+                  label={field.label ?? "Missing EAP field"}
+                  tone={field.severity === "critical" ? "error" : "warning"}
+                />
+              ))}
+              {eapMissingFields.length > 4 ? <StatusBadge label={`+${eapMissingFields.length - 4} more`} tone="warning" /> : null}
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/emergency-action-plan`} className={appButtonPrimaryClassName}>
+              Open Emergency Action Plan
+            </Link>
           </div>
         </div>
-        {eapMissingFields.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {eapMissingFields.slice(0, 6).map((field, index) => (
-              <StatusBadge
-                key={`${field.label ?? "missing"}-${index}`}
-                label={field.label ?? "Missing EAP field"}
-                tone={field.severity === "critical" ? "error" : "warning"}
-              />
-            ))}
-            {eapMissingFields.length > 6 ? <StatusBadge label={`+${eapMissingFields.length - 6} more`} tone="warning" /> : null}
+
+        <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">Today&apos;s Telemetry</div>
+              <h3 className="mt-2 text-lg font-bold text-slate-100">Operational Metrics</h3>
+            </div>
+            <StatusBadge label="Live overview" tone="info" />
           </div>
-        ) : null}
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/emergency-action-plan`} className={appButtonPrimaryClassName}>
-            Open Emergency Action Plan
-          </Link>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {cards.map((card) => (
+              <div key={card.label} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="text-xs text-slate-500">{card.label}</div>
+                <div className="mt-2 text-3xl font-black text-slate-100">{card.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div key={card.label} className="rounded-xl border border-slate-700/80 bg-slate-950/50 p-4">
-            <div className="text-xs text-slate-500">{card.label}</div>
-            <div className="mt-2 text-3xl font-black text-slate-100">{card.value}</div>
+      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Site Risk Board
+            </div>
+            <h3 className="mt-2 text-lg font-bold text-slate-100">Top 10 Jobsite Risks</h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+              Ranked from live jobsite records, scheduled work, permits, incidents, and field observations.
+            </p>
           </div>
-        ))}
+          <StatusBadge
+            label={topJobsiteRisks.some((risk) => risk.riskLevel === "critical") ? "Immediate review needed" : "Dynamic watchlist"}
+            tone={topJobsiteRisks.some((risk) => risk.riskLevel === "critical") ? "error" : "info"}
+          />
+        </div>
+        <div className="mt-5 divide-y divide-slate-800 overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950/50">
+          {topJobsiteRisks.map((risk) => (
+            <article key={risk.id} className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_14rem]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-xs font-black text-slate-300">
+                    {risk.rank}
+                  </span>
+                  <h4 className="text-sm font-bold text-slate-100">{risk.title}</h4>
+                  <StatusBadge label={topRiskLabel(risk.riskLevel)} tone={topRiskTone(risk.riskLevel)} />
+                  <StatusBadge
+                    label={risk.evidenceCount > 0 ? `${risk.evidenceCount} signal${risk.evidenceCount === 1 ? "" : "s"}` : "No active signal yet"}
+                    tone={risk.evidenceCount > 0 ? "warning" : "neutral"}
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Top drivers</div>
+                    <ul className="mt-2 space-y-1.5 text-sm leading-6 text-slate-400">
+                      {risk.topDrivers.slice(0, 3).map((driver, index) => (
+                        <li key={`${risk.id}-driver-${index}`}>{driver}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Next action</div>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-200">{risk.nextAction}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Score</div>
+                <div className="mt-1 text-2xl font-black text-slate-100">{risk.score}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {risk.sources.length > 0 ? (
+                    risk.sources.slice(0, 3).map((source) => (
+                      <StatusBadge key={`${risk.id}-${source.type}`} label={`${sourceLabel(source.type)} ${source.count}`} tone="neutral" />
+                    ))
+                  ) : (
+                    <StatusBadge label="Baseline watchlist" tone="neutral" />
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
       <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">

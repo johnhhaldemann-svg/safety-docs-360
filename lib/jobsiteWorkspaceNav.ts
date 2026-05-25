@@ -45,7 +45,7 @@ export function jobsitePhaseChildLinks(jobsiteId: string, phaseId: string): { hr
 
 function segmentLabel(segment: string) {
   const map: Record<string, string> = {
-    overview: "Overview",
+    overview: "Mission Control",
     "emergency-action-plan": "Emergency Action Plan",
     "live-view": "Live view",
     team: "Team",

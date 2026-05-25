@@ -51,6 +51,17 @@ import {
   type AiSafetyUncertaintySummary,
 } from "@/lib/aiSafetyReasoningFrame";
 import { linkFieldEvidenceSignalsToPredictiveContext } from "@/lib/aiSafetyFieldEvidence";
+import {
+  buildAiSafetyUnifiedContext,
+  type AiSafetyUnifiedBucketItemRow,
+  type AiSafetyUnifiedConflictPairRow,
+  type AiSafetyUnifiedContext,
+} from "@/lib/aiSafetyUnifiedContext";
+import {
+  buildSafetyDomainUnderstanding,
+  type SafetyDomainUnderstanding,
+} from "@/lib/safety-ai/domainUnderstanding";
+import type { AiActionDecisionTrigger } from "@/lib/aiActionDecisionTriggers";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -138,6 +149,9 @@ export type PredictiveRiskPayload = {
   decisionQuality: AiSafetyDecisionQuality;
   uncertaintySummary: AiSafetyUncertaintySummary;
   nextBestActions: AiSafetyReasoningNextBestAction[];
+  aiActionDecisionTriggers: AiActionDecisionTrigger[];
+  aiSafetyUnifiedContext?: AiSafetyUnifiedContext;
+  aiSafetyDomainUnderstanding?: SafetyDomainUnderstanding;
   leadershipTrust: LeadershipTrustMetadata;
   warning?: string;
 };
@@ -891,6 +905,8 @@ export function buildPredictiveRiskPayload(input: {
   memoryItems?: PredictiveSafetyMemoryItemRow[];
   feedbackSignals?: AiSafetyFeedbackSignal[];
   fieldEvidenceSignals?: AiSafetyFieldEvidenceSignal[];
+  safetyIntelligenceBucketItems?: AiSafetyUnifiedBucketItemRow[];
+  safetyIntelligenceConflictPairs?: AiSafetyUnifiedConflictPairRow[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
@@ -966,6 +982,24 @@ export function buildPredictiveRiskPayload(input: {
     fieldEvidenceSignals,
   });
   const aiSafetyActionQueue = actionQueueWithReasoningMetadata(aiSafetyLoop.aiSafetyActionQueue, aiSafetyReasoningFrame);
+  const aiActionDecisionTriggers = aiSafetyActionQueue.items
+    .flatMap((item) => item.decisionTriggers ?? [])
+    .slice(0, 24);
+  const aiSafetyUnifiedContext = buildAiSafetyUnifiedContext({
+    safetyAiAssessment,
+    dailyBriefing,
+    conflictMap: aiSafetyConflictMap,
+    actionQueue: aiSafetyActionQueue,
+    reasoningFrame: aiSafetyReasoningFrame,
+    fieldEvidenceSignals,
+    memoryItems: input.memoryItems,
+    feedbackSignals: input.feedbackSignals,
+    safetyIntelligenceBucketItems: input.safetyIntelligenceBucketItems,
+    safetyIntelligenceConflictPairs: input.safetyIntelligenceConflictPairs,
+  });
+  const aiSafetyDomainUnderstanding = buildSafetyDomainUnderstanding({
+    unifiedContext: aiSafetyUnifiedContext,
+  });
   const accumulators = buildLocationAccumulators({
     rows,
     jobsites: input.jobsites,
@@ -1168,6 +1202,9 @@ export function buildPredictiveRiskPayload(input: {
     decisionQuality: aiSafetyReasoningFrame.decisionQuality,
     uncertaintySummary: aiSafetyReasoningFrame.uncertainty,
     nextBestActions: aiSafetyReasoningFrame.nextBestActions,
+    aiActionDecisionTriggers,
+    aiSafetyUnifiedContext,
+    aiSafetyDomainUnderstanding,
     leadershipTrust,
     ...(input.warning ? { warning: input.warning } : {}),
   };

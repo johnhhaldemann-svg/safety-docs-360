@@ -5,6 +5,9 @@ import type { GusRiskLevel } from "@/lib/gus/gusTypes";
 import type { SafePredictDataset, SafePredictJobsiteRecord } from "@/lib/safePredictData";
 import type { DailyRiskBriefing } from "@/lib/predictiveSafetyEngine";
 import type { AiSafetyReasoningFrame } from "@/lib/aiSafetyReasoningFrame";
+import type { AiSafetyUnifiedContext } from "@/lib/aiSafetyUnifiedContext";
+import type { SafetyDomainUnderstanding } from "@/lib/safety-ai/domainUnderstanding";
+import { buildAiActionDecisionTriggers } from "@/lib/aiActionDecisionTriggers";
 
 function toGusRiskLevel(level: SafetyAiAssessment["level"]): GusRiskLevel {
   if (level === "critical") return "severe";
@@ -228,6 +231,19 @@ export function buildGusContextFromSafetyAiAssessment(assessment: SafetyAiAssess
     aiEngineReviewTriggers: assessment.reviewTriggers,
     aiEngineActionTimeframe: assessment.actionTimeframe,
     aiEngineRecommendations: recommendations.slice(0, 8),
+    aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+      source: "ai_recommendation",
+      sourceId: "safety-ai-assessment",
+      sourceText: [
+        assessment.explanation,
+        assessment.scoreExplanation.recommendedAction,
+        ...assessment.recommendations.map((recommendation) => recommendation.title),
+        ...assessment.controlRecommendations.map((recommendation) => recommendation.recommendedAction),
+      ],
+      targetModule: "predictive_risk",
+      riskLevel: assessment.level,
+      humanReviewRequired: assessment.humanApprovalRequired || assessment.stopWorkReviewRecommended || assessment.escalationRequired,
+    }),
     riskLevel: toGusRiskLevel(assessment.level),
     riskDrivers: [
       ...assessment.criticalControlGaps,
@@ -284,6 +300,20 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
     aiEngineActionTimeframe: topAssessment?.actionTimeframe,
     aiEngineRecommendations: [...controlRecommendations, ...briefing.controlsToVerify.map((control) => control.text)].slice(0, 8),
     aiEngineRecommendedNextAction: nextRecommendedControl?.recommendedAction ?? nextControl?.text ?? topAssessment?.recommendations[0]?.title,
+    aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+      source: "daily_briefing",
+      sourceId: "daily-risk-briefing",
+      sourceText: [
+        briefing.headline,
+        ...actionQueue,
+        ...(topWork?.recommendedControls.map((control) => control.recommendedAction) ?? []),
+        nextRecommendedControl?.recommendedAction ?? nextControl?.text ?? "",
+      ],
+      targetModule: "command_center",
+      riskLevel: topWork?.riskLevel ?? null,
+      humanReviewRequired: briefing.stopWorkReviewRecommended || briefing.escalationRequired,
+      evidenceRefs: briefing.evidenceRefs,
+    }),
     aiEngineStopWorkReviewRecommended: briefing.stopWorkReviewRecommended,
     aiEngineActionQueue: actionQueue,
     aiEngineApprovalState:
@@ -326,6 +356,20 @@ export function buildGusContextFromAiSafetyReasoningFrame(frame: AiSafetyReasoni
     aiEngineDecisionQuality: frame.decisionQuality,
     aiEngineUncertaintySummary: frame.uncertainty,
     aiEngineNextBestActions: nextBestActions,
+    aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+      source: "ai_recommendation",
+      sourceId: "ai-safety-reasoning-frame",
+      sourceText: [
+        frame.goal,
+        frame.uncertainty.summary,
+        ...nextBestActions.map((item) => `${item.title}: ${item.detail}`),
+        ...frame.nextBestActions.map((item) => item.reason),
+      ],
+      targetModule: "command_center",
+      riskLevel: frame.decisionQuality.humanReviewSeverity === "critical" ? "critical" : frame.decisionQuality.humanReviewSeverity === "high" ? "high" : null,
+      humanReviewRequired: frame.humanReviewRequired,
+      evidenceRefs: frame.supportingEvidence.flatMap((item) => item.evidenceRefs).slice(0, 8),
+    }),
     aiEngineRecommendedNextAction: nextBestActions[0]?.detail,
     aiEngineApprovalState: frame.humanReviewRequired ? "review_required" : "assigned",
     aiEngineActionQueue: nextBestActions.map((item) => `${item.title}: ${item.detail}`),
@@ -340,5 +384,75 @@ export function buildGusContextFromAiSafetyReasoningFrame(frame: AiSafetyReasoni
         : "Calibration still needs outcome data for this reasoning frame.",
     aiEngineFieldEvidence: fieldEvidence,
     riskDrivers: evidenceLabels,
+  };
+}
+
+export function buildGusContextFromAiSafetyUnifiedContext(context: AiSafetyUnifiedContext): Partial<GusContext> {
+  const conflicts = context.conflicts
+    .slice(0, 5)
+    .map((conflict) => `${conflict.sourceSystem.replace(/_/g, " ")}: ${conflict.title} - ${conflict.requiredVerification}`);
+  const evidence = context.evidence
+    .slice(0, 5)
+    .map((item) => `${item.sourceSystem.replace(/_/g, " ")}: ${item.label}`);
+  const missingOrConflicting = [
+    ...context.conflictingSignals.slice(0, 3),
+    ...context.missingInformation.slice(0, 3),
+  ];
+  const nextActions = context.nextBestActions.slice(0, 5);
+
+  return {
+    aiEngineLinked: true,
+    aiEngineUnifiedContext: context,
+    aiEngineWorkfaceConflicts: conflicts,
+    aiEngineReviewTriggers: missingOrConflicting,
+    aiEngineRecommendations: nextActions.map((item) => item.detail),
+    aiEngineRecommendedNextAction: nextActions[0]?.detail,
+    aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+      source: "ai_recommendation",
+      sourceId: "ai-safety-unified-context",
+      sourceText: [
+        ...nextActions.map((item) => `${item.title}: ${item.detail}`),
+        ...context.conflicts.slice(0, 4).map((conflict) => `${conflict.title}: ${conflict.requiredVerification}`),
+      ],
+      targetModule: "command_center",
+      riskLevel: context.confidence === "low" ? "moderate" : null,
+      humanReviewRequired: nextActions.some((item) => item.humanReviewRequired),
+      evidenceRefs: context.evidence.flatMap((item) => item.evidenceRefs).slice(0, 8),
+    }),
+    aiEngineActionQueue: nextActions.map((item) => `${item.title}: ${item.detail}`),
+    aiEngineApprovalState: nextActions.some((item) => item.humanReviewRequired) ? "review_required" : "assigned",
+    riskDrivers: evidence,
+  };
+}
+
+export function buildGusContextFromSafetyDomainUnderstanding(understanding: SafetyDomainUnderstanding): Partial<GusContext> {
+  const concepts = understanding.concepts.slice(0, 5);
+  const questions = understanding.fieldVerificationQuestions.slice(0, 6);
+
+  return {
+    aiEngineLinked: true,
+    aiEngineDomainUnderstanding: understanding,
+    aiEngineSafetyDisciplines: understanding.recognizedDisciplines,
+    aiEngineFieldVerificationQuestions: questions,
+    aiEngineReviewTriggers: [
+      ...understanding.controlHierarchyGaps.slice(0, 3),
+      ...understanding.missingInformation.slice(0, 3),
+    ],
+    aiEngineRecommendations: [
+      ...understanding.permitAndPlanFocus.slice(0, 3).map((item) => `Verify ${item} before work proceeds.`),
+      ...questions.slice(0, 3),
+    ],
+    aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+      source: "ai_recommendation",
+      sourceId: "safety-domain-understanding",
+      sourceText: [
+        ...understanding.permitAndPlanFocus.slice(0, 3).map((item) => `Verify ${item} before work proceeds.`),
+        ...questions,
+      ],
+      targetModule: "command_center",
+      humanReviewRequired: true,
+    }),
+    aiEngineRecommendedNextAction: questions[0] ?? understanding.controlHierarchyGaps[0],
+    riskDrivers: concepts.map((concept) => `${concept.label}: ${concept.whyItMatters}`),
   };
 }

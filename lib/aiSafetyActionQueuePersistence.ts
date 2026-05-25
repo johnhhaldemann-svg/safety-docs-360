@@ -51,6 +51,7 @@ export type AiSafetyActionRecommendationInsert = {
       feedbackConfidenceAdjustment: AiSafetyActionQueueItem["feedbackConfidenceAdjustment"];
       memoryInfluence: string[];
       reasoningMetadata?: AiSafetyActionQueueItem["reasoningMetadata"];
+      decisionTriggers?: AiSafetyActionQueueItem["decisionTriggers"];
     };
   };
 };
@@ -194,6 +195,7 @@ export function buildAiSafetyActionRecommendationCandidate(params: {
           feedbackConfidenceAdjustment: item.feedbackConfidenceAdjustment,
           memoryInfluence: item.memoryInfluence,
           ...(item.reasoningMetadata ? { reasoningMetadata: item.reasoningMetadata } : {}),
+          ...(item.decisionTriggers?.length ? { decisionTriggers: item.decisionTriggers } : {}),
         },
       },
     },

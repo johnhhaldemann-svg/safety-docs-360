@@ -21,6 +21,9 @@ export type JobsiteDailyTodoInput = {
   riskLevel: JobsiteDailyTodoPriority;
   emergencyActionPlanReadiness?: "complete" | "needs_review" | "missing_critical_info" | null;
   emergencyActionPlanMissingCount?: number;
+  topJobsiteRiskLevel?: JobsiteDailyTodoPriority | null;
+  topJobsiteRiskTitle?: string | null;
+  topJobsiteRiskEvidenceCount?: number;
   firstScheduleRiskTitle?: string | null;
   highRiskScheduleCount: number;
   openActionsCount: number;
@@ -97,8 +100,10 @@ export function dailyTodoResetLabel(resetHour = 5) {
 
 function priorityFromCounts(input: JobsiteDailyTodoInput): JobsiteDailyTodoPriority {
   if (input.emergencyActionPlanReadiness === "missing_critical_info") return "critical";
+  if (input.topJobsiteRiskLevel === "critical") return "critical";
   if (input.riskLevel === "critical" || input.overdueActionsCount > 0 || input.permitBlockerCount > 0) return "critical";
   if (input.emergencyActionPlanReadiness === "needs_review") return "high";
+  if (input.topJobsiteRiskLevel === "high") return "high";
   if (input.riskLevel === "high" || input.highRiskScheduleCount > 0 || input.inspectionGapCount > 0) return "high";
   if (input.workforceGapCount > 0 || input.openActionsCount > 0) return "medium";
   return "low";
@@ -111,6 +116,9 @@ function plural(count: number, singular: string, pluralLabel = `${singular}s`) {
 export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDailyTodoItem[] {
   const dailyPriority = priorityFromCounts(input);
   const firstSchedule = input.firstScheduleRiskTitle?.trim() || "today's scheduled work";
+  const topJobsiteRiskTitle = input.topJobsiteRiskTitle?.trim() || "the top jobsite risk";
+  const topJobsiteRiskNeedsReview = input.topJobsiteRiskLevel === "critical" || input.topJobsiteRiskLevel === "high";
+  const topJobsiteRiskEvidenceCount = Math.max(0, Math.floor(Number(input.topJobsiteRiskEvidenceCount ?? 0)));
   const hrefBase = `/safe-predict/jobsites/${encodeURIComponent(input.jobsiteId)}`;
   const jobsiteHrefBase = `/jobsites/${encodeURIComponent(input.jobsiteId)}`;
   const eapNeedsCriticalReview = input.emergencyActionPlanReadiness === "missing_critical_info";
@@ -124,13 +132,17 @@ export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDai
       role: "pm",
       title: "PM daily risk review",
       detail:
-        input.highRiskScheduleCount > 0
+        input.topJobsiteRiskLevel === "critical"
+          ? `Immediate review needed for ${topJobsiteRiskTitle}; ${plural(topJobsiteRiskEvidenceCount || 1, "active signal")} tied to the jobsite Top 10 risk board.`
+          : input.highRiskScheduleCount > 0
           ? `Review ${plural(input.highRiskScheduleCount, "high-risk schedule item")} starting with ${firstSchedule}.`
+          : input.topJobsiteRiskLevel === "high"
+            ? `Review ${topJobsiteRiskTitle} controls before work proceeds; the Top 10 risk board has active high-risk evidence.`
           : "Review the site risk board and confirm no schedule changes create new exposure.",
       status: "open",
       priority: dailyPriority,
-      targetTab: input.highRiskScheduleCount > 0 ? "Schedule" : "Predictive Risk",
-      targetHref: `${hrefBase}/schedule`,
+      targetTab: topJobsiteRiskNeedsReview ? "Overview" : input.highRiskScheduleCount > 0 ? "Schedule" : "Predictive Risk",
+      targetHref: topJobsiteRiskNeedsReview ? `${jobsiteHrefBase}/overview` : `${hrefBase}/schedule`,
     },
     {
       id: `${input.workDate}-${input.jobsiteId}-sl-prework-readiness`,
@@ -144,6 +156,8 @@ export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDai
             ? "Review the Emergency Action Plan freshness and missing field warnings before work starts."
             : input.permitBlockerCount > 0
               ? `Verify ${plural(input.permitBlockerCount, "permit blocker")} before releasing the crew.`
+              : topJobsiteRiskNeedsReview
+                ? `Verify controls for ${topJobsiteRiskTitle} and document any missing protection before work starts.`
               : "Confirm permits, JSAs, crew readiness, and pre-task controls before work starts.",
       status: "open",
       priority: eapNeedsCriticalReview
@@ -152,11 +166,19 @@ export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDai
           ? "high"
           : input.permitBlockerCount > 0
             ? "critical"
+            : input.topJobsiteRiskLevel === "critical"
+              ? "critical"
+              : input.topJobsiteRiskLevel === "high"
+                ? "high"
             : input.workforceGapCount > 0
               ? "medium"
               : "low",
-      targetTab: eapNeedsReview ? "Overview" : input.permitBlockerCount > 0 ? "Permits" : "Workforce",
-      targetHref: eapNeedsReview ? `${jobsiteHrefBase}/emergency-action-plan` : `${hrefBase}/permits`,
+      targetTab: eapNeedsReview ? "Overview" : input.permitBlockerCount > 0 ? "Permits" : topJobsiteRiskNeedsReview ? "Overview" : "Workforce",
+      targetHref: eapNeedsReview
+        ? `${jobsiteHrefBase}/emergency-action-plan`
+        : topJobsiteRiskNeedsReview
+          ? `${jobsiteHrefBase}/overview`
+          : `${hrefBase}/permits`,
     },
     {
       id: `${input.workDate}-${input.jobsiteId}-pm-action-closeout`,

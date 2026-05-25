@@ -429,6 +429,7 @@ export async function POST(request: Request) {
           priority: row.priority,
           targetModule: row.target_module,
           evidenceRefCount: candidate?.item.evidenceRefs.length ?? 0,
+          decisionTriggerCount: candidate?.item.decisionTriggers?.length ?? 0,
         }),
       };
     })

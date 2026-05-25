@@ -162,6 +162,8 @@ function supabaseFixture(overrides?: Record<string, ReturnType<typeof queryBuild
     company_employee_training_records: queryBuilder({ data: [] }),
     weather_alert_events: queryBuilder({ data: [] }),
     company_memory_items: queryBuilder({ data: [] }),
+    company_bucket_items: queryBuilder({ data: [] }),
+    company_conflict_pairs: queryBuilder({ data: [] }),
     ...overrides,
   };
   return {
@@ -549,6 +551,128 @@ describe("/api/company/predictive-risk", () => {
         }),
       ]),
     );
+  });
+
+  it("includes Safety Intelligence bucket and open conflict rows in the unified AI safety context", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "roof-work",
+            jobsite_id: "j1",
+            title: "Roof edge layout",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            trade: "Roofing",
+            work_area: "Level 4",
+            crew_size: 4,
+            supervisor_name: null,
+            risk_level: "high",
+            is_high_risk: true,
+            hazard_categories: ["fall_protection"],
+            permit_triggers: [],
+            required_controls: ["fall protection plan"],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+      company_bucket_items: queryBuilder({
+        data: [
+          {
+            id: "bucket-1",
+            jobsite_id: "j1",
+            bucket_key: "bucket-roof",
+            bucket_type: "task_execution",
+            starts_at: `${workDate}T08:00:00.000Z`,
+            ends_at: `${workDate}T12:00:00.000Z`,
+            bucket_payload: {
+              bucketKey: "bucket-roof",
+              taskTitle: "Roof edge layout",
+              tradeCode: "roofing",
+              workAreaLabel: "Level 4",
+              startsAt: `${workDate}T08:00:00.000Z`,
+              hazardFamilies: ["fall"],
+              permitTriggers: ["elevated_work_notice"],
+              requiredControls: ["fall protection plan"],
+            },
+            rule_results: {
+              bucketKey: "bucket-roof",
+              findings: [],
+              permitTriggers: ["elevated_work_notice"],
+              hazardFamilies: ["fall"],
+              hazardCategories: [],
+              ppeRequirements: [],
+              equipmentChecks: [],
+              weatherRestrictions: [],
+              requiredControls: ["fall protection plan"],
+              siteRestrictions: [],
+              prohibitedEquipment: [],
+              trainingRequirements: [],
+              score: 12,
+              band: "high",
+              evaluationVersion: "test",
+            },
+            conflict_results: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+      }),
+      company_conflict_pairs: queryBuilder({
+        data: [
+          {
+            id: "conflict-pair-1",
+            jobsite_id: "j1",
+            bucket_run_id: "run-1",
+            left_operation_id: "op-1",
+            right_operation_id: "op-2",
+            conflict_code: "overhead_hazard_propagation",
+            conflict_type: "hazard_propagation",
+            severity: "high",
+            status: "open",
+            rationale: "Overhead work creates downstream exposure for adjacent crews.",
+            recommended_controls: ["drop_zone_control"],
+            overlap_scope: { workAreaLabel: "Level 4", resequencingSuggestion: "Create an isolated work window." },
+            updated_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.aiSafetyUnifiedContext.sourceCoverage).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceSystem: "safety_intelligence", status: "available" }),
+      ]),
+    );
+    expect(body.aiSafetyUnifiedContext.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceSystem: "safety_intelligence", label: "Roof edge layout" }),
+      ]),
+    );
+    expect(body.aiSafetyUnifiedContext.conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceSystem: "safety_intelligence",
+          title: "overhead hazard propagation",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
+    expect(body.aiSafetyDomainUnderstanding.recognizedDisciplines).toEqual(expect.arrayContaining(["fall_protection"]));
+    expect(body.aiSafetyDomainUnderstanding.fieldVerificationQuestions.join(" ")).toContain("fall edge");
   });
 
   it("includes feedback-influenced queue metadata from AI output feedback", async () => {

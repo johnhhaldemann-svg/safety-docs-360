@@ -24,6 +24,10 @@ import {
   type PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
 import type {
+  AiSafetyUnifiedBucketItemRow,
+  AiSafetyUnifiedConflictPairRow,
+} from "@/lib/aiSafetyUnifiedContext";
+import type {
   PredictiveSafetyMemoryItemRow,
   PredictiveSafetyWeatherAlertRow,
 } from "@/lib/predictiveSafetyEngine";
@@ -407,6 +411,21 @@ export async function GET(request: Request) {
     .eq("kind", "ai_safety_field_evidence")
     .in("status", ["active", "accepted", "assigned", "field_used"])
     .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFieldEvidenceRecommendationRow>>;
+  const safetyIntelligenceBucketsQuery = applyJobsiteScope(
+    auth.supabase
+      .from("company_bucket_items")
+      .select("id, jobsite_id, bucket_key, bucket_type, starts_at, ends_at, bucket_payload, rule_results, conflict_results, created_at, updated_at")
+      .eq("company_id", companyId) as unknown as ScopedQueryBuilder<AiSafetyUnifiedBucketItemRow>,
+    scopeOptions
+  ).gte("updated_at", since) as PromiseLike<QueryResult<AiSafetyUnifiedBucketItemRow>>;
+  const safetyIntelligenceConflictsQuery = applyJobsiteScope(
+    auth.supabase
+      .from("company_conflict_pairs")
+      .select("id, jobsite_id, bucket_run_id, left_operation_id, right_operation_id, conflict_code, conflict_type, severity, status, rationale, recommended_controls, overlap_scope, updated_at")
+      .eq("company_id", companyId)
+      .in("status", ["open", "active"]) as unknown as ScopedQueryBuilder<AiSafetyUnifiedConflictPairRow>,
+    scopeOptions
+  ).gte("updated_at", since) as PromiseLike<QueryResult<AiSafetyUnifiedConflictPairRow>>;
   const feedbackRecommendationsQuery = auth.supabase
     .from("company_risk_ai_recommendations")
     .select("id, title, status, priority, jobsite_id, evidence_summary")
@@ -433,6 +452,8 @@ export async function GET(request: Request) {
     weatherAlertsRes,
     memoryItemsRes,
     fieldEvidenceRes,
+    safetyIntelligenceBucketsRes,
+    safetyIntelligenceConflictsRes,
     feedbackRecommendationsRes,
     feedbackEventsRes,
     aiOutputFeedbackRes,
@@ -450,6 +471,8 @@ export async function GET(request: Request) {
     weatherAlertsQuery,
     memoryItemsQuery,
     fieldEvidenceQuery,
+    safetyIntelligenceBucketsQuery,
+    safetyIntelligenceConflictsQuery,
     feedbackRecommendationsQuery,
     feedbackEventsQuery,
     aiOutputFeedbackQuery,
@@ -485,6 +508,8 @@ export async function GET(request: Request) {
     (fieldAuditObservationsRes.error && !isMissingTable(fieldAuditObservationsRes.error.message) ? fieldAuditObservationsRes.error.message : null) ||
     (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null) ||
     (fieldEvidenceRes.error && !isMissingTable(fieldEvidenceRes.error.message) ? fieldEvidenceRes.error.message : null) ||
+    (safetyIntelligenceBucketsRes.error && !isMissingTable(safetyIntelligenceBucketsRes.error.message) ? safetyIntelligenceBucketsRes.error.message : null) ||
+    (safetyIntelligenceConflictsRes.error && !isMissingTable(safetyIntelligenceConflictsRes.error.message) ? safetyIntelligenceConflictsRes.error.message : null) ||
     (feedbackRecommendationsRes.error && !isMissingTable(feedbackRecommendationsRes.error.message) ? feedbackRecommendationsRes.error.message : null) ||
     (feedbackEventsRes.error && !isMissingTable(feedbackEventsRes.error.message) ? feedbackEventsRes.error.message : null);
 
@@ -510,6 +535,8 @@ export async function GET(request: Request) {
       weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
       memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
       fieldEvidenceSignals,
+      safetyIntelligenceBucketItems: safetyIntelligenceBucketsRes.error ? [] : safetyIntelligenceBucketsRes.data ?? [],
+      safetyIntelligenceConflictPairs: safetyIntelligenceConflictsRes.error ? [] : safetyIntelligenceConflictsRes.data ?? [],
       feedbackSignals: buildAiSafetyFeedbackSignals({
         recommendations: feedbackRecommendationsRes.error ? [] : feedbackRecommendationsRes.data ?? [],
         events: feedbackEventsRes.error ? [] : feedbackEventsRes.data ?? [],

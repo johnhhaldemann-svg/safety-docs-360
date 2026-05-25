@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope, normalizeWorkspaceUuid } from "@/lib/companyScope";
 import { evaluateEmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
+import { buildJobsiteLaunchReadiness } from "@/lib/jobsiteLaunchReadiness";
+import { buildTopJobsiteRisks, type JobsiteTopRiskEvidenceRow } from "@/lib/jobsiteTopRisks";
 
 export const runtime = "nodejs";
 
@@ -73,6 +75,108 @@ async function fetchFromSameOrigin(request: Request, path: string) {
 function filterByJobsiteId<T extends { jobsite_id?: string | null }>(rows: T[], jobsiteId: string) {
   const target = normalizeWorkspaceUuid(jobsiteId);
   return rows.filter((row) => normalizeWorkspaceUuid(row.jobsite_id ?? "") === target);
+}
+
+function stringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function riskEvidenceFromRows(
+  rows: Array<Record<string, unknown>>,
+  source: JobsiteTopRiskEvidenceRow["source"]
+): JobsiteTopRiskEvidenceRow[] {
+  return rows.map((row) => ({
+    source,
+    id: typeof row.id === "string" ? row.id : null,
+    title:
+      typeof row.title === "string"
+        ? row.title
+        : typeof row.name === "string"
+          ? row.name
+          : typeof row.summary === "string"
+            ? row.summary
+            : null,
+    category:
+      typeof row.category === "string"
+        ? row.category
+        : typeof row.incident_type === "string"
+          ? row.incident_type
+          : typeof row.observation_type === "string"
+            ? row.observation_type
+            : null,
+    severity: typeof row.severity === "string" ? row.severity : null,
+    priority: typeof row.priority === "string" ? row.priority : null,
+    status: typeof row.status === "string" ? row.status : null,
+    riskLevel:
+      typeof row.risk_level === "string"
+        ? row.risk_level
+        : typeof row.riskLevel === "string"
+          ? row.riskLevel
+          : null,
+    isHighRisk: typeof row.is_high_risk === "boolean" ? row.is_high_risk : typeof row.isHighRisk === "boolean" ? row.isHighRisk : null,
+    sifPotential: Boolean(row.sif_potential),
+    sifFlag: Boolean(row.sif_flag),
+    stopWorkStatus: typeof row.stop_work_status === "string" ? row.stop_work_status : null,
+    escalationLevel: typeof row.escalation_level === "string" ? row.escalation_level : null,
+    hazardCategories: stringArray(row.hazard_categories ?? row.hazardCategories),
+    permitTriggers: stringArray(row.permit_triggers ?? row.permitTriggers),
+    permitType: typeof row.permit_type === "string" ? row.permit_type : null,
+    description:
+      typeof row.description === "string"
+        ? row.description
+        : typeof row.detail === "string"
+          ? row.detail
+          : typeof row.work_area === "string"
+            ? row.work_area
+            : null,
+    notes: typeof row.notes === "string" ? row.notes : null,
+    createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
+  }));
+}
+
+function isMissingScheduleTable(message?: string | null) {
+  const normalized = (message ?? "").toLowerCase();
+  return (
+    normalized.includes("company_jobsite_schedule_items") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("could not find")
+  );
+}
+
+function isPermitBlocker(row: Record<string, unknown>) {
+  const status = String(row.status ?? row.review_status ?? "").toLowerCase();
+  const stopWork = String(row.stop_work_status ?? "").toLowerCase();
+  const escalation = String(row.escalation_level ?? "").toLowerCase();
+  return (
+    status.includes("blocked") ||
+    status.includes("rejected") ||
+    status.includes("suspended") ||
+    status.includes("stop") ||
+    stopWork.includes("stop") ||
+    escalation === "critical"
+  );
+}
+
+function isPermitExpired(row: Record<string, unknown>, today: string) {
+  const expiresAt = String(row.expires_at ?? row.due_at ?? "").slice(0, 10);
+  const status = String(row.status ?? "").toLowerCase();
+  return status.includes("expired") || Boolean(expiresAt && expiresAt < today);
+}
+
+function isHighRiskSchedule(row: Record<string, unknown>) {
+  const risk = String(row.risk_level ?? "").toLowerCase();
+  return row.is_high_risk === true || risk === "high" || risk === "critical";
+}
+
+function isOverdueOpenAction(row: Record<string, unknown>, nowMs: number) {
+  const status = String(row.status ?? "").toLowerCase();
+  if (status === "verified_closed" || status === "closed") return false;
+  const due = typeof row.due_at === "string" ? Date.parse(row.due_at) : Number.NaN;
+  return Number.isFinite(due) && due < nowMs;
 }
 
 export async function GET(
@@ -201,16 +305,40 @@ export async function GET(
     });
   }
 
+  const scheduleResult = await auth.supabase
+    .from("company_jobsite_schedule_items")
+    .select("id, title, status, work_start_date, work_end_date, trade, work_area, crew_or_contractor, supervisor_name, risk_level, is_high_risk, hazard_categories, permit_triggers, required_controls, notes, created_at, updated_at")
+    .eq("company_id", scope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .is("archived_at", null)
+    .limit(100);
+  const scheduleRows =
+    scheduleResult.error && isMissingScheduleTable(scheduleResult.error.message)
+      ? []
+      : (((scheduleResult.data ?? []) as Array<Record<string, unknown>>) ?? []);
+
   const today = new Date().toISOString().slice(0, 10);
+  const nowMs = Date.now();
   const observationRows = (actionsRows as Array<Record<string, unknown>>) ?? [];
   const permitRows = (permitsRows as Array<Record<string, unknown>>) ?? [];
   const incidentRows = (incidentsRows as Array<Record<string, unknown>>) ?? [];
   const activityRows = (activitiesRows as Array<Record<string, unknown>>) ?? [];
+  const topJobsiteRisks = buildTopJobsiteRisks([
+    ...riskEvidenceFromRows(incidentRows, "incident"),
+    ...riskEvidenceFromRows(observationRows, "corrective_action"),
+    ...riskEvidenceFromRows(permitRows, "permit"),
+    ...riskEvidenceFromRows(scheduleRows, "scheduled_work"),
+    ...riskEvidenceFromRows(activityRows, "activity"),
+  ]);
   const workPlannedToday = activityRows.length;
   const activePermits = permitRows.filter((row) => String(row.status ?? "").toLowerCase() === "active").length;
+  const highRiskScheduleCount = scheduleRows.filter(isHighRiskSchedule).length;
+  const permitBlockerCount = permitRows.filter(isPermitBlocker).length;
+  const expiredPermitCount = permitRows.filter((row) => isPermitExpired(row, today)).length;
   const openObservations = observationRows.filter(
     (row) => String(row.status ?? "").toLowerCase() !== "verified_closed"
   ).length;
+  const overdueActions = observationRows.filter((row) => isOverdueOpenAction(row, nowMs)).length;
   const highRiskItems = observationRows.filter((row) => {
     const severity = String(row.severity ?? "").toLowerCase();
     const priority = String(row.priority ?? "").toLowerCase();
@@ -238,6 +366,52 @@ export async function GET(
       (typeof analytics.json?.warning === "string" ? analytics.json.warning.trim() : "") ||
       "Analytics summary could not be loaded.";
 
+  const links = {
+    liveView: `/jobsites/${jobsiteId}/live-view`,
+    emergencyActionPlan: `/jobsites/${jobsiteId}/emergency-action-plan`,
+    schedule: `/jobsites/${jobsiteId}/schedule`,
+    jsa: `/jobsites/${jobsiteId}/jsa`,
+    permits: `/jobsites/${jobsiteId}/permits`,
+    incidents: `/jobsites/${jobsiteId}/incidents`,
+    reports: `/jobsites/${jobsiteId}/reports`,
+    documents: `/jobsites/${jobsiteId}/documents`,
+    analytics: `/jobsites/${jobsiteId}/analytics`,
+    team: `/jobsites/${jobsiteId}/team`,
+  };
+  const launchReadiness = buildJobsiteLaunchReadiness({
+    emergencyActionPlanReadiness: emergencyReadiness.readiness,
+    emergencyActionPlanReviewStale: emergencyReadiness.reviewStale,
+    emergencyActionPlanImmediateReviewNeeded: emergencyReadiness.immediateReviewNeeded,
+    emergencyActionPlanMissingCount: emergencyReadiness.missingFields.length,
+    topJobsiteRisks,
+    workPlannedToday,
+    highRiskScheduleCount,
+    permitCount: permitRows.length,
+    activePermitCount: activePermits,
+    permitBlockerCount,
+    expiredPermitCount,
+    workforceCount: usersRows.length,
+    documentCount: docsRows.length,
+    reportCount: reportsRows.length,
+    incidentCount: incidentRows.length,
+    recentIncidentCount: recentIncidents.length,
+    openActionCount: openObservations,
+    overdueActionCount: overdueActions,
+    highRiskItemCount: highRiskItems,
+    sifExposureCount: sifExposures,
+    activityCount: activityRows.length,
+    links: {
+      emergency: links.emergencyActionPlan,
+      risk: links.liveView,
+      work_plan: links.schedule,
+      permits: links.permits,
+      workforce: links.team,
+      documents: links.documents,
+      incidents: links.incidents,
+      activity: links.liveView,
+    },
+  });
+
   return NextResponse.json({
     jobsite,
     overview: {
@@ -262,6 +436,8 @@ export async function GET(
       emergencyActionPlanReadiness: emergencyReadiness.readiness,
       emergencyActionPlanMissingCount: emergencyReadiness.missingFields.length,
     },
+    launchReadiness,
+    topJobsiteRisks,
     emergencyActionPlan: {
       profile: emergencyProfile,
       readiness: emergencyReadiness.readiness,
@@ -271,18 +447,7 @@ export async function GET(
       reviewStale: emergencyReadiness.reviewStale,
       immediateReviewNeeded: emergencyReadiness.immediateReviewNeeded,
     },
-    links: {
-      liveView: `/jobsites/${jobsiteId}/live-view`,
-      emergencyActionPlan: `/jobsites/${jobsiteId}/emergency-action-plan`,
-      schedule: `/jobsites/${jobsiteId}/schedule`,
-      jsa: `/jobsites/${jobsiteId}/jsa`,
-      permits: `/jobsites/${jobsiteId}/permits`,
-      incidents: `/jobsites/${jobsiteId}/incidents`,
-      reports: `/jobsites/${jobsiteId}/reports`,
-      documents: `/jobsites/${jobsiteId}/documents`,
-      analytics: `/jobsites/${jobsiteId}/analytics`,
-      team: `/jobsites/${jobsiteId}/team`,
-    },
+    links,
     ...(analyticsIssue ? { analyticsSummaryIssue: analyticsIssue } : {}),
   });
 }

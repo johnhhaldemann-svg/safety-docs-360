@@ -158,6 +158,15 @@ export async function POST(request: Request, { params }: { params: Promise<Param
       String(signals.emergencyActionPlanReadiness ?? emergencyReadiness.readiness) as "complete" | "needs_review" | "missing_critical_info",
     emergencyActionPlanMissingCount:
       Number(signals.emergencyActionPlanMissingCount ?? emergencyReadiness.missingFields.length) || 0,
+    topJobsiteRiskLevel:
+      String(signals.topJobsiteRiskLevel ?? "") === "critical" ||
+      String(signals.topJobsiteRiskLevel ?? "") === "high" ||
+      String(signals.topJobsiteRiskLevel ?? "") === "medium" ||
+      String(signals.topJobsiteRiskLevel ?? "") === "low"
+        ? (String(signals.topJobsiteRiskLevel) as "low" | "medium" | "high" | "critical")
+        : null,
+    topJobsiteRiskTitle: typeof signals.topJobsiteRiskTitle === "string" ? signals.topJobsiteRiskTitle : null,
+    topJobsiteRiskEvidenceCount: Number(signals.topJobsiteRiskEvidenceCount ?? 0) || 0,
     firstScheduleRiskTitle: typeof signals.firstScheduleRiskTitle === "string" ? signals.firstScheduleRiskTitle : null,
     highRiskScheduleCount: Number(signals.highRiskScheduleCount ?? 0) || 0,
     openActionsCount: Number(signals.openActionsCount ?? 0) || 0,

@@ -14,4 +14,31 @@ describe("CommandCenterWorkspace AI conflict panel copy", () => {
     expect(block).toContain("Missing information:");
     expect(block).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
   });
+
+  it("includes the unified AI safety intelligence panel with review-safe wording", () => {
+    const source = readFileSync("components/command-center/CommandCenterWorkspace.tsx", "utf8");
+    const start = source.indexOf("Unified AI Safety Intelligence");
+    const end = source.indexOf("Field evidence needing verification");
+    const block = source.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(block).toContain("Predictive Risk, Safety Intelligence, Gus field evidence, memory, and feedback");
+    expect(block).toContain("Next verification:");
+    expect(block).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
+  });
+
+  it("includes the safety field understanding panel with review-safe wording", () => {
+    const source = readFileSync("components/command-center/CommandCenterWorkspace.tsx", "utf8");
+    const start = source.indexOf("Safety field understanding");
+    const end = source.indexOf("Field evidence needing verification");
+    const block = source.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(block).toContain("Recognized disciplines");
+    expect(block).toContain("Field verification questions");
+    expect(block).toContain("Hierarchy-of-controls lens");
+    expect(block).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
+  });
 });

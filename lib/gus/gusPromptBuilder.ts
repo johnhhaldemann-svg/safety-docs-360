@@ -48,7 +48,8 @@ export type GusAiTask =
   | "ask_follow_up_questions"
   | "draft_recommendations"
   | "improve_wording"
-  | "conversation_reply";
+  | "conversation_reply"
+  | "formulate_thought";
 
 export const GUS_PERSONALITY_PROFILE = {
   profileId: "calm_mentor",
@@ -122,12 +123,31 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
       personalityProfile: input.task === "conversation_reply" ? GUS_PERSONALITY_PROFILE : undefined,
       outputContract: {
         answer:
-          input.task === "conversation_reply"
-            ? "Natural, calm mentor response in plain language. Be conversational, but keep safety first."
-            : "Short plain-language response.",
+          input.task === "formulate_thought"
+            ? undefined
+            : input.task === "conversation_reply"
+              ? "Natural, calm mentor response in plain language. Be conversational, but keep safety first."
+              : "Short plain-language response.",
+        clarifiedThought:
+          input.task === "formulate_thought"
+            ? "One clear sentence that restates the user's rough thought without adding unsupported facts."
+            : undefined,
+        draftText:
+          input.task === "formulate_thought"
+            ? "Ready-to-use draft safety wording. It must stay draft-only and must not approve or release work."
+            : undefined,
+        talkingPoints:
+          input.task === "formulate_thought"
+            ? "Short bullets the user can say out loud in a field or review conversation."
+            : undefined,
+        followUpQuestions:
+          input.task === "formulate_thought"
+            ? "Questions Gus should ask when safety-critical details are missing."
+            : undefined,
         missingInformation: "Array of exact unknowns or missing details.",
         riskFlags: "Array of safety concerns that need review.",
         recommendedControls: "Array of practical draft controls to consider.",
+        suggestedActions: input.task === "formulate_thought" ? "Array of next safe steps." : undefined,
         draftOnly: true,
         humanReviewRequired: true,
       },

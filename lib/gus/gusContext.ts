@@ -5,6 +5,9 @@ import type {
   AiSafetyReasoningNextBestAction,
   AiSafetyUncertaintySummary,
 } from "@/lib/aiSafetyReasoningFrame";
+import type { AiSafetyUnifiedContext } from "@/lib/aiSafetyUnifiedContext";
+import type { AiActionDecisionTrigger } from "@/lib/aiActionDecisionTriggers";
+import type { SafetyDomainUnderstanding } from "@/lib/safety-ai/domainUnderstanding";
 import type { SafetyAiAssessment } from "@/lib/safety-ai/types";
 
 export type GusContext = {
@@ -42,6 +45,11 @@ export type GusContext = {
   aiEngineWorkfaceConflicts?: string[];
   aiEngineFieldEvidence?: string[];
   aiEngineReasoningFrame?: AiSafetyReasoningFrame;
+  aiEngineUnifiedContext?: AiSafetyUnifiedContext;
+  aiEngineDomainUnderstanding?: SafetyDomainUnderstanding;
+  aiEngineSafetyDisciplines?: string[];
+  aiEngineFieldVerificationQuestions?: string[];
+  aiEngineActionDecisionTriggers?: AiActionDecisionTrigger[];
   aiEngineDecisionQuality?: AiSafetyDecisionQuality;
   aiEngineUncertaintySummary?: AiSafetyUncertaintySummary;
   aiEngineNextBestActions?: AiSafetyReasoningNextBestAction[];

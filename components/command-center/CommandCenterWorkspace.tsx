@@ -339,6 +339,8 @@ function DailySafetyCommandCenterPanel({
   const memoryInfluence = predictiveRisk?.memoryInfluence;
   const calibrationSummary = predictiveRisk?.calibrationSummary;
   const reasoningFrame = predictiveRisk?.aiSafetyReasoningFrame;
+  const unifiedContext = predictiveRisk?.aiSafetyUnifiedContext;
+  const domainUnderstanding = predictiveRisk?.aiSafetyDomainUnderstanding;
   const decisionQuality = predictiveRisk?.decisionQuality;
   const uncertaintySummary = predictiveRisk?.uncertaintySummary;
   const nextBestActions = predictiveRisk?.nextBestActions.slice(0, 4) ?? [];
@@ -467,6 +469,122 @@ function DailySafetyCommandCenterPanel({
           </p>
         ) : null}
       </div>
+
+      {unifiedContext ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-900">Unified AI Safety Intelligence</p>
+              <p className="mt-1 text-sm leading-6 text-sky-950">
+                Predictive Risk, Safety Intelligence, Gus field evidence, memory, and feedback are combined into one review context.
+              </p>
+            </div>
+            <StatusBadge
+              label={`${unifiedContext.confidence} confidence`}
+              tone={unifiedContext.confidence === "high" ? "success" : unifiedContext.confidence === "medium" ? "warning" : "error"}
+            />
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            <div className="rounded-xl border border-sky-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Source coverage</p>
+              <div className="mt-2 space-y-1">
+                {unifiedContext.sourceCoverage.map((item) => (
+                  <p key={item.sourceSystem} className="flex items-center justify-between gap-3 text-xs leading-5 text-[var(--app-text)]">
+                    <span className="font-semibold text-[var(--app-text-strong)]">{item.label}</span>
+                    <span>{item.evidenceCount + item.conflictCount} signal{item.evidenceCount + item.conflictCount === 1 ? "" : "s"}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-sky-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Cross-engine conflicts</p>
+              <div className="mt-2 space-y-1">
+                {unifiedContext.conflicts.slice(0, 3).map((conflict) => (
+                  <p key={conflict.id} className="text-xs leading-5 text-[var(--app-text)]">
+                    <span className="font-semibold text-[var(--app-text-strong)]">{conflict.title}:</span> {conflict.requiredVerification}
+                  </p>
+                ))}
+                {unifiedContext.conflicts.length === 0 ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">No cross-engine conflict is loaded in this window.</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-xl border border-sky-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Missing or conflicting</p>
+              <div className="mt-2 space-y-1">
+                {[...unifiedContext.conflictingSignals, ...unifiedContext.missingInformation].slice(0, 4).map((item) => (
+                  <p key={item} className="text-xs leading-5 text-[var(--app-text)]">{item}</p>
+                ))}
+                {unifiedContext.conflictingSignals.length === 0 && unifiedContext.missingInformation.length === 0 ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">No major missing or conflicting signal is flagged.</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          {unifiedContext.nextBestActions.length > 0 ? (
+            <p className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs leading-5 text-sky-900">
+              Next verification: {unifiedContext.nextBestActions[0].detail}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {domainUnderstanding ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-900">Safety field understanding</p>
+              <p className="mt-1 text-sm leading-6 text-emerald-950">{domainUnderstanding.headline}</p>
+            </div>
+            <StatusBadge
+              label={`${domainUnderstanding.confidence} confidence`}
+              tone={domainUnderstanding.confidence === "high" ? "success" : domainUnderstanding.confidence === "medium" ? "warning" : "error"}
+            />
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Recognized disciplines</p>
+              <div className="mt-2 space-y-1">
+                {domainUnderstanding.concepts.slice(0, 4).map((concept) => (
+                  <p key={concept.id} className="text-xs leading-5 text-[var(--app-text)]">
+                    <span className="font-semibold text-[var(--app-text-strong)]">{concept.label}:</span> {concept.whyItMatters}
+                  </p>
+                ))}
+                {domainUnderstanding.concepts.length === 0 ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">Add more task, hazard, control, or field evidence to strengthen this lens.</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Permit and competency focus</p>
+              <div className="mt-2 space-y-1">
+                {[...domainUnderstanding.permitAndPlanFocus, ...domainUnderstanding.competencyFocus].slice(0, 5).map((item) => (
+                  <p key={item} className="text-xs leading-5 text-[var(--app-text)]">{item}</p>
+                ))}
+                {domainUnderstanding.permitAndPlanFocus.length + domainUnderstanding.competencyFocus.length === 0 ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">No permit or competency focus was recognized.</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">Field verification questions</p>
+              <div className="mt-2 space-y-1">
+                {domainUnderstanding.fieldVerificationQuestions.slice(0, 4).map((item) => (
+                  <p key={item} className="text-xs leading-5 text-[var(--app-text)]">{item}</p>
+                ))}
+                {domainUnderstanding.fieldVerificationQuestions.length === 0 ? (
+                  <p className="text-xs leading-5 text-[var(--app-muted)]">No field verification question was generated.</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          {domainUnderstanding.controlHierarchyGaps.length > 0 ? (
+            <p className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs leading-5 text-emerald-900">
+              Hierarchy-of-controls lens: {domainUnderstanding.controlHierarchyGaps[0]}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {fieldEvidenceSignals.length > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">

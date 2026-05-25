@@ -194,6 +194,26 @@ export type GusConversationResponse = {
   humanReviewRequired: true;
 };
 
+export type GusThoughtDraftRequest = {
+  message: string;
+  history?: GusConversationTurn[];
+  context?: Partial<import("@/lib/gus/gusContext").GusContext>;
+  decision?: Partial<GusDecision>;
+};
+
+export type GusThoughtDraftResponse = {
+  clarifiedThought: string;
+  draftText: string;
+  talkingPoints: string[];
+  followUpQuestions: string[];
+  missingInformation: string[];
+  riskFlags: string[];
+  recommendedControls: string[];
+  suggestedActions: string[];
+  draftOnly: true;
+  humanReviewRequired: true;
+};
+
 export type GusPhotoReviewRiskLevel = "low" | "moderate" | "high" | "critical" | "unknown";
 
 export type GusPhotoReviewOutput = {

@@ -55,4 +55,40 @@ describe("jobsite daily todos", () => {
     });
     expect(readinessTodo?.detail).toContain("Emergency Action Plan");
   });
+
+  it("creates PM and SL review actions for critical Top 10 jobsite risk signals", () => {
+    const todos = buildJobsiteDailyTodos({
+      jobsiteId: "site-1",
+      jobsiteName: "Hillcrest Office Fit-Out",
+      workDate: "2026-05-22",
+      riskLevel: "medium",
+      emergencyActionPlanReadiness: "complete",
+      emergencyActionPlanMissingCount: 0,
+      topJobsiteRiskLevel: "critical",
+      topJobsiteRiskTitle: "Falls from elevation",
+      topJobsiteRiskEvidenceCount: 2,
+      firstScheduleRiskTitle: null,
+      highRiskScheduleCount: 0,
+      openActionsCount: 0,
+      overdueActionsCount: 0,
+      permitBlockerCount: 0,
+      inspectionGapCount: 0,
+      readyReportCount: 0,
+      workforceGapCount: 0,
+    });
+
+    const pmReview = todos.find((todo) => todo.sourceKey === "pm-risk-review");
+    const slReadiness = todos.find((todo) => todo.sourceKey === "sl-prework-readiness");
+
+    expect(pmReview).toMatchObject({
+      priority: "critical",
+      targetHref: "/jobsites/site-1/overview",
+    });
+    expect(pmReview?.detail).toContain("Immediate review needed for Falls from elevation");
+    expect(slReadiness).toMatchObject({
+      priority: "critical",
+      targetHref: "/jobsites/site-1/overview",
+    });
+    expect(slReadiness?.detail).toContain("Verify controls for Falls from elevation");
+  });
 });

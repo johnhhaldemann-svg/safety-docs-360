@@ -3,6 +3,7 @@ import { isCronRequestAuthorized } from "@/lib/cronAuth";
 import { withCronTelemetry } from "@/lib/cronTelemetry";
 import { buildJobsiteDailyTodos, getDailyTodoWorkDate, getLocalDailyDateParts } from "@/lib/jobsiteDailyTodos";
 import { evaluateEmergencyActionPlanReadiness, type EmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
+import { buildTopJobsiteRisks, type JobsiteTopRiskEvidenceRow } from "@/lib/jobsiteTopRisks";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -18,6 +19,9 @@ type JobsiteRow = {
 type SignalCounts = {
   emergencyActionPlanReadiness: EmergencyActionPlanReadiness;
   emergencyActionPlanMissingCount: number;
+  topJobsiteRiskLevel: "low" | "medium" | "high" | "critical" | null;
+  topJobsiteRiskTitle: string | null;
+  topJobsiteRiskEvidenceCount: number;
   highRiskScheduleCount: number;
   firstScheduleRiskTitle: string | null;
   openActionsCount: number;
@@ -46,6 +50,43 @@ function todayBounds(workDate: string) {
   return { start, end: endDate.toISOString() };
 }
 
+function stringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function evidenceRows(rows: Array<Record<string, unknown>>, source: JobsiteTopRiskEvidenceRow["source"]): JobsiteTopRiskEvidenceRow[] {
+  return rows.map((row) => ({
+    source,
+    id: typeof row.id === "string" ? row.id : null,
+    title: typeof row.title === "string" ? row.title : typeof row.name === "string" ? row.name : null,
+    category: typeof row.category === "string" ? row.category : typeof row.incident_type === "string" ? row.incident_type : null,
+    severity: typeof row.severity === "string" ? row.severity : null,
+    priority: typeof row.priority === "string" ? row.priority : null,
+    status: typeof row.status === "string" ? row.status : null,
+    riskLevel: typeof row.risk_level === "string" ? row.risk_level : null,
+    isHighRisk: typeof row.is_high_risk === "boolean" ? row.is_high_risk : null,
+    sifPotential: Boolean(row.sif_potential),
+    sifFlag: Boolean(row.sif_flag),
+    stopWorkStatus: typeof row.stop_work_status === "string" ? row.stop_work_status : null,
+    escalationLevel: typeof row.escalation_level === "string" ? row.escalation_level : null,
+    hazardCategories: stringArray(row.hazard_categories),
+    permitTriggers: stringArray(row.permit_triggers),
+    permitType: typeof row.permit_type === "string" ? row.permit_type : null,
+    description: typeof row.description === "string" ? row.description : typeof row.work_area === "string" ? row.work_area : null,
+    notes: typeof row.notes === "string" ? row.notes : null,
+    createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
+  }));
+}
+
+function todoRiskLevelFromTopRisk(level: string | undefined) {
+  if (level === "critical" || level === "high" || level === "low") return level;
+  if (level === "moderate") return "medium";
+  return null;
+}
+
 async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClient>, jobsite: JobsiteRow, workDate: string): Promise<SignalCounts> {
   if (!adminClient) {
     return {
@@ -54,6 +95,9 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
       openActionsCount: 0,
       emergencyActionPlanReadiness: "missing_critical_info",
       emergencyActionPlanMissingCount: 0,
+      topJobsiteRiskLevel: null,
+      topJobsiteRiskTitle: null,
+      topJobsiteRiskEvidenceCount: 0,
       overdueActionsCount: 0,
       permitBlockerCount: 0,
       inspectionGapCount: 0,
@@ -63,10 +107,10 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
   }
   const { start, end } = todayBounds(workDate);
 
-  const [scheduleResult, actionsResult, permitsResult, auditsResult, reportsResult, emergencyProfileResult] = await Promise.all([
+  const [scheduleResult, actionsResult, permitsResult, incidentsResult, auditsResult, reportsResult, emergencyProfileResult] = await Promise.all([
     adminClient
       .from("company_jobsite_schedule_items")
-      .select("id, title, risk_level, is_high_risk, work_start_date")
+      .select("id, title, status, risk_level, is_high_risk, work_start_date, work_end_date, trade, work_area, hazard_categories, permit_triggers, notes, created_at, updated_at")
       .eq("company_id", jobsite.company_id)
       .eq("jobsite_id", jobsite.id)
       .is("archived_at", null)
@@ -74,13 +118,18 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
       .or(`work_end_date.is.null,work_end_date.gte.${workDate}`),
     adminClient
       .from("company_corrective_actions")
-      .select("id, status, due_at")
+      .select("id, title, category, severity, priority, status, due_at, sif_potential, created_at, updated_at")
       .eq("company_id", jobsite.company_id)
       .eq("jobsite_id", jobsite.id)
       .not("status", "in", "(verified_closed,closed)"),
     adminClient
       .from("company_permits")
-      .select("id, status, review_status, expires_at")
+      .select("id, title, permit_type, category, severity, priority, status, review_status, expires_at, sif_flag, stop_work_status, escalation_level, created_at, updated_at")
+      .eq("company_id", jobsite.company_id)
+      .eq("jobsite_id", jobsite.id),
+    adminClient
+      .from("company_incidents")
+      .select("id, title, category, incident_type, severity, status, sif_flag, stop_work_status, escalation_level, created_at, updated_at")
       .eq("company_id", jobsite.company_id)
       .eq("jobsite_id", jobsite.id),
     adminClient
@@ -111,8 +160,15 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
   });
   const actionRows = Array.isArray(actionsResult.data) ? actionsResult.data as Array<Record<string, unknown>> : [];
   const permitRows = Array.isArray(permitsResult.data) ? permitsResult.data as Array<Record<string, unknown>> : [];
+  const incidentRows = Array.isArray(incidentsResult.data) ? incidentsResult.data as Array<Record<string, unknown>> : [];
   const auditRows = Array.isArray(auditsResult.data) ? auditsResult.data as Array<Record<string, unknown>> : [];
   const reportRows = Array.isArray(reportsResult.data) ? reportsResult.data as Array<Record<string, unknown>> : [];
+  const topRisk = buildTopJobsiteRisks([
+    ...evidenceRows(incidentRows, "incident"),
+    ...evidenceRows(actionRows, "corrective_action"),
+    ...evidenceRows(permitRows, "permit"),
+    ...evidenceRows(scheduleRows, "scheduled_work"),
+  ])[0];
   const emergencyReadiness = evaluateEmergencyActionPlanReadiness({
     profile: emergencyProfileResult.error ? null : emergencyProfileResult.data,
     jobsiteStatus: jobsite.status,
@@ -121,6 +177,9 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
   return {
     emergencyActionPlanReadiness: emergencyReadiness.readiness,
     emergencyActionPlanMissingCount: emergencyReadiness.missingFields.length,
+    topJobsiteRiskLevel: todoRiskLevelFromTopRisk(topRisk?.riskLevel),
+    topJobsiteRiskTitle: topRisk?.evidenceCount ? topRisk.title : null,
+    topJobsiteRiskEvidenceCount: topRisk?.evidenceCount ?? 0,
     highRiskScheduleCount: highRiskSchedule.length,
     firstScheduleRiskTitle: typeof highRiskSchedule[0]?.title === "string" ? highRiskSchedule[0].title : null,
     openActionsCount: actionRows.length,

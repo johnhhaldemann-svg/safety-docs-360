@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGusContextFromAiSafetyUnifiedContext,
+  buildGusContextFromSafetyDomainUnderstanding,
   buildGusContextFromAiSafetyReasoningFrame,
   buildGusContextFromDailyRiskBriefing,
   buildGusContextFromSafetyAiAssessment,
@@ -197,5 +199,111 @@ describe("Gus Safety AI Engine bridge", () => {
     expect(context.aiEngineUncertaintySummary?.summary).toContain("Training status");
     expect(context.aiEngineRecommendedNextAction).toContain("Verify permit");
     expect(context.aiEngineApprovalState).toBe("review_required");
+  });
+
+  it("maps unified AI Safety context into Gus source-aware coaching context", () => {
+    const context = buildGusContextFromAiSafetyUnifiedContext({
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      sourceCoverage: [
+        { sourceSystem: "predictive_risk", label: "Predictive Risk", evidenceCount: 2, conflictCount: 1, status: "available" },
+        { sourceSystem: "safety_intelligence", label: "Safety Intelligence", evidenceCount: 1, conflictCount: 1, status: "available" },
+      ],
+      evidence: [
+        {
+          id: "ev-1",
+          sourceSystem: "safety_intelligence",
+          sourceModule: "company_bucket_items",
+          sourceId: "bucket-1",
+          label: "Roof edge layout",
+          detail: "Fall exposure",
+          riskLevel: "high",
+          confidence: "medium",
+          jobsiteId: "j1",
+          trade: "roofing",
+          area: "Level 4",
+          date: "2026-05-25",
+          evidenceRefs: [],
+        },
+      ],
+      conflicts: [
+        {
+          id: "conflict-1",
+          sourceSystem: "safety_intelligence",
+          sourceKey: "si-conflict",
+          type: "hazard_propagation",
+          riskLevel: "high",
+          confidence: "medium",
+          title: "overhead hazard propagation",
+          reason: "Overhead work creates downstream exposure.",
+          recommendedAction: "Verify drop zone control.",
+          requiredVerification: "Verify drop zone control before work proceeds.",
+          humanApprovalRequired: true,
+          evidenceRefs: [],
+          jobsiteId: "j1",
+          trade: null,
+          area: "Level 4",
+          duplicateOf: null,
+        },
+      ],
+      missingInformation: ["work area"],
+      conflictingSignals: ["Reviewer feedback lowered confidence for a similar pattern."],
+      nextBestActions: [
+        {
+          id: "next-1",
+          title: "Review overhead conflict",
+          detail: "Verify drop zone control before work proceeds.",
+          sourceSystem: "safety_intelligence",
+          humanReviewRequired: true,
+        },
+      ],
+      confidence: "medium",
+      doNotClaim: ["Do not approve permits or release work."],
+    });
+
+    expect(context.aiEngineUnifiedContext?.sourceCoverage.length).toBe(2);
+    expect(context.aiEngineWorkfaceConflicts).toEqual(expect.arrayContaining([expect.stringContaining("safety intelligence")]));
+    expect(context.aiEngineRecommendedNextAction).toContain("Verify drop zone control");
+    expect(context.aiEngineApprovalState).toBe("review_required");
+    expect([...(context.aiEngineWorkfaceConflicts ?? []), ...(context.aiEngineRecommendations ?? [])].join(" ")).not.toMatch(
+      /\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i,
+    );
+  });
+
+  it("maps safety-domain understanding into Gus verification coaching context", () => {
+    const context = buildGusContextFromSafetyDomainUnderstanding({
+      generatedAt: "2026-05-25T12:00:00.000Z",
+      headline: "Recognized 1 safety discipline needing field understanding.",
+      concepts: [
+        {
+          id: "fall_protection",
+          label: "Fall protection and elevated work",
+          discipline: "fall_protection",
+          riskLevel: "high",
+          confidence: "medium",
+          whyItMatters: "Falls are high-consequence exposures.",
+          permitOrPlanTriggers: ["fall protection plan"],
+          competencySignals: ["competent person for scaffold/working surface review"],
+          criticalControls: ["guardrails or verified tie-off"],
+          hierarchyCoverage: ["engineering", "administrative", "ppe"],
+          verificationQuestions: ["What prevents a worker from reaching the fall edge?"],
+          basis: ["platform_rule", "predictive_evidence"],
+          evidenceIds: ["ev-1"],
+          missingInformation: ["anchor verification"],
+        },
+      ],
+      recognizedDisciplines: ["fall_protection"],
+      controlHierarchyGaps: ["Consider whether exposure can be removed or work resequenced before relying on administrative controls or PPE."],
+      permitAndPlanFocus: ["fall protection plan"],
+      competencyFocus: ["competent person for scaffold/working surface review"],
+      fieldVerificationQuestions: ["What prevents a worker from reaching the fall edge?"],
+      missingInformation: ["anchor verification"],
+      confidence: "medium",
+      doNotClaim: ["Do not approve work."],
+    });
+
+    expect(context.aiEngineSafetyDisciplines).toEqual(["fall_protection"]);
+    expect(context.aiEngineFieldVerificationQuestions).toEqual(expect.arrayContaining([expect.stringContaining("fall edge")]));
+    expect(context.aiEngineRecommendedNextAction).toContain("fall edge");
+    expect(context.aiEngineRecommendations?.join(" ")).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
   });
 });

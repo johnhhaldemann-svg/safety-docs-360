@@ -16,6 +16,10 @@ import {
   type AiSafetyFeedbackConfidenceAdjustment,
   type AiSafetyFeedbackSignal,
 } from "@/lib/aiSafetyFeedbackInfluence";
+import {
+  buildAiActionDecisionTriggers,
+  type AiActionDecisionTrigger,
+} from "@/lib/aiActionDecisionTriggers";
 
 export type AiSafetyApprovalState =
   | "review_required"
@@ -66,6 +70,7 @@ export type AiSafetyActionQueueItem = {
   feedbackInfluence: string[];
   feedbackConfidenceAdjustment: AiSafetyFeedbackConfidenceAdjustment;
   memoryInfluence: string[];
+  decisionTriggers?: AiActionDecisionTrigger[];
   reasoningMetadata?: {
     decisionQualityScore: number;
     decisionQualityLevel: "low" | "medium" | "high";
@@ -325,11 +330,12 @@ function feedbackConfidenceAdjustment(signals: AiSafetyFeedbackSignal[]): AiSafe
 function applyFeedbackSignals(item: AiSafetyActionQueueItem, signals: AiSafetyFeedbackSignal[]) {
   const matching = feedbackSignalsForAction(item, signals);
   if (matching.length === 0) return { item, suppressed: false };
+  const itemWithoutTriggers = item as Omit<AiSafetyActionQueueItem, "decisionTriggers">;
   const forceHumanReview = matching.some((signal) => signal.forceHumanReview);
   const missingInformation = unique([...item.missingInformation, ...matching.flatMap((signal) => signal.missingInformation)], 8);
   const feedbackInfluence = unique([...item.feedbackInfluence, ...feedbackInfluenceSummary(matching)], 6);
-  const adjustedItem: AiSafetyActionQueueItem = {
-    ...item,
+  const adjustedItem = withActionDecisionTriggers({
+    ...itemWithoutTriggers,
     missingInformation,
     feedbackInfluence,
     feedbackConfidenceAdjustment: feedbackConfidenceAdjustment(matching),
@@ -338,11 +344,38 @@ function applyFeedbackSignals(item: AiSafetyActionQueueItem, signals: AiSafetyFe
     humanApprovalReason:
       item.humanApprovalReason ??
       (forceHumanReview ? "Reviewer feedback requested escalation for a similar recommendation; human review is required before work proceeds." : null),
-  };
+  });
   const suppressByFeedback =
     matching.some((signal) => signal.suppressNonCritical) &&
     canSuppressAiSafetyActionByFeedback(adjustedItem.riskLevel, adjustedItem.category, adjustedItem.humanApprovalRequired);
   return { item: adjustedItem, suppressed: suppressByFeedback };
+}
+
+function actionDecisionTriggersForItem(item: Omit<AiSafetyActionQueueItem, "decisionTriggers">): AiActionDecisionTrigger[] {
+  return buildAiActionDecisionTriggers({
+    source: "ai_action_queue",
+    sourceId: item.id,
+    sourceText: [
+      item.title,
+      item.detail,
+      item.recommendedControl,
+      item.humanApprovalReason ?? "",
+      ...item.missingInformation,
+      ...item.feedbackInfluence,
+    ],
+    targetModule: item.targetModule,
+    riskLevel: item.riskLevel,
+    humanReviewRequired: item.humanApprovalRequired || item.approvalState === "review_required",
+    evidenceRefs: item.evidenceRefs,
+    limit: 6,
+  });
+}
+
+function withActionDecisionTriggers(item: Omit<AiSafetyActionQueueItem, "decisionTriggers">): AiSafetyActionQueueItem {
+  return {
+    ...item,
+    decisionTriggers: actionDecisionTriggersForItem(item),
+  };
 }
 
 function buildActionFromBlocker(
@@ -362,7 +395,7 @@ function buildActionFromBlocker(
 
   return {
     suppressed: suppressDuplicate,
-    item: {
+    item: withActionDecisionTriggers({
       id: `ai-action-${work.id}-${blocker.id}`,
       sourceKey: sourceKeyForAction({
         category,
@@ -395,7 +428,7 @@ function buildActionFromBlocker(
       feedbackInfluence: suppressDuplicate ? ["A similar recommendation was already resolved or field-used for this scope."] : [],
       feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
       memoryInfluence: memoryInfluenceForWork(work),
-    },
+    }),
   };
 }
 
@@ -406,7 +439,7 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
   const humanApprovalRequired = work.humanApprovalRequired || RISK_RANK[work.riskLevel] >= RISK_RANK.high;
   return {
     suppressed: suppressDuplicate,
-    item: {
+    item: withActionDecisionTriggers({
       id: `ai-action-${work.id}-high-risk-review`,
       sourceKey: sourceKeyForAction({
         category: "high_risk_work",
@@ -439,7 +472,7 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
       feedbackInfluence: suppressDuplicate ? ["A similar high-risk review action was already resolved or field-used."] : [],
       feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
       memoryInfluence: memoryInfluenceForWork(work),
-    },
+    }),
   };
 }
 
@@ -484,7 +517,7 @@ function buildActionFromFieldEvidence(
     signal.nextActions[0] ??
     fallbackControlForCategory("field_evidence_review", "");
   const concern = signal.criticalFlags[0] ?? signal.concerns[0] ?? "Photo/field evidence needs verification";
-  return {
+  return withActionDecisionTriggers({
     id: `ai-action-field-evidence-${normalize(signal.id || sourceKey).replace(/\s+/g, "-").slice(0, 80)}`,
     sourceKey,
     title: `Verify field evidence - ${work?.title ?? concern}`,
@@ -519,7 +552,7 @@ function buildActionFromFieldEvidence(
     feedbackInfluence: [],
     feedbackConfidenceAdjustment: "neutral",
     memoryInfluence: [],
-  };
+  });
 }
 
 function buildActionFromConflict(
@@ -538,7 +571,7 @@ function buildActionFromConflict(
     conflict.riskLevel === "high";
   return {
     suppressed: suppressDuplicate,
-    item: {
+    item: withActionDecisionTriggers({
       id: `ai-action-${conflict.id}`,
       sourceKey: sourceKeyForAction({
         category: "workface_conflict_review",
@@ -574,7 +607,7 @@ function buildActionFromConflict(
       feedbackInfluence: suppressDuplicate ? ["A similar conflict review action was already resolved or field-used."] : [],
       feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
       memoryInfluence: [],
-    },
+    }),
   };
 }
 

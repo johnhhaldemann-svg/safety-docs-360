@@ -121,6 +121,13 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
     const evidenceNote = context.aiEngineReasoningFrame?.supportingEvidence?.length
       ? ` Evidence: ${compactList(context.aiEngineReasoningFrame.supportingEvidence.map((item) => item.label), "loaded AI Engine evidence")}.`
       : "";
+    const unified = context.aiEngineUnifiedContext;
+    const unifiedNote = unified
+      ? ` Unified sources: ${compactList(unified.sourceCoverage.filter((item) => item.evidenceCount + item.conflictCount > 0).map((item) => item.label), "AI safety sources")}.`
+      : "";
+    const domainNote = context.aiEngineSafetyDisciplines?.length
+      ? ` Safety field lens: ${compactList(context.aiEngineSafetyDisciplines, "recognized safety disciplines")}.`
+      : "";
 
     return decision({
       decisionId: "gus-ai-engine-review-decision",
@@ -134,7 +141,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
         message: `I'm flagging this for review.${work}${conflictNote}${fieldEvidenceNote} ${nextStep}`,
         spokenText: `I'm flagging this for review. ${nextStep}`,
-        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}.${evidenceNote}${uncertaintyNote} Human review required.`,
+        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}.${evidenceNote}${unifiedNote}${domainNote}${uncertaintyNote} Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
         actionLabel: "Review safety risk",
         actionHref: routeHref(route, "/risk"),
