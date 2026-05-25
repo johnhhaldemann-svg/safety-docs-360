@@ -27,6 +27,10 @@ import {
   type ExistingAiSafetyRecommendationRow,
 } from "@/lib/aiSafetyActionQueuePersistence";
 import { sanitizeAiFeedbackSignalMetadata } from "@/lib/superadmin/aiEngineOperations";
+import {
+  fieldEvidenceSignalsFromRecommendations,
+  type AiSafetyFieldEvidenceRecommendationRow,
+} from "@/lib/aiSafetyFieldEvidence";
 
 export const runtime = "nodejs";
 
@@ -183,6 +187,18 @@ function observationsFromFieldAuditRows(rows: FieldAuditObservationRow[]): Behav
   }));
 }
 
+function fieldEvidenceRowsForScope(
+  rows: AiSafetyFieldEvidenceRecommendationRow[],
+  options: { requestedJobsiteId: string | null; assignedJobsiteIds: string[] | null },
+) {
+  return rows.filter((row) => {
+    const jobsiteId = row.jobsite_id ?? null;
+    if (options.requestedJobsiteId) return !jobsiteId || jobsiteId === options.requestedJobsiteId;
+    if (options.assignedJobsiteIds && options.assignedJobsiteIds.length > 0) return !jobsiteId || options.assignedJobsiteIds.includes(jobsiteId);
+    return true;
+  });
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data", "can_view_dashboards"],
@@ -266,6 +282,13 @@ export async function POST(request: Request) {
     scopeOptions
   ) as unknown as PromiseLike<QueryResult<PredictiveSafetyWeatherAlertRow>>;
   const memoryItemsQuery = auth.supabase.from("company_memory_items").select("id, title, summary, content, body, source, source_type, created_at").eq("company_id", companyId) as unknown as PromiseLike<QueryResult<PredictiveSafetyMemoryItemRow>>;
+  const fieldEvidenceQuery = auth.supabase
+    .from("company_risk_ai_recommendations")
+    .select("id, jobsite_id, title, body, confidence, status, evidence_summary, created_at")
+    .eq("company_id", companyId)
+    .eq("kind", "ai_safety_field_evidence")
+    .in("status", ["active", "accepted", "assigned", "field_used"])
+    .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFieldEvidenceRecommendationRow>>;
   const existingActionsQuery = auth.supabase.from("company_risk_ai_recommendations").select("id, status, evidence_summary").eq("company_id", companyId).eq("kind", "ai_safety_action").in("status", ["active", "accepted", "assigned", "field_used"]) as unknown as PromiseLike<QueryResult<ExistingAiSafetyRecommendationRow>>;
 
   const [
@@ -281,6 +304,7 @@ export async function POST(request: Request) {
     trainingRecordsRes,
     weatherAlertsRes,
     memoryItemsRes,
+    fieldEvidenceRes,
     existingActionsRes,
   ] = await Promise.all([
     jobsitesQuery,
@@ -295,6 +319,7 @@ export async function POST(request: Request) {
     trainingRecordsQuery,
     weatherAlertsQuery,
     memoryItemsQuery,
+    fieldEvidenceQuery,
     existingActionsQuery,
   ]);
 
@@ -308,6 +333,7 @@ export async function POST(request: Request) {
     (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null) ||
     (fieldAuditObservationsRes.error && !isMissingTable(fieldAuditObservationsRes.error.message) ? fieldAuditObservationsRes.error.message : null) ||
     (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null) ||
+    (fieldEvidenceRes.error && !isMissingTable(fieldEvidenceRes.error.message) ? fieldEvidenceRes.error.message : null) ||
     (existingActionsRes.error && !isMissingTable(existingActionsRes.error.message) ? existingActionsRes.error.message : null);
   if (hardError) return NextResponse.json({ error: hardError || "Failed to load AI safety action queue." }, { status: 500 });
 
@@ -317,6 +343,9 @@ export async function POST(request: Request) {
     ...(observationsRes.error ? [] : observationsRes.data ?? []),
     ...(fieldAuditObservationsRes.error ? [] : observationsFromFieldAuditRows(fieldAuditObservationsRes.data ?? [])),
   ];
+  const fieldEvidenceSignals = fieldEvidenceSignalsFromRecommendations(
+    fieldEvidenceRowsForScope(fieldEvidenceRes.error ? [] : fieldEvidenceRes.data ?? [], scopeOptions),
+  );
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
     companyId,
@@ -340,6 +369,7 @@ export async function POST(request: Request) {
     trainingGaps,
     weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
     memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
+    fieldEvidenceSignals,
     riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
   });
 

@@ -307,9 +307,17 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
 export function buildGusContextFromAiSafetyReasoningFrame(frame: AiSafetyReasoningFrame): Partial<GusContext> {
   const nextBestActions = frame.nextBestActions.slice(0, 5);
   const evidenceLabels = frame.supportingEvidence.slice(0, 4).map((item) => item.label);
+  const fieldEvidence = frame.fieldEvidenceSignals
+    .slice(0, 4)
+    .map((signal) => {
+      const linked = signal.linkedWorkTitle ?? signal.linkedConflictTitle ?? "unlinked field evidence";
+      const detail = signal.criticalFlags[0] ?? signal.concerns[0] ?? signal.nextActions[0] ?? "needs field verification";
+      return `${linked}: ${detail}`;
+    });
   const missingOrConflicting = [
     ...frame.missingInformation.slice(0, 3),
     ...frame.conflictingEvidence.slice(0, 2).map((item) => item.label),
+    ...fieldEvidence.slice(0, 2),
   ];
 
   return {
@@ -330,6 +338,7 @@ export function buildGusContextFromAiSafetyReasoningFrame(frame: AiSafetyReasoni
       frame.decisionQuality.calibrationSupport === "supported"
         ? "Calibration has field outcome support for this reasoning frame."
         : "Calibration still needs outcome data for this reasoning frame.",
+    aiEngineFieldEvidence: fieldEvidence,
     riskDrivers: evidenceLabels,
   };
 }

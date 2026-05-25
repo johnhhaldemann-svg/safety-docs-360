@@ -29,6 +29,10 @@ import type {
 } from "@/lib/predictiveSafetyEngine";
 import type { WorkScheduleInputs } from "@/lib/injuryWeather/types";
 import type { BehaviorRiskObservationRow, BehaviorRiskTrainingGapRow } from "@/lib/predictive/behaviorRisk";
+import {
+  fieldEvidenceSignalsFromRecommendations,
+  type AiSafetyFieldEvidenceRecommendationRow,
+} from "@/lib/aiSafetyFieldEvidence";
 
 export const runtime = "nodejs";
 
@@ -232,6 +236,18 @@ function observationsFromFieldAuditRows(rows: FieldAuditObservationRow[]): Behav
   }));
 }
 
+function fieldEvidenceRowsForScope(
+  rows: AiSafetyFieldEvidenceRecommendationRow[],
+  options: { requestedJobsiteId: string | null; assignedJobsiteIds: string[] | null },
+) {
+  return rows.filter((row) => {
+    const jobsiteId = row.jobsite_id ?? null;
+    if (options.requestedJobsiteId) return !jobsiteId || jobsiteId === options.requestedJobsiteId;
+    if (options.assignedJobsiteIds && options.assignedJobsiteIds.length > 0) return !jobsiteId || options.assignedJobsiteIds.includes(jobsiteId);
+    return true;
+  });
+}
+
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data"],
@@ -384,6 +400,13 @@ export async function GET(request: Request) {
     .from("company_memory_items")
     .select("id, title, summary, content, body, source, source_type, created_at")
     .eq("company_id", companyId) as unknown as PromiseLike<QueryResult<PredictiveSafetyMemoryItemRow>>;
+  const fieldEvidenceQuery = auth.supabase
+    .from("company_risk_ai_recommendations")
+    .select("id, jobsite_id, title, body, confidence, status, evidence_summary, created_at")
+    .eq("company_id", companyId)
+    .eq("kind", "ai_safety_field_evidence")
+    .in("status", ["active", "accepted", "assigned", "field_used"])
+    .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFieldEvidenceRecommendationRow>>;
   const feedbackRecommendationsQuery = auth.supabase
     .from("company_risk_ai_recommendations")
     .select("id, title, status, priority, jobsite_id, evidence_summary")
@@ -409,6 +432,7 @@ export async function GET(request: Request) {
     trainingRecordsRes,
     weatherAlertsRes,
     memoryItemsRes,
+    fieldEvidenceRes,
     feedbackRecommendationsRes,
     feedbackEventsRes,
     aiOutputFeedbackRes,
@@ -425,6 +449,7 @@ export async function GET(request: Request) {
     trainingRecordsQuery,
     weatherAlertsQuery,
     memoryItemsQuery,
+    fieldEvidenceQuery,
     feedbackRecommendationsQuery,
     feedbackEventsQuery,
     aiOutputFeedbackQuery,
@@ -438,6 +463,9 @@ export async function GET(request: Request) {
     ...(observationsRes.error ? [] : observationsRes.data ?? []),
     ...(fieldAuditObservationsRes.error ? [] : observationsFromFieldAuditRows(fieldAuditObservationsRes.data ?? [])),
   ];
+  const fieldEvidenceSignals = fieldEvidenceSignalsFromRecommendations(
+    fieldEvidenceRowsForScope(fieldEvidenceRes.error ? [] : fieldEvidenceRes.data ?? [], scopeOptions),
+  );
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
     companyId,
@@ -456,6 +484,7 @@ export async function GET(request: Request) {
     (observationsRes.error && !isMissingTable(observationsRes.error.message) ? observationsRes.error.message : null) ||
     (fieldAuditObservationsRes.error && !isMissingTable(fieldAuditObservationsRes.error.message) ? fieldAuditObservationsRes.error.message : null) ||
     (mitigationsRes.error && !isMissingTable(mitigationsRes.error.message) ? mitigationsRes.error.message : null) ||
+    (fieldEvidenceRes.error && !isMissingTable(fieldEvidenceRes.error.message) ? fieldEvidenceRes.error.message : null) ||
     (feedbackRecommendationsRes.error && !isMissingTable(feedbackRecommendationsRes.error.message) ? feedbackRecommendationsRes.error.message : null) ||
     (feedbackEventsRes.error && !isMissingTable(feedbackEventsRes.error.message) ? feedbackEventsRes.error.message : null);
 
@@ -480,6 +509,7 @@ export async function GET(request: Request) {
       trainingGaps,
       weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
       memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
+      fieldEvidenceSignals,
       feedbackSignals: buildAiSafetyFeedbackSignals({
         recommendations: feedbackRecommendationsRes.error ? [] : feedbackRecommendationsRes.data ?? [],
         events: feedbackEventsRes.error ? [] : feedbackEventsRes.data ?? [],

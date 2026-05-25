@@ -461,6 +461,96 @@ describe("/api/company/predictive-risk", () => {
     );
   });
 
+  it("includes persisted field evidence in reasoning frame and action queue", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "roof-edge",
+            jobsite_id: "j1",
+            title: "Roof edge layout",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            shift_start_time: "07:00",
+            shift_end_time: "15:00",
+            trade: "Roofing",
+            work_area: "Roof edge",
+            crew_size: 4,
+            supervisor_name: null,
+            risk_level: "high",
+            is_high_risk: true,
+            hazard_categories: ["fall_protection"],
+            permit_triggers: [],
+            required_controls: [],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+      company_risk_ai_recommendations: queryBuilder({
+        data: [
+          {
+            id: "field-1",
+            jobsite_id: "j1",
+            title: "Field evidence review - roof edge",
+            body: "Photo review needs field verification.",
+            confidence: 0.7,
+            status: "active",
+            priority: "high",
+            mitigation_state: "unverified",
+            risk_reduction_points: 0,
+            created_at: new Date().toISOString(),
+            evidence_summary: {
+              gusPhotoReview: {
+                source: "gus_photo_review",
+                sourceKey: "gus-photo-review:co1:j1:u1:1",
+                riskLevel: "high",
+                concerns: ["Open roof edge appears exposed"],
+                criticalFlags: [],
+                missingInformation: ["Exact location"],
+                recommendedControls: ["Verify fall protection plan and edge protection"],
+                nextActions: ["Have the supervisor verify the roof edge in the field."],
+                limitations: ["Photo angle does not show full work area."],
+                jobsiteId: "j1",
+                userNote: "Check roof edge.",
+                needsFieldVerification: true,
+              },
+            },
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.aiSafetyReasoningFrame.fieldEvidenceSignals[0]).toEqual(
+      expect.objectContaining({
+        id: "field-1",
+        needsFieldVerification: true,
+        linkedWorkTitle: "Roof edge layout",
+      }),
+    );
+    expect(body.aiSafetyActionQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "field_evidence_review",
+          approvalState: "review_required",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
+  });
+
   it("includes feedback-influenced queue metadata from AI output feedback", async () => {
     const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const { from } = supabaseFixture({

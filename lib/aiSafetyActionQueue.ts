@@ -9,6 +9,7 @@ import type { PredictiveRiskMitigationRow } from "@/lib/predictiveRisk";
 import type { SafetyRiskLevel } from "@/lib/safety-ai/types";
 import type { RiskActionTargetModule } from "@/types/risk-action-plan";
 import type { AiSafetyConflictFinding } from "@/lib/aiSafetyConflictMap";
+import type { AiSafetyFieldEvidenceSignal } from "@/lib/aiSafetyReasoningFrame";
 import {
   canSuppressAiSafetyActionByFeedback,
   feedbackSignalsForAction,
@@ -33,6 +34,7 @@ export type AiSafetyActionCategory =
   | "open_corrective_action"
   | "repeated_observation_pattern"
   | "workface_conflict_review"
+  | "field_evidence_review"
   | "high_risk_work";
 
 export type AiSafetyActionPriority = "low" | "medium" | "high" | "critical";
@@ -149,6 +151,7 @@ export type AiSafetyClosedLoopPayload = {
 type BuildAiSafetyClosedLoopInput = {
   dailyBriefing: DailyRiskBriefing;
   conflictFindings?: AiSafetyConflictFinding[];
+  fieldEvidenceSignals?: AiSafetyFieldEvidenceSignal[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
   feedbackSignals?: AiSafetyFeedbackSignal[];
@@ -223,6 +226,7 @@ function targetForCategory(category: AiSafetyActionCategory): RiskActionTargetMo
   if (category === "weather_sensitive_work") return "weather";
   if (category === "repeated_observation_pattern") return "field_issue";
   if (category === "workface_conflict_review") return "command_center";
+  if (category === "field_evidence_review") return "command_center";
   return "predictive_risk";
 }
 
@@ -242,6 +246,7 @@ function fallbackControlForCategory(category: AiSafetyActionCategory, detail: st
   if (category === "open_corrective_action") return "Review the open corrective action and verify controls in the field before related work proceeds.";
   if (category === "repeated_observation_pattern") return "Brief the crew on the repeated observation pattern and verify corrective controls are working.";
   if (category === "workface_conflict_review") return "Review the predicted workface conflict and verify sequencing, separation, and controls before work proceeds.";
+  if (category === "field_evidence_review") return "Review the field evidence summary and verify visible conditions before work proceeds.";
   return detail || "Verify critical controls before work starts.";
 }
 
@@ -271,6 +276,7 @@ function approvalReasonFor(work: PredictiveSafetyWorkItem, category: AiSafetyAct
   if (category === "competent_person_review") return "Competent-person review is required for this exposure.";
   if (category === "weather_sensitive_work") return "Weather-sensitive work requires supervisor review of current conditions.";
   if (category === "workface_conflict_review") return "Predicted workface conflict requires human review and field verification before work proceeds.";
+  if (category === "field_evidence_review") return "Field/photo evidence requires human review and field verification before work proceeds.";
   return blocker?.severity === "high" || blocker?.severity === "critical" ? blocker.detail : null;
 }
 
@@ -446,6 +452,76 @@ function dueAtForConflict(conflict: AiSafetyConflictFinding, dailyBriefing: Dail
   return dueAtForWork(work);
 }
 
+function riskForFieldEvidence(signal: AiSafetyFieldEvidenceSignal): SafetyRiskLevel {
+  return signal.riskLevel === "unknown" ? "moderate" : signal.riskLevel;
+}
+
+function workForFieldEvidence(signal: AiSafetyFieldEvidenceSignal, dailyBriefing: DailyRiskBriefing) {
+  if (signal.linkedWorkItemId) {
+    return dailyBriefing.highRiskWork.find((work) => work.id === signal.linkedWorkItemId) ?? null;
+  }
+  if (signal.linkedWorkTitle) {
+    return dailyBriefing.highRiskWork.find((work) => normalize(work.title) === normalize(signal.linkedWorkTitle)) ?? null;
+  }
+  return null;
+}
+
+function buildActionFromFieldEvidence(
+  signal: AiSafetyFieldEvidenceSignal,
+  dailyBriefing: DailyRiskBriefing,
+): AiSafetyActionQueueItem {
+  const riskLevel = riskForFieldEvidence(signal);
+  const work = workForFieldEvidence(signal, dailyBriefing);
+  const sourceKey = sourceKeyForAction({
+    category: "field_evidence_review",
+    workId: work?.id ?? signal.linkedWorkItemId ?? null,
+    blockerId: signal.sourceKey ?? signal.id,
+    jobsiteId: signal.jobsiteId ?? work?.jobsiteId ?? null,
+    dueAt: dueAtForWork(work),
+  });
+  const recommendedControl =
+    signal.recommendedControls[0] ??
+    signal.nextActions[0] ??
+    fallbackControlForCategory("field_evidence_review", "");
+  const concern = signal.criticalFlags[0] ?? signal.concerns[0] ?? "Photo/field evidence needs verification";
+  return {
+    id: `ai-action-field-evidence-${normalize(signal.id || sourceKey).replace(/\s+/g, "-").slice(0, 80)}`,
+    sourceKey,
+    title: `Verify field evidence - ${work?.title ?? concern}`,
+    detail: [
+      concern,
+      signal.linkedWorkTitle ? `Linked work: ${signal.linkedWorkTitle}.` : null,
+      signal.linkedConflictTitle ? `Linked conflict: ${signal.linkedConflictTitle}.` : null,
+      "Field/photo evidence is advisory and needs field verification.",
+    ].filter(Boolean).join(" "),
+    category: "field_evidence_review",
+    riskLevel,
+    priority: priorityForRisk(riskLevel),
+    ownerRole: "safety_manager",
+    dueAt: dueAtForWork(work),
+    approvalState: "review_required",
+    recommendedControl,
+    evidenceRefs: signal.evidenceRefs,
+    missingInformation: unique(signal.missingInformation, 8),
+    humanApprovalRequired: true,
+    humanApprovalReason:
+      riskLevel === "critical" || signal.criticalFlags.length > 0
+        ? "Critical field evidence requires human review and possible stop-work evaluation before work proceeds."
+        : "Field/photo evidence requires human review and field verification before work proceeds.",
+    sourceWorkItemId: work?.id ?? signal.linkedWorkItemId ?? null,
+    sourceWorkTitle: work?.title ?? signal.linkedWorkTitle ?? null,
+    jobsiteId: signal.jobsiteId ?? work?.jobsiteId ?? null,
+    jobsiteName: work?.jobsiteName ?? null,
+    trade: work?.trade ?? null,
+    area: work?.area ?? null,
+    targetModule: "command_center",
+    targetHref: "/command-center",
+    feedbackInfluence: [],
+    feedbackConfidenceAdjustment: "neutral",
+    memoryInfluence: [],
+  };
+}
+
 function buildActionFromConflict(
   conflict: AiSafetyConflictFinding,
   dailyBriefing: DailyRiskBriefing,
@@ -547,6 +623,18 @@ function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQu
     }
     const feedbackApplied = applyFeedbackSignals(item, feedbackSignals);
     if (feedbackApplied.suppressed) {
+      suppressedFeedbackCount += 1;
+      continue;
+    }
+    rawItems.push(feedbackApplied.item);
+  }
+
+  for (const signal of input.fieldEvidenceSignals ?? []) {
+    const riskLevel = riskForFieldEvidence(signal);
+    if (RISK_RANK[riskLevel] < RISK_RANK.moderate && signal.concerns.length === 0 && signal.criticalFlags.length === 0) continue;
+    const item = buildActionFromFieldEvidence(signal, input.dailyBriefing);
+    const feedbackApplied = applyFeedbackSignals(item, feedbackSignals);
+    if (feedbackApplied.suppressed && item.riskLevel !== "critical") {
       suppressedFeedbackCount += 1;
       continue;
     }

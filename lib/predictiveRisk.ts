@@ -50,6 +50,7 @@ import {
   type AiSafetyReasoningNextBestAction,
   type AiSafetyUncertaintySummary,
 } from "@/lib/aiSafetyReasoningFrame";
+import { linkFieldEvidenceSignalsToPredictiveContext } from "@/lib/aiSafetyFieldEvidence";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -941,9 +942,15 @@ export function buildPredictiveRiskPayload(input: {
     weatherAlerts: input.weatherAlerts,
   });
   const dailyBriefing = dailyBriefingWithConflicts(baseDailyBriefing, aiSafetyConflictMap);
+  const fieldEvidenceSignals = linkFieldEvidenceSignalsToPredictiveContext({
+    signals: input.fieldEvidenceSignals ?? [],
+    dailyBriefing,
+    conflictMap: aiSafetyConflictMap,
+  });
   const aiSafetyLoop = buildAiSafetyClosedLoopPayload({
     dailyBriefing,
     conflictFindings: aiSafetyConflictMap.findings,
+    fieldEvidenceSignals,
     riskMitigations: input.riskMitigations,
     memoryItems: input.memoryItems,
     feedbackSignals: input.feedbackSignals,
@@ -956,7 +963,7 @@ export function buildPredictiveRiskPayload(input: {
     memoryInfluence: aiSafetyLoop.memoryInfluence,
     feedbackInfluence: aiSafetyLoop.feedbackInfluence,
     calibrationSummary: aiSafetyLoop.calibrationSummary,
-    fieldEvidenceSignals: input.fieldEvidenceSignals,
+    fieldEvidenceSignals,
   });
   const aiSafetyActionQueue = actionQueueWithReasoningMetadata(aiSafetyLoop.aiSafetyActionQueue, aiSafetyReasoningFrame);
   const accumulators = buildLocationAccumulators({

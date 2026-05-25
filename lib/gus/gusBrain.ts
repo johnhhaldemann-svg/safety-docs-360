@@ -114,6 +114,8 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
     const recommendation = context.aiEngineRecommendedNextAction ? ` Next action: ${context.aiEngineRecommendedNextAction}` : "";
     const conflicts = context.aiEngineWorkfaceConflicts ?? [];
     const conflictNote = conflicts.length > 0 ? ` Workface conflict: ${compactList(conflicts, "predicted workface conflict")}.` : "";
+    const fieldEvidence = context.aiEngineFieldEvidence ?? [];
+    const fieldEvidenceNote = fieldEvidence.length > 0 ? ` Field evidence: ${compactList(fieldEvidence, "photo-review evidence needing verification")}.` : "";
     const uncertainty = context.aiEngineUncertaintySummary;
     const uncertaintyNote = uncertainty ? ` Uncertainty: ${uncertainty.summary}` : "";
     const evidenceNote = context.aiEngineReasoningFrame?.supportingEvidence?.length
@@ -130,7 +132,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-ai-engine-review",
         category: "risk_alert",
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
-        message: `I'm flagging this for review.${work}${conflictNote} ${nextStep}`,
+        message: `I'm flagging this for review.${work}${conflictNote}${fieldEvidenceNote} ${nextStep}`,
         spokenText: `I'm flagging this for review. ${nextStep}`,
         reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}.${evidenceNote}${uncertaintyNote} Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",

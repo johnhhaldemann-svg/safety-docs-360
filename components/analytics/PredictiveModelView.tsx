@@ -428,6 +428,7 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
   const decisionQuality = data?.decisionQuality;
   const uncertaintySummary = data?.uncertaintySummary;
   const nextBestActions = data?.nextBestActions.slice(0, 4) ?? [];
+  const fieldEvidenceSignals = reasoningFrame?.fieldEvidenceSignals.slice(0, 3) ?? [];
 
   return (
     <section className="rounded-lg border border-[var(--app-border)] bg-white p-4">
@@ -507,6 +508,39 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                 <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">No next-best action was generated.</p>
               ) : null}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {fieldEvidenceSignals.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-800">Field evidence needing verification</p>
+              <p className="mt-1 text-xs leading-5 text-amber-950">
+                Photo-review summaries are advisory evidence inputs and need field verification before work proceeds.
+              </p>
+            </div>
+            <span className="rounded-md border border-amber-300 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-800">
+              {fieldEvidenceSignals.length} item{fieldEvidenceSignals.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {fieldEvidenceSignals.map((signal) => (
+              <div key={signal.id} className="rounded-md border border-amber-200 bg-white px-3 py-2">
+                <p className="text-xs font-black text-[var(--app-text-strong)]">
+                  {signal.linkedWorkTitle ?? signal.linkedConflictTitle ?? "Unlinked field evidence"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">
+                  {(signal.criticalFlags[0] ?? signal.concerns[0] ?? signal.nextActions[0]) || "Field evidence needs review."}
+                </p>
+                {signal.recommendedControls[0] ? (
+                  <p className="mt-2 text-xs font-semibold leading-5 text-amber-900">
+                    Verify: {signal.recommendedControls[0]}
+                  </p>
+                ) : null}
+              </div>
+            ))}
           </div>
         </div>
       ) : null}

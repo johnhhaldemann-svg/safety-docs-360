@@ -12,6 +12,7 @@ import {
   appButtonSecondaryClassName,
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
+import { emergencyActionPlanStatusLabel, type EmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -112,6 +113,12 @@ function rowDate(row: SurfaceRow, keys: string[]) {
 
 function surfaceRows(payload: Record<string, unknown> | null, key: string) {
   return (((payload?.[key] as SurfaceRow[] | undefined) ?? []) as SurfaceRow[]).filter(Boolean);
+}
+
+function emergencyReadinessTone(readiness?: string | null): "success" | "warning" | "error" {
+  if (readiness === "complete") return "success";
+  if (readiness === "missing_critical_info") return "error";
+  return "warning";
 }
 
 function roleNeedsJobsiteAssignment(role?: string | null) {
@@ -279,6 +286,7 @@ function OverviewWidgets({
   const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
   const overview = (payload?.overview as Record<string, unknown> | undefined) ?? {};
   const widgets = (payload?.widgets as Record<string, unknown> | undefined) ?? {};
+  const emergencyActionPlan = (payload?.emergencyActionPlan as Record<string, unknown> | undefined) ?? {};
   const incidents = (widgets.recentIncidents as Array<Record<string, unknown>> | undefined) ?? [];
   const links = (payload?.links as Record<string, string> | undefined) ?? {};
   const payloadUsers = payload?.users;
@@ -288,6 +296,8 @@ function OverviewWidgets({
   );
   const jobsiteId = String(jobsite?.id ?? "");
   const [editing, setEditing] = useState(false);
+  const eapReadiness = String(emergencyActionPlan.readiness ?? "needs_review") as EmergencyActionPlanReadiness;
+  const eapMissingFields = ((emergencyActionPlan.missingFields as Array<{ label?: string; severity?: string }> | undefined) ?? []);
   const cards = [
     { label: "Work Planned Today", value: Number(widgets.workPlannedToday ?? 0) },
     { label: "Active Permits", value: Number(widgets.activePermits ?? 0) },
@@ -299,6 +309,12 @@ function OverviewWidgets({
     { label: "Recent Incidents", value: incidents.length },
   ];
   const functionLinks = [
+    {
+      href: links.emergencyActionPlan ?? `/jobsites/${encodeURIComponent(jobsiteId)}/emergency-action-plan`,
+      title: "Emergency Action Plan",
+      detail: `${emergencyActionPlanStatusLabel(eapReadiness)}${eapMissingFields.length > 0 ? ` - ${eapMissingFields.length} item${eapMissingFields.length === 1 ? "" : "s"} need review` : ""}`,
+      action: "Open EAP",
+    },
     {
       href: links.team ?? `/jobsites/${encodeURIComponent(jobsiteId)}/team`,
       title: "Team",
@@ -430,6 +446,44 @@ function OverviewWidgets({
           }}
         />
       ) : null}
+
+      <div className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
+              Emergency Action Plan
+            </div>
+            <h3 className="mt-2 text-xl font-black tracking-tight text-slate-100">
+              {emergencyActionPlanStatusLabel(eapReadiness)}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              Field emergency contact, responder access, muster, AED / first aid, and nearest medical resource details for this jobsite.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge label={emergencyActionPlanStatusLabel(eapReadiness)} tone={emergencyReadinessTone(eapReadiness)} />
+            {Boolean(emergencyActionPlan.reviewStale) ? <StatusBadge label="Review stale" tone="warning" /> : null}
+            {Boolean(emergencyActionPlan.immediateReviewNeeded) ? <StatusBadge label="Immediate review needed" tone="error" /> : null}
+          </div>
+        </div>
+        {eapMissingFields.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {eapMissingFields.slice(0, 6).map((field, index) => (
+              <StatusBadge
+                key={`${field.label ?? "missing"}-${index}`}
+                label={field.label ?? "Missing EAP field"}
+                tone={field.severity === "critical" ? "error" : "warning"}
+              />
+            ))}
+            {eapMissingFields.length > 6 ? <StatusBadge label={`+${eapMissingFields.length - 6} more`} tone="warning" /> : null}
+          </div>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href={`/jobsites/${encodeURIComponent(jobsiteId)}/emergency-action-plan`} className={appButtonPrimaryClassName}>
+            Open Emergency Action Plan
+          </Link>
+        </div>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (

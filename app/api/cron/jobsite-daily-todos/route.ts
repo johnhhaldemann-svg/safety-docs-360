@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isCronRequestAuthorized } from "@/lib/cronAuth";
 import { withCronTelemetry } from "@/lib/cronTelemetry";
 import { buildJobsiteDailyTodos, getDailyTodoWorkDate, getLocalDailyDateParts } from "@/lib/jobsiteDailyTodos";
+import { evaluateEmergencyActionPlanReadiness, type EmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -15,6 +16,8 @@ type JobsiteRow = {
 };
 
 type SignalCounts = {
+  emergencyActionPlanReadiness: EmergencyActionPlanReadiness;
+  emergencyActionPlanMissingCount: number;
   highRiskScheduleCount: number;
   firstScheduleRiskTitle: string | null;
   openActionsCount: number;
@@ -49,6 +52,8 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
       highRiskScheduleCount: 0,
       firstScheduleRiskTitle: null,
       openActionsCount: 0,
+      emergencyActionPlanReadiness: "missing_critical_info",
+      emergencyActionPlanMissingCount: 0,
       overdueActionsCount: 0,
       permitBlockerCount: 0,
       inspectionGapCount: 0,
@@ -58,7 +63,7 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
   }
   const { start, end } = todayBounds(workDate);
 
-  const [scheduleResult, actionsResult, permitsResult, auditsResult, reportsResult] = await Promise.all([
+  const [scheduleResult, actionsResult, permitsResult, auditsResult, reportsResult, emergencyProfileResult] = await Promise.all([
     adminClient
       .from("company_jobsite_schedule_items")
       .select("id, title, risk_level, is_high_risk, work_start_date")
@@ -90,6 +95,13 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
       .eq("jobsite_id", jobsite.id)
       .gte("updated_at", start)
       .lt("updated_at", end),
+    adminClient
+      .from("company_jobsite_emergency_profiles")
+      .select("id, company_id, jobsite_id, emergency_contact_name, emergency_contact_phone, responder_access_instructions, responder_site_address, assembly_area, evacuation_shelter_notes, aed_location, first_aid_location, nearest_medical_name, nearest_medical_address, nearest_medical_phone, notes, last_reviewed_at, last_reviewed_by")
+      .eq("company_id", jobsite.company_id)
+      .eq("jobsite_id", jobsite.id)
+      .is("archived_at", null)
+      .maybeSingle(),
   ]);
 
   const scheduleRows = Array.isArray(scheduleResult.data) ? scheduleResult.data as Array<Record<string, unknown>> : [];
@@ -101,8 +113,14 @@ async function loadCounts(adminClient: ReturnType<typeof createSupabaseAdminClie
   const permitRows = Array.isArray(permitsResult.data) ? permitsResult.data as Array<Record<string, unknown>> : [];
   const auditRows = Array.isArray(auditsResult.data) ? auditsResult.data as Array<Record<string, unknown>> : [];
   const reportRows = Array.isArray(reportsResult.data) ? reportsResult.data as Array<Record<string, unknown>> : [];
+  const emergencyReadiness = evaluateEmergencyActionPlanReadiness({
+    profile: emergencyProfileResult.error ? null : emergencyProfileResult.data,
+    jobsiteStatus: jobsite.status,
+  });
 
   return {
+    emergencyActionPlanReadiness: emergencyReadiness.readiness,
+    emergencyActionPlanMissingCount: emergencyReadiness.missingFields.length,
     highRiskScheduleCount: highRiskSchedule.length,
     firstScheduleRiskTitle: typeof highRiskSchedule[0]?.title === "string" ? highRiskSchedule[0].title : null,
     openActionsCount: actionRows.length,

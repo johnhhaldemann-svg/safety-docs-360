@@ -270,4 +270,92 @@ describe("POST /api/company/ai/safety-action-queue/sync", () => {
     });
     expect(insertedSourceKeys).not.toContain(existingKey);
   });
+
+  it("persists field-evidence review actions without hiding critical evidence", async () => {
+    const recommendations = queryBuilder({
+      data: [
+        {
+          id: "field-1",
+          jobsite_id: "j1",
+          title: "Field evidence review - critical roof edge",
+          body: "Photo review needs field verification.",
+          confidence: 0.86,
+          status: "active",
+          priority: "critical",
+          mitigation_state: "unverified",
+          risk_reduction_points: 0,
+          created_at: "2026-05-23T12:00:00.000Z",
+          evidence_summary: {
+            gusPhotoReview: {
+              source: "gus_photo_review",
+              sourceKey: "gus-photo-review:co1:j1:u1:critical",
+              riskLevel: "critical",
+              concerns: ["Roof edge fall exposure"],
+              criticalFlags: ["Possible unprotected edge"],
+              missingInformation: ["Exact location"],
+              recommendedControls: ["Verify fall protection plan and edge protection"],
+              nextActions: ["Have the supervisor verify the roof edge in the field."],
+              limitations: ["Photo angle does not show full work area."],
+              jobsiteId: "j1",
+              userNote: "Check roof edge.",
+              needsFieldVerification: true,
+            },
+          },
+        },
+      ],
+    });
+    const supabase = supabaseFixture({
+      company_risk_ai_recommendations: recommendations,
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "roof-edge",
+            jobsite_id: "j1",
+            title: "Roof edge layout",
+            work_start_date: "2026-05-23",
+            work_end_date: "2026-05-23",
+            trade: "Roofing",
+            work_area: "Roof edge",
+            risk_level: "high",
+            is_high_risk: true,
+            status: "planned",
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "safety_manager",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase,
+    } as never);
+
+    const res = expectResponse(await POST(new Request("http://localhost/api/company/ai/safety-action-queue/sync", {
+      method: "POST",
+      body: JSON.stringify({ days: 7, jobsiteId: "j1" }),
+    })));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.actionQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "field_evidence_review",
+          riskLevel: "critical",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
+    expect(recommendations.insertedRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "ai_safety_action",
+          action_type: "stop_work_review",
+          evidence_summary: expect.objectContaining({
+            aiSafetyAction: expect.objectContaining({ category: "field_evidence_review" }),
+          }),
+        }),
+      ]),
+    );
+  });
 });

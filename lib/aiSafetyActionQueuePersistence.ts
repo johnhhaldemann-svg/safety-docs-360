@@ -83,14 +83,20 @@ function confidenceForItem(item: AiSafetyActionQueueItem) {
 export function actionTypeForAiSafetyAction(item: AiSafetyActionQueueItem): RiskActionType {
   if (item.category === "missing_permit") return "request_permit";
   if (item.category === "open_corrective_action") return "create_corrective_action";
-  if ((item.category === "high_risk_work" || item.category === "workface_conflict_review") && item.riskLevel === "critical") return "stop_work_review";
+  if (
+    (item.category === "high_risk_work" ||
+      item.category === "workface_conflict_review" ||
+      item.category === "field_evidence_review") &&
+    item.riskLevel === "critical"
+  ) return "stop_work_review";
   if (
     item.category === "missing_or_expired_training" ||
     item.category === "competent_person_review" ||
     item.category === "weak_jsa_or_control_gap" ||
     item.category === "weather_sensitive_work" ||
     item.category === "repeated_observation_pattern" ||
-    item.category === "workface_conflict_review"
+    item.category === "workface_conflict_review" ||
+    item.category === "field_evidence_review"
   ) {
     return "request_inspection";
   }

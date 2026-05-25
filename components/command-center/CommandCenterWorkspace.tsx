@@ -342,6 +342,7 @@ function DailySafetyCommandCenterPanel({
   const decisionQuality = predictiveRisk?.decisionQuality;
   const uncertaintySummary = predictiveRisk?.uncertaintySummary;
   const nextBestActions = predictiveRisk?.nextBestActions.slice(0, 4) ?? [];
+  const fieldEvidenceSignals = reasoningFrame?.fieldEvidenceSignals.slice(0, 4) ?? [];
   const conflicts = predictiveRisk?.aiSafetyConflictMap.findings.slice(0, 4) ?? [];
   const highRiskToday = briefing?.highRiskWork.filter((work) => work.timing === "today").slice(0, 3) ?? [];
   const highRiskTomorrow = briefing?.highRiskWork.filter((work) => work.timing === "tomorrow").slice(0, 3) ?? [];
@@ -466,6 +467,46 @@ function DailySafetyCommandCenterPanel({
           </p>
         ) : null}
       </div>
+
+      {fieldEvidenceSignals.length > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-900">Field evidence needing verification</p>
+              <p className="mt-1 text-sm leading-6 text-amber-950">
+                Gus photo-review summaries are evidence inputs only. Verify the actual area, task, crew exposure, and controls in the field.
+              </p>
+            </div>
+            <StatusBadge label={`${fieldEvidenceSignals.length} review item${fieldEvidenceSignals.length === 1 ? "" : "s"}`} tone="warning" />
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            {fieldEvidenceSignals.map((signal) => (
+              <div key={signal.id} className="rounded-xl border border-amber-200 bg-white px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={signal.riskLevel} tone={signal.riskLevel === "critical" || signal.riskLevel === "high" ? "error" : "warning"} />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">{signal.confidence} confidence</span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">
+                  {signal.linkedWorkTitle ?? signal.linkedConflictTitle ?? "Unlinked field evidence"}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">
+                  {(signal.criticalFlags[0] ?? signal.concerns[0] ?? signal.nextActions[0]) || "Field evidence needs review."}
+                </p>
+                {signal.recommendedControls.length > 0 ? (
+                  <p className="mt-2 text-xs font-semibold leading-5 text-amber-900">
+                    Control to verify: {signal.recommendedControls[0]}
+                  </p>
+                ) : null}
+                {signal.missingInformation.length > 0 ? (
+                  <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
+                    Missing information: {signal.missingInformation.slice(0, 2).join("; ")}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

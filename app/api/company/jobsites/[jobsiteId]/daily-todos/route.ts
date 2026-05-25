@@ -7,6 +7,7 @@ import {
   getDailyTodoWorkDate,
   type JobsiteDailyTodoStatus,
 } from "@/lib/jobsiteDailyTodos";
+import { evaluateEmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
 
 export const runtime = "nodejs";
 
@@ -77,7 +78,7 @@ async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
     return { authError: NextResponse.json({ error: "Jobsite not found." }, { status: 404 }) } as const;
   }
 
-  return { auth, companyId: companyScope.companyId, jobsite: jobsiteResult.data as { id: string; name?: string | null } } as const;
+  return { auth, companyId: companyScope.companyId, jobsite: jobsiteResult.data as { id: string; name?: string | null; status?: string | null } } as const;
 }
 
 function normalizeTodoRow(row: Record<string, unknown>) {
@@ -137,11 +138,26 @@ export async function POST(request: Request, { params }: { params: Promise<Param
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const workDate = typeof body?.workDate === "string" && body.workDate.trim() ? body.workDate.trim() : getDailyTodoWorkDate();
   const signals = (body?.signals && typeof body.signals === "object" ? body.signals : {}) as Record<string, unknown>;
+  const emergencyProfileResult = await scoped.auth.supabase
+    .from("company_jobsite_emergency_profiles")
+    .select("id, company_id, jobsite_id, emergency_contact_name, emergency_contact_phone, responder_access_instructions, responder_site_address, assembly_area, evacuation_shelter_notes, aed_location, first_aid_location, nearest_medical_name, nearest_medical_address, nearest_medical_phone, notes, last_reviewed_at, last_reviewed_by")
+    .eq("company_id", scoped.companyId)
+    .eq("jobsite_id", scoped.jobsite.id)
+    .is("archived_at", null)
+    .maybeSingle();
+  const emergencyReadiness = evaluateEmergencyActionPlanReadiness({
+    profile: emergencyProfileResult.error ? null : emergencyProfileResult.data,
+    jobsiteStatus: scoped.jobsite.status,
+  });
   const todos = buildJobsiteDailyTodos({
     jobsiteId: scoped.jobsite.id,
     jobsiteName: scoped.jobsite.name ?? "Jobsite",
     workDate,
     riskLevel: String(signals.riskLevel ?? "medium") as "low" | "medium" | "high" | "critical",
+    emergencyActionPlanReadiness:
+      String(signals.emergencyActionPlanReadiness ?? emergencyReadiness.readiness) as "complete" | "needs_review" | "missing_critical_info",
+    emergencyActionPlanMissingCount:
+      Number(signals.emergencyActionPlanMissingCount ?? emergencyReadiness.missingFields.length) || 0,
     firstScheduleRiskTitle: typeof signals.firstScheduleRiskTitle === "string" ? signals.firstScheduleRiskTitle : null,
     highRiskScheduleCount: Number(signals.highRiskScheduleCount ?? 0) || 0,
     openActionsCount: Number(signals.openActionsCount ?? 0) || 0,

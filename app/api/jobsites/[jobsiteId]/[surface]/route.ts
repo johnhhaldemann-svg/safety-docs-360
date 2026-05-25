@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope, normalizeWorkspaceUuid } from "@/lib/companyScope";
+import { evaluateEmergencyActionPlanReadiness } from "@/lib/jobsiteEmergencyActionPlan";
 
 export const runtime = "nodejs";
 
@@ -140,6 +141,19 @@ export async function GET(
       fetchFromSameOrigin(request, "/api/company/jobsite-assignments"),
     ]);
 
+  const emergencyProfileResult = await auth.supabase
+    .from("company_jobsite_emergency_profiles")
+    .select("id, company_id, jobsite_id, emergency_contact_name, emergency_contact_phone, responder_access_instructions, responder_site_address, assembly_area, evacuation_shelter_notes, aed_location, first_aid_location, nearest_medical_name, nearest_medical_address, nearest_medical_phone, notes, last_reviewed_at, last_reviewed_by, created_at, updated_at")
+    .eq("company_id", scope.companyId)
+    .eq("jobsite_id", jobsiteId)
+    .is("archived_at", null)
+    .maybeSingle();
+  const emergencyProfile = emergencyProfileResult.error ? null : emergencyProfileResult.data;
+  const emergencyReadiness = evaluateEmergencyActionPlanReadiness({
+    profile: emergencyProfile,
+    jobsiteStatus: jobsite.status,
+  });
+
   const jsasRows = filterByJobsiteId(
     ((jsas.json?.jsas as unknown[]) ?? []) as Array<{ jobsite_id?: string | null }>,
     jobsiteId
@@ -245,9 +259,21 @@ export async function GET(
       positiveObservations,
       closedToday,
       recentIncidents,
+      emergencyActionPlanReadiness: emergencyReadiness.readiness,
+      emergencyActionPlanMissingCount: emergencyReadiness.missingFields.length,
+    },
+    emergencyActionPlan: {
+      profile: emergencyProfile,
+      readiness: emergencyReadiness.readiness,
+      missingFields: emergencyReadiness.missingFields,
+      lastReviewedAt: emergencyReadiness.lastReviewedAt,
+      lastReviewedBy: emergencyReadiness.lastReviewedBy,
+      reviewStale: emergencyReadiness.reviewStale,
+      immediateReviewNeeded: emergencyReadiness.immediateReviewNeeded,
     },
     links: {
       liveView: `/jobsites/${jobsiteId}/live-view`,
+      emergencyActionPlan: `/jobsites/${jobsiteId}/emergency-action-plan`,
       schedule: `/jobsites/${jobsiteId}/schedule`,
       jsa: `/jobsites/${jobsiteId}/jsa`,
       permits: `/jobsites/${jobsiteId}/permits`,

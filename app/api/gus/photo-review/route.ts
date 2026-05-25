@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { runGusPhotoReview } from "@/lib/gus/gusPhotoReview";
 import { authorizeRequest } from "@/lib/rbac";
+import {
+  buildFieldEvidenceInsertForGusPhotoReview,
+  buildGusPhotoReviewSourceKey,
+} from "@/lib/aiSafetyFieldEvidence";
 
 export const runtime = "nodejs";
 
@@ -29,6 +33,46 @@ function parseJsonField(value: FormDataEntryValue | null): unknown {
 
 function parseStringField(value: FormDataEntryValue | null, maxLength: number) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, maxLength) : "";
+}
+
+async function persistFieldEvidence(params: {
+  supabase: { from?: (table: string) => unknown };
+  companyId: string | null | undefined;
+  actorUserId: string;
+  jobsiteId?: string | null;
+  userNote?: string | null;
+  output: NonNullable<Awaited<ReturnType<typeof runGusPhotoReview>>["output"]>;
+}) {
+  if (!params.companyId || typeof params.supabase.from !== "function") return null;
+  const sourceKey = buildGusPhotoReviewSourceKey({
+    companyId: params.companyId,
+    jobsiteId: params.jobsiteId,
+    userId: params.actorUserId,
+  });
+  const candidate = buildFieldEvidenceInsertForGusPhotoReview({
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    jobsiteId: params.jobsiteId,
+    review: params.output,
+    userNote: params.userNote,
+    sourceKey,
+  });
+  const query = params.supabase.from("company_risk_ai_recommendations") as {
+    insert: (row: unknown) => {
+      select: (columns: string) => PromiseLike<{ data: Array<{ id?: string | null }> | null; error: { message?: string | null } | null }>;
+    };
+  };
+  const result = await query.insert(candidate.row).select("id");
+  if (result.error) throw new Error(result.error.message || "Failed to save field evidence summary.");
+  const fieldEvidenceId = result.data?.[0]?.id ?? null;
+  return {
+    fieldEvidenceId,
+    fieldEvidenceSignal: {
+      ...candidate.signal,
+      id: fieldEvidenceId ?? candidate.signal.id,
+      persistedRecommendationId: fieldEvidenceId,
+    },
+  };
 }
 
 export async function POST(request: Request) {
@@ -70,10 +114,11 @@ export async function POST(request: Request) {
       : undefined;
 
   const bytes = Buffer.from(await file.arrayBuffer());
+  const message = parseStringField(formData?.get("message") ?? null, 800);
   const result = await runGusPhotoReview({
     dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`,
     fileName: file.name,
-    message: parseStringField(formData?.get("message") ?? null, 800),
+    message,
     context: {
       ...requestContext,
       companyId: companyId ?? undefined,
@@ -94,8 +139,29 @@ export async function POST(request: Request) {
     );
   }
 
+  let fieldEvidence: Awaited<ReturnType<typeof persistFieldEvidence>> = null;
+  try {
+    fieldEvidence = await persistFieldEvidence({
+      supabase: auth.supabase as { from?: (table: string) => unknown },
+      companyId,
+      actorUserId: auth.user.id,
+      jobsiteId,
+      userNote: message,
+      output: result.output,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to save field evidence summary.",
+        meta: result.meta,
+      },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     ...result.output,
+    ...(fieldEvidence ?? {}),
     validationFindings: result.validationFindings,
     meta: result.meta,
   });

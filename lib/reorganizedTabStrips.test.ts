@@ -15,6 +15,7 @@ describe("Reorganized tab strips (release contracts)", () => {
       "Documents",
       "Insights",
     ]);
+    expect(JOBSITE_NAV_PHASES.find((p) => p.id === "overview")?.segments).toContain("emergency-action-plan");
   });
 
   it("workspace sidebar uses seven ordered groups", () => {

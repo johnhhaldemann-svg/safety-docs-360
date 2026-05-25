@@ -40,6 +40,7 @@ export type GusContext = {
   aiEngineMemoryInfluence?: string[];
   aiEngineCalibrationSummary?: string;
   aiEngineWorkfaceConflicts?: string[];
+  aiEngineFieldEvidence?: string[];
   aiEngineReasoningFrame?: AiSafetyReasoningFrame;
   aiEngineDecisionQuality?: AiSafetyDecisionQuality;
   aiEngineUncertaintySummary?: AiSafetyUncertaintySummary;

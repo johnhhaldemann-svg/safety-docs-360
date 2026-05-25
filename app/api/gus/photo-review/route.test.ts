@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
   getCompanyScope: vi.fn(),
   runGusPhotoReview: vi.fn(),
+  insertedRows: [] as unknown[],
 }));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest: mocks.authorizeRequest }));
@@ -40,8 +41,18 @@ function photoRequest(file?: File, fields: Record<string, string> = {}) {
 describe("/api/gus/photo-review", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.insertedRows.length = 0;
     mocks.authorizeRequest.mockResolvedValue({
-      supabase: {},
+      supabase: {
+        from: vi.fn(() => ({
+          insert: vi.fn((row: unknown) => {
+            mocks.insertedRows.push(row);
+            return {
+              select: vi.fn().mockResolvedValue({ data: [{ id: "field-evidence-1" }], error: null }),
+            };
+          }),
+        })),
+      },
       user: { id: "user-1", email: "safety@example.com" },
       role: "company_admin",
       team: "Builder Co",
@@ -100,7 +111,7 @@ describe("/api/gus/photo-review", () => {
     expect(mocks.runGusPhotoReview).not.toHaveBeenCalled();
   });
 
-  it("returns Gus photo review output without storing the image", async () => {
+  it("returns Gus photo review output and stores summary-only field evidence", async () => {
     const response = requireRouteResponse(
       await POST(
         photoRequest(new File(["png"], "deck.png", { type: "image/png" }), {
@@ -117,7 +128,31 @@ describe("/api/gus/photo-review", () => {
       riskLevel: "moderate",
       draftOnly: true,
       humanReviewRequired: true,
+      fieldEvidenceId: "field-evidence-1",
+      fieldEvidenceSignal: expect.objectContaining({
+        source: "gus_photo_review",
+        persistedRecommendationId: "field-evidence-1",
+        needsFieldVerification: true,
+      }),
     });
+    expect(mocks.insertedRows[0]).toEqual(
+      expect.objectContaining({
+        kind: "ai_safety_field_evidence",
+        status: "active",
+        target_module: "command_center",
+        verification_required: true,
+        mitigation_state: "unverified",
+        evidence_summary: {
+          gusPhotoReview: expect.objectContaining({
+            concerns: ["Loose material in walkway"],
+            jobsiteId: null,
+            userNote: "Check the deck edge.",
+            needsFieldVerification: true,
+          }),
+        },
+      }),
+    );
+    expect(JSON.stringify(mocks.insertedRows[0])).not.toContain("data:image");
     expect(mocks.runGusPhotoReview).toHaveBeenCalledWith(
       expect.objectContaining({
         dataUrl: expect.stringMatching(/^data:image\/png;base64,/),

@@ -358,4 +358,59 @@ describe("buildAiSafetyClosedLoopPayload", () => {
       ]),
     );
   });
+
+  it("turns high and critical field evidence into reviewable action queue items", () => {
+    const sourceBriefing = briefing({
+      scheduleItems: [
+        {
+          id: "roof-edge",
+          jobsite_id: "j1",
+          title: "Roof edge layout",
+          work_start_date: "2026-05-22",
+          trade: "Roofing",
+          work_area: "Roof edge",
+          risk_level: "high",
+          is_high_risk: true,
+        },
+      ],
+    });
+
+    const loop = buildAiSafetyClosedLoopPayload({
+      dailyBriefing: sourceBriefing,
+      fieldEvidenceSignals: [
+        {
+          id: "field-1",
+          source: "gus_photo_review",
+          sourceKey: "gus-photo-review:co1:j1:u1:1",
+          jobsiteId: "j1",
+          linkedWorkItemId: sourceBriefing.highRiskWork[0]?.id ?? null,
+          linkedWorkTitle: "Roof edge layout",
+          riskLevel: "critical",
+          confidence: "medium",
+          concerns: ["Roof edge fall exposure"],
+          criticalFlags: ["Possible unprotected edge"],
+          missingInformation: ["Exact location and crew exposure"],
+          recommendedControls: ["Verify fall protection plan and edge protection"],
+          nextActions: ["Have the supervisor verify the roof edge in the field."],
+          limitations: ["Photo angle does not show full work area."],
+          evidenceRefs: [],
+          needsFieldVerification: true,
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(loop.aiSafetyActionQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "field_evidence_review",
+          riskLevel: "critical",
+          approvalState: "review_required",
+          humanApprovalRequired: true,
+          targetModule: "command_center",
+          humanApprovalReason: expect.stringContaining("possible stop-work evaluation"),
+        }),
+      ]),
+    );
+  });
 });

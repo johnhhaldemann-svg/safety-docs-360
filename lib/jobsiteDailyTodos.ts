@@ -19,6 +19,8 @@ export type JobsiteDailyTodoInput = {
   jobsiteName: string;
   workDate: string;
   riskLevel: JobsiteDailyTodoPriority;
+  emergencyActionPlanReadiness?: "complete" | "needs_review" | "missing_critical_info" | null;
+  emergencyActionPlanMissingCount?: number;
   firstScheduleRiskTitle?: string | null;
   highRiskScheduleCount: number;
   openActionsCount: number;
@@ -94,7 +96,9 @@ export function dailyTodoResetLabel(resetHour = 5) {
 }
 
 function priorityFromCounts(input: JobsiteDailyTodoInput): JobsiteDailyTodoPriority {
+  if (input.emergencyActionPlanReadiness === "missing_critical_info") return "critical";
   if (input.riskLevel === "critical" || input.overdueActionsCount > 0 || input.permitBlockerCount > 0) return "critical";
+  if (input.emergencyActionPlanReadiness === "needs_review") return "high";
   if (input.riskLevel === "high" || input.highRiskScheduleCount > 0 || input.inspectionGapCount > 0) return "high";
   if (input.workforceGapCount > 0 || input.openActionsCount > 0) return "medium";
   return "low";
@@ -108,6 +112,10 @@ export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDai
   const dailyPriority = priorityFromCounts(input);
   const firstSchedule = input.firstScheduleRiskTitle?.trim() || "today's scheduled work";
   const hrefBase = `/safe-predict/jobsites/${encodeURIComponent(input.jobsiteId)}`;
+  const jobsiteHrefBase = `/jobsites/${encodeURIComponent(input.jobsiteId)}`;
+  const eapNeedsCriticalReview = input.emergencyActionPlanReadiness === "missing_critical_info";
+  const eapNeedsReview = eapNeedsCriticalReview || input.emergencyActionPlanReadiness === "needs_review";
+  const eapMissingCount = Math.max(0, Math.floor(Number(input.emergencyActionPlanMissingCount ?? 0)));
 
   const items: JobsiteDailyTodoItem[] = [
     {
@@ -130,13 +138,25 @@ export function buildJobsiteDailyTodos(input: JobsiteDailyTodoInput): JobsiteDai
       role: "sl",
       title: "SL pre-work readiness check",
       detail:
-        input.permitBlockerCount > 0
-          ? `Verify ${plural(input.permitBlockerCount, "permit blocker")} before releasing the crew.`
-          : "Confirm permits, JSAs, crew readiness, and pre-task controls before work starts.",
+        eapNeedsCriticalReview
+          ? `Review the Emergency Action Plan before releasing work; ${plural(eapMissingCount || 1, "critical item")} missing.`
+          : eapNeedsReview
+            ? "Review the Emergency Action Plan freshness and missing field warnings before work starts."
+            : input.permitBlockerCount > 0
+              ? `Verify ${plural(input.permitBlockerCount, "permit blocker")} before releasing the crew.`
+              : "Confirm permits, JSAs, crew readiness, and pre-task controls before work starts.",
       status: "open",
-      priority: input.permitBlockerCount > 0 ? "critical" : input.workforceGapCount > 0 ? "medium" : "low",
-      targetTab: input.permitBlockerCount > 0 ? "Permits" : "Workforce",
-      targetHref: `${hrefBase}/permits`,
+      priority: eapNeedsCriticalReview
+        ? "critical"
+        : eapNeedsReview
+          ? "high"
+          : input.permitBlockerCount > 0
+            ? "critical"
+            : input.workforceGapCount > 0
+              ? "medium"
+              : "low",
+      targetTab: eapNeedsReview ? "Overview" : input.permitBlockerCount > 0 ? "Permits" : "Workforce",
+      targetHref: eapNeedsReview ? `${jobsiteHrefBase}/emergency-action-plan` : `${hrefBase}/permits`,
     },
     {
       id: `${input.workDate}-${input.jobsiteId}-pm-action-closeout`,

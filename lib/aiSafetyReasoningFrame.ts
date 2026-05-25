@@ -65,6 +65,14 @@ export type AiSafetyUncertaintySummary = {
 export type AiSafetyFieldEvidenceSignal = {
   id: string;
   source: "gus_photo_review" | "field_note";
+  sourceKey?: string;
+  persistedRecommendationId?: string | null;
+  jobsiteId?: string | null;
+  userNote?: string | null;
+  linkedWorkItemId?: string | null;
+  linkedWorkTitle?: string | null;
+  linkedConflictId?: string | null;
+  linkedConflictTitle?: string | null;
   riskLevel: SafetyRiskLevel | "unknown";
   confidence: SafetyAiConfidence;
   concerns: string[];
@@ -412,7 +420,7 @@ export function fieldEvidenceSignalsFromGusPhotoReviews(photoReviews: GusPhotoRe
     missingInformation: unique([
       ...review.missingInformation,
       ...review.limitations,
-      "Field verification is required before treating photo-review concerns as confirmed conditions.",
+      "Field verification is required before treating photo-review concerns as field-verified conditions.",
     ], 8),
     recommendedControls: review.recommendedControls,
     nextActions: review.nextActions,

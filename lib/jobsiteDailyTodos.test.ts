@@ -29,4 +29,30 @@ describe("jobsite daily todos", () => {
     expect(todos.every((todo) => todo.targetTab && todo.targetHref)).toBe(true);
     expect(todos.find((todo) => todo.sourceKey === "pm-action-closeout")?.priority).toBe("critical");
   });
+
+  it("elevates pre-work readiness when the Emergency Action Plan is missing critical information", () => {
+    const todos = buildJobsiteDailyTodos({
+      jobsiteId: "site-1",
+      jobsiteName: "Hillcrest Office Fit-Out",
+      workDate: "2026-05-22",
+      riskLevel: "medium",
+      emergencyActionPlanReadiness: "missing_critical_info",
+      emergencyActionPlanMissingCount: 3,
+      firstScheduleRiskTitle: null,
+      highRiskScheduleCount: 0,
+      openActionsCount: 0,
+      overdueActionsCount: 0,
+      permitBlockerCount: 0,
+      inspectionGapCount: 0,
+      readyReportCount: 0,
+      workforceGapCount: 0,
+    });
+
+    const readinessTodo = todos.find((todo) => todo.sourceKey === "sl-prework-readiness");
+    expect(readinessTodo).toMatchObject({
+      priority: "critical",
+      targetHref: "/jobsites/site-1/emergency-action-plan",
+    });
+    expect(readinessTodo?.detail).toContain("Emergency Action Plan");
+  });
 });
