@@ -33,6 +33,7 @@ export type GusContext = {
   aiEngineFeedbackInfluence?: string[];
   aiEngineMemoryInfluence?: string[];
   aiEngineCalibrationSummary?: string;
+  aiEngineWorkfaceConflicts?: string[];
   weatherRiskLevel?: GusRiskLevel;
   currentTaskType?: string;
   currentTrade?: string;

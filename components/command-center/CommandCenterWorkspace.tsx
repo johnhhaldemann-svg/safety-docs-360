@@ -338,6 +338,7 @@ function DailySafetyCommandCenterPanel({
   const feedbackInfluence = predictiveRisk?.feedbackInfluence;
   const memoryInfluence = predictiveRisk?.memoryInfluence;
   const calibrationSummary = predictiveRisk?.calibrationSummary;
+  const conflicts = predictiveRisk?.aiSafetyConflictMap.findings.slice(0, 4) ?? [];
   const highRiskToday = briefing?.highRiskWork.filter((work) => work.timing === "today").slice(0, 3) ?? [];
   const highRiskTomorrow = briefing?.highRiskWork.filter((work) => work.timing === "tomorrow").slice(0, 3) ?? [];
   const missingPermits = briefing?.readinessBlockers.filter((blocker) => blocker.type === "permit").slice(0, 3) ?? [];
@@ -394,6 +395,49 @@ function DailySafetyCommandCenterPanel({
         />
       </div>
 
+      <div className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--app-text)]">Predicted Workface Conflicts</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">
+              {predictiveRisk?.aiSafetyConflictMap.summary ?? "Conflict review appears after the predictive risk model loads."}
+            </p>
+          </div>
+          <StatusBadge
+            label={`${predictiveRisk?.aiSafetyConflictMap.highConflictCount ?? 0} high/critical`}
+            tone={(predictiveRisk?.aiSafetyConflictMap.criticalConflictCount ?? 0) > 0 ? "error" : conflicts.length > 0 ? "warning" : "success"}
+          />
+        </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          {conflicts.map((conflict) => (
+            <div key={conflict.id} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge label={conflict.riskLevel} tone={conflict.riskLevel === "critical" || conflict.riskLevel === "high" ? "error" : "warning"} />
+                <StatusBadge label={conflict.type.replace(/_/g, " ")} tone="info" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--app-muted)]">{conflict.confidence} confidence</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{conflict.title}</p>
+              <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{conflict.recommendedAction}</p>
+              {conflict.humanApprovalRequired ? (
+                <p className="mt-2 text-xs font-bold text-[var(--semantic-danger)]">
+                  {conflict.humanApprovalReason ?? "Human review required before work proceeds."}
+                </p>
+              ) : null}
+              {conflict.missingInformation.length > 0 ? (
+                <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
+                  Missing information: {conflict.missingInformation.slice(0, 2).join("; ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+          {!loading && conflicts.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-[var(--app-border)] px-3 py-6 text-center text-sm text-[var(--app-muted)] xl:col-span-2">
+              No predicted workface conflicts were detected from the loaded data.
+            </p>
+          ) : null}
+        </div>
+      </div>
+
       {actionQueue ? (
         <div>
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -432,6 +476,11 @@ function DailySafetyCommandCenterPanel({
                   </span>
                 </div>
                 <p className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{item.title}</p>
+                {item.category === "workface_conflict_review" ? (
+                  <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--semantic-danger)]">
+                    Predicted workface conflict
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.recommendedControl}</p>
                 {item.humanApprovalRequired ? (
                   <p className="mt-2 text-xs font-bold text-[var(--semantic-danger)]">

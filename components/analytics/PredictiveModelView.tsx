@@ -422,6 +422,7 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
   const topScoreExplanation = topWork?.scoreExplanation;
   const topRecommendedControls = topWork?.recommendedControls.slice(0, 3) ?? [];
   const actionQueue = data?.aiSafetyActionQueue.items.slice(0, 4) ?? [];
+  const conflicts = data?.aiSafetyConflictMap.findings.slice(0, 3) ?? [];
   const approvalState = data?.approvalState;
 
   return (
@@ -456,6 +457,28 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
         </div>
       ) : null}
 
+      {conflicts.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-800">Predicted workface conflicts</p>
+              <p className="mt-1 text-xs leading-5 text-orange-900">{data?.aiSafetyConflictMap.summary}</p>
+            </div>
+            <span className="rounded-md border border-orange-300 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-orange-800">
+              {data?.aiSafetyConflictMap.highConflictCount ?? 0} high/critical
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {conflicts.map((conflict) => (
+              <div key={conflict.id} className="rounded-md border border-orange-200 bg-white px-3 py-2">
+                <p className="text-xs font-black text-[var(--app-text-strong)]">{conflict.title}</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{conflict.requiredVerification}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {actionQueue.length > 0 ? (
         <div className="mt-4 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -484,6 +507,11 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                   </span>
                 </div>
                 <p className="mt-2 text-sm font-bold text-[var(--app-text-strong)]">{item.title}</p>
+                {item.category === "workface_conflict_review" ? (
+                  <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-red-700">
+                    Predicted workface conflict
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{item.recommendedControl}</p>
                 {item.humanApprovalRequired ? (
                   <p className="mt-2 text-xs font-black leading-5 text-red-700">

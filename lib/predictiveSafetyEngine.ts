@@ -32,6 +32,7 @@ export type PredictiveSafetyReadinessBlockerType =
   | "corrective_action"
   | "weather"
   | "control"
+  | "conflict"
   | "data";
 
 export type PredictiveSafetyReadinessBlocker = {

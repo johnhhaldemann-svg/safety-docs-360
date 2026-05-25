@@ -318,6 +318,12 @@ describe("/api/company/predictive-risk", () => {
     expect(res.status).toBe(200);
     expect(body.behaviorRisk.topDrivers.map((driver: { driver: string }) => driver.driver)).toContain("schedule_pressure");
     expect(body.dailyBriefing.highRiskWork[0]).toEqual(expect.objectContaining({ title: "Critical lift over active access route" }));
+    expect(body.aiSafetyConflictMap).toEqual(
+      expect.objectContaining({
+        findings: expect.any(Array),
+        highConflictCount: expect.any(Number),
+      })
+    );
     expect(body.dailyBriefing.highRiskWork[0].scoreExplanation).toEqual(
       expect.objectContaining({
         humanApprovalRequired: true,
@@ -351,6 +357,94 @@ describe("/api/company/predictive-risk", () => {
       jobsiteId: "j1",
       workSchedule: expect.objectContaining({ hoursPerDay: 10 }),
     }));
+  });
+
+  it("returns predicted workface conflicts and conflict review actions", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "hot-work",
+            jobsite_id: "j1",
+            title: "Hot work grinding west stair",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            shift_start_time: "07:00",
+            shift_end_time: "15:00",
+            trade: "Steel",
+            work_area: "Level 2",
+            crew_size: 4,
+            supervisor_name: null,
+            risk_level: "high",
+            is_high_risk: true,
+            hazard_categories: ["hot_work"],
+            permit_triggers: ["hot_work"],
+            required_controls: [],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: "paint-storage",
+            jobsite_id: "j1",
+            title: "Paint and solvent material staging",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            shift_start_time: "07:00",
+            shift_end_time: "15:00",
+            trade: "Finishes",
+            work_area: "Level 2",
+            crew_size: 2,
+            supervisor_name: null,
+            risk_level: "moderate",
+            is_high_risk: true,
+            hazard_categories: ["flammable_storage"],
+            permit_triggers: [],
+            required_controls: [],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.aiSafetyConflictMap.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "adjacent_work_conflict",
+          title: "Hot work overlaps combustible or flammable exposure",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
+    expect(body.dailyBriefing.readinessBlockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "conflict",
+          label: "Hot work overlaps combustible or flammable exposure",
+        }),
+      ]),
+    );
+    expect(body.aiSafetyActionQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "workface_conflict_review",
+          approvalState: "review_required",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
   });
 
   it("includes feedback-influenced queue metadata from AI output feedback", async () => {

@@ -49,6 +49,8 @@ describe("AI safety action queue persistence mapping", () => {
     expect(actionTypeForAiSafetyAction(item("weather_sensitive_work"))).toBe("request_inspection");
     expect(actionTypeForAiSafetyAction(item("open_corrective_action"))).toBe("create_corrective_action");
     expect(actionTypeForAiSafetyAction(item("repeated_observation_pattern"))).toBe("request_inspection");
+    expect(actionTypeForAiSafetyAction(item("workface_conflict_review"))).toBe("request_inspection");
+    expect(actionTypeForAiSafetyAction(item("workface_conflict_review", { riskLevel: "critical", priority: "critical" }))).toBe("stop_work_review");
     expect(actionTypeForAiSafetyAction(item("high_risk_work", { riskLevel: "critical", priority: "critical" }))).toBe("stop_work_review");
   });
 

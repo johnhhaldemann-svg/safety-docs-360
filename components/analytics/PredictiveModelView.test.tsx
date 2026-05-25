@@ -1,5 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabaseBrowser", () => ({
+  getSupabaseBrowserClient: () => ({
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+    },
+  }),
+}));
+
 import { PredictiveModelView } from "@/components/analytics/PredictiveModelView";
 import { buildEmptyPredictiveRiskPayload, buildSalesDemoPredictiveRiskPayload } from "@/lib/predictiveRisk";
 
@@ -71,6 +80,86 @@ describe("PredictiveModelView", () => {
     );
 
     expect(html).toContain("No predictive risk signals yet");
+  });
+
+  it("renders predicted workface conflicts with review-safe language", () => {
+    const data = {
+      ...buildEmptyPredictiveRiskPayload(30),
+      aiSafetyConflictMap: {
+        generatedAt: "2026-05-22T00:00:00.000Z",
+        summary: "1 predicted workface conflict needs review before work proceeds.",
+        highConflictCount: 1,
+        criticalConflictCount: 0,
+        missingData: [],
+        confidence: "medium" as const,
+        findings: [
+          {
+            id: "conflict-1",
+            type: "adjacent_work_conflict" as const,
+            riskLevel: "high" as const,
+            confidence: "medium" as const,
+            title: "Hot work overlaps combustible or flammable exposure",
+            reason: "Spark-producing work is planned near material exposure signals.",
+            dataUsed: ["Hot work grinding", "Paint staging"],
+            missingInformation: ["fire watch assignment"],
+            recommendedAction: "Review the work sequence and verify controls before either task proceeds in the shared workface.",
+            requiredVerification: "Verify hot work permit, fire watch, extinguisher, and combustible-material clearance before work proceeds.",
+            humanApprovalRequired: true,
+            humanApprovalReason: "Potentially incompatible work in the same workface requires supervisor review before work proceeds.",
+            evidenceRefs: [],
+            affectedWorkItemIds: ["work-1", "work-2"],
+            jobsiteId: "j1",
+            jobsiteName: "North Tower",
+            trade: "Steel",
+            area: "Level 2",
+            sourceKey: "adjacent:test",
+          },
+        ],
+      },
+      aiSafetyActionQueue: {
+        ...buildEmptyPredictiveRiskPayload(30).aiSafetyActionQueue,
+        items: [
+          {
+            id: "action-1",
+            sourceKey: "action-conflict",
+            title: "Review predicted workface conflict - Hot work overlaps combustible or flammable exposure",
+            detail: "Spark-producing work is planned near material exposure signals.",
+            category: "workface_conflict_review" as const,
+            riskLevel: "high" as const,
+            priority: "high" as const,
+            ownerRole: "field_supervisor" as const,
+            dueAt: null,
+            approvalState: "review_required" as const,
+            recommendedControl: "Review the work sequence and verify controls before either task proceeds in the shared workface.",
+            evidenceRefs: [],
+            missingInformation: [],
+            humanApprovalRequired: true,
+            humanApprovalReason: "Potentially incompatible work in the same workface requires supervisor review before work proceeds.",
+            sourceWorkItemId: "work-1",
+            sourceWorkTitle: "Hot work grinding",
+            jobsiteId: "j1",
+            jobsiteName: "North Tower",
+            trade: "Steel",
+            area: "Level 2",
+            targetModule: "command_center" as const,
+            targetHref: "/command-center",
+            feedbackInfluence: [],
+            feedbackConfidenceAdjustment: "neutral" as const,
+            memoryInfluence: [],
+          },
+        ],
+      },
+    };
+
+    const html = renderToStaticMarkup(
+      <PredictiveModelView data={data} loading={false} error="" days={30} />
+    );
+
+    expect(html).toContain("Predicted workface conflicts");
+    expect(html).toContain("Hot work overlaps combustible or flammable exposure");
+    expect(html).toContain("Predicted workface conflict");
+    expect(html).toContain("Human review required before work proceeds");
+    expect(html).not.toMatch(/safe to start|cleared|guaranteed/i);
   });
 
   it("renders interactive risk action controls and mitigation state", () => {

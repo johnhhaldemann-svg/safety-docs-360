@@ -8,6 +8,7 @@ import type {
 import type { PredictiveRiskMitigationRow } from "@/lib/predictiveRisk";
 import type { SafetyRiskLevel } from "@/lib/safety-ai/types";
 import type { RiskActionTargetModule } from "@/types/risk-action-plan";
+import type { AiSafetyConflictFinding } from "@/lib/aiSafetyConflictMap";
 import {
   canSuppressAiSafetyActionByFeedback,
   feedbackSignalsForAction,
@@ -31,6 +32,7 @@ export type AiSafetyActionCategory =
   | "weather_sensitive_work"
   | "open_corrective_action"
   | "repeated_observation_pattern"
+  | "workface_conflict_review"
   | "high_risk_work";
 
 export type AiSafetyActionPriority = "low" | "medium" | "high" | "critical";
@@ -138,6 +140,7 @@ export type AiSafetyClosedLoopPayload = {
 
 type BuildAiSafetyClosedLoopInput = {
   dailyBriefing: DailyRiskBriefing;
+  conflictFindings?: AiSafetyConflictFinding[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
   feedbackSignals?: AiSafetyFeedbackSignal[];
@@ -211,6 +214,7 @@ function targetForCategory(category: AiSafetyActionCategory): RiskActionTargetMo
   if (category === "competent_person_review" || category === "weak_jsa_or_control_gap") return "jsa";
   if (category === "weather_sensitive_work") return "weather";
   if (category === "repeated_observation_pattern") return "field_issue";
+  if (category === "workface_conflict_review") return "command_center";
   return "predictive_risk";
 }
 
@@ -229,6 +233,7 @@ function fallbackControlForCategory(category: AiSafetyActionCategory, detail: st
   if (category === "weather_sensitive_work") return "Review weather limits, delay criteria, and crew communication before work starts.";
   if (category === "open_corrective_action") return "Review the open corrective action and verify controls in the field before related work proceeds.";
   if (category === "repeated_observation_pattern") return "Brief the crew on the repeated observation pattern and verify corrective controls are working.";
+  if (category === "workface_conflict_review") return "Review the predicted workface conflict and verify sequencing, separation, and controls before work proceeds.";
   return detail || "Verify critical controls before work starts.";
 }
 
@@ -257,6 +262,7 @@ function approvalReasonFor(work: PredictiveSafetyWorkItem, category: AiSafetyAct
   if (category === "missing_or_expired_training") return "Training readiness is missing or expired for scheduled work.";
   if (category === "competent_person_review") return "Competent-person review is required for this exposure.";
   if (category === "weather_sensitive_work") return "Weather-sensitive work requires supervisor review of current conditions.";
+  if (category === "workface_conflict_review") return "Predicted workface conflict requires human review and field verification before work proceeds.";
   return blocker?.severity === "high" || blocker?.severity === "critical" ? blocker.detail : null;
 }
 
@@ -423,6 +429,71 @@ function buildActionFromWork(work: PredictiveSafetyWorkItem, riskMitigations: Pr
   };
 }
 
+function firstWorkForConflict(conflict: AiSafetyConflictFinding, dailyBriefing: DailyRiskBriefing) {
+  return dailyBriefing.highRiskWork.find((work) => conflict.affectedWorkItemIds.includes(work.id)) ?? null;
+}
+
+function dueAtForConflict(conflict: AiSafetyConflictFinding, dailyBriefing: DailyRiskBriefing) {
+  const work = firstWorkForConflict(conflict, dailyBriefing);
+  return dueAtForWork(work);
+}
+
+function buildActionFromConflict(
+  conflict: AiSafetyConflictFinding,
+  dailyBriefing: DailyRiskBriefing,
+  riskMitigations: PredictiveRiskMitigationRow[],
+): { item: AiSafetyActionQueueItem; suppressed: boolean } {
+  const work = firstWorkForConflict(conflict, dailyBriefing);
+  const title = `Review predicted workface conflict - ${conflict.title}`;
+  const suppressDuplicate =
+    conflict.riskLevel !== "critical" &&
+    (work ? hasResolvedDuplicate(title, work, riskMitigations) : false);
+  const humanApprovalRequired =
+    conflict.humanApprovalRequired ||
+    conflict.riskLevel === "critical" ||
+    conflict.riskLevel === "high";
+  return {
+    suppressed: suppressDuplicate,
+    item: {
+      id: `ai-action-${conflict.id}`,
+      sourceKey: sourceKeyForAction({
+        category: "workface_conflict_review",
+        workId: work?.id ?? conflict.affectedWorkItemIds[0] ?? null,
+        blockerId: conflict.sourceKey,
+        jobsiteId: conflict.jobsiteId,
+        dueAt: dueAtForConflict(conflict, dailyBriefing),
+      }),
+      title,
+      detail: conflict.reason,
+      category: "workface_conflict_review",
+      riskLevel: conflict.riskLevel,
+      priority: priorityForRisk(conflict.riskLevel),
+      ownerRole: conflict.type === "readiness_conflict" ? "safety_manager" : "field_supervisor",
+      dueAt: dueAtForConflict(conflict, dailyBriefing),
+      approvalState: humanApprovalRequired ? "review_required" : "assigned",
+      recommendedControl: conflict.recommendedAction,
+      evidenceRefs: conflict.evidenceRefs,
+      missingInformation: conflict.missingInformation,
+      humanApprovalRequired,
+      humanApprovalReason:
+        humanApprovalRequired
+          ? conflict.humanApprovalReason ?? "Predicted workface conflict requires human review before work proceeds."
+          : null,
+      sourceWorkItemId: work?.id ?? conflict.affectedWorkItemIds[0] ?? null,
+      sourceWorkTitle: work?.title ?? conflict.title,
+      jobsiteId: conflict.jobsiteId,
+      jobsiteName: conflict.jobsiteName,
+      trade: conflict.trade,
+      area: conflict.area,
+      targetModule: "command_center",
+      targetHref: "/command-center",
+      feedbackInfluence: suppressDuplicate ? ["A similar conflict review action was already resolved or field-used."] : [],
+      feedbackConfidenceAdjustment: (suppressDuplicate ? "increase" : "neutral") as AiSafetyFeedbackConfidenceAdjustment,
+      memoryInfluence: [],
+    },
+  };
+}
+
 function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQueue {
   const rawItems: AiSafetyActionQueueItem[] = [];
   let suppressedDuplicateCount = 0;
@@ -457,6 +528,21 @@ function buildActionQueue(input: BuildAiSafetyClosedLoopInput): AiSafetyActionQu
       }
       rawItems.push(feedbackApplied.item);
     }
+  }
+
+  for (const conflict of input.conflictFindings ?? []) {
+    if (RISK_RANK[conflict.riskLevel] < RISK_RANK.high) continue;
+    const { item, suppressed } = buildActionFromConflict(conflict, input.dailyBriefing, input.riskMitigations ?? []);
+    if (suppressed) {
+      suppressedDuplicateCount += 1;
+      continue;
+    }
+    const feedbackApplied = applyFeedbackSignals(item, feedbackSignals);
+    if (feedbackApplied.suppressed) {
+      suppressedFeedbackCount += 1;
+      continue;
+    }
+    rawItems.push(feedbackApplied.item);
   }
 
   const seen = new Set<string>();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAiSafetyClosedLoopPayload } from "@/lib/aiSafetyActionQueue";
 import { buildPredictiveSafetyEngineBriefing } from "@/lib/predictiveSafetyEngine";
+import { buildAiSafetyConflictMap } from "@/lib/aiSafetyConflictMap";
 
 const NOW = new Date("2026-05-22T12:00:00.000Z");
 
@@ -303,5 +304,58 @@ describe("buildAiSafetyClosedLoopPayload", () => {
     expect(loop.aiSafetyActionQueue.items.some((item) => item.sourceWorkTitle === "Temporary access review")).toBe(false);
     expect(loop.aiSafetyActionQueue.items.some((item) => item.sourceWorkTitle === "Critical lift over active access route")).toBe(true);
     expect(loop.feedbackInfluence.learningSignals.join(" ")).toContain("reviewer feedback");
+  });
+
+  it("turns high and critical conflict findings into reviewable action queue items", () => {
+    const sourceBriefing = briefing({
+      scheduleItems: [
+        {
+          id: "hot-work",
+          jobsite_id: "j1",
+          title: "Hot work grinding west stair",
+          work_start_date: "2026-05-22",
+          trade: "Steel",
+          work_area: "Level 2",
+          risk_level: "high",
+          is_high_risk: true,
+        },
+        {
+          id: "paint-storage",
+          jobsite_id: "j1",
+          title: "Paint and solvent material staging",
+          work_start_date: "2026-05-22",
+          trade: "Finishes",
+          work_area: "Level 2",
+          risk_level: "moderate",
+          is_high_risk: true,
+        },
+      ],
+    });
+    const conflictMap = buildAiSafetyConflictMap({ dailyBriefing: sourceBriefing, now: NOW });
+
+    const loop = buildAiSafetyClosedLoopPayload({
+      dailyBriefing: sourceBriefing,
+      conflictFindings: conflictMap.findings,
+      now: NOW,
+    });
+
+    expect(conflictMap.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "adjacent_work_conflict",
+          title: "Hot work overlaps combustible or flammable exposure",
+        }),
+      ]),
+    );
+    expect(loop.aiSafetyActionQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "workface_conflict_review",
+          approvalState: "review_required",
+          targetModule: "command_center",
+          humanApprovalRequired: true,
+        }),
+      ]),
+    );
   });
 });

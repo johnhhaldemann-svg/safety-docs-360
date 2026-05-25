@@ -258,6 +258,10 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
       .slice(0, 3)
       .map((work) => `Review ${work.title}: ${work.scoreExplanation.recommendedAction}`),
   ].slice(0, 8);
+  const workfaceConflicts = briefing.readinessBlockers
+    .filter((blocker) => blocker.type === "conflict")
+    .map((blocker) => `${blocker.label}: ${blocker.detail}`)
+    .slice(0, 5);
   const memoryInfluence = briefing.highRiskWork
     .flatMap((work) =>
       work.recommendedControls
@@ -285,6 +289,7 @@ export function buildGusContextFromDailyRiskBriefing(briefing: DailyRiskBriefing
       briefing.stopWorkReviewRecommended || briefing.escalationRequired || actionQueue.length > 0
         ? "review_required"
         : "assigned",
+    aiEngineWorkfaceConflicts: workfaceConflicts,
     aiEngineFeedbackInfluence: ["Use recommendation feedback to tune confidence, duplicate suppression, and missing-information prompts."],
     aiEngineMemoryInfluence: memoryInfluence,
     aiEngineCalibrationSummary: "Compare AI Engine predictions with later incidents, near misses, observations, corrective actions, and field-used controls.",

@@ -37,6 +37,11 @@ import {
   type AiSafetyMemoryInfluence,
 } from "@/lib/aiSafetyActionQueue";
 import type { AiSafetyFeedbackSignal } from "@/lib/aiSafetyFeedbackInfluence";
+import {
+  buildAiSafetyConflictMap,
+  type AiSafetyConflictMap,
+  type AiSafetyConflictFinding,
+} from "@/lib/aiSafetyConflictMap";
 
 export type PredictiveRiskSourceCounts = {
   correctiveActions: number;
@@ -114,6 +119,7 @@ export type PredictiveRiskPayload = {
   behaviorRisk: BehaviorRiskResult;
   safetyAiAssessment: SafetyAiAssessment;
   dailyBriefing: DailyRiskBriefing;
+  aiSafetyConflictMap: AiSafetyConflictMap;
   aiSafetyActionQueue: AiSafetyActionQueue;
   approvalState: AiSafetyApprovalSummary;
   feedbackInfluence: AiSafetyFeedbackInfluence;
@@ -797,6 +803,41 @@ function buildSafetyAiAssessment(input: {
   });
 }
 
+function conflictBlockerId(conflict: AiSafetyConflictFinding) {
+  return `conflict-${conflict.sourceKey.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 96)}`;
+}
+
+function dailyBriefingWithConflicts(dailyBriefing: DailyRiskBriefing, conflictMap: AiSafetyConflictMap): DailyRiskBriefing {
+  const highConflicts = conflictMap.findings.filter((conflict) => conflict.riskLevel === "high" || conflict.riskLevel === "critical");
+  if (highConflicts.length === 0) return dailyBriefing;
+  const conflictBlockers = highConflicts.slice(0, 8).map((conflict) => ({
+    id: conflictBlockerId(conflict),
+    type: "conflict" as const,
+    severity: conflict.riskLevel,
+    label: conflict.title,
+    detail: `${conflict.reason} ${conflict.requiredVerification}`,
+    evidenceRefs: conflict.evidenceRefs,
+  }));
+  const whyThisMatters = [
+    ...highConflicts.slice(0, 3).map((conflict) => `${conflict.title}: ${conflict.recommendedAction}`),
+    ...dailyBriefing.whyThisMatters,
+  ].filter((line, index, all) => all.findIndex((candidate) => candidate.toLowerCase() === line.toLowerCase()) === index);
+  return {
+    ...dailyBriefing,
+    readinessBlockers: [...conflictBlockers, ...dailyBriefing.readinessBlockers]
+      .sort((a, b) => {
+        const rank = { low: 1, moderate: 2, high: 3, critical: 4 };
+        return rank[b.severity] - rank[a.severity];
+      })
+      .slice(0, 20),
+    whyThisMatters: whyThisMatters.slice(0, 8),
+    escalationRequired: dailyBriefing.escalationRequired || highConflicts.some((conflict) => conflict.humanApprovalRequired),
+    stopWorkReviewRecommended:
+      dailyBriefing.stopWorkReviewRecommended || highConflicts.some((conflict) => conflict.riskLevel === "critical"),
+    evidenceRefs: [...conflictMap.findings.flatMap((conflict) => conflict.evidenceRefs), ...dailyBriefing.evidenceRefs].slice(0, 14),
+  };
+}
+
 export function buildPredictiveRiskPayload(input: {
   projectId?: string | null;
   days: number;
@@ -842,7 +883,7 @@ export function buildPredictiveRiskPayload(input: {
     observations: input.observations,
     trainingGaps: input.trainingGaps,
   });
-  const dailyBriefing = buildPredictiveSafetyEngineBriefing({
+  const baseDailyBriefing = buildPredictiveSafetyEngineBriefing({
     days,
     jobsiteId: input.jobsiteId,
     jobsites: input.jobsites,
@@ -857,8 +898,17 @@ export function buildPredictiveRiskPayload(input: {
     memoryItems: input.memoryItems,
     safetyAiAssessment,
   });
+  const aiSafetyConflictMap = buildAiSafetyConflictMap({
+    dailyBriefing: baseDailyBriefing,
+    correctiveActions: input.correctiveActions,
+    incidents: input.incidents,
+    observations: input.observations,
+    weatherAlerts: input.weatherAlerts,
+  });
+  const dailyBriefing = dailyBriefingWithConflicts(baseDailyBriefing, aiSafetyConflictMap);
   const aiSafetyLoop = buildAiSafetyClosedLoopPayload({
     dailyBriefing,
+    conflictFindings: aiSafetyConflictMap.findings,
     riskMitigations: input.riskMitigations,
     memoryItems: input.memoryItems,
     feedbackSignals: input.feedbackSignals,
@@ -1055,6 +1105,7 @@ export function buildPredictiveRiskPayload(input: {
     behaviorRisk,
     safetyAiAssessment,
     dailyBriefing,
+    aiSafetyConflictMap,
     aiSafetyActionQueue: aiSafetyLoop.aiSafetyActionQueue,
     approvalState: aiSafetyLoop.approvalState,
     feedbackInfluence: aiSafetyLoop.feedbackInfluence,

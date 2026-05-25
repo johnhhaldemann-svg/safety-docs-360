@@ -92,6 +92,15 @@ function predictive(overrides?: Partial<PredictiveRiskPayload>): PredictiveRiskP
       stopWorkReviewRecommended: false,
       evidenceRefs: [],
     },
+    aiSafetyConflictMap: {
+      generatedAt: "2026-05-20T00:00:00.000Z",
+      summary: "No workface conflicts in fixture.",
+      findings: [],
+      highConflictCount: 0,
+      criticalConflictCount: 0,
+      missingData: [],
+      confidence: "low",
+    },
     aiSafetyActionQueue: {
       generatedAt: "2026-05-20T00:00:00.000Z",
       headline: "No AI safety actions in fixture.",

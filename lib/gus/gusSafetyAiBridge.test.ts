@@ -92,6 +92,14 @@ describe("Gus Safety AI Engine bridge", () => {
           detail: "Verify required training.",
           evidenceRefs: [],
         },
+        {
+          id: "conflict-1",
+          type: "conflict",
+          severity: "high",
+          label: "Elevated work overlaps active access below",
+          detail: "Verify exclusion zone and dropped-object controls before work proceeds.",
+          evidenceRefs: [],
+        },
       ],
       controlsToVerify: [
         {
@@ -122,8 +130,12 @@ describe("Gus Safety AI Engine bridge", () => {
     expect(context.aiEngineActionQueue).toEqual(
       expect.arrayContaining([
         expect.stringContaining("Missing active permit or authorization"),
+        expect.stringContaining("Elevated work overlaps active access below"),
         expect.stringContaining("Review Excavation at north trench"),
       ]),
+    );
+    expect(context.aiEngineWorkfaceConflicts).toEqual(
+      expect.arrayContaining([expect.stringContaining("Elevated work overlaps active access below")]),
     );
     expect(context.aiEngineCalibrationSummary).toContain("Compare AI Engine predictions");
     expect(context.missingPermitTypes).toEqual(["Verify excavation permit."]);
