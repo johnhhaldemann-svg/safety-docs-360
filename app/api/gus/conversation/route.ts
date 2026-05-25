@@ -55,5 +55,6 @@ export async function POST(request: Request) {
     safetyPreferences,
     blockedByRules: result.blockedByRules,
     validationFindings: result.validationFindings,
+    actionDecisionTriggers: result.actionDecisionTriggers,
   });
 }

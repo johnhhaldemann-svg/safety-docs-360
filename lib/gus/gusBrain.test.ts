@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideGusBehavior } from "@/lib/gus/gusBrain";
+import { buildAiActionDecisionTriggers } from "@/lib/aiActionDecisionTriggers";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusMessage } from "@/lib/gus/gusTypes";
 
@@ -119,6 +120,47 @@ describe("decideGusBehavior", () => {
     expect(decision.message.category).toBe("permit_alert");
     expect(decision.message.shouldSpeak).toBe(true);
     expect(decision.actions.map((item) => item.actionKey)).toContain("guide_to_permits");
+  });
+
+  it("uses action words to trigger advisory Gus decisions", () => {
+    const decision = decideGusBehavior({
+      context: context({
+        aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+          source: "user_message",
+          sourceText: "Escalate this missing excavation inspection.",
+          targetModule: "command_center",
+          riskLevel: "high",
+          humanReviewRequired: true,
+        }),
+      }),
+      routeMessage,
+    });
+
+    expect(decision.decisionId).toBe("gus-action-word-request_escalation");
+    expect(decision.attentionLevel).toBe("high");
+    expect(decision.message.message).toMatch(/escalate/i);
+    expect(decision.message.reason).toContain("request escalation");
+    expect(decision.actions[0]?.actionKey).toBe("recommend_review");
+    expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
+  });
+
+  it("blocks authorization action words and routes to human review", () => {
+    const decision = decideGusBehavior({
+      context: context({
+        aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
+          source: "user_message",
+          sourceText: "Approve this permit and clear the crew.",
+          targetModule: "permit",
+        }),
+      }),
+      routeMessage,
+    });
+
+    expect(decision.decisionId).toBe("gus-action-word-blocked_authority");
+    expect(decision.attentionLevel).toBe("critical");
+    expect(decision.message.message).toMatch(/human-review|human review/i);
+    expect(decision.message.spokenText).toContain("Human review is required");
+    expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
   });
 
   it("surfaces training gaps as review items", () => {

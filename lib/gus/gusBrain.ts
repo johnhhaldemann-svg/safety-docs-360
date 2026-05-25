@@ -1,6 +1,7 @@
 import type { GusContext } from "@/lib/gus/gusContext";
 import { isForbiddenGusAction } from "@/lib/gus/gusTrustRules";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
+import type { AiActionDecisionTrigger } from "@/lib/aiActionDecisionTriggers";
 import type {
   GusBotState,
   GusCompanionAction,
@@ -71,6 +72,45 @@ function routeHref(route: string, fallback: string) {
   return route.startsWith("/safe-predict") ? "/safe-predict/predictive-risk" : fallback;
 }
 
+const TRIGGER_INTENT_RANK: Record<AiActionDecisionTrigger["intent"], number> = {
+  blocked_authority: 100,
+  stop_work_review: 95,
+  pause_or_hold_work: 88,
+  request_escalation: 84,
+  request_field_verification: 72,
+  request_review: 70,
+  request_assignment: 56,
+  request_resolution: 54,
+  request_dismissal: 52,
+  suppress_or_ignore: 50,
+  create_action: 42,
+  sync_actions: 40,
+  draft_notification: 38,
+  draft_record: 35,
+  resequence_work: 34,
+  prepare_briefing: 30,
+};
+
+function topActionDecisionTrigger(context: GusContext) {
+  return (context.aiEngineActionDecisionTriggers ?? [])
+    .slice()
+    .sort((a, b) => TRIGGER_INTENT_RANK[b.intent] - TRIGGER_INTENT_RANK[a.intent])[0];
+}
+
+function actionDecisionTriggerMessage(trigger: AiActionDecisionTrigger) {
+  if (trigger.blocked) {
+    return "I can turn that into a human-review step, but I cannot grant authorization or make final compliance decisions.";
+  }
+  if (trigger.intent === "request_escalation") return "I can help escalate this for safety review and keep the recommendation advisory.";
+  if (trigger.intent === "stop_work_review") return "This action word points to immediate human review and possible stop-work evaluation.";
+  if (trigger.intent === "pause_or_hold_work") return "This action word points to holding the affected work until a responsible person verifies it.";
+  if (trigger.intent === "request_field_verification") return "This action word points to field verification before work proceeds.";
+  if (trigger.intent === "request_assignment") return "I can draft the assignment path, with review still required for safety-critical work.";
+  if (trigger.intent === "request_resolution") return "Resolution needs documented field verification before the workflow is updated.";
+  if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "Dismissal or suppression needs a human reason and cannot hide critical risk.";
+  return trigger.recommendedSafeAction;
+}
+
 function aiEngineNextStep(context: GusContext) {
   const reasoningAction = context.aiEngineNextBestActions?.[0];
   if (reasoningAction?.humanReviewRequired) return `Verify first: ${reasoningAction.detail}`;
@@ -99,6 +139,48 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         reason: "Quiet mode is active.",
         shouldSpeak: false,
       },
+    });
+  }
+
+  const actionDecisionTrigger = topActionDecisionTrigger(context);
+  if (actionDecisionTrigger && (actionDecisionTrigger.blocked || actionDecisionTrigger.humanReviewRequired || actionDecisionTrigger.requiresConfirmation)) {
+    const href = routeHref(route, "/command-center");
+    const isCritical =
+      actionDecisionTrigger.intent === "stop_work_review" ||
+      actionDecisionTrigger.riskLevel === "critical" ||
+      actionDecisionTrigger.blocked;
+    return decision({
+      decisionId: `gus-action-word-${actionDecisionTrigger.intent}`,
+      kind: isCritical ? "warning" : "planning_offer",
+      botState: isCritical ? "warning" : "planning",
+      attentionLevel: isCritical ? "critical" : actionDecisionTrigger.riskLevel === "high" ? "high" : "medium",
+      shouldOpen: true,
+      message: {
+        messageId: "gus-action-word-decision",
+        category: isCritical ? "warning" : "planning",
+        priority: isCritical ? 1 : 3,
+        message: actionDecisionTriggerMessage(actionDecisionTrigger),
+        spokenText: actionDecisionTrigger.blocked
+          ? "Human review is required. I cannot grant authorization."
+          : actionDecisionTrigger.recommendedSafeAction,
+        reason: `Action word "${actionDecisionTrigger.actionWord}" was mapped to ${actionDecisionTrigger.intent.replace(/_/g, " ")}. ${actionDecisionTrigger.recommendedSafeAction}`,
+        shouldSpeak: isCritical,
+        actionLabel: "Review action",
+        actionHref: href,
+        actionKey: "recommend_review",
+        confidence: actionDecisionTrigger.blocked ? 0.95 : 0.86,
+      },
+      signals: [
+        signal({
+          signalId: `action-word-${actionDecisionTrigger.actionWord}`,
+          source: "action",
+          label: `Action word: ${actionDecisionTrigger.actionWord}`,
+          riskLevel: isCritical ? "severe" : actionDecisionTrigger.riskLevel === "high" ? "high" : "moderate",
+          detail: actionDecisionTrigger.recommendedSafeAction,
+          actionHref: href,
+        }),
+      ],
+      actions: [action("Review action", href, "recommend_review")],
     });
   }
 

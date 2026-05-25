@@ -606,6 +606,23 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                     Human review required before work proceeds.
                   </p>
                 ) : null}
+                {item.decisionTriggers && item.decisionTriggers.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {item.decisionTriggers.slice(0, 3).map((trigger) => (
+                      <span
+                        key={trigger.id}
+                        className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                          trigger.blocked
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : "border-sky-200 bg-sky-50 text-sky-800"
+                        }`}
+                        title={trigger.blocked ? "AI cannot grant final authorization. Human review required." : trigger.recommendedSafeAction}
+                      >
+                        {trigger.actionWord}: {trigger.intent.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {item.missingInformation.length > 0 ? (
                   <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
                     Missing: {item.missingInformation.slice(0, 2).join("; ")}

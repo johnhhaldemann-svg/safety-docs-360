@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, MicOff, RefreshCw, Send, Trash2, X } from "lucide-react";
+import { Check, Copy, ImagePlus, Mic, MicOff, RefreshCw, Send, Trash2, X } from "lucide-react";
 import { useGusSpeechInput } from "@/components/gus/useGusSpeechInput";
 import type { GusContext } from "@/lib/gus/gusContext";
 import { createGusProactiveConversationLine } from "@/lib/gus/gusSocialCoach";
@@ -14,6 +14,7 @@ import type {
   GusPhotoReviewOutput,
   GusPhotoReviewRiskLevel,
   GusSafetyPreferenceMemory,
+  GusThoughtDraftResponse,
 } from "@/lib/gus/gusTypes";
 
 type GusConversationProps = {
@@ -32,10 +33,13 @@ type GusStructuredDetails = Pick<
 
 type GusDisplayTurn = GusConversationTurn & {
   structuredDetails?: GusStructuredDetails;
+  thoughtDraft?: GusThoughtDraftResponse;
   photoReview?: GusPhotoReviewOutput;
   imagePreviewUrl?: string;
   fileName?: string;
 };
+
+type GusConversationMode = "ask" | "formulate";
 
 type SelectedPhoto = {
   file: File;
@@ -122,6 +126,48 @@ function StructuredDetails({ details }: { details: GusStructuredDetails }) {
   );
 }
 
+function ThoughtDraftDetails({
+  draft,
+  copied,
+  onCopy,
+}: {
+  draft: GusThoughtDraftResponse;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="mt-2 grid gap-2">
+      <DetailSection title="Risks" items={draft.riskFlags} />
+
+      <div className="rounded-lg border border-current/10 bg-white/78 px-2.5 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-current/65">Clarified thought</p>
+        <p className="mt-1 text-xs leading-5 text-current/85">{draft.clarifiedThought}</p>
+      </div>
+
+      <div className="rounded-lg border border-current/10 bg-white/78 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-current/65">Draft text</p>
+          <button
+            type="button"
+            onClick={onCopy}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-current/10 bg-white px-2 text-[10px] font-black uppercase tracking-[0.08em] text-current/70 transition hover:bg-white/80"
+          >
+            {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-current/85">{draft.draftText}</p>
+      </div>
+
+      <DetailSection title="Talking points" items={draft.talkingPoints} />
+      <DetailSection title="Follow-up questions" items={draft.followUpQuestions} />
+      <DetailSection title="Missing info" items={draft.missingInformation} />
+      <DetailSection title="Controls" items={draft.recommendedControls} />
+      <DetailSection title="Next actions" items={draft.suggestedActions} />
+    </div>
+  );
+}
+
 function PhotoReviewDetails({ review }: { review: GusPhotoReviewOutput }) {
   return (
     <div className={`mt-2 grid gap-2 rounded-xl border p-2.5 ${riskTone(review.riskLevel)}`}>
@@ -162,6 +208,8 @@ export function GusConversation({
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<SelectedPhoto | null>(null);
   const [safetyPreferences, setSafetyPreferences] = useState<GusSafetyPreferenceMemory>(defaultPreferences);
+  const [mode, setMode] = useState<GusConversationMode>("ask");
+  const [copiedDraftTurnId, setCopiedDraftTurnId] = useState<string | null>(null);
 
   useEffect(() => {
     const proactive = createGusProactiveConversationLine(
@@ -238,8 +286,80 @@ export function GusConversation({
     }
   }, [context, decision, loading, onAssistantReply, reviewingPhoto, safetyPreferences, turns]);
 
+  const sendThoughtDraft = useCallback(async (message: string) => {
+    const clean = message.replace(/\s+/g, " ").trim();
+    if (!clean || loading || reviewingPhoto) return;
+
+    const userTurn = makeTurn("user", clean);
+    const nextTurns = [...turns, userTurn].slice(-9);
+    setTurns(nextTurns);
+    setDraft("");
+    setLoading(true);
+    setError(null);
+    setLastUserMessage(clean);
+    setCopiedDraftTurnId(null);
+
+    try {
+      const response = await fetch("/api/gus/thought-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: clean,
+          history: nextTurns,
+          context,
+          decision,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as Partial<GusThoughtDraftResponse> & {
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.draftText || !payload?.clarifiedThought) {
+        throw new Error(payload?.error || "Gus could not formulate that thought yet.");
+      }
+
+      const thoughtDraft: GusThoughtDraftResponse = {
+        clarifiedThought: payload.clarifiedThought,
+        draftText: payload.draftText,
+        talkingPoints: payload.talkingPoints ?? [],
+        followUpQuestions: payload.followUpQuestions ?? [],
+        missingInformation: payload.missingInformation ?? [],
+        riskFlags: payload.riskFlags ?? [],
+        recommendedControls: payload.recommendedControls ?? [],
+        suggestedActions: payload.suggestedActions ?? [],
+        draftOnly: true,
+        humanReviewRequired: true,
+      };
+      const spokenSummary = thoughtDraft.talkingPoints.slice(0, 2).join(" ") || thoughtDraft.clarifiedThought;
+      onAssistantReply?.(spokenSummary);
+      setTurns((current) =>
+        [
+          ...current,
+          makeTurn("assistant", "I shaped that into draft wording. Keep it in draft until human review.", {
+            thoughtDraft,
+          }),
+        ].slice(-10),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Gus could not formulate that thought yet.");
+    } finally {
+      setLoading(false);
+    }
+  }, [context, decision, loading, onAssistantReply, reviewingPhoto, turns]);
+
+  const sendDraftInput = useCallback(
+    (message: string) => {
+      if (mode === "formulate") {
+        void sendThoughtDraft(message);
+        return;
+      }
+      void sendMessage(message);
+    },
+    [mode, sendMessage, sendThoughtDraft],
+  );
+
   const speechInput = useGusSpeechInput((transcript) => {
-    void sendMessage(transcript);
+    sendDraftInput(transcript);
   });
 
   useEffect(() => {
@@ -253,7 +373,7 @@ export function GusConversation({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void sendMessage(draft);
+    sendDraftInput(draft);
   }
 
   function clearSelectedPhoto() {
@@ -327,10 +447,29 @@ export function GusConversation({
     setDraft("");
     setError(null);
     setLastUserMessage(null);
+    setCopiedDraftTurnId(null);
     clearSelectedPhoto();
   }
 
+  async function copyDraftText(turnId: string | undefined, draftText: string) {
+    if (!turnId) return;
+    try {
+      await navigator.clipboard.writeText(draftText);
+      setCopiedDraftTurnId(turnId);
+    } catch {
+      setError("Gus could not copy that draft text from this browser.");
+    }
+  }
+
   const busy = loading || reviewingPhoto;
+  const inputPlaceholder =
+    mode === "formulate"
+      ? speechInput.isListening
+        ? "Listening to your rough thought..."
+        : "Say or paste the rough thought..."
+      : speechInput.isListening
+        ? "Listening to you..."
+        : "Ask Gus a safety question or add photo context...";
 
   return (
     <section className="rounded-xl border border-[var(--app-border)] bg-white" aria-label="Talk with Gus">
@@ -376,6 +515,13 @@ export function GusConversation({
               ) : null}
               <p>{turn.content}</p>
               {turn.structuredDetails ? <StructuredDetails details={turn.structuredDetails} /> : null}
+              {turn.thoughtDraft ? (
+                <ThoughtDraftDetails
+                  draft={turn.thoughtDraft}
+                  copied={copiedDraftTurnId === turn.id}
+                  onCopy={() => void copyDraftText(turn.id, turn.thoughtDraft?.draftText ?? "")}
+                />
+              ) : null}
               {turn.photoReview ? <PhotoReviewDetails review={turn.photoReview} /> : null}
             </div>
           </div>
@@ -393,7 +539,7 @@ export function GusConversation({
           {lastUserMessage ? (
             <button
               type="button"
-              onClick={() => sendMessage(lastUserMessage)}
+              onClick={() => sendDraftInput(lastUserMessage)}
               className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-amber-900 shadow-sm"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -440,6 +586,24 @@ export function GusConversation({
         </p>
       ) : null}
 
+      <div className="mx-3 mb-3 inline-flex rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-1">
+        {(["ask", "formulate"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => setMode(item)}
+            className={`min-h-8 rounded-md px-3 text-xs font-black uppercase tracking-[0.08em] transition ${
+              mode === item
+                ? "bg-white text-[var(--app-text-strong)] shadow-sm"
+                : "text-[var(--app-muted)] hover:bg-white/65 hover:text-[var(--app-text-strong)]"
+            }`}
+            aria-pressed={mode === item}
+          >
+            {item === "ask" ? "Ask" : "Formulate"}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={submit} className="flex gap-2 border-t border-[var(--app-border)] p-3">
         <label className="sr-only" htmlFor="gus-conversation-input">
           Message Gus
@@ -448,7 +612,7 @@ export function GusConversation({
           id="gus-conversation-input"
           value={speechInput.interimTranscript || draft}
           onChange={(event) => setDraft(event.currentTarget.value)}
-          placeholder={speechInput.isListening ? "Listening to you..." : "Ask Gus a safety question or add photo context..."}
+          placeholder={inputPlaceholder}
           className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--app-border)] bg-white px-3 text-sm text-[var(--app-text-strong)] outline-none transition placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-ring)]"
           disabled={busy || speechInput.isListening}
         />

@@ -108,7 +108,7 @@ const ACTION_WORD_RULES: ActionWordRule[] = [
   {
     actionWord: "release",
     intent: "blocked_authority",
-    patterns: [/\breleas(?:e|ed|ing)\s+(?:this|it|work|permit|task|crew|job|area)\b/i],
+    patterns: [/\breleas(?:e|ed|ing)\s+(?:this|it|the\s+)?(?:work|permit|task|crew|job|area)\b/i],
     requiresConfirmation: true,
     humanReviewRequired: true,
     blocked: true,
@@ -293,7 +293,7 @@ export function sanitizeAiActionDecisionTrigger(trigger: AiActionDecisionTrigger
     actionWord: clean(trigger.actionWord, 60),
     targetModule: trigger.targetModule ?? "unknown",
     requiresConfirmation: trigger.requiresConfirmation || blocked,
-    humanReviewRequired: true,
+    humanReviewRequired: trigger.humanReviewRequired || blocked,
     blocked,
     blockedReason: blocked ? trigger.blockedReason ?? BLOCKED_AUTHORITY_REASON : trigger.blockedReason,
     recommendedSafeAction: blocked

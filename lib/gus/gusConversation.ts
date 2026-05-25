@@ -11,6 +11,10 @@ import {
   GUS_PERSONALITY_PROFILE,
 } from "@/lib/gus/gusPromptBuilder";
 import { validateGusOutput, type GusValidationFinding } from "@/lib/gus/gusValidation";
+import {
+  buildAiActionDecisionTriggers,
+  type AiActionDecisionTrigger,
+} from "@/lib/aiActionDecisionTriggers";
 import type {
   GusConversationRequest,
   GusConversationResponse,
@@ -24,6 +28,7 @@ export type GusConversationResult = {
   meta: AiExecutionMeta | null;
   blockedByRules: boolean;
   rawText: string | null;
+  actionDecisionTriggers: AiActionDecisionTrigger[];
 };
 
 const GUS_CONVERSATION_FALLBACK_MODEL = "gpt-4o-mini";
@@ -286,6 +291,36 @@ function enforceConversationSafety(output: GusConversationResponse) {
   };
 }
 
+function conversationActionDecisionTriggers(params: {
+  request: GusConversationRequest;
+  response?: GusConversationResponse;
+}) {
+  const userTriggers = buildAiActionDecisionTriggers({
+    source: "user_message",
+    sourceId: "gus-conversation-user-message",
+    sourceText: params.request.message,
+    targetModule: "gus",
+    humanReviewRequired: true,
+    limit: 8,
+  });
+  const responseTriggers = params.response
+    ? buildAiActionDecisionTriggers({
+        source: "gus_message",
+        sourceId: "gus-conversation-response",
+        sourceText: [
+          params.response.answer,
+          ...params.response.suggestedActions,
+          ...params.response.recommendedControls,
+          ...params.response.riskFlags,
+        ],
+        targetModule: "gus",
+        humanReviewRequired: params.response.humanReviewRequired,
+        limit: 8,
+      })
+    : [];
+  return [...userTriggers, ...responseTriggers].slice(0, 12);
+}
+
 function isConservativeReferenceRequest(message: string) {
   return /\blegal|liability|lawsuit|attorney|osha|regulation|citation|standard\b/i.test(message);
 }
@@ -314,6 +349,7 @@ export async function runGusConversation(request: GusConversationRequest): Promi
       meta: null,
       blockedByRules: true,
       rawText: null,
+      actionDecisionTriggers: conversationActionDecisionTriggers({ request, response: safe.response }),
     };
   }
 
@@ -325,6 +361,7 @@ export async function runGusConversation(request: GusConversationRequest): Promi
       meta: null,
       blockedByRules: false,
       rawText: null,
+      actionDecisionTriggers: conversationActionDecisionTriggers({ request, response: safe.response }),
     };
   }
 
@@ -366,5 +403,6 @@ export async function runGusConversation(request: GusConversationRequest): Promi
     meta: result.meta,
     blockedByRules: false,
     rawText: result.text,
+    actionDecisionTriggers: conversationActionDecisionTriggers({ request, response: safe.response }),
   };
 }

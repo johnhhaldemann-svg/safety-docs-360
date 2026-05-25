@@ -149,7 +149,7 @@ export type PredictiveRiskPayload = {
   decisionQuality: AiSafetyDecisionQuality;
   uncertaintySummary: AiSafetyUncertaintySummary;
   nextBestActions: AiSafetyReasoningNextBestAction[];
-  aiActionDecisionTriggers: AiActionDecisionTrigger[];
+  aiActionDecisionTriggers?: AiActionDecisionTrigger[];
   aiSafetyUnifiedContext?: AiSafetyUnifiedContext;
   aiSafetyDomainUnderstanding?: SafetyDomainUnderstanding;
   leadershipTrust: LeadershipTrustMetadata;

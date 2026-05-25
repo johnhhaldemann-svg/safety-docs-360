@@ -51,6 +51,13 @@ describe("buildAiSafetyClosedLoopPayload", () => {
           humanApprovalRequired: true,
           ownerRole: "safety_manager",
           targetModule: "permit",
+          decisionTriggers: expect.arrayContaining([
+            expect.objectContaining({
+              actionWord: "verify",
+              intent: "request_field_verification",
+              humanReviewRequired: true,
+            }),
+          ]),
         }),
       ]),
     );

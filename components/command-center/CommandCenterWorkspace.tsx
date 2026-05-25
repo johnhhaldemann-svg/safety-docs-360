@@ -718,6 +718,23 @@ function DailySafetyCommandCenterPanel({
                     {item.humanApprovalReason ?? "Human review required before work proceeds."}
                   </p>
                 ) : null}
+                {item.decisionTriggers && item.decisionTriggers.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {item.decisionTriggers.slice(0, 3).map((trigger) => (
+                      <span
+                        key={trigger.id}
+                        className={`rounded-lg border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                          trigger.blocked
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : "border-sky-200 bg-sky-50 text-sky-800"
+                        }`}
+                        title={trigger.blocked ? "AI cannot grant final authorization. Human review required." : trigger.recommendedSafeAction}
+                      >
+                        {trigger.actionWord}: {trigger.intent.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {syncMessage ? (
                   <Link href="/analytics/predictive-model" className="mt-2 inline-flex text-xs font-bold text-[var(--app-accent-primary)]">
                     Open persisted recommendation workflow
