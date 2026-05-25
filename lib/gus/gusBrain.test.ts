@@ -79,15 +79,18 @@ describe("decideGusBehavior", () => {
         aiEngineActionTimeframe: "immediate",
         aiEngineTopHighRiskWork: "Excavation at North Tower",
         aiEngineRecommendedNextAction: "Verify protective system review",
+        aiEngineWorkfaceConflicts: ["Excavation overlaps utility or electrical exposure"],
       }),
       routeMessage,
     });
 
     expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toContain("Gus is flagging this for review");
+    expect(decision.message.message).toContain("I'm flagging this for review");
     expect(decision.message.message).toContain("Excavation at North Tower");
+    expect(decision.message.message).toContain("Excavation overlaps utility or electrical exposure");
     expect(decision.message.reason).toContain("Protective system");
+    expect(decision.message.reason).toContain("Excavation overlaps utility or electrical exposure");
     expect(decision.signals[0]?.detail).toContain("Verify protective system review");
     expect(
       [

@@ -110,6 +110,8 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
     const nextStep = aiEngineNextStep(context);
     const work = context.aiEngineTopHighRiskWork ? ` Top work: ${context.aiEngineTopHighRiskWork}.` : "";
     const recommendation = context.aiEngineRecommendedNextAction ? ` Next action: ${context.aiEngineRecommendedNextAction}` : "";
+    const conflicts = context.aiEngineWorkfaceConflicts ?? [];
+    const conflictNote = conflicts.length > 0 ? ` Workface conflict: ${compactList(conflicts, "predicted workface conflict")}.` : "";
 
     return decision({
       decisionId: "gus-ai-engine-review-decision",
@@ -121,9 +123,9 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-ai-engine-review",
         category: "risk_alert",
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
-        message: `Gus is flagging this for review.${work} ${nextStep}`,
-        spokenText: `Gus is flagging this for review. ${nextStep}`,
-        reason: `Review basis: ${compactList([...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
+        message: `I'm flagging this for review.${work}${conflictNote} ${nextStep}`,
+        spokenText: `I'm flagging this for review. ${nextStep}`,
+        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}. Human review required.`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
         actionLabel: "Review safety risk",
         actionHref: routeHref(route, "/risk"),
@@ -136,7 +138,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
           source: "risk",
           label: "Safety review",
           riskLevel: context.safetyAiAssessment.level === "critical" ? "severe" : "high",
-          detail: `${compactList([...gaps, ...triggers], "review triggers")}.${recommendation}`,
+          detail: `${compactList([...conflicts, ...gaps, ...triggers], "review triggers")}.${recommendation}`,
           actionHref: routeHref(route, "/risk"),
         }),
       ],

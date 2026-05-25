@@ -194,6 +194,23 @@ export type GusConversationResponse = {
   humanReviewRequired: true;
 };
 
+export type GusPhotoReviewRiskLevel = "low" | "moderate" | "high" | "critical" | "unknown";
+
+export type GusPhotoReviewOutput = {
+  answer: string;
+  riskLevel: GusPhotoReviewRiskLevel;
+  whatLooksRight: string[];
+  concerns: string[];
+  criticalFlags: string[];
+  missingInformation: string[];
+  recommendedControls: string[];
+  nextActions: string[];
+  limitations: string[];
+  confidence: number;
+  draftOnly: true;
+  humanReviewRequired: true;
+};
+
 export const GUS_PLAN_STATUSES = [
   "draft_incomplete",
   "draft_ready_for_review",

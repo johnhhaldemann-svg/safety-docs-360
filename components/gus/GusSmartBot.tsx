@@ -41,6 +41,8 @@ function GusBotMotionStyles() {
       .gus-smartbot-figure .gus-smartbot-eye { animation: gus-blink 4.8s ease-in-out infinite; }
       .gus-smartbot-figure .gus-smartbot-mouth { animation: gus-mouth 2.4s ease-in-out infinite; }
       .gus-smartbot-figure .gus-smartbot-sp-badge { animation: gus-glow 2.8s ease-in-out infinite; }
+      .gus-smartbot-idle .gus-smartbot-arm-right { animation: gus-idle-wave 16s ease-in-out infinite; transform-origin: left center; }
+      .gus-smartbot-idle .gus-smartbot-arm-left { animation: gus-idle-check 19s ease-in-out infinite; transform-origin: top center; }
       .gus-smartbot-wave .gus-smartbot-arm-right { animation: gus-wave 1.4s ease-in-out infinite; transform-origin: left center; }
       .gus-smartbot-pointing .gus-smartbot-arm-right { transform: rotate(-34deg) translate(6px, -4px); }
       .gus-smartbot-warning { animation: gus-warning 1s ease-in-out infinite; }
@@ -48,6 +50,8 @@ function GusBotMotionStyles() {
       .gus-smartbot-planning .gus-smartbot-arm-left { transform: rotate(20deg); }
       @keyframes gus-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
       @keyframes gus-head-look { 0%, 100% { transform: rotate(0deg); } 35% { transform: rotate(-2deg); } 70% { transform: rotate(2deg); } }
+      @keyframes gus-idle-wave { 0%, 58%, 100% { transform: rotate(0deg); } 62% { transform: rotate(-30deg); } 66% { transform: rotate(12deg); } 70% { transform: rotate(-24deg); } 74% { transform: rotate(0deg); } }
+      @keyframes gus-idle-check { 0%, 28%, 100% { transform: rotate(0deg) translateY(0); } 31% { transform: rotate(14deg) translateY(-1px); } 34% { transform: rotate(-8deg) translateY(1px); } 37% { transform: rotate(0deg) translateY(0); } }
       @keyframes gus-wave { 0%, 100% { transform: rotate(0deg); } 45% { transform: rotate(-34deg); } 70% { transform: rotate(14deg); } }
       @keyframes gus-warning { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.035); } }
       @keyframes gus-think { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(18deg); } }
@@ -60,6 +64,8 @@ function GusBotMotionStyles() {
         .gus-smartbot-figure .gus-smartbot-eye,
         .gus-smartbot-figure .gus-smartbot-mouth,
         .gus-smartbot-figure .gus-smartbot-sp-badge,
+        .gus-smartbot-idle .gus-smartbot-arm-right,
+        .gus-smartbot-idle .gus-smartbot-arm-left,
         .gus-smartbot-wave .gus-smartbot-arm-right,
         .gus-smartbot-warning,
         .gus-smartbot-thinking .gus-smartbot-arm-left {

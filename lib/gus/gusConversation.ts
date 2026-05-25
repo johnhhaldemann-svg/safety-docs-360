@@ -236,9 +236,14 @@ function fallbackResponse(
     answer,
     tone: "calm_mentor",
     suggestedActions: ["Gather missing task details", "Route draft guidance for human review"],
-    missingInformation: asksForOsha ? ["Verified platform, company, or regulatory reference to use."] : [],
+    missingInformation: asksForOsha
+      ? ["Verified platform, company, or regulatory reference to use."]
+      : ["Task, work area, crew/trade, equipment or energy involved, and existing controls."],
     riskFlags: ["Human review remains required before work starts."],
-    recommendedControls: ["Keep recommendations in draft form until reviewed."],
+    recommendedControls: [
+      "Keep recommendations in draft form until reviewed.",
+      "Verify controls against the actual field condition before work proceeds.",
+    ],
     safetyPreferences: preferences,
     draftOnly: true,
     humanReviewRequired: true,
@@ -252,10 +257,16 @@ function normalizeResponse(value: unknown, fallback: GusConversationResponse): G
   return {
     answer: cleanText(record.answer, 900) || fallback.answer,
     tone: "calm_mentor",
-    suggestedActions: stringArray(record.suggestedActions, 6),
-    missingInformation: stringArray(record.missingInformation, 10),
-    riskFlags: stringArray(record.riskFlags, 10),
-    recommendedControls: stringArray(record.recommendedControls, 12),
+    suggestedActions: stringArray(record.suggestedActions, 6).length
+      ? stringArray(record.suggestedActions, 6)
+      : fallback.suggestedActions,
+    missingInformation: stringArray(record.missingInformation, 10).length
+      ? stringArray(record.missingInformation, 10)
+      : fallback.missingInformation,
+    riskFlags: stringArray(record.riskFlags, 10).length ? stringArray(record.riskFlags, 10) : fallback.riskFlags,
+    recommendedControls: stringArray(record.recommendedControls, 12).length
+      ? stringArray(record.recommendedControls, 12)
+      : fallback.recommendedControls,
     safetyPreferences: normalizePreferences(record.safetyPreferences, fallback.safetyPreferences),
     draftOnly: true,
     humanReviewRequired: true,

@@ -140,6 +140,7 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
         "If required details are missing, place them in missingInformation and keep the answer conservative.",
         "Keep draftOnly and humanReviewRequired set to true.",
         "For conversation replies, be warm and human-sounding, but be transparent that Gus is an AI safety coach if identity or authority comes up.",
+        "For conversation replies, put actionable items into the arrays: riskFlags for concerns, missingInformation for unknowns, recommendedControls for draft controls, and suggestedActions for the next safe steps.",
         "Use light humor only when risk is not high or critical, and keep it brief enough that safety remains the point.",
         "Do not store or repeat sensitive personal details, personal small talk, or unofficial approvals as memory.",
       ],
