@@ -61,6 +61,20 @@ describe("Gus notification settings API", () => {
     expect(body.settings.voiceEnabled).toBe(false);
   });
 
+  it("returns local defaults when Gus runs without a database-backed profile", async () => {
+    mocks.authorizeRequest.mockResolvedValue({
+      supabase: {},
+      user: { id: "offline-user" },
+    });
+
+    const response = (await GET(request())) as Response;
+    const body = (await response.json()) as { settings: { emailEnabled: boolean; voiceEnabled: boolean } };
+
+    expect(response.status).toBe(200);
+    expect(body.settings.emailEnabled).toBe(true);
+    expect(body.settings.voiceEnabled).toBe(false);
+  });
+
   it("merges partial patches and keeps voice/text-only exclusive", async () => {
     const supabase = supabaseProfileStore({ textOnlyMode: true, voiceEnabled: false });
     mocks.authorizeRequest.mockResolvedValue({
@@ -77,6 +91,22 @@ describe("Gus notification settings API", () => {
       textOnlyMode: false,
     });
     expect(supabase.savedSettings).toMatchObject({
+      voiceEnabled: true,
+      textOnlyMode: false,
+    });
+  });
+
+  it("merges offline patches without requiring profile storage", async () => {
+    mocks.authorizeRequest.mockResolvedValue({
+      supabase: {},
+      user: { id: "offline-user" },
+    });
+
+    const response = (await PATCH(request({ settings: { voiceEnabled: true } }))) as Response;
+    const body = (await response.json()) as { settings: { voiceEnabled: boolean; textOnlyMode: boolean } };
+
+    expect(response.status).toBe(200);
+    expect(body.settings).toMatchObject({
       voiceEnabled: true,
       textOnlyMode: false,
     });

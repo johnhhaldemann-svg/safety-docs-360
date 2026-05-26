@@ -1,19 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
-import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
-import {
-  evaluateEmergencyActionPlanReadiness,
-  mergeEmergencyActionPlanDefaults,
-  type JobsiteEmergencyActionPlanDefaults,
-  type JobsiteEmergencyActionPlanProfile,
-} from "@/lib/jobsiteEmergencyActionPlan";
+import { type JobsiteEmergencyActionPlanDefaults } from "@/lib/jobsiteEmergencyActionPlan";
 import { authorizeRequest, isAdminRole, normalizeAppRole } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 
-type Params = { jobsiteId: string };
-
-type EmergencyActionPlanPayload = {
+type DefaultsPayload = {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   responderAccessInstructions?: string | null;
@@ -48,52 +40,7 @@ type EmergencyActionPlanPayload = {
   postIncidentRequirements?: unknown;
   notes?: string | null;
   revisionDate?: string | null;
-  reviewed?: boolean;
 };
-
-const PROFILE_SELECT = [
-  "id",
-  "company_id",
-  "jobsite_id",
-  "emergency_contact_name",
-  "emergency_contact_phone",
-  "responder_access_instructions",
-  "responder_site_address",
-  "assembly_area",
-  "secondary_assembly_area",
-  "command_post_location",
-  "evacuation_shelter_notes",
-  "weather_shelter_location",
-  "lightning_plan",
-  "tornado_plan",
-  "aed_location",
-  "first_aid_location",
-  "fire_extinguisher_locations",
-  "spill_kit_locations",
-  "rescue_equipment_locations",
-  "nearest_medical_name",
-  "nearest_medical_address",
-  "nearest_medical_phone",
-  "nearest_medical_route",
-  "media_contact_name",
-  "media_contact_phone",
-  "media_statement_instructions",
-  "regulatory_contact_name",
-  "regulatory_contact_phone",
-  "regulatory_reporting_instructions",
-  "call_chain",
-  "utility_contacts",
-  "after_hours_contacts",
-  "backup_contacts",
-  "incident_notification_timeline",
-  "post_incident_requirements",
-  "notes",
-  "revision_date",
-  "last_reviewed_at",
-  "last_reviewed_by",
-  "created_at",
-  "updated_at",
-].join(", ");
 
 const DEFAULTS_SELECT = [
   "id",
@@ -132,9 +79,11 @@ const DEFAULTS_SELECT = [
   "post_incident_requirements",
   "notes",
   "revision_date",
+  "created_at",
+  "updated_at",
 ].join(", ");
 
-function canWriteEmergencyActionPlan(role?: string | null) {
+function canWriteEmergencyDefaults(role?: string | null) {
   const normalized = normalizeAppRole(role);
   return (
     isAdminRole(normalized) ||
@@ -200,10 +149,9 @@ function cleanTimelineArray(value: unknown, maxItems = 10) {
     .slice(0, maxItems);
 }
 
-function isMissingEmergencyProfileTable(message?: string | null) {
+function isMissingDefaultsTable(message?: string | null) {
   const normalized = (message ?? "").toLowerCase();
   return (
-    normalized.includes("company_jobsite_emergency_profiles") ||
     normalized.includes("company_jobsite_emergency_defaults") ||
     normalized.includes("schema cache") ||
     normalized.includes("does not exist") ||
@@ -211,7 +159,7 @@ function isMissingEmergencyProfileTable(message?: string | null) {
   );
 }
 
-async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
+async function resolveCompany(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: [
       "can_access_jobsites",
@@ -222,7 +170,6 @@ async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
   });
   if ("error" in auth) return { authError: auth.error } as const;
 
-  const { jobsiteId } = await params;
   const scope = await getCompanyScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -233,123 +180,50 @@ async function resolveScopedJobsite(request: Request, params: Promise<Params>) {
     return { authError: NextResponse.json({ error: "No company scope found for user." }, { status: 400 }) } as const;
   }
 
-  const jobsiteResult = await auth.supabase
-    .from("company_jobsites")
-    .select("id, company_id, name, status")
-    .eq("id", jobsiteId)
-    .eq("company_id", scope.companyId)
-    .maybeSingle();
-
-  if (jobsiteResult.error) {
-    return {
-      authError: NextResponse.json(
-        { error: jobsiteResult.error.message || "Failed to load jobsite." },
-        { status: 500 }
-      ),
-    } as const;
-  }
-  if (!jobsiteResult.data) {
-    return { authError: NextResponse.json({ error: "Jobsite not found." }, { status: 404 }) } as const;
-  }
-
-  const jobsiteScope = await getJobsiteAccessScope({
-    supabase: auth.supabase,
-    userId: auth.user.id,
-    companyId: scope.companyId,
-    role: auth.role,
-  });
-  if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
-    return { authError: NextResponse.json({ error: "Jobsite not found." }, { status: 404 }) } as const;
-  }
-
-  return {
-    auth,
-    companyId: scope.companyId,
-    jobsite: jobsiteResult.data as { id: string; name?: string | null; status?: string | null },
-  } as const;
+  return { auth, companyId: scope.companyId } as const;
 }
 
-function responsePayload(params: {
-  profile: JobsiteEmergencyActionPlanProfile | null;
-  defaults?: JobsiteEmergencyActionPlanDefaults | null;
-  jobsiteStatus?: string | null;
-  jobsite?: { id: string; name?: string | null; status?: string | null } | null;
-}) {
-  const effectiveProfile = mergeEmergencyActionPlanDefaults(params.profile, params.defaults ?? null);
-  const readiness = evaluateEmergencyActionPlanReadiness({
-    profile: effectiveProfile,
-    jobsiteStatus: params.jobsiteStatus,
-  });
-  return {
-    profile: params.profile,
-    defaults: params.defaults ?? null,
-    effectiveProfile,
-    jobsite: params.jobsite ?? null,
-    readiness: readiness.readiness,
-    missingFields: readiness.missingFields,
-    lastReviewedAt: readiness.lastReviewedAt,
-    lastReviewedBy: readiness.lastReviewedBy,
-    reviewStale: readiness.reviewStale,
-    immediateReviewNeeded: readiness.immediateReviewNeeded,
-  };
+function responsePayload(defaults: JobsiteEmergencyActionPlanDefaults | null) {
+  return { defaults };
 }
 
-export async function GET(request: Request, { params }: { params: Promise<Params> }) {
-  const scoped = await resolveScopedJobsite(request, params);
+export async function GET(request: Request) {
+  const scoped = await resolveCompany(request);
   if ("authError" in scoped) return scoped.authError;
 
-  const profileResult = await scoped.auth.supabase
-    .from("company_jobsite_emergency_profiles")
-    .select(PROFILE_SELECT)
-    .eq("company_id", scoped.companyId)
-    .eq("jobsite_id", scoped.jobsite.id)
-    .is("archived_at", null)
-    .maybeSingle();
-
-  const defaultsResult = await scoped.auth.supabase
+  const result = await scoped.auth.supabase
     .from("company_jobsite_emergency_defaults")
     .select(DEFAULTS_SELECT)
     .eq("company_id", scoped.companyId)
     .is("archived_at", null)
     .maybeSingle();
 
-  if (profileResult.error || defaultsResult.error) {
-    const message = profileResult.error?.message || defaultsResult.error?.message;
-    if (isMissingEmergencyProfileTable(message)) {
+  if (result.error) {
+    if (isMissingDefaultsTable(result.error.message)) {
       return NextResponse.json(
-        { error: "Emergency Action Plan tables are not available yet. Run the latest Supabase migration." },
+        { error: "Emergency Action Plan defaults table is not available yet. Run the latest Supabase migration." },
         { status: 500 }
       );
     }
-    return NextResponse.json(
-      { error: message || "Failed to load the Emergency Action Plan." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: result.error.message || "Failed to load Emergency Action Plan defaults." }, { status: 500 });
   }
 
-  return NextResponse.json(responsePayload({
-    profile: (profileResult.data as JobsiteEmergencyActionPlanProfile | null) ?? null,
-    defaults: (defaultsResult.data as JobsiteEmergencyActionPlanDefaults | null) ?? null,
-    jobsiteStatus: scoped.jobsite.status,
-    jobsite: scoped.jobsite,
-  }));
+  return NextResponse.json(responsePayload((result.data as JobsiteEmergencyActionPlanDefaults | null) ?? null));
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<Params> }) {
-  const scoped = await resolveScopedJobsite(request, params);
+export async function PATCH(request: Request) {
+  const scoped = await resolveCompany(request);
   if ("authError" in scoped) return scoped.authError;
-  if (!canWriteEmergencyActionPlan(scoped.auth.role)) {
+  if (!canWriteEmergencyDefaults(scoped.auth.role)) {
     return NextResponse.json(
-      { error: "Only company admins, safety managers, and operations managers can manage Emergency Action Plans." },
+      { error: "Only company admins, safety managers, and operations managers can manage Emergency Action Plan defaults." },
       { status: 403 }
     );
   }
 
-  const body = (await request.json().catch(() => null)) as EmergencyActionPlanPayload | null;
-  const now = new Date().toISOString();
+  const body = (await request.json().catch(() => null)) as DefaultsPayload | null;
   const row = {
     company_id: scoped.companyId,
-    jobsite_id: scoped.jobsite.id,
     emergency_contact_name: cleanText(body?.emergencyContactName, 200),
     emergency_contact_phone: cleanText(body?.emergencyContactPhone, 40),
     responder_access_instructions: cleanText(body?.responderAccessInstructions),
@@ -384,52 +258,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<Para
     post_incident_requirements: cleanStringArray(body?.postIncidentRequirements, 20),
     notes: cleanText(body?.notes),
     revision_date: cleanDate(body?.revisionDate),
-    ...(body?.reviewed ? { last_reviewed_at: now, last_reviewed_by: scoped.auth.user.id } : {}),
     updated_by: scoped.auth.user.id,
     created_by: scoped.auth.user.id,
   };
 
-  const upsertResult = await scoped.auth.supabase
-    .from("company_jobsite_emergency_profiles")
-    .upsert(row, { onConflict: "company_id,jobsite_id" })
-    .select(PROFILE_SELECT)
+  const result = await scoped.auth.supabase
+    .from("company_jobsite_emergency_defaults")
+    .upsert(row, { onConflict: "company_id" })
+    .select(DEFAULTS_SELECT)
     .single();
 
-  if (upsertResult.error) {
-    if (isMissingEmergencyProfileTable(upsertResult.error.message)) {
+  if (result.error) {
+    if (isMissingDefaultsTable(result.error.message)) {
       return NextResponse.json(
-        { error: "Emergency Action Plan table is not available yet. Run the latest Supabase migration." },
+        { error: "Emergency Action Plan defaults table is not available yet. Run the latest Supabase migration." },
         { status: 500 }
       );
     }
-    return NextResponse.json(
-      { error: upsertResult.error.message || "Failed to save the Emergency Action Plan." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: result.error.message || "Failed to save Emergency Action Plan defaults." }, { status: 500 });
   }
 
-  const defaultsResult = await scoped.auth.supabase
-    .from("company_jobsite_emergency_defaults")
-    .select(DEFAULTS_SELECT)
-    .eq("company_id", scoped.companyId)
-    .is("archived_at", null)
-    .maybeSingle();
-
-  if (defaultsResult.error && !isMissingEmergencyProfileTable(defaultsResult.error.message)) {
-    return NextResponse.json(
-      { error: defaultsResult.error.message || "Failed to load Emergency Action Plan defaults." },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    ...responsePayload({
-      profile: upsertResult.data as JobsiteEmergencyActionPlanProfile,
-      defaults: (defaultsResult.data as JobsiteEmergencyActionPlanDefaults | null) ?? null,
-      jobsiteStatus: scoped.jobsite.status,
-      jobsite: scoped.jobsite,
-    }),
-    message: body?.reviewed ? "Emergency Action Plan saved and reviewed." : "Emergency Action Plan saved.",
-  });
+  return NextResponse.json({ success: true, ...responsePayload(result.data as JobsiteEmergencyActionPlanDefaults) });
 }

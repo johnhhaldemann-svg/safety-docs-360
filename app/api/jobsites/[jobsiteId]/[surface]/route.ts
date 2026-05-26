@@ -247,7 +247,7 @@ export async function GET(
 
   const emergencyProfileResult = await auth.supabase
     .from("company_jobsite_emergency_profiles")
-    .select("id, company_id, jobsite_id, emergency_contact_name, emergency_contact_phone, responder_access_instructions, responder_site_address, assembly_area, evacuation_shelter_notes, aed_location, first_aid_location, nearest_medical_name, nearest_medical_address, nearest_medical_phone, notes, last_reviewed_at, last_reviewed_by, created_at, updated_at")
+    .select("id, company_id, jobsite_id, emergency_contact_name, emergency_contact_phone, responder_access_instructions, responder_site_address, assembly_area, secondary_assembly_area, command_post_location, evacuation_shelter_notes, weather_shelter_location, lightning_plan, tornado_plan, aed_location, first_aid_location, fire_extinguisher_locations, spill_kit_locations, rescue_equipment_locations, nearest_medical_name, nearest_medical_address, nearest_medical_phone, nearest_medical_route, media_contact_name, media_contact_phone, media_statement_instructions, regulatory_contact_name, regulatory_contact_phone, regulatory_reporting_instructions, call_chain, utility_contacts, after_hours_contacts, backup_contacts, incident_notification_timeline, post_incident_requirements, notes, revision_date, last_reviewed_at, last_reviewed_by, created_at, updated_at")
     .eq("company_id", scope.companyId)
     .eq("jobsite_id", jobsiteId)
     .is("archived_at", null)

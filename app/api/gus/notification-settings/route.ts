@@ -11,8 +11,16 @@ type SettingsRow = {
   gus_notification_settings?: unknown;
 };
 
+type GusSettingsSupabase = {
+  from?: unknown;
+};
+
 function settingsPayload(settings: unknown) {
   return { settings: normalizeGusNotificationSettings(settings) };
+}
+
+function canReadSettingsProfile(supabase: unknown): supabase is { from: (table: string) => unknown } {
+  return typeof (supabase as GusSettingsSupabase | null)?.from === "function";
 }
 
 export async function GET(request: Request) {
@@ -21,6 +29,10 @@ export async function GET(request: Request) {
     allowSuspended: true,
   });
   if ("error" in auth) return auth.error;
+
+  if (!canReadSettingsProfile(auth.supabase)) {
+    return NextResponse.json(settingsPayload(null));
+  }
 
   const result = await auth.supabase
     .from("user_profiles")
@@ -48,6 +60,10 @@ export async function PATCH(request: Request) {
       }
     | null;
   const incoming = body && "settings" in body ? body.settings : body;
+
+  if (!canReadSettingsProfile(auth.supabase)) {
+    return NextResponse.json(settingsPayload(incoming));
+  }
 
   const currentResult = await auth.supabase
     .from("user_profiles")

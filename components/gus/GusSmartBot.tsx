@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent, PointerEvent } from "react";
 import { ClipboardList, MessageCircle, VolumeX, X } from "lucide-react";
 import type { GusDecision, GusBotState } from "@/lib/gus/gusTypes";
 
@@ -160,13 +161,22 @@ export function GusBotFigure({ state, compact = false, hero = false }: { state: 
 export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, onDismiss }: GusSmartBotProps) {
   const attention = attentionClasses(decision.attentionLevel);
   const shouldPulse = decision.attentionLevel === "high" || decision.attentionLevel === "critical";
+  const handleOpenPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    onOpen();
+  };
+  const handleOpenClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.detail !== 0) return;
+    onOpen();
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] items-end gap-3 sm:bottom-5 sm:right-5">
       <div className="hidden min-w-0 max-w-[18rem] sm:block">
         <button
           type="button"
-          onClick={onOpen}
+          onClick={handleOpenClick}
+          onPointerUp={handleOpenPointerUp}
           className={`block w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 ${attention}`}
           aria-label="Open Gus AI Safety Coach from message"
           title="Open Gus AI Safety Coach"
@@ -186,7 +196,8 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
         ) : null}
         <button
           type="button"
-          onClick={onOpen}
+          onClick={handleOpenClick}
+          onPointerUp={handleOpenPointerUp}
           className="relative z-10 grid rounded-[1.4rem] border border-white/70 bg-white p-2 text-left shadow-[0_18px_44px_rgba(15,23,42,0.2)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
           aria-label={open ? "Gus AI Safety Coach is open" : "Open Gus AI Safety Coach"}
           title="Open Gus AI Safety Coach"
@@ -196,7 +207,8 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
         <div className="absolute -left-2 -top-3 z-20 flex -translate-x-full gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-[0_10px_24px_rgba(15,23,42,0.14)] max-sm:hidden">
           <button
             type="button"
-            onClick={onOpen}
+            onClick={handleOpenClick}
+            onPointerUp={handleOpenPointerUp}
             className="grid h-8 w-8 place-items-center rounded-full text-blue-700 hover:bg-blue-50"
             aria-label="Open Gus"
             title="Open Gus"
