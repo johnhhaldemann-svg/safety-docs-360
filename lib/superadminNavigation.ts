@@ -64,6 +64,15 @@ export const superadminToolGroups: SuperadminNavSection[] = [
         primaryActionLabel: "Run tests",
         audience: "admin",
       },
+      {
+        href: "/superadmin/help-tickets",
+        label: "Help Tickets",
+        short: "HT",
+        description: "Review platform issue tickets submitted by users and track superadmin follow-up.",
+        keywords: ["help", "support", "tickets", "issues", "queue", "platform"],
+        primaryActionLabel: "Open queue",
+        audience: "admin",
+      },
     ],
   },
   {
@@ -181,6 +190,7 @@ export const superadminToolGroups: SuperadminNavSection[] = [
 
 export const superadminMostUsedHrefs = [
   "/superadmin/system-health",
+  "/superadmin/help-tickets",
   "/superadmin/cyber-security",
   "/superadmin/ai-engine",
   "/superadmin/builder-text",

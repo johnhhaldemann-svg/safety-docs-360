@@ -52,6 +52,7 @@ export const userQuickLinks: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", short: "DB" },
   { href: "/documents", label: "Documents", short: "DC" },
   { href: "/training", label: "Training", short: "PT" },
+  { href: "/support", label: "Help & Support", short: "HS" },
   { href: "/submit", label: "Submit", short: "SB" },
   { href: "/upload", label: "Upload", short: "UP" },
 ];
@@ -103,6 +104,7 @@ export const companyAdminQuickLinks: NavItem[] = [
   { href: "/documents", label: "Documents", short: "DC" },
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
+  { href: "/support", label: "Help & Support", short: "HS" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/company-users", label: "Team & Access", short: "TM" },
   { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
@@ -153,6 +155,7 @@ export const companyManagerQuickLinks: NavItem[] = [
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
+  { href: "/support", label: "Help & Support", short: "HS" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
   { href: "/training-matrix", label: "Training Tracker", short: "TR" },
@@ -172,6 +175,7 @@ export const companyUserQuickLinks: NavItem[] = [
   { href: "/search", label: "Search", short: "SR" },
   { href: "/customer/billing", label: "Billing", short: "BL" },
   { href: "/purchases", label: "Purchases", short: "MP" },
+  { href: "/support", label: "Help & Support", short: "HS" },
   { href: "/training", label: "Training", short: "PT" },
   { href: "/submit", label: "Submit for Review", short: "SB" },
   { href: "/upload", label: "Upload Documents", short: "UP" },
@@ -206,6 +210,7 @@ export const userSideSections: NavSection[] = [
     title: "Account",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
       { href: "/purchases", label: "Purchases", short: "MP" },
     ],
   },
@@ -306,6 +311,7 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/purchases", label: "Purchases", short: "PU" },
+      { href: "/support", label: "Help & Support", short: "HS" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
@@ -378,6 +384,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Account",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
 ];
@@ -391,6 +398,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "Purchases", short: "MP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
     ],
   },
@@ -456,7 +464,10 @@ export const companyManagerSideSections: NavSection[] = [
   },
   {
     title: "Profile",
-    items: [{ href: "/profile", label: "My Profile", short: "CP" }],
+    items: [
+      { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
+    ],
   },
 ];
 
@@ -468,6 +479,7 @@ export const companyUserSideSections: NavSection[] = [
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
       { href: "/purchases", label: "Purchases", short: "MP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
   {
@@ -508,6 +520,7 @@ export const companyUserSideSections: NavSection[] = [
     title: "Account",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
 ];

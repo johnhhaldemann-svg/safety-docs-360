@@ -12,6 +12,9 @@ import {
 import { BrandLogo } from "@/components/BrandLogo";
 import { APP_BRAND } from "@/lib/appBrand";
 
+const publicSiteName = APP_BRAND.productName;
+const riskEngineName = APP_BRAND.productName;
+
 const outcomes = [
   {
     title: "Predict risk earlier",
@@ -97,7 +100,7 @@ export default function MarketingPage() {
         <div className="mx-auto grid min-h-[76vh] max-w-7xl content-center px-5 pb-16 pt-12 sm:px-8 lg:min-h-[82vh] lg:grid-cols-[0.72fr_0.28fr]">
           <div className="max-w-4xl">
             <h1 className="font-app-display text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
-              {APP_BRAND.productName}
+              {publicSiteName}
             </h1>
             <p className="mt-7 max-w-2xl text-xl font-semibold leading-8 text-white sm:text-2xl sm:leading-9">
               A safety management workspace for construction teams that need risk, compliance, and field work in one place.
@@ -131,7 +134,7 @@ export default function MarketingPage() {
               Built for the work that prevents the next incident.
             </h2>
             <p className="mt-5 text-base leading-8 text-[#475569]">
-              {APP_BRAND.productName} brings risk forecasting, documentation, jobsite activity, and accountability into a practical workflow for teams that cannot afford blind spots.
+              {publicSiteName} brings {riskEngineName} risk forecasting, documentation, jobsite activity, and accountability into a practical workflow for teams that cannot afford blind spots.
             </p>
           </div>
           <div className="mt-10 grid gap-4 lg:grid-cols-3">
@@ -194,7 +197,7 @@ export default function MarketingPage() {
               Risk should be easy to understand quickly.
             </h2>
             <p className="mt-5 text-base leading-8 text-white/78">
-              High and critical risks need escalation, clear drivers, and practical controls. SafePredict keeps the recommendation transparent so safety professionals stay in charge.
+              High and critical risks need escalation, clear drivers, and practical controls. {riskEngineName} keeps the recommendation transparent so safety professionals stay in charge.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -251,7 +254,7 @@ export default function MarketingPage() {
 
       <footer className="mx-auto max-w-7xl px-5 pb-10 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#d8e2ef] pt-6 text-sm text-[#64748b]">
-          <p className="font-semibold">{APP_BRAND.productName}</p>
+          <p className="font-semibold">{publicSiteName}</p>
           <div className="flex gap-5">
             <Link href="/terms" className="font-semibold hover:text-[#102033]">
               Terms

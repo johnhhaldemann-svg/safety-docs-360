@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { ChevronDown, Save } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -190,6 +191,19 @@ const profileTextareaClassName =
 const profileFieldLabelClassName =
   "block text-xs font-semibold text-[var(--app-text-strong)]";
 
+function getDefaultOpenCertificationGroups(selected: string[]) {
+  const selectedSet = new Set(selected);
+  const openGroups = PROFILE_CERTIFICATION_GROUPS.filter(
+    (group, index) => index === 0 || group.items.some((item) => selectedSet.has(item))
+  ).map((group) => group.title);
+
+  return openGroups.length ? openGroups : [PROFILE_CERTIFICATION_GROUPS[0]?.title ?? ""].filter(Boolean);
+}
+
+function getCertificationGroupPanelId(title: string) {
+  return `certification-group-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
 function initProfileSelect(
   saved: string | undefined,
   options: readonly string[]
@@ -231,6 +245,9 @@ export default function ProfilePage() {
   const [stateRegion, setStateRegion] = useState("");
   const [readinessStatus, setReadinessStatus] = useState("ready");
   const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+  const [openCertificationGroups, setOpenCertificationGroups] = useState<string[]>(() =>
+    getDefaultOpenCertificationGroups([])
+  );
   const [certExpirations, setCertExpirations] = useState<Record<string, string>>({});
   const [customCertificationsText, setCustomCertificationsText] = useState("");
   const [specialtiesText, setSpecialtiesText] = useState("");
@@ -318,6 +335,7 @@ export default function ProfilePage() {
           setReadinessStatus(profile.readinessStatus ?? "ready");
           const { selected, custom } = splitKnownCertifications(profile.certifications);
           setSelectedCertifications(selected);
+          setOpenCertificationGroups(getDefaultOpenCertificationGroups(selected));
           setCertExpirations({ ...(profile.certificationExpirations ?? {}) });
           setCustomCertificationsText(joinList(custom));
           setSpecialtiesText(joinList(profile.specialties));
@@ -590,6 +608,14 @@ export default function ProfilePage() {
     });
   }
 
+  function toggleCertificationGroup(groupTitle: string) {
+    setOpenCertificationGroups((current) =>
+      current.includes(groupTitle)
+        ? current.filter((title) => title !== groupTitle)
+        : [...current, groupTitle]
+    );
+  }
+
   const displayName = getDisplayName(fullName, preferredName);
   const managedProfileLabel = targetDisplayName || targetEmail || "Employee";
   const resolvedJobTitle =
@@ -609,6 +635,11 @@ export default function ProfilePage() {
     { label: "Field location and experience", done: Boolean(city.trim() && stateRegion.trim() && yearsExperience.trim()) },
     { label: "Construction experience summary", done: Boolean(bio.trim()) },
   ];
+  const saveButtonLabel = saving
+    ? "Saving profile..."
+    : initialProfileComplete
+      ? "Save Construction Profile"
+      : "Save Profile & Continue";
 
   if (loading) {
     return (
@@ -911,7 +942,7 @@ export default function ProfilePage() {
         ))}
       </section>
 
-      <div id="profile-editor" className="grid scroll-mt-28 gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+      <div id="profile-editor" className="grid scroll-mt-28 gap-5 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div className="space-y-5">
           <SectionCard
             title="Field identity card"
@@ -1165,32 +1196,56 @@ export default function ProfilePage() {
                 ) : null}
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="space-y-3">
                 {PROFILE_CERTIFICATION_GROUPS.map((group) => {
                   const groupSelectedCount = group.items.filter((item) =>
                     selectedCertifications.includes(item)
                   ).length;
+                  const panelId = getCertificationGroupPanelId(group.title);
+                  const open = openCertificationGroups.includes(group.title);
 
                   return (
                     <div
                       key={group.title}
-                      className="rounded-2xl border border-[var(--app-border)] bg-white/94 p-4 shadow-[0_8px_18px_rgba(76,108,161,0.045)]"
+                      className="overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white/94 shadow-[0_8px_18px_rgba(76,108,161,0.045)]"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold text-[var(--app-text-strong)]">{group.title}</div>
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-controls={panelId}
+                        onClick={() => toggleCertificationGroup(group.title)}
+                        className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-[var(--app-panel-soft)]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-[var(--app-text-strong)]">{group.title}</span>
+                            <StatusBadge
+                              label={`${groupSelectedCount} selected`}
+                              tone={groupSelectedCount > 0 ? "success" : "neutral"}
+                            />
+                          </div>
                           <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">
-                            Select all that apply. When checked, you can record an expiration date (YYYY-MM-DD).
+                            Select all that apply. Checked items can include an expiration date.
                           </p>
                         </div>
-                        <StatusBadge
-                          label={`${groupSelectedCount} selected`}
-                          tone={groupSelectedCount > 0 ? "success" : "neutral"}
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={[
+                            "h-5 w-5 shrink-0 text-[var(--app-accent-primary)] transition-transform",
+                            open ? "rotate-180" : "",
+                          ].join(" ")}
                         />
-                      </div>
+                      </button>
 
-                      <div className="mt-4 space-y-2">
-                        {group.items.map((item) => {
+                      {open ? (
+                        <div
+                          id={panelId}
+                          role="region"
+                          aria-label={group.title}
+                          className="border-t border-[var(--app-border)] bg-[var(--app-panel-soft)] p-3"
+                        >
+                          <div className="grid gap-2 md:grid-cols-2">
+                            {group.items.map((item) => {
                           const checked = selectedCertifications.includes(item);
                           const exp = certExpirations[item] ?? "";
                           const expired = exp ? isCertificationExpired(exp, new Date()) : false;
@@ -1203,7 +1258,7 @@ export default function ProfilePage() {
                                   ? expired
                                     ? "border-amber-300 bg-[var(--semantic-warning-bg)]"
                                     : "border-[var(--app-accent-border-24)] bg-[var(--app-accent-primary-soft)]"
-                                  : "border-[var(--app-border)] bg-[var(--app-panel-soft)]",
+                                  : "border-[var(--app-border)] bg-white/92",
                               ].join(" ")}
                             >
                               <label className="flex cursor-pointer items-start gap-3">
@@ -1216,14 +1271,14 @@ export default function ProfilePage() {
                                 <span className="flex-1 leading-6 text-[var(--app-text-strong)]">{item}</span>
                               </label>
                               {checked ? (
-                                <div className="mt-2 flex flex-col gap-1 pl-7 sm:flex-row sm:items-center sm:gap-3">
+                                <div className="mt-2 flex flex-col gap-1 pl-7">
                                   <label className="text-xs font-medium text-[var(--app-text)]">
                                     Expires
                                     <input
                                       type="date"
                                       value={exp}
                                       onChange={(e) => setExpirationForCert(item, e.target.value)}
-                                      className="ml-2 mt-1 block w-full rounded-lg border border-[var(--app-border)] bg-white px-2 py-1.5 text-xs text-[var(--app-text-strong)] sm:mt-0 sm:inline-block sm:w-auto"
+                                      className="mt-1 block w-full rounded-lg border border-[var(--app-border)] bg-white px-2 py-1.5 text-xs text-[var(--app-text-strong)]"
                                     />
                                   </label>
                                   {expired ? (
@@ -1241,8 +1296,10 @@ export default function ProfilePage() {
                               ) : null}
                             </div>
                           );
-                        })}
-                      </div>
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1289,25 +1346,25 @@ export default function ProfilePage() {
             />
           </SectionCard>
 
-          {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
+          {message ? (
+            <div className="xl:hidden">
+              <InlineMessage tone={messageTone}>{message}</InlineMessage>
+            </div>
+          ) : null}
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 xl:hidden">
             <button
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={saving}
               className={`${appButtonPrimaryClassName} px-5 py-3.5 disabled:opacity-60`}
             >
-              {saving
-                ? "Saving profile..."
-                : initialProfileComplete
-                  ? "Save Construction Profile"
-                  : "Save Profile & Continue"}
+              {saveButtonLabel}
             </button>
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 xl:sticky xl:top-24 xl:self-start">
           <section className="app-profile-card app-radius-panel p-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--app-accent-primary)]">
               Construction Profile
@@ -1378,6 +1435,35 @@ export default function ProfilePage() {
                   "Add a concise construction summary covering project types, field leadership, safety habits, and what this person is trusted to lead or support."}
               </p>
             </div>
+          </section>
+
+          <section className="hidden rounded-xl border border-[var(--app-border)] bg-white/96 p-4 shadow-[var(--app-shadow-soft)] xl:block">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-bold text-[var(--app-text-strong)]">Profile action</div>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-muted)]">
+                  Save after identity, readiness, credentials, or field summary changes.
+                </p>
+              </div>
+              <StatusBadge
+                label={initialProfileComplete ? "Saved before" : "Needs save"}
+                tone={initialProfileComplete ? "success" : "warning"}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveProfile()}
+              disabled={saving}
+              className={`${appButtonPrimaryClassName} mt-4 w-full px-5 py-3.5 disabled:opacity-60`}
+            >
+              <Save aria-hidden="true" className="h-4 w-4" />
+              {saveButtonLabel}
+            </button>
+            {message ? (
+              <div className="mt-3">
+                <InlineMessage tone={messageTone}>{message}</InlineMessage>
+              </div>
+            ) : null}
           </section>
 
           <SectionCard

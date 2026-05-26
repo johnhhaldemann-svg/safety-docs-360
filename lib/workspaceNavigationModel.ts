@@ -262,6 +262,12 @@ const ITEM_META: Array<{
     description: "Update your account profile, contact details, role context, and personal settings.",
   },
   {
+    matcher: (href) => href === "/support",
+    group: "account",
+    description: "Submit platform issues and review your recent help tickets.",
+    primaryActionLabel: "Open support",
+  },
+  {
     matcher: (href) => href === "/admin",
     group: "today",
     description: "Review internal queues, user approvals, document activity, and the next admin action.",

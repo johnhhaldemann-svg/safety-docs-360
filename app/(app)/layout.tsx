@@ -86,6 +86,7 @@ const PROFILE_SETUP_ALLOWED_ROUTES = [
   "/search",
   "/customer/billing",
   "/profile",
+  "/support",
 ] as const;
 
 function getAgreementCacheKey(email: string, version: string) {
@@ -529,7 +530,7 @@ export default function AppLayout({
 
       if (userRole === "read_only") {
         if (workspaceProduct === "csep") {
-          const readOnlyCsepRoutes = ["/dashboard", "/training", "/profile", "/documents", "/library", "/search", "/customer/billing"];
+          const readOnlyCsepRoutes = ["/dashboard", "/training", "/profile", "/support", "/documents", "/library", "/search", "/customer/billing"];
           const gatedReadOnlyCsepRoutes = readOnlyCsepRoutes.filter(canOpenCompanyRoute);
           const inReadOnlyCsep = readOnlyCsepRoutes.some(
             (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -542,6 +543,7 @@ export default function AppLayout({
         const readOnlyAllowedRoutes = [
           "/dashboard",
           "/profile",
+          "/support",
           "/reports",
           "/companies",
           "/jobsites",
@@ -563,6 +565,7 @@ export default function AppLayout({
           "/dashboard",
           "/training",
           "/profile",
+          "/support",
           "/documents",
           "/library",
           "/search",
@@ -589,7 +592,7 @@ export default function AppLayout({
         return;
       }
 
-      const companyAllowedRoutes = ["/dashboard", "/training", "/documents", "/library", "/search", "/profile"];
+      const companyAllowedRoutes = ["/dashboard", "/training", "/documents", "/library", "/search", "/profile", "/support"];
 
       if (companyId) {
         companyAllowedRoutes.push("/customer/billing");
@@ -1016,6 +1019,7 @@ export default function AppLayout({
             needsProfileSetup={profileSetupBlocksCurrentRoute}
             needsCompanySetup={needsCompanySetup}
             isCompanyScopedUser={isCompanyScopedUser}
+            userRole={userRole}
             currentNavSection={currentNavSection}
             currentNavItem={currentNavItem}
             contextCompanyName={companyName.trim() || null}

@@ -7,6 +7,7 @@ import type { WorkspaceProduct } from "@/lib/workspaceProduct";
 import { MobileMenuIcon } from "./shellIcons";
 import type { KeyedNavSection } from "./AppShellSidebar";
 import { NotificationCenter } from "./NotificationCenter";
+import { PlatformSupportAlert } from "./PlatformSupportAlert";
 
 type CurrentNav = {
   href: string;
@@ -27,6 +28,7 @@ type AppShellHeaderProps = {
   needsProfileSetup: boolean;
   needsCompanySetup: boolean;
   isCompanyScopedUser: boolean;
+  userRole: string;
   currentNavSection: KeyedNavSection | undefined;
   currentNavItem: CurrentNav;
   contextCompanyName?: string | null;
@@ -44,6 +46,7 @@ export function AppShellHeader({
   needsProfileSetup,
   needsCompanySetup,
   isCompanyScopedUser,
+  userRole,
   currentNavSection,
   currentNavItem,
   contextCompanyName,
@@ -122,6 +125,7 @@ export function AppShellHeader({
                   Menu
                 </button>
                 {isCompanyScopedUser ? <NotificationCenter /> : null}
+                {userRole === "super_admin" ? <PlatformSupportAlert /> : null}
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-muted)]">
                 {showPlatformAdminShell ? workspaceLabel : currentNavSection?.title || workspaceLabel}
