@@ -111,9 +111,19 @@ describe("SettingsProfileHub", () => {
     expect(html).toContain("Jack");
     expect(html).toContain("Company Admin Functions");
     expect(html).toContain("Team &amp; Access");
-    expect(html).toContain('href="/company-users"');
-    expect(html).toContain('href="/company-integrations"');
-    expect(html).toContain('href="/settings/risk-memory"');
+    expect(html).toContain('href="/safe-predict/profile"');
+    expect(html).toContain('href="/safe-predict/team-access"');
+    expect(html).toContain('href="/safe-predict/apps-integrations"');
+    expect(html).toContain('href="/safe-predict/onboarding-import"');
+    expect(html).toContain('href="/safe-predict/training-tracker"');
+    expect(html).toContain('href="/safe-predict/safety-forms"');
+    expect(html).toContain('href="/safe-predict/inductions"');
+    expect(html).toContain('href="/safe-predict/billing"');
+    expect(html).toContain('href="/safe-predict/risk-memory"');
+    expect(html).not.toContain('href="/profile"');
+    expect(html).not.toContain('href="/company-users"');
+    expect(html).not.toContain('href="/company-integrations"');
+    expect(html).not.toContain('href="/settings/risk-memory"');
     expect(html).not.toContain('href="/admin');
   });
 

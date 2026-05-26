@@ -192,49 +192,49 @@ const companyAdminFunctionLinks: Array<{
   icon: ReactNode;
 }> = [
   {
-    href: "/company-users",
+    href: "/safe-predict/team-access",
     title: "Team & Access",
     detail: "Invite users, manage roles, and review company permissions.",
     icon: <Users className="h-5 w-5" />,
   },
   {
-    href: "/company-integrations",
+    href: "/safe-predict/apps-integrations",
     title: "Apps & Integrations",
     detail: "Manage connected apps, imports, and workspace data exchange.",
     icon: <Sparkles className="h-5 w-5" />,
   },
   {
-    href: "/company-onboarding",
+    href: "/safe-predict/onboarding-import",
     title: "Onboarding Import",
     detail: "Load roster, jobsite, and training data without adding seats.",
     icon: <Download className="h-5 w-5" />,
   },
   {
-    href: "/training-matrix",
+    href: "/safe-predict/training-tracker",
     title: "Training Tracker",
     detail: "Review readiness, credentials, assignments, and gaps.",
     icon: <GraduationCap className="h-5 w-5" />,
   },
   {
-    href: "/company-safety-forms",
+    href: "/safe-predict/safety-forms",
     title: "Safety Forms",
     detail: "Configure forms and checklists crews complete in the field.",
     icon: <FileText className="h-5 w-5" />,
   },
   {
-    href: "/company-inductions",
+    href: "/safe-predict/inductions",
     title: "Inductions",
     detail: "Manage site access requirements and induction programs.",
     icon: <CalendarCheck className="h-5 w-5" />,
   },
   {
-    href: "/customer/billing",
+    href: "/safe-predict/billing",
     title: "Billing",
     detail: "Review invoices, plan access, payments, and account charges.",
     icon: <ClipboardCheck className="h-5 w-5" />,
   },
   {
-    href: "/settings/risk-memory",
+    href: "/safe-predict/risk-memory",
     title: "Risk Memory Setup",
     detail: "Maintain contractor and crew lists used by risk workflows.",
     icon: <Settings className="h-5 w-5" />,
@@ -385,7 +385,7 @@ export function SettingsProfileHub({
         <SectionTitle
           title="My Profile"
           action={
-            <Link href="/profile" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700">
+            <Link href="/safe-predict/profile" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700">
               Edit Profile
             </Link>
           }

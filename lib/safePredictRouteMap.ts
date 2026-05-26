@@ -16,21 +16,29 @@ const nativeOperationRouteMap: Record<string, string> = {
   "/csep": "/safe-predict/csep",
   "/peshep": "/safe-predict/peshep",
   "/training": "/safe-predict/training",
-  "/company-inductions": "/safe-predict/training",
-  "/company-safety-forms": "/safe-predict/inspections",
+  "/training-matrix": "/safe-predict/training-tracker",
+  "/company-inductions": "/safe-predict/inductions",
+  "/company-safety-forms": "/safe-predict/safety-forms",
   "/permits": "/safe-predict/permits",
   "/jsa": "/safe-predict/permits",
   "/search": "/safe-predict/reports",
   "/submit": "/safe-predict/reports",
   "/upload": "/safe-predict/reports",
   "/marketplace-preview-approvals": "/safe-predict/reports",
-  "/settings/risk-memory": "/safe-predict/settings",
+  "/settings/risk-memory": "/safe-predict/risk-memory",
 };
 
 const nativeSurfaceRouteMap: Record<string, string> = {
   "/company-integrations": "/safe-predict/apps-integrations",
+  "/company-inductions": "/safe-predict/inductions",
+  "/company-onboarding": "/safe-predict/onboarding-import",
+  "/company-safety-forms": "/safe-predict/safety-forms",
   "/company-users": "/safe-predict/team-access",
+  "/customer/billing": "/safe-predict/billing",
   "/permits": "/safe-predict/permit-center",
+  "/profile": "/safe-predict/profile",
+  "/settings/risk-memory": "/safe-predict/risk-memory",
+  "/training-matrix": "/safe-predict/training-tracker",
 };
 
 const nativeJobsiteWorkspaceSegments = new Set<string>();

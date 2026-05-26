@@ -17,6 +17,8 @@ describe("safePredictRouteMap", () => {
     expect(mapSafePredictOperationHref("/library?tab=marketplace")).toBe("/safe-predict/documents?tab=marketplace");
     expect(mapSafePredictOperationHref("/csep")).toBe("/safe-predict/csep");
     expect(mapSafePredictOperationHref("/peshep")).toBe("/safe-predict/peshep");
+    expect(mapSafePredictOperationHref("/training-matrix")).toBe("/safe-predict/training-tracker");
+    expect(mapSafePredictOperationHref("/settings/risk-memory")).toBe("/safe-predict/risk-memory");
   });
 
   it("preserves jobsite identity and leaves SafePredict routes alone", () => {
@@ -35,8 +37,15 @@ describe("safePredictRouteMap", () => {
     expect(mapSafePredictOperationHref("/company-integrations")).toBe("/company-integrations");
     expect(mapSafePredictOperationHref("/company-users")).toBe("/company-users");
     expect(mapSafePredictOperationHref("/permits")).toBe("/safe-predict/permits");
+    expect(mapSafePredictSurfaceHref("/profile")).toBe("/safe-predict/profile");
     expect(mapSafePredictSurfaceHref("/company-integrations")).toBe("/safe-predict/apps-integrations");
     expect(mapSafePredictSurfaceHref("/company-users")).toBe("/safe-predict/team-access");
+    expect(mapSafePredictSurfaceHref("/company-onboarding")).toBe("/safe-predict/onboarding-import");
+    expect(mapSafePredictSurfaceHref("/training-matrix")).toBe("/safe-predict/training-tracker");
+    expect(mapSafePredictSurfaceHref("/company-safety-forms")).toBe("/safe-predict/safety-forms");
+    expect(mapSafePredictSurfaceHref("/company-inductions")).toBe("/safe-predict/inductions");
+    expect(mapSafePredictSurfaceHref("/customer/billing")).toBe("/safe-predict/billing");
+    expect(mapSafePredictSurfaceHref("/settings/risk-memory")).toBe("/safe-predict/risk-memory");
     expect(mapSafePredictSurfaceHref("/permits?jobsiteId=abc&jsaActivityId=step-1")).toBe(
       "/safe-predict/permit-center?jobsiteId=abc&jsaActivityId=step-1"
     );

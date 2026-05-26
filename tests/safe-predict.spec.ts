@@ -17,13 +17,13 @@ test.describe("SafePredict beta platform routes", () => {
     ["/csep", "/safe-predict/csep"],
     ["/peshep", "/safe-predict/peshep"],
     ["/command-center", "/safe-predict"],
-    ["/settings/risk-memory", "/safe-predict/settings"],
+    ["/settings/risk-memory", "/safe-predict/risk-memory"],
   ] as const;
 
   test("loads the beta platform shell directly", async ({ page }) => {
     await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("link", { name: /SafePredict/ }).filter({ visible: true }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "SafePredict Command Center" })).toBeVisible();
   });
 
   test("shows grounded reasons when a predictive risk point is selected", async ({ page }) => {
@@ -53,10 +53,10 @@ test.describe("SafePredict beta platform routes", () => {
     });
   }
 
-  test("keeps the canonical training matrix route in the app shell", async ({ request }) => {
+  test("routes the canonical training matrix path to the SafePredict tracker", async ({ request }) => {
     const response = await request.get("/training-matrix", { maxRedirects: 0 });
-    expect([200, 307, 401]).toContain(response.status());
-    expect(response.headers().location ?? "").not.toContain("/safe-predict/training");
+    expect([307, 308]).toContain(response.status());
+    expect(response.headers().location ?? "").toContain("/safe-predict/training-tracker");
   });
 
   test("keeps the canonical team access route in the app shell", async ({ request }) => {

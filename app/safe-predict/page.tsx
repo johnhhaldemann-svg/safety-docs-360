@@ -89,20 +89,6 @@ function riskMapDotClass(level: SafePredictJobsiteRecord["riskLevel"]) {
   return "bg-emerald-500";
 }
 
-function commandRiskToneClass(level: SafePredictJobsiteRecord["riskLevel"]) {
-  if (level === "critical") return "text-red-400";
-  if (level === "high") return "text-orange-400";
-  if (level === "medium") return "text-amber-300";
-  return "text-emerald-400";
-}
-
-function commandRiskSparklineColor(level: SafePredictJobsiteRecord["riskLevel"]) {
-  if (level === "critical") return "#f87171";
-  if (level === "high") return "#fb923c";
-  if (level === "medium") return "#fbbf24";
-  return "#34d399";
-}
-
 function highestForecastRiskIndex(points: SafePredictForecastPoint[]) {
   if (points.length === 0) return 0;
   return points.reduce(
@@ -1072,60 +1058,63 @@ function CompanyCommandPanel({
 
 function ActionPriorityRail({ actions }: { actions: SafePredictDataset["actions"] }) {
   const openActions = actions.filter((action) => action.status !== "Closed");
-  const counts = {
-    high: openActions.filter((action) => action.priority === "critical" || action.priority === "high").length,
-    medium: openActions.filter((action) => action.priority === "medium").length,
-    low: 0,
+  const priorityRank: Record<SafePredictDataset["actions"][number]["priority"], number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
   };
-  const rows = [
-    { label: "High Priority", value: counts.high, className: "border-red-300/25 bg-red-500/8 text-red-300", icon: "text-red-400" },
-    { label: "Medium Priority", value: counts.medium, className: "border-orange-300/25 bg-orange-500/8 text-orange-300", icon: "text-orange-400" },
-    { label: "Low Priority", value: counts.low, className: "border-emerald-300/25 bg-emerald-500/8 text-emerald-300", icon: "text-emerald-400" },
-  ];
+  const topActions = openActions
+    .slice()
+    .sort((left, right) => priorityRank[left.priority] - priorityRank[right.priority])
+    .slice(0, 4);
 
   return (
-    <section className="relative overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(180deg,#071d34_0%,#041426_100%)] p-4 pr-6 text-white shadow-[0_24px_60px_rgba(2,6,23,0.28)]">
-      <div className="absolute right-0 top-0 h-full w-4 bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.8)_0_5px,transparent_5px_11px)] opacity-70" aria-hidden />
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Open Actions</p>
-      <p className="mt-2 text-4xl font-black text-red-400">{openActions.length}</p>
-      <div className="mt-4 grid gap-3">
-        {rows.map((row) => (
-          <Link key={row.label} href="/safe-predict/risk-mitigation#corrective-action-tracker" className={cx("group flex min-h-[74px] items-center gap-2 rounded-lg border px-3 py-3 transition hover:bg-white/10", row.className)}>
-            <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-current/25 bg-slate-950/36", row.icon)}>
-              <ShieldAlert className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block whitespace-nowrap text-[13px] font-black leading-tight text-slate-200">{row.label}</span>
-              <span className="mt-1 block text-xl font-black">{row.value}</span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-white" />
-          </Link>
-        ))}
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Clear First</p>
+          <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">Action Queue</h2>
+        </div>
+        <span className={cx("rounded-full px-3 py-1 text-xs font-black", openActions.length > 0 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600")}>
+          {openActions.length} open
+        </span>
       </div>
-      <Link href="/safe-predict/risk-mitigation#corrective-action-tracker" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-300 hover:text-blue-100">
-        View all actions
+      {topActions.length > 0 ? (
+        <div className="mt-4 grid gap-3">
+          {topActions.map((action) => (
+            <Link
+              key={action.id}
+              href={`/safe-predict/corrective-actions#${action.id}`}
+              className="group rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 transition hover:border-blue-200 hover:bg-white hover:shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RiskBadge level={action.priority} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{action.status}</span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm font-black leading-5 text-slate-950">{action.title}</p>
+                  <p className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">{action.linkedRisk}</p>
+                </div>
+                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-white px-2.5 py-2 text-xs font-bold text-slate-600">
+                <span className="truncate">{action.assignee}</span>
+                <span className="shrink-0">{action.dueDate}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-semibold leading-6 text-slate-600">
+          No open actions. New high-risk recommendations will appear here before analytics cards.
+        </div>
+      )}
+      <Link href="/safe-predict/corrective-actions" className="mt-4 inline-flex items-center gap-2 text-sm font-black text-blue-600 hover:text-blue-700">
+        Open corrective actions
         <ArrowRight className="h-4 w-4" />
       </Link>
     </section>
-  );
-}
-
-function CommandSparkline({ data, color = "#ef4444" }: { data: number[]; color?: string }) {
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const spread = Math.max(1, max - min);
-  const points = data
-    .map((value, index) => {
-      const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * 100;
-      const y = 34 - ((value - min) / spread) * 28;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg viewBox="0 0 100 38" className="h-full w-full" role="img" aria-label="Recent trend sparkline" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }
 
@@ -1230,6 +1219,8 @@ function CommandForecastChart({
 }
 
 function ForecastReasonPanel({ reason }: { reason: SafePredictForecastReason }) {
+  const visibleDrivers = reason.topDrivers.slice(0, 3);
+
   return (
     <div data-testid="forecast-risk-reason-panel" className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4" aria-live="polite">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1244,33 +1235,42 @@ function ForecastReasonPanel({ reason }: { reason: SafePredictForecastReason }) 
         </div>
       </div>
       {reason.topDrivers.length > 0 ? (
-        <div className="mt-3 grid gap-2">
-          {reason.topDrivers.map((driver) => (
-            <div key={driver.id} className="rounded-md border border-white bg-white px-3 py-2 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-900">{driver.label}</p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{driver.evidence}</p>
+        <>
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold leading-5 text-blue-800">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              <span className="block text-[10px] uppercase tracking-[0.12em] text-blue-700/80">Next action</span>
+              {reason.nextAction}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {visibleDrivers.map((driver) => (
+              <div key={driver.id} className="rounded-md border border-white bg-white px-3 py-2 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-900">{driver.label}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{driver.evidence}</p>
+                  </div>
+                  <span className="shrink-0 text-xs font-black text-slate-500">{driver.score}</span>
                 </div>
-                <span className="shrink-0 text-xs font-black text-slate-500">{driver.score}</span>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Link href="/safe-predict/risk-mitigation#forecast-drivers" className="mt-3 inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-blue-600 hover:text-blue-700">
+            View all forecast drivers
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </>
       ) : (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
           {reason.missingDataNote}
         </p>
       )}
-      <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold leading-5 text-blue-800">
-        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <span>{reason.nextAction}</span>
-      </div>
     </div>
   );
 }
 
-function CommandKpiStrip({
+function AtAGlanceBand({
   totals,
   completedInspections,
   complianceRate,
@@ -1278,6 +1278,7 @@ function CommandKpiStrip({
   liveWithoutForecast,
   liveWithoutOpenActions,
   liveWithoutCompletedInspections,
+  liveWithoutTrainingData,
 }: {
   totals: ReturnType<typeof summarizeSafePredictDataset>;
   completedInspections: number;
@@ -1286,93 +1287,87 @@ function CommandKpiStrip({
   liveWithoutForecast: boolean;
   liveWithoutOpenActions: boolean;
   liveWithoutCompletedInspections: boolean;
+  liveWithoutTrainingData: boolean;
 }) {
   const overallRiskLevel = riskLevelForScore(totals.riskScore);
-  const overallRiskTone = liveWithoutRiskData ? "text-slate-300" : commandRiskToneClass(overallRiskLevel);
-  const overallRiskSparklineColor = commandRiskSparklineColor(overallRiskLevel);
-  const kpis = [
+  const tiles = [
     {
-      title: "Overall Site Risk Score",
-      value: totals.riskScore,
-      suffix: "/100",
-      detail: liveWithoutRiskData ? "No Data" : `${riskLabel(overallRiskLevel)} Risk`,
-      tone: overallRiskTone,
-      icon: <ShieldAlert className="h-7 w-7" />,
-      sparkline: liveWithoutRiskData ? undefined : <CommandSparkline data={[42, 47, 58, 44, 46, 56, 54]} color={overallRiskSparklineColor} />,
+      title: "Overall site risk",
+      value: liveWithoutRiskData ? "No data yet" : `${totals.riskScore}/100`,
+      detail: liveWithoutRiskData ? "Waiting on risk signals" : `${riskLabel(overallRiskLevel)} risk`,
+      icon: <ShieldAlert className="h-5 w-5" />,
       href: "/safe-predict/risk-mitigation#prioritized-risk-queue",
-      sourceLabel: "Open risk guide",
+      tone: liveWithoutRiskData
+        ? "border-slate-200 bg-slate-50 text-slate-600"
+        : overallRiskLevel === "critical" || overallRiskLevel === "high"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : overallRiskLevel === "medium"
+            ? "border-amber-200 bg-amber-50 text-amber-800"
+            : "border-emerald-200 bg-emerald-50 text-emerald-700",
     },
     {
-      title: "Predicted Incident Risk",
-      value: liveWithoutForecast ? "No Data" : "24%",
-      detail: liveWithoutForecast ? "Waiting for forecast" : "High",
-      tone: "text-orange-400",
-      icon: <TrendingUp className="h-7 w-7" />,
-      sparkline: liveWithoutForecast ? undefined : <CommandSparkline data={[20, 22, 31, 28, 35, 38, 47]} color="#f97316" />,
+      title: "Predicted incident risk",
+      value: liveWithoutForecast ? "No data yet" : "24%",
+      detail: liveWithoutForecast ? "Needs forecast inputs" : "High",
+      icon: <TrendingUp className="h-5 w-5" />,
       href: "/safe-predict/predictive-risk#forecast-drivers",
-      sourceLabel: "Open forecast",
+      tone: liveWithoutForecast ? "border-slate-200 bg-slate-50 text-slate-600" : "border-orange-200 bg-orange-50 text-orange-700",
     },
     {
-      title: "Open Corrective Actions",
-      value: totals.openActions,
-      detail: liveWithoutOpenActions ? "None Open" : "High Priority",
-      tone: "text-red-400",
-      icon: <ClipboardCheck className="h-7 w-7" />,
-      href: "/safe-predict/risk-mitigation#corrective-action-tracker",
-      sourceLabel: "Open action tracker",
+      title: "Open actions",
+      value: liveWithoutOpenActions ? "None open" : totals.openActions,
+      detail: liveWithoutOpenActions ? "No active queue" : "Needs follow-up",
+      icon: <ClipboardCheck className="h-5 w-5" />,
+      href: "/safe-predict/corrective-actions",
+      tone: liveWithoutOpenActions ? "border-slate-200 bg-slate-50 text-slate-600" : "border-red-200 bg-red-50 text-red-700",
     },
     {
-      title: "Completed Inspections",
-      value: completedInspections,
-      detail: liveWithoutCompletedInspections ? "None Completed" : "This Week",
-      tone: "text-emerald-400",
-      icon: <ShieldCheck className="h-7 w-7" />,
+      title: "Completed inspections",
+      value: liveWithoutCompletedInspections ? "None yet" : completedInspections,
+      detail: liveWithoutCompletedInspections ? "No completed rows" : "This week",
+      icon: <ShieldCheck className="h-5 w-5" />,
       href: "/safe-predict/inspections",
-      sourceLabel: "Open inspection rows",
+      tone: liveWithoutCompletedInspections ? "border-slate-200 bg-slate-50 text-slate-600" : "border-emerald-200 bg-emerald-50 text-emerald-700",
     },
     {
-      title: "Training Compliance Rate",
-      value: `${complianceRate}%`,
-      detail: "Compliant",
-      tone: "text-emerald-400",
-      icon: <GraduationCap className="h-7 w-7" />,
+      title: "Training compliance",
+      value: liveWithoutTrainingData ? "No data yet" : `${complianceRate}%`,
+      detail: liveWithoutTrainingData ? "Add workers or training rows" : "Compliant",
+      icon: <GraduationCap className="h-5 w-5" />,
       href: "/safe-predict/workforce#training-matrix",
-      sourceLabel: "Open training matrix",
+      tone: liveWithoutTrainingData ? "border-slate-200 bg-slate-50 text-slate-600" : "border-emerald-200 bg-emerald-50 text-emerald-700",
     },
   ];
 
   return (
-    <section className="mt-5 grid overflow-hidden rounded-lg border border-slate-800 bg-[linear-gradient(90deg,#071d34_0%,#031426_100%)] shadow-[0_24px_60px_rgba(2,6,23,0.24)] md:grid-cols-2 2xl:grid-cols-[repeat(5,minmax(0,1fr))_260px]">
-      {kpis.map((item) => (
-        <Link key={item.title} href={item.href} className="group min-w-0 border-b border-white/10 p-5 text-white transition hover:bg-white/5 md:border-r 2xl:border-b-0">
-          <div className="flex items-start gap-4">
-            <span className={cx("grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-white/6", item.tone)}>
-              {item.icon}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{item.title}</p>
-              <div className="mt-3 flex items-end gap-2">
-                <p className={cx("text-4xl font-black leading-none", item.tone)}>{item.value}</p>
-                {"suffix" in item && item.suffix ? <p className="pb-1 text-sm font-bold text-slate-300">{item.suffix}</p> : null}
-              </div>
-              <p className={cx("mt-2 text-sm font-black", item.tone)}>{item.detail}</p>
-            </div>
-          </div>
-          {item.sparkline ? <div className="mt-4 h-[44px]">{item.sparkline}</div> : <div className="mt-4 h-[44px]" />}
-          <span className="mt-3 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-blue-300">
-            {item.sourceLabel}
-            <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-          </span>
-        </Link>
-      ))}
-      <div className="hidden items-center justify-center border-l border-white/10 p-4 2xl:flex">
-        <div className="relative h-full min-h-[150px] w-full overflow-hidden rounded-lg border border-blue-300/15 bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(3,7,18,0.82))] p-5">
-          <p className="relative z-10 mt-8 text-lg font-black text-white">Work safe today.<br />Go home safe.</p>
-          <p className="relative z-10 mt-4 text-xs font-semibold leading-5 text-slate-300">Every action. Every worker. Every day.</p>
-          <div className="absolute bottom-4 right-4 h-24 w-28 border border-blue-300/30 opacity-70" />
-          <div className="absolute bottom-8 right-10 h-24 w-px bg-blue-200/30" />
-          <div className="absolute bottom-8 right-16 h-20 w-px bg-blue-200/30" />
+    <section className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">At a glance</p>
+          <h2 className="text-lg font-black tracking-tight text-slate-950">Current Operating Signals</h2>
         </div>
+        <p className="max-w-xl text-xs font-semibold leading-5 text-slate-500">
+          High and critical signals stay highlighted. Missing live data stays neutral so an empty workspace does not feel like an emergency.
+        </p>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {tiles.map((tile) => (
+          <Link key={tile.title} href={tile.href} className={cx("group rounded-lg border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm", tile.tone)}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] opacity-80">{tile.title}</p>
+                <p className="mt-2 text-2xl font-black leading-none text-slate-950">{tile.value}</p>
+              </div>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-current/20 bg-white/70">
+                {tile.icon}
+              </span>
+            </div>
+            <span className="mt-3 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide">
+              {tile.detail}
+              <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+        ))}
       </div>
     </section>
   );
@@ -1411,6 +1406,7 @@ export default function SafePredictDashboardPage() {
   const liveWithoutForecast = dataset.mode === "live" && !hasForecast;
   const liveWithoutOpenActions = dataset.mode === "live" && totals.openActions === 0;
   const liveWithoutCompletedInspections = dataset.mode === "live" && completedInspections === 0;
+  const liveWithoutTrainingData = dataset.mode === "live" && dataset.employees.length === 0;
   const selectedCommandSite =
     dataset.jobsites.find((site) => site.id === selectedSiteId) ?? (selectedSiteId === "all" ? highestRiskJobsite(dataset.jobsites) : null) ?? dataset.jobsites[0] ?? null;
 
@@ -1418,18 +1414,19 @@ export default function SafePredictDashboardPage() {
     <div className="min-h-[calc(100vh-5rem)] bg-[linear-gradient(180deg,#f5f9ff_0%,#eef4fb_58%,#f8fbff_100%)] px-4 pb-8 sm:px-7">
       <div className="flex flex-col gap-4 py-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
         <div className="min-w-0">
-          <h1 className="font-app-display text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl">Dashboard</h1>
-          <p className="mt-2 text-base text-slate-600">Executive Overview</p>
+          <h1 className="font-app-display text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl">SafePredict Command Center</h1>
+          <p className="mt-2 text-base text-slate-600">Start with urgent risk, then clear the next action queue.</p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-3 2xl:w-auto 2xl:justify-end">
+        <div className="flex w-full flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white/82 p-3 shadow-sm 2xl:w-auto 2xl:justify-end">
           <SelectShell
+            label="Jobsite focus"
             value={selectedJobsiteId}
             onChange={setSelectedJobsiteId}
             options={[
               { label: "All Sites", value: "all" },
               ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
             ]}
-            className="2xl:min-w-[360px]"
+            className="sm:min-w-[250px] 2xl:min-w-[320px]"
           />
           <span className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm">
             <CalendarDays className="h-4 w-4" aria-hidden />
@@ -1464,7 +1461,7 @@ export default function SafePredictDashboardPage() {
         <ActionPriorityRail actions={dataset.actions} />
       </section>
 
-      <CommandKpiStrip
+      <AtAGlanceBand
         totals={totals}
         completedInspections={completedInspections}
         complianceRate={complianceRate}
@@ -1472,6 +1469,7 @@ export default function SafePredictDashboardPage() {
         liveWithoutForecast={liveWithoutForecast}
         liveWithoutOpenActions={liveWithoutOpenActions}
         liveWithoutCompletedInspections={liveWithoutCompletedInspections}
+        liveWithoutTrainingData={liveWithoutTrainingData}
       />
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2 min-[1900px]:grid-cols-[1.18fr_0.9fr_1.05fr_0.78fr]">

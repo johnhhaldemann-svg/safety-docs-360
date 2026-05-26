@@ -88,6 +88,9 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/safe-predict/permits", label: "Permits", icon: FileText },
       { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
+      { href: "/safe-predict/training-tracker", label: "Training Tracker", icon: GraduationCap },
+      { href: "/safe-predict/inductions", label: "Inductions", icon: ClipboardCheck },
+      { href: "/safe-predict/safety-forms", label: "Safety Forms", icon: FileText },
     ],
   },
   {
@@ -107,6 +110,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
       { href: "/safe-predict/team-access", label: "Team Access", icon: Users },
+      { href: "/safe-predict/onboarding-import", label: "Onboarding Import", icon: Users },
     ],
   },
   {
@@ -124,9 +128,20 @@ const navGroups: NavGroup[] = [
     icon: LayoutGrid,
     items: [
       { href: "/safe-predict/apps-integrations", label: "Apps & Integrations", icon: LayoutGrid },
+      { href: "/safe-predict/risk-memory", label: "Risk Memory", icon: Settings },
+      { href: "/safe-predict/billing", label: "Billing", icon: ClipboardCheck },
+      { href: "/safe-predict/profile", label: "Profile", icon: Users },
       { href: "/safe-predict/settings", label: "Settings", icon: Settings },
     ],
   },
+];
+
+const todayShortcuts: NavChild[] = [
+  { href: "/safe-predict", label: "Executive Overview", icon: Home },
+  { href: "/safe-predict/jobsites", label: "Jobsites", icon: Building2 },
+  { href: "/safe-predict/corrective-actions", label: "Corrective Actions", icon: ClipboardCheck },
+  { href: "/safe-predict/permits", label: "Permits", icon: FileText },
+  { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
 ];
 
 type AuthMeResponse = {
@@ -212,7 +227,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   });
   const [expandedNavState, setExpandedNavState] = useState(() => ({
     pathname,
-    groupId: getActiveNavGroupId(pathname, navGroups) ?? navGroups[0]?.id ?? "",
+    groupId: getActiveNavGroupId(pathname, navGroups) ?? "",
   }));
   const { dataset } = useSafePredictData();
   const summary = summarizeSafePredictDataset(dataset);
@@ -249,7 +264,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const expandedGroupId =
     expandedNavState.pathname === pathname
       ? expandedNavState.groupId
-      : activeGroupId ?? visibleNavGroups[0]?.id ?? "";
+      : activeGroupId ?? "";
 
   useEffect(() => {
     let cancelled = false;
@@ -293,6 +308,32 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
     router.refresh();
   }
+
+  const todayShortcutList = (
+    <div className="rounded-xl border border-white/10 bg-white/[0.045] p-3">
+      <p className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100/60">Today</p>
+      <div className="mt-2 grid gap-1">
+        {todayShortcuts.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={`today-${item.href}`}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className={cx(
+                "flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-black leading-tight transition",
+                active ? "bg-blue-600 text-white shadow-[0_10px_18px_rgba(37,99,235,0.22)]" : "text-slate-200/82 hover:bg-white/8 hover:text-white"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   const navList = (
     <div className="space-y-1">
@@ -393,7 +434,8 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="safe-predict-sidebar-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-3">
-          <nav>
+          <nav className="space-y-4">
+            {todayShortcutList}
             {navList}
           </nav>
 
@@ -468,7 +510,10 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">{navList}</nav>
+            <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
+              {todayShortcutList}
+              {navList}
+            </nav>
             <div className="border-t border-white/10 p-4">
               <button
                 type="button"
