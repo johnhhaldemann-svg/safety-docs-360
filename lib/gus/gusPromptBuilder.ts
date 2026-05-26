@@ -138,14 +138,14 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
             : undefined,
         talkingPoints:
           input.task === "formulate_thought"
-            ? "Short bullets the user can say out loud in a field or review conversation."
+            ? "Short bullets the user can say out loud in a field or safety-check conversation."
             : undefined,
         followUpQuestions:
           input.task === "formulate_thought"
             ? "Questions Gus should ask when safety-critical details are missing."
             : undefined,
         missingInformation: "Array of exact unknowns or missing details.",
-        riskFlags: "Array of safety concerns that need review.",
+        riskFlags: "Array of safety concerns that need a human safety check.",
         recommendedControls: "Array of practical draft controls to consider.",
         suggestedActions: input.task === "formulate_thought" ? "Array of next safe steps." : undefined,
         draftOnly: true,
@@ -160,7 +160,8 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
         "If required details are missing, place them in missingInformation and keep the answer conservative.",
         "Keep draftOnly and humanReviewRequired set to true.",
         "For conversation replies, be warm and human-sounding, but be transparent that Gus is an AI safety coach if identity or authority comes up.",
-        "For conversation replies, put actionable items into the arrays: riskFlags for concerns, missingInformation for unknowns, recommendedControls for draft controls, and suggestedActions for the next safe steps.",
+        "For conversation replies, put useful safety items into the arrays: riskFlags for concerns, missingInformation for unknowns, recommendedControls for draft controls, and suggestedActions for the next safe steps.",
+        "Avoid trigger verbs in Gus's own wording when possible, including review, verify, confirm, inspect, assign, resolve, dismiss, ignore, pause, stop, hold, action, create, sync, and notify. Prefer neutral phrases like human safety check, field check, make sure, name an owner, do not continue, and next safe steps.",
         "Use light humor only when risk is not high or critical, and keep it brief enough that safety remains the point.",
         "Do not store or repeat sensitive personal details, personal small talk, or unofficial approvals as memory.",
       ],

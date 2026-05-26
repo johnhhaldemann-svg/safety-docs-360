@@ -4,6 +4,7 @@ import {
   buildGusAiRuleRedirect,
   isGusAiForbiddenRequest,
 } from "@/lib/gus/gusAi";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import {
   buildGusAiUserPrompt,
   GUS_AI_OUTPUT_SCHEMA_VERSION,
@@ -109,6 +110,7 @@ function stringArray(value: unknown, maxItems: number, maxLength = 180) {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => cleanText(item, maxLength))
+    .map(sanitizeGusTriggerLanguage)
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -260,7 +262,7 @@ function normalizeResponse(value: unknown, fallback: GusConversationResponse): G
   const record = value as Record<string, unknown>;
 
   return {
-    answer: cleanText(record.answer, 900) || fallback.answer,
+    answer: sanitizeGusTriggerLanguage(cleanText(record.answer, 900) || fallback.answer),
     tone: "calm_mentor",
     suggestedActions: stringArray(record.suggestedActions, 6).length
       ? stringArray(record.suggestedActions, 6)
@@ -295,7 +297,7 @@ function conversationActionDecisionTriggers(params: {
   request: GusConversationRequest;
   response?: GusConversationResponse;
 }) {
-  const userTriggers = buildAiActionDecisionTriggers({
+  return buildAiActionDecisionTriggers({
     source: "user_message",
     sourceId: "gus-conversation-user-message",
     sourceText: params.request.message,
@@ -303,22 +305,6 @@ function conversationActionDecisionTriggers(params: {
     humanReviewRequired: true,
     limit: 8,
   });
-  const responseTriggers = params.response
-    ? buildAiActionDecisionTriggers({
-        source: "gus_message",
-        sourceId: "gus-conversation-response",
-        sourceText: [
-          params.response.answer,
-          ...params.response.suggestedActions,
-          ...params.response.recommendedControls,
-          ...params.response.riskFlags,
-        ],
-        targetModule: "gus",
-        humanReviewRequired: params.response.humanReviewRequired,
-        limit: 8,
-      })
-    : [];
-  return [...userTriggers, ...responseTriggers].slice(0, 12);
 }
 
 function isConservativeReferenceRequest(message: string) {
@@ -374,7 +360,7 @@ export async function runGusConversation(request: GusConversationRequest): Promi
     promptVersion: GUS_AI_PROMPT_VERSION,
     outputSchemaVersion: `${GUS_AI_OUTPUT_SCHEMA_VERSION}.conversation_v1`,
     fallback,
-    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in calm mentor mode. Be conversational, attentive, and practical, while keeping safety review and draft-only guidance first.`,
+    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in calm mentor mode. Be conversational, attentive, and practical, while keeping safety checks and draft-only guidance first. Avoid trigger verbs in your own wording when possible, including review, verify, confirm, inspect, assign, resolve, dismiss, ignore, pause, stop, hold, action, create, sync, and notify. Use neutral phrases such as human safety check, field check, make sure, name an owner, do not continue, and next safe steps.`,
     user: buildGusAiUserPrompt({
       task: "conversation_reply",
       userRequest: request.message,

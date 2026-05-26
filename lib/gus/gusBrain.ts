@@ -1,4 +1,5 @@
 import type { GusContext } from "@/lib/gus/gusContext";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import { isForbiddenGusAction } from "@/lib/gus/gusTrustRules";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
 import type { AiActionDecisionTrigger } from "@/lib/aiActionDecisionTriggers";
@@ -23,16 +24,30 @@ function action(label: string, href: string, actionKey: string): GusCompanionAct
 }
 
 function safeActions(actions: GusCompanionAction[]) {
-  return actions.filter((item) => !isForbiddenGusAction(item.actionKey));
+  return actions.filter((item) => !isForbiddenGusAction(item.actionKey)).map((item) => ({
+    ...item,
+    label: sanitizeGusTriggerLanguage(item.label),
+  }));
 }
 
 function safeMessage(message: GusMessage): GusMessage {
   const validation = validateGusOutput(message);
-  return validation.sanitizedOutput as GusMessage;
+  const sanitized = validation.sanitizedOutput as GusMessage;
+  return {
+    ...sanitized,
+    message: sanitizeGusTriggerLanguage(sanitized.message),
+    spokenText: sanitized.spokenText ? sanitizeGusTriggerLanguage(sanitized.spokenText) : sanitized.spokenText,
+    reason: sanitizeGusTriggerLanguage(sanitized.reason),
+    actionLabel: sanitized.actionLabel ? sanitizeGusTriggerLanguage(sanitized.actionLabel) : sanitized.actionLabel,
+  };
 }
 
 function signal(params: GusContextSignal): GusContextSignal {
-  return params;
+  return {
+    ...params,
+    label: sanitizeGusTriggerLanguage(params.label),
+    detail: params.detail ? sanitizeGusTriggerLanguage(params.detail) : params.detail,
+  };
 }
 
 function compactList(items: string[] | undefined, fallback: string) {
@@ -99,25 +114,25 @@ function topActionDecisionTrigger(context: GusContext) {
 
 function actionDecisionTriggerMessage(trigger: AiActionDecisionTrigger) {
   if (trigger.blocked) {
-    return "I can turn that into a human-review step, but I cannot grant authorization or make final compliance decisions.";
+    return "I can turn that into a human safety check, but I cannot grant authorization or make final compliance decisions.";
   }
-  if (trigger.intent === "request_escalation") return "I can help escalate this for safety review and keep the recommendation advisory.";
-  if (trigger.intent === "stop_work_review") return "This action word points to immediate human review and possible stop-work evaluation.";
-  if (trigger.intent === "pause_or_hold_work") return "This action word points to holding the affected work until a responsible person verifies it.";
-  if (trigger.intent === "request_field_verification") return "This action word points to field verification before work proceeds.";
-  if (trigger.intent === "request_assignment") return "I can draft the assignment path, with review still required for safety-critical work.";
-  if (trigger.intent === "request_resolution") return "Resolution needs documented field verification before the workflow is updated.";
-  if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "Dismissal or suppression needs a human reason and cannot hide critical risk.";
+  if (trigger.intent === "request_escalation") return "I can help raise this to a safety lead and keep the recommendation advisory.";
+  if (trigger.intent === "stop_work_review") return "This safety cue points to immediate human safety check and possible do-not-continue evaluation.";
+  if (trigger.intent === "pause_or_hold_work") return "This safety cue points to not continuing the affected work until a responsible person field-checks it.";
+  if (trigger.intent === "request_field_verification") return "This safety cue points to a field check before work proceeds.";
+  if (trigger.intent === "request_assignment") return "I can draft the owner path, with a safety check still required for safety-critical work.";
+  if (trigger.intent === "request_resolution") return "Closeout needs documented field check before the workflow is updated.";
+  if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "A set-aside or suppression choice needs a human reason and cannot hide critical risk.";
   return trigger.recommendedSafeAction;
 }
 
 function aiEngineNextStep(context: GusContext) {
   const reasoningAction = context.aiEngineNextBestActions?.[0];
-  if (reasoningAction?.humanReviewRequired) return `Verify first: ${reasoningAction.detail}`;
-  if (context.aiEngineActionTimeframe === "immediate") return "Pause and get human safety review now.";
-  if (context.aiEngineActionTimeframe === "before_work_continues") return "Verify controls before work moves forward.";
-  if (context.aiEngineActionTimeframe === "same_shift") return "Review this during the current shift.";
-  return "Keep this in the routine safety review.";
+  if (reasoningAction?.humanReviewRequired) return `Field check first: ${reasoningAction.detail}`;
+  if (context.aiEngineActionTimeframe === "immediate") return "Do not continue until a human safety check happens now.";
+  if (context.aiEngineActionTimeframe === "before_work_continues") return "Field-check controls before work moves forward.";
+  if (context.aiEngineActionTimeframe === "same_shift") return "Run a human safety check during the current shift.";
+  return "Keep this in the routine safety check.";
 }
 
 export function decideGusBehavior(input: GusBrainInput): GusDecision {
@@ -163,9 +178,9 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         spokenText: actionDecisionTrigger.blocked
           ? "Human review is required. I cannot grant authorization."
           : actionDecisionTrigger.recommendedSafeAction,
-        reason: `Action word "${actionDecisionTrigger.actionWord}" was mapped to ${actionDecisionTrigger.intent.replace(/_/g, " ")}. ${actionDecisionTrigger.recommendedSafeAction}`,
+        reason: `Safety cue "${actionDecisionTrigger.actionWord}" was mapped to ${actionDecisionTrigger.intent.replace(/_/g, " ")}. ${actionDecisionTrigger.recommendedSafeAction}`,
         shouldSpeak: isCritical,
-        actionLabel: "Review action",
+        actionLabel: "Open safety item",
         actionHref: href,
         actionKey: "recommend_review",
         confidence: actionDecisionTrigger.blocked ? 0.95 : 0.86,
@@ -174,13 +189,13 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         signal({
           signalId: `action-word-${actionDecisionTrigger.actionWord}`,
           source: "action",
-          label: `Action word: ${actionDecisionTrigger.actionWord}`,
+          label: `Safety cue: ${actionDecisionTrigger.actionWord}`,
           riskLevel: isCritical ? "severe" : actionDecisionTrigger.riskLevel === "high" ? "high" : "moderate",
           detail: actionDecisionTrigger.recommendedSafeAction,
           actionHref: href,
         }),
       ],
-      actions: [action("Review action", href, "recommend_review")],
+      actions: [action("Open safety item", href, "recommend_review")],
     });
   }
 

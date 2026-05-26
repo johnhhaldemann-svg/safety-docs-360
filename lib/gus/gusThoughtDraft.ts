@@ -1,6 +1,7 @@
 import { runStructuredAiJsonTask, type AiExecutionMeta } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import { buildGusAiRuleRedirect, isGusAiForbiddenRequest } from "@/lib/gus/gusAi";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import {
   buildGusAiUserPrompt,
   GUS_AI_OUTPUT_SCHEMA_VERSION,
@@ -92,6 +93,7 @@ function stringArray(value: unknown, maxItems: number, maxLength = 180) {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => cleanText(item, maxLength))
+    .map(sanitizeGusTriggerLanguage)
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -160,8 +162,8 @@ function fallbackResponse(request: GusThoughtDraftRequest): GusThoughtDraftRespo
       : `Draft note: ${clarifiedThought} This should remain draft guidance until the supervisor or required safety reviewer verifies the field conditions and controls.`;
 
   return {
-    clarifiedThought,
-    draftText,
+    clarifiedThought: sanitizeGusTriggerLanguage(clarifiedThought),
+    draftText: sanitizeGusTriggerLanguage(draftText),
     talkingPoints: [
       "This is draft guidance for review.",
       "Confirm the task, location, crew, hazards, and existing controls before work proceeds.",
@@ -271,7 +273,7 @@ export async function runGusThoughtDraft(request: GusThoughtDraftRequest): Promi
     promptVersion: GUS_AI_PROMPT_VERSION,
     outputSchemaVersion: `${GUS_AI_OUTPUT_SCHEMA_VERSION}.thought_draft_v1`,
     fallback,
-    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in thought formulation mode. Turn rough safety thoughts into clear draft wording, concise talking points, and follow-up questions. Stay practical, conservative, and human-review-first.`,
+    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in thought formulation mode. Turn rough safety thoughts into clear draft wording, concise talking points, and follow-up questions. Stay practical, conservative, and human-safety-check-first. Avoid trigger verbs in your own wording when possible, including review, verify, confirm, inspect, assign, resolve, dismiss, ignore, pause, stop, hold, action, create, sync, and notify. Use neutral phrases such as human safety check, field check, make sure, name an owner, do not continue, and next safe steps.`,
     user: buildGusAiUserPrompt({
       task: "formulate_thought",
       userRequest: request.message,

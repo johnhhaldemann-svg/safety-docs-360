@@ -1,5 +1,6 @@
 import { runStructuredAiJsonTask, type AiExecutionMeta } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import { validateGusOutput, type GusValidationFinding } from "@/lib/gus/gusValidation";
 import {
   buildGusAiUserPrompt,
@@ -48,6 +49,7 @@ function stringArray(value: unknown, maxItems = 16) {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.replace(/\s+/g, " ").trim())
+    .map(sanitizeGusTriggerLanguage)
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -58,7 +60,7 @@ function safeAnswer(value: unknown) {
       ? value.replace(/\s+/g, " ").trim()
       : "I can help draft and explain safety planning items, but this needs human review before work starts.";
 
-  return text.slice(0, 900);
+  return sanitizeGusTriggerLanguage(text.slice(0, 900));
 }
 
 export function isGusAiForbiddenRequest(userRequest: string) {

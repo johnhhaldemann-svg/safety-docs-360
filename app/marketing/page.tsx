@@ -10,10 +10,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
-import { APP_BRAND } from "@/lib/appBrand";
 
-const publicSiteName = APP_BRAND.productName;
-const riskEngineName = APP_BRAND.productName;
+const publicSiteName = "SafePredictConstrution";
+const riskEngineName = "SafePredict";
 
 const outcomes = [
   {

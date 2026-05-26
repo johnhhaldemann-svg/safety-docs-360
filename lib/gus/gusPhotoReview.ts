@@ -6,6 +6,7 @@ import {
   GUS_AI_PROMPT_VERSION,
   GUS_PERSONALITY_PROFILE,
 } from "@/lib/gus/gusPromptBuilder";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import { validateGusOutput, type GusValidationFinding } from "@/lib/gus/gusValidation";
 import type {
   GusConversationTurn,
@@ -111,6 +112,7 @@ function stringArray(value: unknown, maxItems: number, maxLength = 220) {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => cleanText(item, maxLength))
+    .map(sanitizeGusTriggerLanguage)
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -162,7 +164,7 @@ function normalizePhotoReview(value: unknown, fallback: GusPhotoReviewOutput): G
   const nextActions = stringArray(record.nextActions, 8);
 
   return {
-    answer: cleanText(record.answer, 900) || fallback.answer,
+    answer: sanitizeGusTriggerLanguage(cleanText(record.answer, 900) || fallback.answer),
     riskLevel,
     whatLooksRight: stringArray(record.whatLooksRight, 8),
     concerns: stringArray(record.concerns, 10),
@@ -171,7 +173,7 @@ function normalizePhotoReview(value: unknown, fallback: GusPhotoReviewOutput): G
     recommendedControls: stringArray(record.recommendedControls, 12),
     nextActions:
       riskLevel === "critical" && nextActions.length === 0
-        ? ["Pause and get immediate human safety review before work continues."]
+        ? ["Do not continue until immediate human safety check is complete."]
         : nextActions,
     limitations: stringArray(record.limitations, 8),
     confidence: normalizeConfidence(record.confidence),
@@ -207,17 +209,17 @@ export function parseGusPhotoReview(text: string, fallback: GusPhotoReviewOutput
 
 function buildPhotoReviewInstructions(request: GusPhotoReviewRequest) {
   return [
-    `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")} You are Gus in calm mentor mode reviewing a jobsite hazard photo.`,
+    `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")} You are Gus in calm mentor mode checking a jobsite hazard photo.`,
     "Analyze only visible jobsite conditions and the provided context. Do not infer identities, health status, personal attributes, or who is at fault.",
     "Focus on positive visible safety indicators, concerns needing attention, missing critical controls, PPE, access/egress, housekeeping, work-at-height, excavation/trenching, electrical/LOTO, struck-by/caught-between, suspended loads, mobile equipment, fire/hot work, environmental exposure, barricades, signage, and public interface risks.",
     "Treat whatLooksRight as positive visible indicators only. Do not call them compliant, approved, complete, or safe to start.",
-    "If critical or imminent-danger conditions are visible or plausible, set riskLevel to critical and recommend immediate human review and possible stop-work evaluation.",
+    "If critical or imminent-danger conditions are visible or plausible, set riskLevel to critical and recommend immediate human safety check and possible do-not-continue evaluation.",
     "Return JSON only. Keep draftOnly and humanReviewRequired true.",
     `File: ${cleanText(request.fileName, 160) || "uploaded jobsite photo"}`,
-    `User note: ${cleanText(request.message, 800) || "Review this jobsite photo for visible safety concerns."}`,
+    `User note: ${cleanText(request.message, 800) || "Check this jobsite photo for visible safety concerns."}`,
     buildGusAiUserPrompt({
       task: "conversation_reply",
-      userRequest: request.message || "Review this jobsite photo for visible jobsite safety hazards.",
+      userRequest: request.message || "Check this jobsite photo for visible jobsite safety hazards.",
       currentPage: request.context?.currentPage,
       route: request.context?.route,
       safetyContext: {
@@ -231,7 +233,7 @@ function buildPhotoReviewInstructions(request: GusPhotoReviewRequest) {
 }
 
 export async function runGusPhotoReview(request: GusPhotoReviewRequest): Promise<GusPhotoReviewResult> {
-  const fallback = fallbackOutput("I could not complete the photo review. Keep this as draft guidance and have a human reviewer verify the jobsite conditions.");
+  const fallback = fallbackOutput("I could not complete the photo check. Keep this as draft guidance and have a safety lead field-check the jobsite conditions.");
   const model =
     process.env.GUS_PHOTO_REVIEW_MODEL?.trim() ||
     process.env.GUS_AI_MODEL?.trim() ||
