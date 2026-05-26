@@ -181,7 +181,8 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   const [activeMessage, setActiveMessage] = useState<GusMessage | null>(null);
   const { settings: notificationSettings } = useGusNotificationSettings();
   const isAllowed = isGusAllowedRoute(pathname) && !isGusDisabledRoute(pathname);
-  const isVisible = isAllowed && !disabledToday && !dismissed && !quietMode;
+  const isVisible = isAllowed;
+  const canAutoShow = isAllowed && !disabledToday && !dismissed && !quietMode;
   const candidateMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
   const context: GusContext = {
     companyId: companyId ?? undefined,
@@ -227,7 +228,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       const lastDismissedAt = readStorageTimeMs(gusStorageKeys.lastDismissedAt);
       const lastShownMessageId = readStorageValue(gusStorageKeys.lastMessageId);
 
-      if (!isVisible || open) return false;
+      if (!canAutoShow || open) return false;
       if (!shouldAutoOpenGusNotification(notificationSettings, candidate)) return false;
       if (popupsThisSessionRef.current >= gusPopupTiming.maxPopupsPerSession) return false;
       if (lastShownMessageId === candidate.messageId) return false;
@@ -238,7 +239,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
 
       return true;
     },
-    [isVisible, notificationSettings, open],
+    [canAutoShow, notificationSettings, open],
   );
 
   useEffect(() => {
@@ -264,7 +265,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       popupTimerRef.current = null;
     }
 
-    if (!isVisible || open) return undefined;
+    if (!canAutoShow || open) return undefined;
 
     const shouldUseRandomTiming = isRandomTimedCategory(message.category);
     if (!warningShouldOpenImmediately && !shouldUseRandomTiming) return undefined;
@@ -313,7 +314,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     companyId,
     currentPage,
     feedback,
-    isVisible,
+    canAutoShow,
     jobsiteId,
     liveContext,
     message.category,
@@ -331,7 +332,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       sitrepTimerRef.current = null;
     }
 
-    if (!gusFeatureFlags.gusSitrepEnabled || !isVisible || open) return undefined;
+    if (!gusFeatureFlags.gusSitrepEnabled || !canAutoShow || open) return undefined;
 
     sitrepTimerRef.current = window.setInterval(() => {
       const nextContext: GusContext = {
@@ -385,7 +386,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   }, [
     companyId,
     currentPage,
-    isVisible,
+    canAutoShow,
     jobsiteId,
     liveContext,
     notificationSettings,
@@ -450,6 +451,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     message,
     decision,
     isVisible,
+    canAutoShow,
     voiceEnabled,
     feedback,
     openAssistant,
