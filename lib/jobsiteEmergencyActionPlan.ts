@@ -128,7 +128,7 @@ const EAP_REVIEW_FIELDS: EmergencyActionPlanMissingField[] = [
   { key: "post_incident_requirements", label: "Post-incident requirements", severity: "review" },
 ];
 
-function hasValue(value: unknown) {
+function hasValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.some((item) => hasValue(item));
   if (value && typeof value === "object") {
     return Object.values(value).some((item) => hasValue(item));

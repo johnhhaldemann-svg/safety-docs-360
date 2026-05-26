@@ -130,7 +130,7 @@ function cleanContactArray(value: unknown, maxItems = 20) {
         notes: cleanText(row.notes, 500),
       };
     })
-    .filter((item): item is Record<string, string | null> => Boolean(item && Object.values(item).some(Boolean)))
+    .filter((item) => Boolean(item && Object.values(item).some(Boolean)))
     .slice(0, maxItems);
 }
 
