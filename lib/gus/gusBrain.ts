@@ -37,7 +37,7 @@ function safeMessage(message: GusMessage): GusMessage {
     ...sanitized,
     message: sanitizeGusTriggerLanguage(sanitized.message),
     spokenText: sanitized.spokenText ? sanitizeGusTriggerLanguage(sanitized.spokenText) : sanitized.spokenText,
-    reason: sanitizeGusTriggerLanguage(sanitized.reason),
+    reason: sanitized.reason ? sanitizeGusTriggerLanguage(sanitized.reason) : sanitized.reason,
     actionLabel: sanitized.actionLabel ? sanitizeGusTriggerLanguage(sanitized.actionLabel) : sanitized.actionLabel,
   };
 }
