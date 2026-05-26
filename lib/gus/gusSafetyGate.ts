@@ -15,7 +15,12 @@ const DRAFT_ONLY_STATUS_MAP: Record<string, GusPlanStatus> = {
   blocked_missing_critical_info: "blocked_missing_critical_info",
 };
 
-const GUS_TRIGGER_LANGUAGE_PATTERNS = [
+type GusTriggerLanguageRule = {
+  pattern: RegExp;
+  replacement: string | ((substring: string, ...args: string[]) => string);
+};
+
+const GUS_TRIGGER_LANGUAGE_PATTERNS: GusTriggerLanguageRule[] = [
   { pattern: /\bHuman\s+reviewer(s)?\b/g, replacement: (_match: string, plural?: string) => `Safety lead${plural ? "s" : ""}` },
   { pattern: /\bHuman\s+review\b/g, replacement: "Human safety check" },
   { pattern: /\bReview\s+risk\b/g, replacement: "Risk safety check" },
@@ -94,7 +99,10 @@ export function sanitizeGusMessage(message: string): string {
 
 export function sanitizeGusTriggerLanguage(message: string): string {
   return GUS_TRIGGER_LANGUAGE_PATTERNS.reduce(
-    (nextMessage, rule) => nextMessage.replace(rule.pattern, rule.replacement),
+    (nextMessage, rule) =>
+      typeof rule.replacement === "string"
+        ? nextMessage.replace(rule.pattern, rule.replacement)
+        : nextMessage.replace(rule.pattern, rule.replacement),
     message
   )
     .replace(/\bhuman\s+review\b/gi, "human safety check")

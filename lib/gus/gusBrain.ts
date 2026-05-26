@@ -36,9 +36,18 @@ function safeMessage(message: GusMessage): GusMessage {
   return {
     ...sanitized,
     message: sanitizeGusTriggerLanguage(sanitized.message),
-    spokenText: sanitized.spokenText ? sanitizeGusTriggerLanguage(sanitized.spokenText) : sanitized.spokenText,
-    reason: sanitized.reason ? sanitizeGusTriggerLanguage(sanitized.reason) : sanitized.reason,
-    actionLabel: sanitized.actionLabel ? sanitizeGusTriggerLanguage(sanitized.actionLabel) : sanitized.actionLabel,
+    spokenText:
+      typeof sanitized.spokenText === "string"
+        ? sanitizeGusTriggerLanguage(sanitized.spokenText)
+        : sanitized.spokenText,
+    reason:
+      typeof sanitized.reason === "string"
+        ? sanitizeGusTriggerLanguage(sanitized.reason)
+        : sanitized.reason,
+    actionLabel:
+      typeof sanitized.actionLabel === "string"
+        ? sanitizeGusTriggerLanguage(sanitized.actionLabel)
+        : sanitized.actionLabel,
   };
 }
 
