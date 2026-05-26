@@ -45,6 +45,7 @@
     "db:check-local": "node scripts/check-supabase-migration-sync.mjs --local-only",
     "db:check-sync": "node scripts/check-supabase-migration-sync.mjs",
     "db:baseline:dump": "node scripts/dump-supabase-baseline.mjs",
+    "db:staging:scaffold-url": "node scripts/scaffold-staging-database-url.mjs",
     "db:staging:bootstrap": "node scripts/bootstrap-supabase-staging.mjs",
     "db:staging:verify": "node scripts/verify-supabase-staging.mjs",
     "db:push": "supabase db push --yes",
