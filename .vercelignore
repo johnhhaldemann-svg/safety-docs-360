@@ -49,6 +49,7 @@ supabase/seed.sql
 annotated_pictures/
 docx_work/
 output/
+outputs/
 repaired-docs/
 safety-mobile/
 scratch/
