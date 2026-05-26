@@ -22,9 +22,9 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
     return (
       <section className="relative overflow-hidden rounded-xl border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)] px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="relative h-20 w-20 shrink-0">
+          <div className="relative grid h-20 w-20 shrink-0 place-items-center">
             <div className="absolute inset-2 rounded-full border border-red-200/70 bg-red-100/20 blur-sm" />
-            <GusBotFigure state={decision.botState} />
+            <GusBotFigure state={decision.botState} compact />
           </div>
           <div className="min-w-0 flex-1">
             <p className="inline-flex rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-red-600 shadow-[0_8px_20px_rgba(239,68,68,0.12)]">
@@ -35,7 +35,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
             </p>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="relative z-10 mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={onPlan}
