@@ -8,8 +8,9 @@ describe("GusSmartBot closed launcher", () => {
     expect(source).toContain("function GusSmartBot");
     expect(source).toContain("const handleOpenPointerUp");
     expect(source).toContain("const handleOpenClick");
-    expect(source.match(/onPointerUp=\{handleOpenPointerUp\}/g)?.length).toBe(3);
-    expect(source.match(/onClick=\{handleOpenClick\}/g)?.length).toBe(3);
+    expect(source).toContain('className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer');
+    expect(source.match(/onPointerUp=\{handleOpenPointerUp\}/g)?.length).toBe(4);
+    expect(source.match(/onClick=\{handleOpenClick\}/g)?.length).toBe(4);
   });
 
   it("keeps the primary Gus launcher accessible by name", () => {

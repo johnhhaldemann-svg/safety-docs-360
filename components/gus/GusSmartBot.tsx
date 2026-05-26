@@ -161,17 +161,23 @@ export function GusBotFigure({ state, compact = false, hero = false }: { state: 
 export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, onDismiss }: GusSmartBotProps) {
   const attention = attentionClasses(decision.attentionLevel);
   const shouldPulse = decision.attentionLevel === "high" || decision.attentionLevel === "critical";
-  const handleOpenPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+  const handleOpenPointerUp = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     onOpen();
   };
-  const handleOpenClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (event.detail !== 0) return;
+  const handleOpenClick = (_event: MouseEvent<HTMLElement>) => {
     onOpen();
+  };
+  const stopClusterOpen = (event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>) => {
+    event.stopPropagation();
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] items-end gap-3 sm:bottom-5 sm:right-5">
+    <div
+      className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer items-end gap-3 sm:bottom-5 sm:right-5"
+      onClick={handleOpenClick}
+      onPointerUp={handleOpenPointerUp}
+    >
       <div className="hidden min-w-0 max-w-[18rem] sm:block">
         <button
           type="button"
@@ -217,7 +223,11 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
           </button>
           <button
             type="button"
-            onClick={onPlan}
+            onClick={(event) => {
+              stopClusterOpen(event);
+              onPlan();
+            }}
+            onPointerUp={stopClusterOpen}
             className="grid h-8 w-8 place-items-center rounded-full text-slate-700 hover:bg-slate-100"
             aria-label="Plan work with Gus"
             title="Plan work with Gus"
@@ -226,7 +236,11 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
           </button>
           <button
             type="button"
-            onClick={onDismiss}
+            onClick={(event) => {
+              stopClusterOpen(event);
+              onDismiss();
+            }}
+            onPointerUp={stopClusterOpen}
             className="grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100"
             aria-label={muted ? "Gus is muted" : "Dismiss Gus"}
             title={muted ? "Gus is muted" : "Dismiss"}
