@@ -19,6 +19,15 @@ This file is the working evidence log for the staging-first pilot readiness pass
 | Staging Vercel project | Blocked | `.vercel/project.json` points to project `safety-docs-360` under team `team_aokvdgYK1ovY1nIDeeBsoWKN`, and metadata reports Node `24.x`. Confirm this is staging or provide the staging Vercel project/team before changing settings or deploying. |
 | Vercel connector visibility | Blocked | Previous connector inspection returned `403 Forbidden` for the linked team scope. Re-authenticate/re-scope before deployment evidence can be captured through the connector. |
 
+## Staging Bootstrap Attempt - 2026-05-26
+
+| Item | Status | Evidence / Needed Action |
+| --- | --- | --- |
+| Dedicated Supabase staging project | Created but not usable yet | Created `safetydocs360-staging` in org `wgziitlrkgwoflwjlaul`, region `us-east-1`, project ref `dacafxrcrijqevgjotjc`; Supabase quoted `$10/month`. The project is empty and cannot apply the repo migration stack because the repo is missing the original baseline schema. |
+| Supabase staging branch fallback | Failed and cleaned up | Created branch `safetydocs360-staging-pilot` from `mdqkfbnwxrasdmbsjcqv`, ref `rumolhtgzzujucmmxixw`, with `with_data:false`; Supabase quoted `$0.01344/hour`. Branch replay failed on `20260318000000_core_security_rls` with `relation "public.submissions" does not exist`. Deleted branch `016485c2-64f8-47a7-ac4e-ad0b35576b2e` after failure. |
+| Root blocker | Blocked | Local migrations start with policy/RLS changes against pre-existing tables such as `public.submissions`, `public.documents`, and `public.subscriptions`, but no baseline migration or schema dump for those tables exists in `supabase/`. Add a baseline schema migration or obtain a schema-only dump from the current Supabase project before staging can be rebuilt safely. |
+| Empty staging project cleanup | Blocked | Attempted to pause `dacafxrcrijqevgjotjc`; Supabase rejected it with `Project is not free-tier. Please downgrade it to free-tier first and try again.` Handle billing/project cleanup in the Supabase dashboard if this project should not remain billable. |
+
 ## Migration Sync Evidence
 
 | Source | Latest Migration |
