@@ -324,7 +324,7 @@ export async function GET(request: Request) {
     auth.supabase
       .from("company_corrective_actions")
       .select(
-        "id, title, category, severity, priority, status, due_at, created_at, jobsite_id, sif_potential, prediction_validation_status"
+        "id, title, category, severity, priority, status, due_at, created_at, jobsite_id, sif_potential, prediction_validation_status, prediction_review_rating, prediction_review_tags"
       )
       .eq("company_id", companyId)
       .neq("prediction_validation_status", "rejected") as unknown as ScopedQueryBuilder<PredictiveRiskCorrectiveActionRow>,
@@ -335,7 +335,7 @@ export async function GET(request: Request) {
     auth.supabase
       .from("company_incidents")
       .select(
-        "id, title, description, category, severity, status, created_at, jobsite_id, sif_flag, escalation_level, prediction_validation_status"
+        "id, title, description, category, severity, status, created_at, jobsite_id, sif_flag, escalation_level, prediction_validation_status, prediction_review_rating, prediction_review_tags"
       )
       .eq("company_id", companyId)
       .neq("prediction_validation_status", "rejected") as unknown as ScopedQueryBuilder<PredictiveRiskIncidentRow>,
@@ -373,7 +373,7 @@ export async function GET(request: Request) {
 
   const observationsQuery = auth.supabase
     .from("company_sor_records")
-    .select("id, date, location, trade, category, hazard_category_code, subcategory, description, severity, status, created_at")
+    .select("id, date, location, trade, category, hazard_category_code, subcategory, description, severity, status, created_at, prediction_validation_status, prediction_review_rating, prediction_review_tags")
     .eq("company_id", companyId)
     .eq("is_deleted", false)
     .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()) as unknown as PromiseLike<QueryResult<BehaviorRiskObservationRow>>;
@@ -428,7 +428,7 @@ export async function GET(request: Request) {
   ).gte("updated_at", since) as PromiseLike<QueryResult<AiSafetyUnifiedConflictPairRow>>;
   const feedbackRecommendationsQuery = auth.supabase
     .from("company_risk_ai_recommendations")
-    .select("id, title, status, priority, jobsite_id, evidence_summary")
+    .select("id, kind, title, body, status, priority, created_at, due_at, accepted_at, field_used_at, resolved_at, dismissed_at, target_module, target_href, jobsite_id, mitigation_state, risk_reduction_points, evidence_summary")
     .eq("company_id", companyId)
     .gte("created_at", since) as unknown as PromiseLike<QueryResult<AiSafetyFeedbackRecommendationRow>>;
   const feedbackEventsQuery = auth.supabase
@@ -542,6 +542,8 @@ export async function GET(request: Request) {
         events: feedbackEventsRes.error ? [] : feedbackEventsRes.data ?? [],
         aiOutputFeedback: aiOutputFeedbackRes.rows,
       }),
+      aiSafetyRecommendations: feedbackRecommendationsRes.error ? [] : feedbackRecommendationsRes.data ?? [],
+      aiSafetyRecommendationEvents: feedbackEventsRes.error ? [] : feedbackEventsRes.data ?? [],
       riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
       warning:
         scheduleItemsRes.error && isMissingTable(scheduleItemsRes.error.message)

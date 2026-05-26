@@ -517,6 +517,16 @@ function buildDrivers(params: {
   if (params.fatalOverride) {
     drivers.push(driver("Fatal or catastrophic potential with weak controls", "severity", "critical", "Fatality or catastrophic severity was paired with missing or ineffective controls."));
   }
+  if (signals.some((signal) => signal.type === "calibration_feedback")) {
+    drivers.push(
+      driver(
+        "Calibration outcome feedback",
+        "pattern",
+        signals.some((signal) => signal.type === "calibration_feedback" && score1to5(signal.severity, 1) >= 5) ? "critical" : "high",
+        "Later field outcomes or reviewer feedback matched this work pattern, so the model is applying conservative calibration pressure."
+      )
+    );
+  }
   if (breakdown.severity >= 4) {
     drivers.push(driver("High severity potential", "severity", impactForScore(breakdown.severity), "The highest available severity signal is high or critical."));
   }

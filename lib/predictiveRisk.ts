@@ -38,6 +38,13 @@ import {
 } from "@/lib/aiSafetyActionQueue";
 import type { AiSafetyFeedbackSignal } from "@/lib/aiSafetyFeedbackInfluence";
 import {
+  buildAiSafetyCalibrationOutcomeRows,
+  buildPredictiveSafetyCalibrationProfile,
+  type AiSafetyCalibrationEventRow,
+  type AiSafetyCalibrationRecommendationRow,
+  type PredictiveSafetyCalibrationProfile,
+} from "@/lib/aiSafetyCalibration";
+import {
   buildAiSafetyConflictMap,
   type AiSafetyConflictMap,
   type AiSafetyConflictFinding,
@@ -145,6 +152,7 @@ export type PredictiveRiskPayload = {
   feedbackInfluence: AiSafetyFeedbackInfluence;
   memoryInfluence: AiSafetyMemoryInfluence;
   calibrationSummary: AiSafetyCalibrationSummary;
+  calibrationProfile?: PredictiveSafetyCalibrationProfile;
   aiSafetyReasoningFrame: AiSafetyReasoningFrame;
   decisionQuality: AiSafetyDecisionQuality;
   uncertaintySummary: AiSafetyUncertaintySummary;
@@ -907,11 +915,22 @@ export function buildPredictiveRiskPayload(input: {
   fieldEvidenceSignals?: AiSafetyFieldEvidenceSignal[];
   safetyIntelligenceBucketItems?: AiSafetyUnifiedBucketItemRow[];
   safetyIntelligenceConflictPairs?: AiSafetyUnifiedConflictPairRow[];
+  aiSafetyRecommendations?: AiSafetyCalibrationRecommendationRow[];
+  aiSafetyRecommendationEvents?: AiSafetyCalibrationEventRow[];
   riskMitigations?: PredictiveRiskMitigationRow[];
   warning?: string;
 }): PredictiveRiskPayload {
   const days = normalizeDays(input.days);
   const rows = buildRiskRows(input);
+  const calibrationProfile = buildPredictiveSafetyCalibrationProfile({
+    recommendations: input.aiSafetyRecommendations ?? [],
+    events: input.aiSafetyRecommendationEvents ?? [],
+    outcomes: buildAiSafetyCalibrationOutcomeRows({
+      correctiveActions: input.correctiveActions,
+      incidents: input.incidents,
+      observations: input.observations ?? [],
+    }),
+  });
   const behaviorRisk = calculateBehaviorRisk({
     projectId: input.projectId ?? null,
     lookAheadDays: Math.min(days, 30),
@@ -949,6 +968,7 @@ export function buildPredictiveRiskPayload(input: {
     weatherAlerts: input.weatherAlerts,
     memoryItems: input.memoryItems,
     safetyAiAssessment,
+    calibrationProfile,
   });
   const aiSafetyConflictMap = buildAiSafetyConflictMap({
     dailyBriefing: baseDailyBriefing,
@@ -1198,6 +1218,7 @@ export function buildPredictiveRiskPayload(input: {
     feedbackInfluence: aiSafetyLoop.feedbackInfluence,
     memoryInfluence: aiSafetyLoop.memoryInfluence,
     calibrationSummary: aiSafetyLoop.calibrationSummary,
+    calibrationProfile,
     aiSafetyReasoningFrame,
     decisionQuality: aiSafetyReasoningFrame.decisionQuality,
     uncertaintySummary: aiSafetyReasoningFrame.uncertainty,

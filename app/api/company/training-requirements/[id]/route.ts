@@ -19,6 +19,7 @@ import {
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
   type TrainingRequirementDbRow,
 } from "@/lib/companyTrainingRequirementsDb";
+import { validateTrainingRequirementResource } from "@/lib/trainingRequirementResources";
 import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
@@ -32,14 +33,16 @@ function selectAfterUpdate(flags: {
   taskScopeColumnsAvailable: boolean;
   generatedColumnsAvailable: boolean;
   renewalMonthsAvailable: boolean;
+  resourceColumnsAvailable: boolean;
 }): string {
+  const includeResources = flags.resourceColumnsAvailable;
   if (
     flags.applyColumnsAvailable &&
     flags.taskScopeColumnsAvailable &&
     flags.generatedColumnsAvailable &&
     flags.renewalMonthsAvailable
   ) {
-    return selectReturnFull();
+    return selectReturnFull(includeResources);
   }
   if (
     flags.applyColumnsAvailable &&
@@ -47,7 +50,7 @@ function selectAfterUpdate(flags: {
     flags.generatedColumnsAvailable &&
     !flags.renewalMonthsAvailable
   ) {
-    return selectReturnFullNoRenewal();
+    return selectReturnFullNoRenewal(includeResources);
   }
   if (
     flags.applyColumnsAvailable &&
@@ -55,7 +58,7 @@ function selectAfterUpdate(flags: {
     !flags.generatedColumnsAvailable &&
     flags.renewalMonthsAvailable
   ) {
-    return selectReturnScopeNoGenerated();
+    return selectReturnScopeNoGenerated(includeResources);
   }
   if (
     flags.applyColumnsAvailable &&
@@ -63,18 +66,18 @@ function selectAfterUpdate(flags: {
     !flags.generatedColumnsAvailable &&
     !flags.renewalMonthsAvailable
   ) {
-    return selectReturnScopeNoGeneratedNoRenewal();
+    return selectReturnScopeNoGeneratedNoRenewal(includeResources);
   }
   if (flags.applyColumnsAvailable && flags.renewalMonthsAvailable) {
-    return selectReturnBasicApply();
+    return selectReturnBasicApply(includeResources);
   }
   if (flags.applyColumnsAvailable && !flags.renewalMonthsAvailable) {
-    return selectReturnBasicApplyNoRenewal();
+    return selectReturnBasicApplyNoRenewal(includeResources);
   }
   if (flags.renewalMonthsAvailable) {
-    return selectReturnLegacyWithRenewal();
+    return selectReturnLegacyWithRenewal(includeResources);
   }
-  return selectReturnLegacy();
+  return selectReturnLegacy(includeResources);
 }
 
 function parseKeywords(input: unknown): string[] | null {
@@ -133,6 +136,10 @@ function toRequirementResponse(row: RequirementRow) {
     generatedSourceType: row.generated_source_type ?? null,
     generatedSourceDocumentId: row.generated_source_document_id ?? null,
     generatedSourceOperationKey: row.generated_source_operation_key ?? null,
+    trainingDeliveryType: row.training_delivery_type ?? null,
+    trainingResourceTitle: row.training_resource_title ?? null,
+    trainingResourceUrl: row.training_resource_url ?? null,
+    trainingResourceInstructions: row.training_resource_instructions ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -267,6 +274,36 @@ export async function PATCH(request: Request, context: RouteContext) {
     updates.renewal_months = renewalPatch;
   }
 
+  const resourceTouched =
+    body?.trainingDeliveryType !== undefined ||
+    body?.trainingResourceTitle !== undefined ||
+    body?.trainingResourceUrl !== undefined ||
+    body?.trainingResourceInstructions !== undefined;
+  if (resourceTouched) {
+    const currentUrl =
+      body?.trainingResourceUrl !== undefined ? body.trainingResourceUrl : existing.training_resource_url;
+    const resourceValidation = validateTrainingRequirementResource({
+      deliveryType:
+        body?.trainingDeliveryType !== undefined ? body.trainingDeliveryType : existing.training_delivery_type,
+      resourceTitle:
+        body?.trainingResourceTitle !== undefined ? body.trainingResourceTitle : existing.training_resource_title,
+      resourceUrl: currentUrl,
+      resourceInstructions:
+        body?.trainingResourceInstructions !== undefined
+          ? body.trainingResourceInstructions
+          : existing.training_resource_instructions,
+      fallbackTitle: typeof updates.title === "string" ? updates.title : existing.title,
+      requireResource: true,
+    });
+    if (resourceValidation.error) {
+      return NextResponse.json({ error: resourceValidation.error }, { status: 400 });
+    }
+    updates.training_delivery_type = resourceValidation.resource.trainingDeliveryType;
+    updates.training_resource_title = resourceValidation.resource.trainingResourceTitle;
+    updates.training_resource_url = resourceValidation.resource.trainingResourceUrl;
+    updates.training_resource_instructions = resourceValidation.resource.trainingResourceInstructions;
+  }
+
   let schemaWarning: string | null = null;
   if (!loaded.applyColumnsAvailable) {
     if ("apply_trades" in updates || "apply_positions" in updates) {
@@ -285,6 +322,20 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!loaded.renewalMonthsAvailable && "renewal_months" in updates) {
     delete updates.renewal_months;
   }
+  if (!loaded.resourceColumnsAvailable) {
+    if (
+      "training_delivery_type" in updates ||
+      "training_resource_title" in updates ||
+      "training_resource_url" in updates ||
+      "training_resource_instructions" in updates
+    ) {
+      schemaWarning = TRAINING_REQUIREMENTS_SCHEMA_WARNING;
+    }
+    delete updates.training_delivery_type;
+    delete updates.training_resource_title;
+    delete updates.training_resource_url;
+    delete updates.training_resource_instructions;
+  }
 
   const updateRes = await auth.supabase
     .from("company_training_requirements")
@@ -297,6 +348,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         taskScopeColumnsAvailable: loaded.taskScopeColumnsAvailable,
         generatedColumnsAvailable: loaded.generatedColumnsAvailable,
         renewalMonthsAvailable: loaded.renewalMonthsAvailable,
+        resourceColumnsAvailable: loaded.resourceColumnsAvailable,
       })
     )
     .single();

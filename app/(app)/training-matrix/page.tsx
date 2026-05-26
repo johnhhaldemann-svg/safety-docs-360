@@ -78,6 +78,10 @@ type Requirement = {
   courseOwner?: string;
   courseVersion?: string;
   requiresEvidence?: boolean;
+  trainingDeliveryType?: "online" | "internal" | null;
+  trainingResourceTitle?: string | null;
+  trainingResourceUrl?: string | null;
+  trainingResourceInstructions?: string | null;
 };
 
 type MatrixJobsiteOption = { id: string; name: string };
@@ -92,6 +96,7 @@ type MatrixFilters = {
 type MatrixCellState = "match" | "gap" | "na";
 type MatrixViewMode = "readiness" | "all" | "gaps" | "expiring";
 type Stage1MatrixMode = "worker" | "course";
+type TrainingDeliveryType = "online" | "internal";
 type Stage1StatusFilter =
   | "all"
   | "complete"
@@ -1226,6 +1231,81 @@ function PickTradesAndPositions({
   );
 }
 
+function TrainingResourceFields({
+  deliveryType,
+  onDeliveryTypeChange,
+  resourceTitle,
+  onResourceTitleChange,
+  resourceUrl,
+  onResourceUrlChange,
+  resourceInstructions,
+  onResourceInstructionsChange,
+  variant = "default",
+}: {
+  deliveryType: TrainingDeliveryType;
+  onDeliveryTypeChange: (next: TrainingDeliveryType) => void;
+  resourceTitle: string;
+  onResourceTitleChange: (next: string) => void;
+  resourceUrl: string;
+  onResourceUrlChange: (next: string) => void;
+  resourceInstructions: string;
+  onResourceInstructionsChange: (next: string) => void;
+  variant?: "default" | "compact";
+}) {
+  const compact = variant === "compact";
+  const labelClass = compact ? "text-xs font-semibold text-slate-400" : "text-sm font-medium text-[var(--app-text-strong)]";
+  const inputClass = compact
+    ? "mt-1 w-full rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-normal text-slate-100"
+    : "mt-1 w-full rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm text-[var(--app-text-strong)] outline-none focus:ring-2 focus:ring-[rgba(37,99,235,0.18)]";
+  const helpText = deliveryType === "internal" ? "Use a same-origin app path, for example /training/safety-orientation." : "Use a secure external training URL that starts with https://.";
+
+  return (
+    <div className={compact ? "grid gap-3" : "mt-4 grid gap-4 rounded-xl border border-[var(--app-border)] bg-white/70 p-4"}>
+      <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+        <label className={labelClass}>
+          Delivery
+          <select
+            value={deliveryType}
+            onChange={(event) => onDeliveryTypeChange(event.target.value === "internal" ? "internal" : "online")}
+            className={compact ? `${inputClass} [color-scheme:dark]` : `${appNativeSelectClassName} mt-1 w-full`}
+          >
+            <option value="online">Online training link</option>
+            <option value="internal">Company internal page</option>
+          </select>
+        </label>
+        <label className={labelClass}>
+          Resource title
+          <input
+            value={resourceTitle}
+            onChange={(event) => onResourceTitleChange(event.target.value)}
+            className={inputClass}
+            placeholder="Shown to the worker"
+          />
+        </label>
+      </div>
+      <label className={labelClass}>
+        Training URL / path <span className="text-red-600">*</span>
+        <input
+          value={resourceUrl}
+          onChange={(event) => onResourceUrlChange(event.target.value)}
+          className={inputClass}
+          placeholder={deliveryType === "internal" ? "/training/site-orientation" : "https://provider.example.com/course"}
+        />
+        <span className="mt-1 block text-xs font-normal text-[var(--app-muted)]">{helpText}</span>
+      </label>
+      <label className={labelClass}>
+        Worker instructions
+        <textarea
+          value={resourceInstructions}
+          onChange={(event) => onResourceInstructionsChange(event.target.value)}
+          className={`${inputClass} min-h-20`}
+          placeholder="Optional: what to complete, upload, or tell the supervisor afterward."
+        />
+      </label>
+    </div>
+  );
+}
+
 const SCHEMA_MIGRATION_BANNER_DISMISSED_KEY = "sd360_dismiss_training_schema_migration_v1";
 const DIRECTORY_NOTICE_DISMISSED_KEY = "sd360_dismiss_training_matrix_directory_notice_v1";
 
@@ -1749,6 +1829,10 @@ export default function TrainingMatrixPage() {
   const [newApplyTrades, setNewApplyTrades] = useState<string[]>([]);
   const [newApplyPositions, setNewApplyPositions] = useState<string[]>([]);
   const [newRenewalMonths, setNewRenewalMonths] = useState("");
+  const [newTrainingDeliveryType, setNewTrainingDeliveryType] = useState<TrainingDeliveryType>("online");
+  const [newTrainingResourceTitle, setNewTrainingResourceTitle] = useState("");
+  const [newTrainingResourceUrl, setNewTrainingResourceUrl] = useState("");
+  const [newTrainingResourceInstructions, setNewTrainingResourceInstructions] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1757,6 +1841,10 @@ export default function TrainingMatrixPage() {
   const [editApplyTrades, setEditApplyTrades] = useState<string[]>([]);
   const [editApplyPositions, setEditApplyPositions] = useState<string[]>([]);
   const [editRenewalMonths, setEditRenewalMonths] = useState("");
+  const [editTrainingDeliveryType, setEditTrainingDeliveryType] = useState<TrainingDeliveryType>("online");
+  const [editTrainingResourceTitle, setEditTrainingResourceTitle] = useState("");
+  const [editTrainingResourceUrl, setEditTrainingResourceUrl] = useState("");
+  const [editTrainingResourceInstructions, setEditTrainingResourceInstructions] = useState("");
 
   const { density, setDensity, isCompact } = useTableDensity();
   const selectedWorkerId = searchParams.get("workerId") ?? "";
@@ -1980,6 +2068,10 @@ export default function TrainingMatrixPage() {
           courseOwner: r.courseOwner ?? "Safety team",
           courseVersion: r.courseVersion ?? "Current",
           requiresEvidence: r.requiresEvidence ?? true,
+          trainingDeliveryType: r.trainingDeliveryType ?? null,
+          trainingResourceTitle: r.trainingResourceTitle ?? null,
+          trainingResourceUrl: r.trainingResourceUrl ?? null,
+          trainingResourceInstructions: r.trainingResourceInstructions ?? null,
         }))
       );
       setFilters(data?.filters ?? { trades: [], subTrades: [], taskCodes: [] });
@@ -2181,6 +2273,10 @@ export default function TrainingMatrixPage() {
           applyTrades: newApplyTrades,
           applyPositions: newApplyPositions,
           renewalMonths: parseRenewalMonthsInput(newRenewalMonths),
+          trainingDeliveryType: newTrainingDeliveryType,
+          trainingResourceTitle: newTrainingResourceTitle,
+          trainingResourceUrl: newTrainingResourceUrl,
+          trainingResourceInstructions: newTrainingResourceInstructions,
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -2205,6 +2301,10 @@ export default function TrainingMatrixPage() {
       setNewApplyTrades([]);
       setNewApplyPositions([]);
       setNewRenewalMonths("");
+      setNewTrainingDeliveryType("online");
+      setNewTrainingResourceTitle("");
+      setNewTrainingResourceUrl("");
+      setNewTrainingResourceInstructions("");
       await loadMatrix();
     } catch (e) {
       setMessageTone("error");
@@ -2218,6 +2318,10 @@ export default function TrainingMatrixPage() {
     newProfileCertCustom,
     newProfileCertSelect,
     newRenewalMonths,
+    newTrainingDeliveryType,
+    newTrainingResourceInstructions,
+    newTrainingResourceTitle,
+    newTrainingResourceUrl,
   ]);
 
   const startEdit = useCallback((r: Requirement) => {
@@ -2232,6 +2336,10 @@ export default function TrainingMatrixPage() {
     setEditRenewalMonths(
       r.renewalMonths != null && r.renewalMonths > 0 ? String(r.renewalMonths) : ""
     );
+    setEditTrainingDeliveryType(r.trainingDeliveryType === "internal" ? "internal" : "online");
+    setEditTrainingResourceTitle(r.trainingResourceTitle ?? r.title);
+    setEditTrainingResourceUrl(r.trainingResourceUrl ?? "");
+    setEditTrainingResourceInstructions(r.trainingResourceInstructions ?? "");
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -2260,6 +2368,10 @@ export default function TrainingMatrixPage() {
           applyTrades: editApplyTrades,
           applyPositions: editApplyPositions,
           renewalMonths: parseRenewalMonthsInput(editRenewalMonths),
+          trainingDeliveryType: editTrainingDeliveryType,
+          trainingResourceTitle: editTrainingResourceTitle,
+          trainingResourceUrl: editTrainingResourceUrl,
+          trainingResourceInstructions: editTrainingResourceInstructions,
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -2292,6 +2404,10 @@ export default function TrainingMatrixPage() {
     editProfileCertCustom,
     editProfileCertSelect,
     editRenewalMonths,
+    editTrainingDeliveryType,
+    editTrainingResourceInstructions,
+    editTrainingResourceTitle,
+    editTrainingResourceUrl,
     editingId,
     loadMatrix,
   ]);
@@ -2762,6 +2878,16 @@ export default function TrainingMatrixPage() {
               construction profile.
             </span>
           </label>
+          <TrainingResourceFields
+            deliveryType={newTrainingDeliveryType}
+            onDeliveryTypeChange={setNewTrainingDeliveryType}
+            resourceTitle={newTrainingResourceTitle}
+            onResourceTitleChange={setNewTrainingResourceTitle}
+            resourceUrl={newTrainingResourceUrl}
+            onResourceUrlChange={setNewTrainingResourceUrl}
+            resourceInstructions={newTrainingResourceInstructions}
+            onResourceInstructionsChange={setNewTrainingResourceInstructions}
+          />
           <div className="mt-4">
             <button
               type="button"
@@ -2769,7 +2895,8 @@ export default function TrainingMatrixPage() {
                 saving ||
                 !resolvedTrainingFromCertPicker(newProfileCertSelect, newProfileCertCustom).trim() ||
                 newApplyTrades.length === 0 ||
-                newApplyPositions.length === 0
+                newApplyPositions.length === 0 ||
+                !newTrainingResourceUrl.trim()
               }
               onClick={() => void handleCreate()}
               className={`${appButtonPrimaryClassName} disabled:cursor-not-allowed disabled:opacity-50`}
@@ -2838,6 +2965,17 @@ export default function TrainingMatrixPage() {
                           className="mt-1 w-full max-w-[180px] rounded-xl border border-slate-600 bg-slate-900/90 px-3 py-2 text-sm font-normal text-slate-100"
                         />
                       </label>
+                      <TrainingResourceFields
+                        deliveryType={editTrainingDeliveryType}
+                        onDeliveryTypeChange={setEditTrainingDeliveryType}
+                        resourceTitle={editTrainingResourceTitle}
+                        onResourceTitleChange={setEditTrainingResourceTitle}
+                        resourceUrl={editTrainingResourceUrl}
+                        onResourceUrlChange={setEditTrainingResourceUrl}
+                        resourceInstructions={editTrainingResourceInstructions}
+                        onResourceInstructionsChange={setEditTrainingResourceInstructions}
+                        variant="compact"
+                      />
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -2849,7 +2987,8 @@ export default function TrainingMatrixPage() {
                               editProfileCertCustom
                             ).trim() ||
                             editApplyTrades.length === 0 ||
-                            editApplyPositions.length === 0
+                            editApplyPositions.length === 0 ||
+                            !editTrainingResourceUrl.trim()
                           }
                           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
@@ -2889,6 +3028,15 @@ export default function TrainingMatrixPage() {
                         <div className="mt-1 text-sm text-slate-400">
                           {r.matchKeywords.join(" · ")}
                         </div>
+                        {r.trainingResourceUrl ? (
+                          <div className="mt-2 text-xs font-medium text-emerald-200">
+                            Resource: {r.trainingResourceTitle ?? r.title} ({r.trainingDeliveryType === "internal" ? "internal" : "online"})
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs font-semibold text-amber-200">
+                            Add a training resource before assigning this requirement.
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button

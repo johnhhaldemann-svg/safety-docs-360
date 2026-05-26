@@ -73,6 +73,10 @@ type MatrixRequirementResponse = {
   courseOwner: string;
   courseVersion: string;
   requiresEvidence: boolean;
+  trainingDeliveryType: string | null;
+  trainingResourceTitle: string | null;
+  trainingResourceUrl: string | null;
+  trainingResourceInstructions: string | null;
 };
 
 type SalesDemoRequirementRow = TrainingRequirementInput & {
@@ -83,6 +87,10 @@ type SalesDemoRequirementRow = TrainingRequirementInput & {
   generated_source_type: string | null;
   generated_source_document_id: string | null;
   generated_source_operation_key: string | null;
+  training_delivery_type?: string | null;
+  training_resource_title?: string | null;
+  training_resource_url?: string | null;
+  training_resource_instructions?: string | null;
 };
 
 type SalesDemoUser = {
@@ -855,6 +863,10 @@ function toRequirementResponse(row: SalesDemoRequirementRow | TrainingRequiremen
     courseOwner: "Safety team",
     courseVersion: "Current",
     requiresEvidence: true,
+    trainingDeliveryType: row.training_delivery_type ?? null,
+    trainingResourceTitle: row.training_resource_title ?? null,
+    trainingResourceUrl: row.training_resource_url ?? null,
+    trainingResourceInstructions: row.training_resource_instructions ?? null,
   };
 }
 

@@ -27,6 +27,10 @@ describe("trainingAssignmentEmail", () => {
       detail: "Jordan has an overdue training signal.",
       dueAt: "2026-06-01T00:00:00.000Z",
       jobsiteName: "North Tower",
+      resourceTitle: "Fall protection course",
+      resourceUrl: "https://training.example.com/fall-protection",
+      resourceInstructions: "Complete the course and upload the certificate.",
+      assignmentUrl: "/training-matrix?action=action-1",
     });
 
     expect(result.sent).toBe(true);
@@ -41,8 +45,11 @@ describe("trainingAssignmentEmail", () => {
     expect(body.from).toBe("training@example.com");
     expect(body.to).toEqual(["worker@example.com"]);
     expect(body.subject).toBe("Training assigned: Fall Protection");
-    expect(body.html).toContain("Open Training Matrix");
+    expect(body.html).toContain("Start Training");
+    expect(body.html).toContain("https://training.example.com/fall-protection");
+    expect(body.html).toContain("Open assignment in SafePredict");
     expect(body.text).toContain("North Tower");
+    expect(body.text).toContain("Start training: https://training.example.com/fall-protection");
   });
 
   it("skips when email delivery is not configured", async () => {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildAiSafetyCalibrationReport } from "@/lib/aiSafetyCalibration";
+import {
+  buildAiSafetyCalibrationReport,
+  buildPredictiveSafetyCalibrationProfile,
+} from "@/lib/aiSafetyCalibration";
 
 const now = new Date("2026-05-23T12:00:00.000Z");
 
@@ -112,5 +115,65 @@ describe("buildAiSafetyCalibrationReport", () => {
 
     expect(report.summary.falsePositiveCount).toBe(0);
     expect(report.predictionOutcomes.insufficientData[0]?.reason).toContain("dismissed critical AI action");
+  });
+
+  it("builds conservative calibration adjustments from outcomes and feedback", () => {
+    const profile = buildPredictiveSafetyCalibrationProfile({
+      now,
+      recommendations: [
+        aiAction({ id: "rec-field", status: "field_used" }),
+        aiAction({ id: "rec-dismissed", status: "dismissed", priority: "high" }),
+        aiAction({ id: "rec-critical", status: "dismissed", priority: "critical" }),
+      ],
+      events: [{ id: "event-1", recommendation_id: "rec-field", event_type: "field_used", created_at: "2026-05-22T12:00:00.000Z" }],
+      outcomes: [
+        {
+          id: "near-1",
+          sourceType: "near_miss",
+          title: "Near miss involving elevated deck work",
+          hazardCategory: "fall_protection",
+          severity: "high",
+          jobsiteId: "j1",
+          createdAt: "2026-05-21T12:00:00.000Z",
+          predictionValidationStatus: "approved",
+          predictionReviewRating: 5,
+        },
+        {
+          id: "missed-1",
+          sourceType: "incident",
+          title: "Forklift struck-by near pedestrian route",
+          hazardCategory: "mobile_equipment",
+          severity: "critical",
+          jobsiteId: "j1",
+          createdAt: "2026-05-22T12:00:00.000Z",
+          predictionValidationStatus: "approved",
+          predictionReviewRating: 4,
+        },
+      ],
+    });
+
+    expect(profile.status).toBe("active");
+    expect(profile.adjustments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "validated_positive", hazardLabel: "Fall Protection" }),
+        expect.objectContaining({ type: "missed_high_risk_outcome", hazardLabel: "Mobile Equipment", riskLevel: "critical" }),
+        expect.objectContaining({ type: "false_positive_softening" }),
+        expect.objectContaining({ type: "critical_review_required", riskLevel: "critical" }),
+      ])
+    );
+    expect(profile.topHazardPatterns.length).toBeGreaterThan(0);
+  });
+
+  it("returns insufficient calibration data when actions or outcomes are missing", () => {
+    const profile = buildPredictiveSafetyCalibrationProfile({
+      recommendations: [],
+      outcomes: [],
+      events: [],
+      now,
+    });
+
+    expect(profile.status).toBe("insufficient_data");
+    expect(profile.confidence).toBe("low");
+    expect(profile.missingData.join(" ")).toContain("No persisted AI safety actions");
   });
 });

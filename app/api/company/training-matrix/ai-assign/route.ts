@@ -9,6 +9,11 @@ import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { sendTrainingAssignmentEmail } from "@/lib/trainingAssignmentEmail";
+import {
+  isSafeTrainingResourceUrl,
+  trainingRequirementResourceFromRow,
+  type TrainingRequirementResource,
+} from "@/lib/trainingRequirementResources";
 
 export const runtime = "nodejs";
 
@@ -36,6 +41,10 @@ type AssignmentPlan = {
   createdActionId?: string | null;
   notificationStatus?: "sent" | "skipped" | "failed";
   notificationWarning?: string | null;
+  resourceTitle?: string | null;
+  resourceUrl?: string | null;
+  resourceInstructions?: string | null;
+  resourceMissing?: boolean;
 };
 
 type NotificationSummary = {
@@ -179,6 +188,33 @@ function assignableUserId(workerId: string) {
   return cleaned;
 }
 
+function requirementHasResource(resource: TrainingRequirementResource) {
+  return Boolean(
+    resource.trainingDeliveryType &&
+      resource.trainingResourceUrl &&
+      isSafeTrainingResourceUrl(resource.trainingResourceUrl, resource.trainingDeliveryType)
+  );
+}
+
+function findRequirementForPlan(
+  requirements: Array<{
+    title: string;
+    match_keywords?: string[] | null;
+    training_delivery_type?: string | null;
+    training_resource_title?: string | null;
+    training_resource_url?: string | null;
+    training_resource_instructions?: string | null;
+  }>,
+  plan: AssignmentPlan
+) {
+  const requirementKey = normalize(plan.requirementTitle);
+  return (
+    requirements.find((row) => normalize(row.title) === requirementKey) ??
+    requirements.find((row) => (row.match_keywords ?? []).some((keyword) => normalize(keyword) === requirementKey)) ??
+    null
+  );
+}
+
 function actorName(user: { email?: string | null; user_metadata?: Record<string, unknown> }) {
   const metadataName =
     typeof user.user_metadata?.full_name === "string"
@@ -252,6 +288,7 @@ async function recordNotificationEvent(params: {
   email: string | null;
   status: "sent" | "skipped" | "failed";
   warning?: string | null;
+  resource?: TrainingRequirementResource | null;
 }) {
   await params.supabase.from("company_corrective_action_events").insert({
     action_id: params.actionId,
@@ -265,6 +302,7 @@ async function recordNotificationEvent(params: {
       email: params.email,
       status: params.status,
       warning: params.warning ?? null,
+      trainingResource: params.resource,
     },
     created_by: params.actorUserId,
   });
@@ -347,6 +385,26 @@ export async function POST(request: Request) {
     }
 
     const requirementKey = normalize(plan.requirementTitle);
+    const matchedRequirement = findRequirementForPlan(existingRequirements, plan);
+    const resource = matchedRequirement ? trainingRequirementResourceFromRow(matchedRequirement) : null;
+
+    if (!resource || !requirementHasResource(resource)) {
+      plan.resourceMissing = true;
+      plan.resourceTitle = resource?.trainingResourceTitle ?? plan.requirementTitle;
+      plan.resourceUrl = resource?.trainingResourceUrl ?? null;
+      plan.resourceInstructions = resource?.trainingResourceInstructions ?? null;
+      plans.push(plan);
+      skipped.push(`${plan.workerName}: add a training resource link to ${plan.requirementTitle} before assigning.`);
+      continue;
+    }
+
+    plan.resourceTitle = resource.trainingResourceTitle ?? plan.requirementTitle;
+    plan.resourceUrl = resource.trainingResourceUrl;
+    plan.resourceInstructions = resource.trainingResourceInstructions;
+    if (!existingTitles.has(requirementKey)) {
+      existingTitles.add(requirementKey);
+    }
+
     if (!existingTitles.has(requirementKey) && !createdRequirementByTitle.has(requirementKey)) {
       const inferred = inferTraining(worker);
       const insertResult = await auth.supabase
@@ -398,7 +456,15 @@ export async function POST(request: Request) {
           company_id: companyScope.companyId,
           jobsite_id: jobsiteId || null,
           title: plan.title,
-          description: `${plan.detail} Required training: ${plan.requirementTitle}. Worker: ${plan.workerName}.`,
+          description: [
+            plan.detail,
+            `Required training: ${plan.requirementTitle}.`,
+            `Worker: ${plan.workerName}.`,
+            `Training resource: ${plan.resourceTitle ?? plan.requirementTitle} (${plan.resourceUrl}).`,
+            plan.resourceInstructions ? `Instructions: ${plan.resourceInstructions}` : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
           severity: plan.riskLevel,
           category: "corrective_action",
           status: "open",
@@ -436,6 +502,9 @@ export async function POST(request: Request) {
           metadata: {
             workerId: worker.id ?? null,
             requirementTitle: plan.requirementTitle,
+            resourceTitle: plan.resourceTitle ?? null,
+            resourceUrl: plan.resourceUrl ?? null,
+            resourceInstructions: plan.resourceInstructions ?? null,
           },
         }).catch((error) => {
           console.warn("training_gap_notification_failed", error);
@@ -461,6 +530,7 @@ export async function POST(request: Request) {
             email: null,
             status: "skipped",
             warning: plan.notificationWarning,
+            resource,
           });
         } else {
           const jobsiteName = await resolveJobsiteName({
@@ -478,6 +548,10 @@ export async function POST(request: Request) {
             detail: plan.detail,
             dueAt,
             jobsiteName,
+            resourceTitle: plan.resourceTitle,
+            resourceUrl: plan.resourceUrl,
+            resourceInstructions: plan.resourceInstructions,
+            assignmentUrl: `/training-matrix?action=${encodeURIComponent(plan.createdActionId)}`,
           });
           plan.notificationStatus = emailResult.status;
           plan.notificationWarning = emailResult.warning ?? null;
@@ -498,6 +572,7 @@ export async function POST(request: Request) {
             email: recipientEmail,
             status: emailResult.status,
             warning: emailResult.warning ?? null,
+            resource,
           });
         }
       }
@@ -511,6 +586,9 @@ export async function POST(request: Request) {
       ? ` Email notifications: ${notificationSummary.sent} sent, ${notificationSummary.skipped} skipped, ${notificationSummary.failed} failed.`
       : "";
 
+  const allMissingResources = plans.length > 0 && plans.every((plan) => plan.resourceMissing);
+  const status = allMissingResources ? 400 : 200;
+
   return NextResponse.json({
     success: true,
     assignments: plans,
@@ -519,8 +597,10 @@ export async function POST(request: Request) {
     createdRequirements: [...createdRequirementByTitle.values()].filter(Boolean).length,
     createdActions: plans.filter((plan) => plan.createdActionId).length,
     message:
-      plans.length === 0
+      allMissingResources
+        ? "Training assignment blocked. Add a training resource link to the requirement before assigning it."
+        : plans.length === 0
         ? "No eligible training assignments were created."
         : `AI training assignments queued. Refresh the training matrix to see newly generated requirements.${notificationText}`,
-  });
+  }, { status });
 }

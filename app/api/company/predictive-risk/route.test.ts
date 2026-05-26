@@ -375,6 +375,74 @@ describe("/api/company/predictive-risk", () => {
     }));
   });
 
+  it("exposes predictive calibration profile from validation-aware outcome rows", async () => {
+    const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const { from } = supabaseFixture({
+      company_incidents: queryBuilder({
+        data: [
+          {
+            id: "incident-1",
+            title: "Forklift struck-by near pedestrian route",
+            category: "mobile_equipment",
+            severity: "critical",
+            status: "open",
+            created_at: new Date().toISOString(),
+            jobsite_id: "j1",
+            sif_flag: true,
+            prediction_validation_status: "approved",
+            prediction_review_rating: 5,
+            prediction_review_tags: ["calibration"],
+          },
+        ],
+      }),
+      company_jobsite_schedule_items: queryBuilder({
+        data: [
+          {
+            id: "schedule-1",
+            jobsite_id: "j1",
+            title: "Telehandler backing through pedestrian route",
+            work_start_date: workDate,
+            work_end_date: workDate,
+            trade: "Logistics",
+            crew_size: 3,
+            supervisor_name: "Supervisor A",
+            risk_level: "moderate",
+            is_high_risk: false,
+            hazard_categories: ["mobile_equipment"],
+            permit_triggers: [],
+            required_controls: ["spotter"],
+            status: "planned",
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+    vi.mocked(authorizeRequest).mockResolvedValue({
+      role: "company_admin",
+      team: "Ops",
+      user: { id: "u1" },
+      supabase: { from },
+    } as never);
+    vi.mocked(getCompanyScope).mockResolvedValue({ companyId: "co1", companyName: "Ops" } as never);
+
+    const res = expectResponse(await GET(new Request("http://localhost/api/company/predictive-risk?days=30&jobsiteId=j1")));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.calibrationProfile).toEqual(
+      expect.objectContaining({
+        adjustments: expect.arrayContaining([
+          expect.objectContaining({
+            type: "missed_high_risk_outcome",
+            hazardLabel: "Mobile Equipment",
+            riskLevel: "critical",
+          }),
+        ]),
+      }),
+    );
+    expect(body.dailyBriefing.highRiskWork[0]?.drivers).toContain("Calibration outcome feedback");
+  });
+
   it("returns predicted workface conflicts and conflict review actions", async () => {
     const workDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const { from } = supabaseFixture({

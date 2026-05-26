@@ -284,6 +284,57 @@ describe("buildPredictiveRiskPayload", () => {
     expect(payload.dailyBriefing.highRiskWork[0]?.controlsToVerify).toEqual(expect.arrayContaining(["fire watch", "extinguisher"]));
   });
 
+  it("exposes outcome calibration profile and applies matched adjustments to the daily briefing", () => {
+    const payload = buildPredictiveRiskPayload({
+      days: 30,
+      forecast: forecastFixture(),
+      jobsites: [{ id: "j1", name: "North Building", location: "Austin" }],
+      correctiveActions: [],
+      incidents: [
+        {
+          id: "incident-1",
+          title: "Forklift struck-by near pedestrian route",
+          category: "mobile_equipment",
+          severity: "critical",
+          status: "open",
+          created_at: "2026-05-21T12:00:00.000Z",
+          jobsite_id: "j1",
+          prediction_validation_status: "approved",
+          prediction_review_rating: 5,
+        },
+      ],
+      permits: [],
+      jsaActivities: [],
+      scheduleItems: [
+        {
+          id: "schedule-1",
+          title: "Telehandler backing through pedestrian route",
+          jobsite_id: "j1",
+          work_start_date: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+          trade: "Logistics",
+          risk_level: "moderate",
+          is_high_risk: false,
+          hazard_categories: ["mobile_equipment"],
+          required_controls: ["spotter"],
+          status: "planned",
+          supervisor_name: "Supervisor A",
+        },
+      ],
+      observations: [],
+      aiSafetyRecommendations: [],
+      aiSafetyRecommendationEvents: [],
+    });
+
+    expect(payload.calibrationProfile).toEqual(
+      expect.objectContaining({
+        status: "insufficient_data",
+        adjustments: expect.arrayContaining([expect.objectContaining({ type: "missed_high_risk_outcome" })]),
+      })
+    );
+    expect(payload.dailyBriefing.highRiskWork[0]?.drivers).toContain("Calibration outcome feedback");
+    expect(payload.dailyBriefing.whyThisMatters.join(" ")).toContain("Calibration applied");
+  });
+
   it("builds a populated sales demo payload", () => {
     const payload = buildSalesDemoPredictiveRiskPayload(30);
     expect(payload.locations.length).toBeGreaterThan(0);

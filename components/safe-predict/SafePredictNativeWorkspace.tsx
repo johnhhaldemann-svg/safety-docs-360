@@ -119,6 +119,10 @@ type TrainingAssignmentResult = {
   detail: string;
   createdRequirementId?: string | null;
   createdActionId?: string | null;
+  resourceTitle?: string | null;
+  resourceUrl?: string | null;
+  resourceInstructions?: string | null;
+  resourceMissing?: boolean;
 };
 
 type CorrectiveObservationType = "positive" | "negative" | "near_miss";
@@ -2069,6 +2073,21 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
                     <RiskBadge level={assignment.riskLevel} />
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-600">{assignment.detail}</p>
+                  {assignment.resourceUrl ? (
+                    <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-sm">
+                      <p className="font-black text-slate-900">{assignment.resourceTitle ?? assignment.requirementTitle}</p>
+                      {assignment.resourceInstructions ? (
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{assignment.resourceInstructions}</p>
+                      ) : null}
+                      <Link href={assignment.resourceUrl} className="mt-2 inline-flex font-black text-blue-600">
+                        Start training
+                      </Link>
+                    </div>
+                  ) : assignment.resourceMissing ? (
+                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
+                      Add a training resource link to this requirement before assigning it.
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-black">
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{assignment.requirementTitle}</span>
                     <span className="rounded-full bg-white px-3 py-1 text-slate-600">{assignment.action.replace(/_/g, " ")}</span>

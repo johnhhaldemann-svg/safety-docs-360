@@ -45,6 +45,37 @@ export type AiSafetyCalibrationOutcomeRow = {
   trade?: string | null;
   createdAt?: string | null;
   href?: string | null;
+  predictionValidationStatus?: string | null;
+  predictionReviewRating?: number | null;
+  predictionReviewTags?: string[];
+};
+
+export type PredictiveSafetyCalibrationAdjustment = {
+  id: string;
+  type: "validated_positive" | "missed_high_risk_outcome" | "false_positive_softening" | "critical_review_required";
+  hazardKey: string;
+  hazardLabel: string;
+  jobsiteId: string | null;
+  trade: string | null;
+  riskLevel: "high" | "critical";
+  weight: number;
+  reason: string;
+  evidenceRefs: LeadershipEvidenceRef[];
+};
+
+export type PredictiveSafetyCalibrationProfile = {
+  status: "active" | "insufficient_data";
+  confidence: AiSafetyCalibrationConfidence;
+  adjustments: PredictiveSafetyCalibrationAdjustment[];
+  topHazardPatterns: Array<{
+    label: string;
+    count: number;
+    missedHighRiskCount: number;
+    falsePositiveCount: number;
+    validatedPositiveCount: number;
+  }>;
+  missingData: string[];
+  evidenceRefs: LeadershipEvidenceRef[];
 };
 
 export type AiSafetyExecutiveTrendSummary = AiSafetyCalibrationReport["aiExecutiveTrendSummary"];
@@ -275,6 +306,28 @@ function recordText(row: Record<string, unknown>, keys: string[], fallback = "")
   return fallback;
 }
 
+function recordNumber(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function recordStringArray(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+    if (Array.isArray(value)) {
+      return value.map((item) => clean(item as string | number | boolean | null | undefined)).filter(Boolean);
+    }
+    const text = clean(value as string | number | boolean | null | undefined);
+    if (text) return [text];
+  }
+  return [];
+}
+
 function sourceTypeForIncident(row: Record<string, unknown>): AiSafetyCalibrationOutcomeRow["sourceType"] {
   const text = normalize([row.incident_type, row.category, row.title].filter(Boolean).join(" "));
   return text.includes("near") ? "near_miss" : "incident";
@@ -307,6 +360,9 @@ export function buildAiSafetyCalibrationOutcomeRows(input: {
       trade: recordText(row, ["trade", "crew_trade"], null as never),
       createdAt: recordText(row, ["created_at", "closed_at"], null as never),
       href: "/field-id-exchange",
+      predictionValidationStatus: recordText(row, ["prediction_validation_status", "predictionValidationStatus"], null as never),
+      predictionReviewRating: recordNumber(row, ["prediction_review_rating", "predictionReviewRating"]),
+      predictionReviewTags: recordStringArray(row, ["prediction_review_tags", "predictionReviewTags"]),
     })),
     ...incidents.map((row) => ({
       id: recordText(row, ["id"], "incident"),
@@ -320,6 +376,9 @@ export function buildAiSafetyCalibrationOutcomeRows(input: {
       trade: recordText(row, ["trade", "crew_trade"], null as never),
       createdAt: recordText(row, ["created_at", "incident_date"], null as never),
       href: "/incidents",
+      predictionValidationStatus: recordText(row, ["prediction_validation_status", "predictionValidationStatus"], null as never),
+      predictionReviewRating: recordNumber(row, ["prediction_review_rating", "predictionReviewRating"]),
+      predictionReviewTags: recordStringArray(row, ["prediction_review_tags", "predictionReviewTags"]),
     })),
     ...observations.map((row) => ({
       id: recordText(row, ["id"], "observation"),
@@ -333,6 +392,9 @@ export function buildAiSafetyCalibrationOutcomeRows(input: {
       trade: recordText(row, ["trade", "crew_trade"], null as never),
       createdAt: recordText(row, ["date", "created_at"], null as never),
       href: "/field-id-exchange",
+      predictionValidationStatus: recordText(row, ["prediction_validation_status", "predictionValidationStatus"], null as never),
+      predictionReviewRating: recordNumber(row, ["prediction_review_rating", "predictionReviewRating"]),
+      predictionReviewTags: recordStringArray(row, ["prediction_review_tags", "predictionReviewTags"]),
     })),
   ];
 }
@@ -345,6 +407,203 @@ function confidenceFor(params: {
   if (params.totalAiActions >= 5 && params.outcomes >= 5 && params.missingData.length === 0) return "high";
   if (params.totalAiActions >= 2 || params.outcomes >= 2) return "medium";
   return "low";
+}
+
+function normalizedHazardLabel(value: string, fallback: string) {
+  const raw = clean(value) || fallback;
+  return titleCase(raw, fallback);
+}
+
+function hazardLabelForOutcome(row: AiSafetyCalibrationOutcomeRow) {
+  return normalizedHazardLabel(row.hazardCategory || row.category || row.title || row.sourceType, "Outcome");
+}
+
+function hazardLabelForRecommendation(row: AiSafetyCalibrationRecommendationRow) {
+  const action = aiSafetyActionObject(row);
+  return normalizedHazardLabel(
+    clean(action.category as string | null | undefined) ||
+      clean(action.sourceWorkTitle as string | null | undefined) ||
+      clean(row.title),
+    "AI Safety Action"
+  );
+}
+
+function calibrationHazardKey(value: string) {
+  return normalize(value)
+    .split(" ")
+    .filter((token) => token.length >= 4)
+    .slice(0, 5)
+    .join(" ");
+}
+
+function outcomeValidationWeight(row: AiSafetyCalibrationOutcomeRow) {
+  const status = normalize(row.predictionValidationStatus);
+  if (status === "rejected") return 0;
+  const rating = Number(row.predictionReviewRating ?? 0);
+  const statusWeight = status === "approved" ? 1.25 : status === "pending" || !status ? 0.75 : 1;
+  const ratingWeight = rating >= 4 ? 0.25 : rating > 0 && rating <= 2 ? -0.25 : 0;
+  return Math.max(0.25, statusWeight + ratingWeight);
+}
+
+function riskLevelForOutcome(row: AiSafetyCalibrationOutcomeRow): "high" | "critical" {
+  return isCritical(row.severity) || normalize(row.severity).includes("fatal") ? "critical" : "high";
+}
+
+function riskLevelForRecommendation(row: AiSafetyCalibrationRecommendationRow): "high" | "critical" {
+  return isCritical(recommendationRiskLevel(row)) ? "critical" : "high";
+}
+
+function adjustmentWeight(level: "high" | "critical", validationWeight = 1) {
+  return Math.round((level === "critical" ? 5 : 4) * validationWeight * 10) / 10;
+}
+
+function calibrationConfidence(params: {
+  recommendationCount: number;
+  outcomeCount: number;
+  adjustmentCount: number;
+  missingData: string[];
+}): AiSafetyCalibrationConfidence {
+  if (params.recommendationCount >= 5 && params.outcomeCount >= 5 && params.adjustmentCount >= 3 && params.missingData.length === 0) return "high";
+  if (params.recommendationCount >= 2 || params.outcomeCount >= 2 || params.adjustmentCount > 0) return "medium";
+  return "low";
+}
+
+function topHazardPatterns(adjustments: PredictiveSafetyCalibrationAdjustment[]) {
+  const map = new Map<
+    string,
+    {
+      label: string;
+      count: number;
+      missedHighRiskCount: number;
+      falsePositiveCount: number;
+      validatedPositiveCount: number;
+    }
+  >();
+  for (const adjustment of adjustments) {
+    const key = adjustment.hazardKey || adjustment.hazardLabel.toLowerCase();
+    const existing = map.get(key) ?? {
+      label: adjustment.hazardLabel,
+      count: 0,
+      missedHighRiskCount: 0,
+      falsePositiveCount: 0,
+      validatedPositiveCount: 0,
+    };
+    existing.count += 1;
+    if (adjustment.type === "missed_high_risk_outcome") existing.missedHighRiskCount += 1;
+    if (adjustment.type === "false_positive_softening") existing.falsePositiveCount += 1;
+    if (adjustment.type === "validated_positive") existing.validatedPositiveCount += 1;
+    map.set(key, existing);
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 6);
+}
+
+export function buildPredictiveSafetyCalibrationProfile(input: {
+  recommendations?: AiSafetyCalibrationRecommendationRow[];
+  events?: AiSafetyCalibrationEventRow[];
+  outcomes?: AiSafetyCalibrationOutcomeRow[];
+  now?: Date;
+}): PredictiveSafetyCalibrationProfile {
+  const recommendations = (input.recommendations ?? []).filter(
+    (row) => normalize(row.kind) === "ai safety action" || normalize(row.kind) === "ai_safety_action"
+  );
+  const outcomes = (input.outcomes ?? []).filter((row) => normalize(row.predictionValidationStatus) !== "rejected");
+  const highRiskRecommendations = recommendations.filter((row) => isHighRisk(recommendationRiskLevel(row)));
+  const highRiskOutcomes = outcomes.filter((row) => isHighRisk(row.severity) || row.sourceType === "incident" || row.sourceType === "near_miss");
+  const adjustments: PredictiveSafetyCalibrationAdjustment[] = [];
+
+  for (const outcome of highRiskOutcomes) {
+    const match = highRiskRecommendations.find((rec) => matchesRecommendationOutcome(rec, outcome));
+    const outcomeId = clean(outcome.id) || clean(outcome.title) || `${outcome.sourceType}-${adjustments.length}`;
+    const hazardLabel = hazardLabelForOutcome(outcome);
+    const riskLevel = riskLevelForOutcome(outcome);
+    if (match) {
+      adjustments.push({
+        id: `validated-${outcomeId}`,
+        type: "validated_positive",
+        hazardKey: calibrationHazardKey(`${hazardLabel} ${recommendationHazardKey(match)}`),
+        hazardLabel,
+        jobsiteId: clean(outcome.jobsiteId) || recommendationJobsiteId(match) || null,
+        trade: clean(outcome.trade) || recommendationTrade(match) || null,
+        riskLevel,
+        weight: adjustmentWeight(riskLevel, outcomeValidationWeight(outcome)),
+        reason: "A later high-risk outcome matched an AI safety action pattern, so future similar work should preserve or increase review pressure.",
+        evidenceRefs: [evidenceRefForRecommendation(match), evidenceRefForOutcome(outcome)].slice(0, 4),
+      });
+      continue;
+    }
+    adjustments.push({
+      id: `missed-${outcomeId}`,
+      type: "missed_high_risk_outcome",
+      hazardKey: calibrationHazardKey(`${outcome.hazardCategory ?? ""} ${outcome.category ?? ""} ${outcome.title ?? ""}`),
+      hazardLabel,
+      jobsiteId: clean(outcome.jobsiteId) || null,
+      trade: clean(outcome.trade) || null,
+      riskLevel,
+      weight: adjustmentWeight(riskLevel, outcomeValidationWeight(outcome)),
+      reason: "A later high-risk outcome did not match a loaded AI safety action; future similar work should be treated more conservatively.",
+      evidenceRefs: [evidenceRefForOutcome(outcome)],
+    });
+  }
+
+  for (const rec of recommendations) {
+    const status = recommendationWorkflowStatus(rec);
+    if (status !== "dismissed") continue;
+    const riskLevel = riskLevelForRecommendation(rec);
+    const id = clean(rec.id) || clean(rec.title) || `dismissed-${adjustments.length}`;
+    const hazardLabel = hazardLabelForRecommendation(rec);
+    if (riskLevel === "critical") {
+      adjustments.push({
+        id: `critical-review-${id}`,
+        type: "critical_review_required",
+        hazardKey: calibrationHazardKey(`${hazardLabel} ${recommendationHazardKey(rec)}`),
+        hazardLabel,
+        jobsiteId: recommendationJobsiteId(rec) || null,
+        trade: recommendationTrade(rec) || null,
+        riskLevel,
+        weight: adjustmentWeight(riskLevel),
+        reason: "A dismissed critical AI safety action still requires leadership review and cannot be hidden by false-positive logic.",
+        evidenceRefs: [evidenceRefForRecommendation(rec), ...evidenceRefsFromSummary(rec.evidence_summary)].slice(0, 4),
+      });
+      continue;
+    }
+    adjustments.push({
+      id: `false-positive-${id}`,
+      type: "false_positive_softening",
+      hazardKey: calibrationHazardKey(`${hazardLabel} ${recommendationHazardKey(rec)}`),
+      hazardLabel,
+      jobsiteId: recommendationJobsiteId(rec) || null,
+      trade: recommendationTrade(rec) || null,
+      riskLevel,
+      weight: -1,
+      reason: "A similar non-critical AI safety action was dismissed; duplicate non-critical actions should require stronger evidence.",
+      evidenceRefs: [evidenceRefForRecommendation(rec), ...evidenceRefsFromSummary(rec.evidence_summary)].slice(0, 4),
+    });
+  }
+
+  const missingData = [
+    ...(recommendations.length === 0 ? ["No persisted AI safety actions were available for calibration in this window."] : []),
+    ...(outcomes.length === 0 ? ["No later incident, near-miss, observation, or corrective-action outcomes were available for calibration."] : []),
+    ...(input.events && input.events.length === 0 ? ["No recommendation event history was available for calibration timing."] : []),
+  ];
+  const confidence = calibrationConfidence({
+    recommendationCount: recommendations.length,
+    outcomeCount: outcomes.length,
+    adjustmentCount: adjustments.length,
+    missingData,
+  });
+
+  return {
+    status: recommendations.length > 0 && outcomes.length > 0 ? "active" : "insufficient_data",
+    confidence,
+    adjustments: adjustments.slice(0, 24),
+    topHazardPatterns: topHazardPatterns(adjustments),
+    missingData,
+    evidenceRefs: [
+      ...adjustments.flatMap((adjustment) => adjustment.evidenceRefs),
+      ...recommendations.slice(0, 3).map(evidenceRefForRecommendation),
+      ...outcomes.slice(0, 3).map(evidenceRefForOutcome),
+    ].slice(0, 10),
+  };
 }
 
 export function buildAiSafetyCalibrationReport(input: {

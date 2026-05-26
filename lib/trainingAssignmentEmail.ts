@@ -43,6 +43,19 @@ function buildTrainingMatrixUrl() {
   return new URL("/training-matrix", baseUrl).toString();
 }
 
+function buildAbsoluteUrl(value?: string | null) {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    const baseUrl = getBaseUrl();
+    if (!baseUrl || !raw.startsWith("/") || raw.startsWith("//")) return null;
+    return new URL(raw, baseUrl).toString();
+  }
+}
+
 function formatDueDate(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -64,6 +77,10 @@ export async function sendTrainingAssignmentEmail(params: {
   detail: string;
   dueAt?: string | null;
   jobsiteName?: string | null;
+  resourceTitle?: string | null;
+  resourceUrl?: string | null;
+  resourceInstructions?: string | null;
+  assignmentUrl?: string | null;
 }) {
   const resendApiKey = readEnv("RESEND_API_KEY");
   const fromEmail = getTrainingAssignmentFromEmail();
@@ -85,9 +102,17 @@ export async function sendTrainingAssignmentEmail(params: {
   const safeRequirementTitle = escapeHtml(params.requirementTitle || "Assigned training");
   const safeDetail = escapeHtml(params.detail || "A training follow-up has been assigned.");
   const safeJobsiteName = params.jobsiteName ? escapeHtml(params.jobsiteName) : null;
+  const safeResourceTitle = escapeHtml(params.resourceTitle || params.requirementTitle || "Start training");
+  const safeResourceInstructions = params.resourceInstructions
+    ? escapeHtml(params.resourceInstructions)
+    : null;
   const dueDate = formatDueDate(params.dueAt);
   const safeDueDate = dueDate ? escapeHtml(dueDate) : null;
   const safeTrainingMatrixUrl = trainingMatrixUrl ? escapeHtml(trainingMatrixUrl) : null;
+  const trainingResourceUrl = buildAbsoluteUrl(params.resourceUrl);
+  const safeTrainingResourceUrl = trainingResourceUrl ? escapeHtml(trainingResourceUrl) : null;
+  const assignmentUrl = buildAbsoluteUrl(params.assignmentUrl) ?? trainingMatrixUrl;
+  const safeAssignmentUrl = assignmentUrl ? escapeHtml(assignmentUrl) : safeTrainingMatrixUrl;
   const subject = `Training assigned: ${cleanSubject(params.requirementTitle || params.assignmentTitle)}`;
 
   const contextRows = [
@@ -98,19 +123,28 @@ export async function sendTrainingAssignmentEmail(params: {
     .filter(Boolean)
     .join("");
 
-  const actionHtml = safeTrainingMatrixUrl
+  const actionHtml = safeTrainingResourceUrl
     ? `
         <p style="margin:0 0 24px;">
-          <a href="${safeTrainingMatrixUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">
-            Open Training Matrix
+          <a href="${safeTrainingResourceUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">
+            Start Training
           </a>
         </p>
+        ${safeAssignmentUrl ? `<p style="margin:0 0 14px;color:#64748b;font-size:14px;"><a href="${safeAssignmentUrl}" style="color:#0284c7;">Open assignment in SafePredict</a></p>` : ""}
         <p style="margin:0;color:#64748b;font-size:14px;">
-          If the button does not open, use this link:<br />
-          <a href="${safeTrainingMatrixUrl}" style="color:#0284c7;">${safeTrainingMatrixUrl}</a>
+          If the button does not open, use this training link:<br />
+          <a href="${safeTrainingResourceUrl}" style="color:#0284c7;">${safeTrainingResourceUrl}</a>
         </p>
       `
-    : `<p style="margin:0;color:#64748b;font-size:14px;">Contact your supervisor or safety team for the next step.</p>`;
+    : safeTrainingMatrixUrl
+      ? `
+          <p style="margin:0 0 24px;">
+            <a href="${safeTrainingMatrixUrl}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">
+              Open Training Matrix
+            </a>
+          </p>
+        `
+      : `<p style="margin:0;color:#64748b;font-size:14px;">Contact your supervisor or safety team for the next step.</p>`;
 
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;padding:24px;">
@@ -122,6 +156,10 @@ export async function sendTrainingAssignmentEmail(params: {
         </p>
         <div style="border:1px solid #e2e8f0;border-radius:18px;padding:18px 20px;margin:0 0 24px;background:#f8fafc;">
           ${contextRows}
+        </div>
+        <div style="border:1px solid #bae6fd;border-radius:18px;padding:18px 20px;margin:0 0 24px;background:#f0f9ff;">
+          <p style="margin:0 0 8px;"><strong>Resource:</strong> ${safeResourceTitle}</p>
+          ${safeResourceInstructions ? `<p style="margin:0;color:#475569;">${safeResourceInstructions}</p>` : ""}
         </div>
         <p style="margin:0 0 24px;color:#475569;">${safeDetail}</p>
         ${actionHtml}
@@ -137,8 +175,14 @@ export async function sendTrainingAssignmentEmail(params: {
     `Training: ${params.requirementTitle || "Assigned training"}`,
     dueDate ? `Due: ${dueDate}` : null,
     params.jobsiteName ? `Jobsite: ${params.jobsiteName}` : null,
+    `Resource: ${params.resourceTitle || params.requirementTitle || "Start training"}`,
+    params.resourceInstructions ? `Instructions: ${params.resourceInstructions}` : null,
     params.detail || "A training follow-up has been assigned.",
-    trainingMatrixUrl || "Contact your supervisor or safety team for the next step.",
+    trainingResourceUrl ? `Start training: ${trainingResourceUrl}` : null,
+    assignmentUrl ? `Open assignment: ${assignmentUrl}` : trainingMatrixUrl || null,
+    !trainingResourceUrl && !assignmentUrl && !trainingMatrixUrl
+      ? "Contact your supervisor or safety team for the next step."
+      : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -175,5 +219,7 @@ export async function sendTrainingAssignmentEmail(params: {
     status: "sent" as const,
     providerMessageId: payload?.id ?? null,
     trainingMatrixUrl,
+    trainingResourceUrl,
+    assignmentUrl,
   };
 }

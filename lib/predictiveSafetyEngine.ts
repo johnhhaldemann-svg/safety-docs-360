@@ -22,6 +22,10 @@ import type {
   PredictiveRiskPermitRow,
   PredictiveRiskScheduleItemRow,
 } from "@/lib/predictiveRisk";
+import type {
+  PredictiveSafetyCalibrationAdjustment,
+  PredictiveSafetyCalibrationProfile,
+} from "@/lib/aiSafetyCalibration";
 
 export type PredictiveSafetyEvidenceRef = SafetyAiEvidenceRef;
 
@@ -152,6 +156,7 @@ export type PredictiveSafetyEngineInput = {
   weatherAlerts?: PredictiveSafetyWeatherAlertRow[];
   memoryItems?: PredictiveSafetyMemoryItemRow[];
   safetyAiAssessment?: SafetyAiAssessment;
+  calibrationProfile?: PredictiveSafetyCalibrationProfile;
   now?: Date;
 };
 
@@ -413,21 +418,59 @@ function blocker(input: {
   };
 }
 
-function workSignals(work: WorkCandidate, blockers: PredictiveSafetyReadinessBlocker[], weatherAlerts: PredictiveSafetyWeatherAlertRow[]): SafetyAiSignal[] {
+function calibrationEvidenceRef(ref: PredictiveSafetyCalibrationAdjustment["evidenceRefs"][number]): PredictiveSafetyEvidenceRef {
+  return {
+    id: ref.id,
+    sourceModule: ref.sourceModule,
+    sourceId: clean(ref.sourceId) || ref.id,
+    label: ref.label,
+    href: ref.href ?? null,
+    detail: ref.detail ?? null,
+  };
+}
+
+function calibrationMatchesWork(adjustment: PredictiveSafetyCalibrationAdjustment, work: WorkCandidate) {
+  if (adjustment.jobsiteId && work.jobsiteId && adjustment.jobsiteId !== work.jobsiteId) return false;
+  if (adjustment.trade && work.trade && normalizeText(adjustment.trade) !== normalizeText(work.trade)) {
+    const tradeTokens = normalizeText(adjustment.trade).split(/\s+/).filter((token) => token.length >= 4);
+    const workTrade = normalizeText(work.trade);
+    if (tradeTokens.length > 0 && !tradeTokens.some((token) => workTrade.includes(token))) return false;
+  }
+  const workText = normalizeText(`${work.title} ${work.hazard ?? ""} ${work.trade ?? ""} ${work.area ?? ""} ${work.permitTriggers.join(" ")}`);
+  const tokens = normalizeText(`${adjustment.hazardKey} ${adjustment.hazardLabel}`)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+  return tokens.length === 0 || tokens.some((token) => workText.includes(token));
+}
+
+function riskLevelFromCalibration(adjustments: PredictiveSafetyCalibrationAdjustment[], fallback: SafetyRiskLevel): SafetyRiskLevel {
+  return adjustments.reduce<SafetyRiskLevel>((level, adjustment) => {
+    if (adjustment.type === "false_positive_softening") return level;
+    return riskMax(level, adjustment.riskLevel);
+  }, fallback);
+}
+
+function workSignals(
+  work: WorkCandidate,
+  blockers: PredictiveSafetyReadinessBlocker[],
+  weatherAlerts: PredictiveSafetyWeatherAlertRow[],
+  calibrationAdjustments: PredictiveSafetyCalibrationAdjustment[],
+): SafetyAiSignal[] {
   const risk = riskFromText(work.riskHint, work.highRisk ? "high" : "moderate");
+  const calibratedRisk = riskLevelFromCalibration(calibrationAdjustments, risk);
   return [
     {
       id: work.id,
       type: "high_risk_work",
       label: work.title,
       hazard: work.hazard,
-      severity: risk,
+      severity: calibratedRisk,
       createdAt: work.date,
       jobsiteId: work.jobsiteId,
       trade: work.trade,
       task: work.title,
       crewSize: work.crewSize,
-      highRisk: work.highRisk,
+      highRisk: work.highRisk || calibrationAdjustments.some((item) => item.type !== "false_positive_softening"),
       fatalityOrCatastrophicPotential: work.fatalityOrCatastrophicPotential,
       missingRequiredPermit: blockers.some((item) => item.type === "permit"),
       missingRequiredTraining: blockers.some((item) => item.type === "training"),
@@ -460,6 +503,22 @@ function workSignals(work: WorkCandidate, blockers: PredictiveSafetyReadinessBlo
         jobsiteId: alert.jobsite_id ?? work.jobsiteId,
         highRisk: true,
       })),
+    ...calibrationAdjustments
+      .filter((adjustment) => adjustment.type !== "false_positive_softening")
+      .map((adjustment): SafetyAiSignal => ({
+        id: adjustment.id,
+        type: "calibration_feedback",
+        label: adjustment.hazardLabel,
+        hazard: adjustment.hazardLabel,
+        severity: adjustment.riskLevel,
+        likelihood: Math.max(4, Math.min(5, Math.round(adjustment.weight))),
+        createdAt: null,
+        jobsiteId: adjustment.jobsiteId ?? work.jobsiteId,
+        trade: adjustment.trade ?? work.trade,
+        task: work.title,
+        highRisk: true,
+        fatalityOrCatastrophicPotential: adjustment.riskLevel === "critical",
+      })),
   ];
 }
 
@@ -475,6 +534,7 @@ function buildWorkItem(params: {
   observations: BehaviorRiskObservationRow[];
   weatherAlerts: PredictiveSafetyWeatherAlertRow[];
   memoryItems: PredictiveSafetyMemoryItemRow[];
+  calibrationProfile?: PredictiveSafetyCalibrationProfile;
 }): PredictiveSafetyWorkItem | null {
   const workEvidence = evidenceRef({
     sourceModule: params.work.sourceModule,
@@ -484,6 +544,9 @@ function buildWorkItem(params: {
     detail: `${titleCaseLabel(params.work.riskHint, "Risk")} work${params.work.date ? ` on ${params.work.date}` : ""}`,
   });
   const blockers: PredictiveSafetyReadinessBlocker[] = [];
+  const matchingCalibrationAdjustments = (params.calibrationProfile?.adjustments ?? []).filter((adjustment) =>
+    calibrationMatchesWork(adjustment, params.work)
+  );
 
   if (params.work.permitTriggers.length > 0 && !hasActivePermit(params.permits, params.work.permitTriggers, params.work.jobsiteId)) {
     blockers.push(
@@ -645,6 +708,23 @@ function buildWorkItem(params: {
     );
   }
 
+  for (const adjustment of matchingCalibrationAdjustments
+    .filter((item) => item.type === "missed_high_risk_outcome" || item.type === "critical_review_required")
+    .slice(0, 3)) {
+    blockers.push(
+      blocker({
+        type: "data",
+        severity: adjustment.riskLevel,
+        label:
+          adjustment.type === "critical_review_required"
+            ? "Calibration keeps dismissed critical work under review"
+            : "Calibration found a missed high-risk outcome pattern",
+        detail: adjustment.reason,
+        evidenceRefs: adjustment.evidenceRefs.slice(0, 4).map(calibrationEvidenceRef),
+      })
+    );
+  }
+
   const memoryControlEntries = params.memoryItems
     .map((item) => ({ item, text: memoryControlText(item) }))
     .filter((entry): entry is { item: PredictiveSafetyMemoryItemRow; text: string } => Boolean(entry.text));
@@ -659,7 +739,7 @@ function buildWorkItem(params: {
     })
   );
   const controlsToVerify = unique([...params.work.controls, ...memoryControls]);
-  const signals = workSignals(params.work, blockers, params.weatherAlerts);
+  const signals = workSignals(params.work, blockers, params.weatherAlerts, matchingCalibrationAdjustments);
   const assessment = assessSafetyRisk({
     jobsiteId: params.work.jobsiteId,
     jobsiteName: jobsiteName(params.jobsites, params.work.jobsiteId),
@@ -680,6 +760,7 @@ function buildWorkItem(params: {
     missingData: [
       ...(params.trainingGaps.length === 0 ? ["training readiness"] : []),
       ...(params.permits.length === 0 && params.work.permitTriggers.length > 0 ? ["active permits"] : []),
+      ...(params.calibrationProfile?.missingData ?? []),
     ],
     imminentDanger: blockers.some((item) => item.severity === "critical" && (item.type === "weather" || item.type === "permit")),
     fatalityOrCatastrophicPotential: params.work.fatalityOrCatastrophicPotential || blockers.some((item) => item.severity === "critical"),
@@ -899,6 +980,7 @@ export function buildPredictiveSafetyEngineBriefing(input: PredictiveSafetyEngin
         observations: input.observations ?? [],
         weatherAlerts: input.weatherAlerts ?? [],
         memoryItems: input.memoryItems ?? [],
+        calibrationProfile: input.calibrationProfile,
       })
     )
     .filter((item): item is PredictiveSafetyWorkItem => Boolean(item))
@@ -915,6 +997,7 @@ export function buildPredictiveSafetyEngineBriefing(input: PredictiveSafetyEngin
   const controlsToVerify = buildControls(workItems);
   const attentionTargets = buildAttentionTargets(workItems);
   const missing = missingData(input, workItems);
+  const calibrationAdjustmentCount = input.calibrationProfile?.adjustments.length ?? 0;
   const confidence = confidenceFromCoverage(input, workItems);
   const topWork = workItems[0];
   const escalationRequired =
@@ -946,6 +1029,9 @@ export function buildPredictiveSafetyEngineBriefing(input: PredictiveSafetyEngin
           ? ["Critical or high-consequence signals require human review and possible stop-work evaluation before work proceeds."]
           : []),
         ...(missing.length > 0 ? ["The engine is conservative when source data is incomplete; missing records reduce confidence instead of proving low risk."] : []),
+        ...(calibrationAdjustmentCount > 0
+          ? [`Calibration applied ${calibrationAdjustmentCount} outcome or feedback adjustment${calibrationAdjustmentCount === 1 ? "" : "s"} to keep similar future work conservative.`]
+          : []),
       ],
       6
     ),

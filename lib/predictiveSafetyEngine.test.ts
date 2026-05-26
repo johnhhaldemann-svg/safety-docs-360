@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPredictiveSafetyEngineBriefing } from "@/lib/predictiveSafetyEngine";
+import { buildPredictiveSafetyCalibrationProfile } from "@/lib/aiSafetyCalibration";
 
 const NOW = new Date("2026-05-22T12:00:00.000Z");
 const TODAY = "2026-05-22";
@@ -295,5 +296,105 @@ describe("buildPredictiveSafetyEngineBriefing", () => {
     expect(briefing.confidence).toBe("low");
     expect(briefing.headline).toContain("review missing data");
     expect(briefing.missingData).toContain("Sparse data: do not interpret this as low risk by default.");
+  });
+
+  it("uses missed high-risk outcome calibration to raise similar planned work", () => {
+    const calibrationProfile = buildPredictiveSafetyCalibrationProfile({
+      recommendations: [],
+      outcomes: [
+        {
+          id: "missed-1",
+          sourceType: "incident",
+          title: "Forklift struck-by near pedestrian route",
+          hazardCategory: "mobile_equipment",
+          severity: "critical",
+          jobsiteId: "j1",
+          trade: "Logistics",
+          createdAt: "2026-05-21T12:00:00.000Z",
+          predictionValidationStatus: "approved",
+          predictionReviewRating: 5,
+        },
+      ],
+    });
+    const briefing = buildPredictiveSafetyEngineBriefing(
+      baseInput({
+        calibrationProfile,
+        scheduleItems: [
+          {
+            id: "s1",
+            jobsite_id: "j1",
+            title: "Telehandler backing through pedestrian access route",
+            work_start_date: TODAY,
+            trade: "Logistics",
+            risk_level: "moderate",
+            is_high_risk: false,
+            hazard_categories: ["mobile_equipment"],
+            required_controls: ["spotter"],
+            supervisor_name: "Supervisor A",
+          },
+        ],
+      })
+    );
+
+    expect(briefing.highRiskWork[0]).toEqual(
+      expect.objectContaining({
+        title: "Telehandler backing through pedestrian access route",
+        riskLevel: "critical",
+      })
+    );
+    expect(briefing.highRiskWork[0]?.drivers).toContain("Calibration outcome feedback");
+    expect(briefing.readinessBlockers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "data", label: "Calibration found a missed high-risk outcome pattern" })])
+    );
+  });
+
+  it("does not downgrade dismissed critical calibration feedback", () => {
+    const calibrationProfile = buildPredictiveSafetyCalibrationProfile({
+      recommendations: [
+        {
+          id: "rec-critical",
+          kind: "ai_safety_action",
+          title: "Verify critical crane lift controls",
+          status: "dismissed",
+          priority: "critical",
+          created_at: "2026-05-21T12:00:00.000Z",
+          jobsite_id: "j1",
+          evidence_summary: {
+            aiSafetyAction: {
+              category: "crane_rigging",
+              sourceWorkTitle: "Critical crane lift",
+              jobsiteId: "j1",
+              trade: "Steel",
+            },
+          },
+        },
+      ],
+      outcomes: [{ id: "obs-1", sourceType: "observation", title: "General observation", severity: "low", jobsiteId: "j1", createdAt: "2026-05-22T12:00:00.000Z" }],
+    });
+    const briefing = buildPredictiveSafetyEngineBriefing(
+      baseInput({
+        calibrationProfile,
+        scheduleItems: [
+          {
+            id: "lift-1",
+            jobsite_id: "j1",
+            title: "Critical crane lift",
+            work_start_date: TODAY,
+            trade: "Steel",
+            risk_level: "high",
+            is_high_risk: true,
+            hazard_categories: ["crane_rigging"],
+            required_controls: ["lift plan"],
+            supervisor_name: "Supervisor A",
+          },
+        ],
+      })
+    );
+
+    expect(briefing.highRiskWork[0]?.riskLevel).toBe("critical");
+    expect(briefing.highRiskWork[0]?.humanApprovalRequired).toBe(true);
+    expect(briefing.readinessBlockers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: "Calibration keeps dismissed critical work under review" })])
+    );
   });
 });

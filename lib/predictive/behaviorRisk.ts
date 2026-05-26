@@ -113,6 +113,9 @@ export type BehaviorRiskCorrectiveActionRow = {
   status?: string | null;
   due_at?: string | null;
   created_at?: string | null;
+  prediction_validation_status?: string | null;
+  prediction_review_rating?: number | null;
+  prediction_review_tags?: string[] | null;
 };
 
 export type BehaviorRiskIncidentRow = {
@@ -125,6 +128,9 @@ export type BehaviorRiskIncidentRow = {
   status?: string | null;
   created_at?: string | null;
   occurred_at?: string | null;
+  prediction_validation_status?: string | null;
+  prediction_review_rating?: number | null;
+  prediction_review_tags?: string[] | null;
 };
 
 export type BehaviorRiskObservationRow = {
@@ -141,6 +147,9 @@ export type BehaviorRiskObservationRow = {
   status?: string | null;
   observation_type?: string | null;
   created_at?: string | null;
+  prediction_validation_status?: string | null;
+  prediction_review_rating?: number | null;
+  prediction_review_tags?: string[] | null;
 };
 
 export type BehaviorRiskTrainingGapRow = {

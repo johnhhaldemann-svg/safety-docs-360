@@ -47,6 +47,7 @@ export type SafetySignalType =
   | "observation"
   | "inspection_failure"
   | "corrective_action"
+  | "calibration_feedback"
   | "training_gap"
   | "permit_gap"
   | "high_risk_work"

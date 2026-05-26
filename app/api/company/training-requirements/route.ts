@@ -14,6 +14,7 @@ import {
   isMissingApplyColumnsError,
   isMissingGeneratedColumnsError,
   isMissingRenewalMonthsError,
+  isMissingTrainingResourceColumnsError,
   isMissingTaskScopeColumnsError,
   selectReturnBasicApply,
   selectReturnBasicApplyNoRenewal,
@@ -26,6 +27,7 @@ import {
   TRAINING_REQUIREMENTS_SCHEMA_WARNING,
   type TrainingRequirementDbRow,
 } from "@/lib/companyTrainingRequirementsDb";
+import { validateTrainingRequirementResource } from "@/lib/trainingRequirementResources";
 import { normalizeRenewalMonths } from "@/lib/trainingRequirementRenewal";
 import { DEFAULT_MATCH_FIELDS } from "@/lib/trainingMatrix";
 
@@ -87,6 +89,10 @@ function toRequirementResponse(row: RequirementRow) {
     generatedSourceType: row.generated_source_type ?? null,
     generatedSourceDocumentId: row.generated_source_document_id ?? null,
     generatedSourceOperationKey: row.generated_source_operation_key ?? null,
+    trainingDeliveryType: row.training_delivery_type ?? null,
+    trainingResourceTitle: row.training_resource_title ?? null,
+    trainingResourceUrl: row.training_resource_url ?? null,
+    trainingResourceInstructions: row.training_resource_instructions ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -225,6 +231,18 @@ export async function POST(request: Request) {
 
   const nowIso = new Date().toISOString();
   const renewalMonths = normalizeRenewalMonths(body?.renewalMonths, "create");
+  const resourceValidation = validateTrainingRequirementResource({
+    deliveryType: body?.trainingDeliveryType,
+    resourceTitle: body?.trainingResourceTitle,
+    resourceUrl: body?.trainingResourceUrl,
+    resourceInstructions: body?.trainingResourceInstructions,
+    fallbackTitle: title,
+    requireResource: true,
+  });
+  if (resourceValidation.error) {
+    return NextResponse.json({ error: resourceValidation.error }, { status: 400 });
+  }
+  const resource = resourceValidation.resource;
 
   const baseInsert: Record<string, unknown> = {
     company_id: companyScope.companyId,
@@ -236,6 +254,12 @@ export async function POST(request: Request) {
     updated_at: nowIso,
     created_by: auth.user.id,
     updated_by: auth.user.id,
+  };
+  const resourceInsert: Record<string, unknown> = {
+    training_delivery_type: resource.trainingDeliveryType,
+    training_resource_title: resource.trainingResourceTitle,
+    training_resource_url: resource.trainingResourceUrl,
+    training_resource_instructions: resource.trainingResourceInstructions,
   };
 
   const attempts: Array<{
@@ -254,6 +278,7 @@ export async function POST(request: Request) {
         apply_task_codes: applyTaskCodes,
         renewal_months: renewalMonths,
         is_generated: false,
+        ...resourceInsert,
       },
       select: selectReturnFull(),
       applyColumnsAvailable: true,
@@ -268,6 +293,7 @@ export async function POST(request: Request) {
         apply_sub_trades: applySubTrades,
         apply_task_codes: applyTaskCodes,
         is_generated: false,
+        ...resourceInsert,
       },
       select: selectReturnFullNoRenewal(),
       applyColumnsAvailable: true,
@@ -282,6 +308,7 @@ export async function POST(request: Request) {
         apply_sub_trades: applySubTrades,
         apply_task_codes: applyTaskCodes,
         renewal_months: renewalMonths,
+        ...resourceInsert,
       },
       select: selectReturnScopeNoGenerated(),
       applyColumnsAvailable: true,
@@ -295,6 +322,7 @@ export async function POST(request: Request) {
         apply_positions: applyPositions,
         apply_sub_trades: applySubTrades,
         apply_task_codes: applyTaskCodes,
+        ...resourceInsert,
       },
       select: selectReturnScopeNoGeneratedNoRenewal(),
       applyColumnsAvailable: true,
@@ -307,6 +335,7 @@ export async function POST(request: Request) {
         apply_trades: applyTrades,
         apply_positions: applyPositions,
         renewal_months: renewalMonths,
+        ...resourceInsert,
       },
       select: selectReturnBasicApply(),
       applyColumnsAvailable: true,
@@ -318,6 +347,7 @@ export async function POST(request: Request) {
         ...baseInsert,
         apply_trades: applyTrades,
         apply_positions: applyPositions,
+        ...resourceInsert,
       },
       select: selectReturnBasicApplyNoRenewal(),
       applyColumnsAvailable: true,
@@ -328,6 +358,7 @@ export async function POST(request: Request) {
       payload: {
         ...baseInsert,
         renewal_months: renewalMonths,
+        ...resourceInsert,
       },
       select: selectReturnLegacyWithRenewal(),
       applyColumnsAvailable: false,
@@ -335,7 +366,7 @@ export async function POST(request: Request) {
       generatedColumnsAvailable: false,
     },
     {
-      payload: baseInsert,
+      payload: { ...baseInsert, ...resourceInsert },
       select: selectReturnLegacy(),
       applyColumnsAvailable: false,
       taskScopeColumnsAvailable: false,
@@ -371,7 +402,8 @@ export async function POST(request: Request) {
       isMissingApplyColumnsError(createdRes.error) ||
       isMissingTaskScopeColumnsError(createdRes.error) ||
       isMissingGeneratedColumnsError(createdRes.error) ||
-      isMissingRenewalMonthsError(createdRes.error);
+      isMissingRenewalMonthsError(createdRes.error) ||
+      isMissingTrainingResourceColumnsError(createdRes.error);
 
     if (!missingKnownColumns) {
       return NextResponse.json({ error: lastError }, { status: 500 });
