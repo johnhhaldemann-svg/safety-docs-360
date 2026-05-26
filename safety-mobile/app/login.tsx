@@ -29,7 +29,7 @@ export default function LoginScreen() {
   return (
     <Screen
       title="Sign In"
-      subtitle="Use your existing Safety360 Docs company account."
+      subtitle="Use your existing SafePredict company account."
       footer={
         <View style={styles.footerActions}>
           <Button onPress={submit} disabled={loading}>
@@ -38,7 +38,7 @@ export default function LoginScreen() {
         </View>
       }
     >
-      <AppCard title="Company Field Access" eyebrow="Safety360 Field">
+      <AppCard title="Company Field Access" eyebrow="SafePredict Field">
         <Field
           label="Email"
           value={email}

@@ -1,6 +1,6 @@
 /**
  * Writes an offline demo reference pack next to the repo folder (Desktop by default):
- *   ../safety360_offline_demo_pack/
+ *   ../safepredict_offline_demo_pack/
  *
  * Aligned with lib/demoWorkspace.ts (Summit Ridge Constructors, North Tower).
  * Usage: node scripts/write-offline-demo-pack.mjs [optional-output-dir]
@@ -13,7 +13,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, "..");
-const defaultOut = path.join(repoRoot, "..", "safety360_offline_demo_pack");
+const defaultOut = path.join(repoRoot, "..", "safepredict_offline_demo_pack");
 const outDir = path.resolve(process.argv[2] || defaultOut);
 
 function p(text, opts = {}) {
@@ -114,7 +114,7 @@ function buildCsepDoc() {
 
           h1("7. Document control"),
           p(
-            "This issued CSEP is a static demo artifact for SafetyDocs360 walkthroughs. Live projects should replace placeholders with GC-approved versions and controlled revisions."
+            "This issued CSEP is a static demo artifact for SafePredict walkthroughs. Live projects should replace placeholders with GC-approved versions and controlled revisions."
           ),
         ],
       },
@@ -183,7 +183,7 @@ function buildPshsepDoc() {
 
           h1("8. Document control"),
           p(
-            "Issued for SafetyDocs360 offline demonstrations only. Production sites must maintain controlled registers, transmittals, and revision history per contract."
+            "Issued for SafePredict offline demonstrations only. Production sites must maintain controlled registers, transmittals, and revision history per contract."
           ),
         ],
       },
@@ -201,7 +201,7 @@ const snapshot = {
       team_key: "summit-ridge",
       address: "4100 Industrial Way, Austin, TX 78701",
       primary_contact: "Jordan Lee",
-      primary_email: "demo.20260425@safety360docs.local",
+      primary_email: "demo.20260425@SafePredict.local",
     },
     note_PHSEP_vs_PSHSEP:
       "The product labels the site plan as PSHSEP (Project/Site HSEP). Some customers say PHSEP or PESHEP; formatSafetyBlueprintDocumentType maps those to the same Site Safety Plan.",
@@ -266,7 +266,7 @@ async function main() {
     "utf8"
   );
 
-  const readme = `# SafetyDocs360 — offline demo pack
+  const readme = `# SafePredict — offline demo pack
 
 This folder sits **next to** the \`safety_docs_360\` repository so you can hand off a USB or zip without copying the whole app.
 
@@ -294,7 +294,7 @@ node scripts/write-offline-demo-pack.mjs
 Optional custom output directory:
 
 \`\`\`bash
-node scripts/write-offline-demo-pack.mjs "D:/handouts/safety360_offline_demo_pack"
+node scripts/write-offline-demo-pack.mjs "D:/handouts/safepredict_offline_demo_pack"
 \`\`\`
 
 ---

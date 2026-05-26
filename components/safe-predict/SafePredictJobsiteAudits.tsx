@@ -14,9 +14,11 @@ import {
   type FieldAuditStatusMap,
 } from "@/lib/fieldAudits/normalize";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 const supabase = getSupabaseBrowserClient();
-const DRAFT_KEY = "safety360docs:safe-predict-jobsite-audit-draft:v1";
+const DRAFT_KEY = "safepredict:jobsite-audit-draft:v1";
+const LEGACY_DRAFT_KEYS = ["safety360docs:safe-predict-jobsite-audit-draft:v1"];
 
 type Jobsite = {
   id: string;
@@ -107,7 +109,9 @@ function emptyDraft(): Draft {
 function loadDraft(): Draft {
   if (typeof window === "undefined") return emptyDraft();
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(DRAFT_KEY) || "null") as Partial<Draft> | null;
+    const parsed = JSON.parse(
+      getWithLegacyStorageFallback(window.localStorage, DRAFT_KEY, LEGACY_DRAFT_KEYS) || "null"
+    ) as Partial<Draft> | null;
     const fallback = emptyDraft();
     if (!parsed || typeof parsed !== "object") return fallback;
     return {

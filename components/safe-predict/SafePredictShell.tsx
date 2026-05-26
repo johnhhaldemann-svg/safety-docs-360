@@ -31,6 +31,7 @@ import { useSafePredictData } from "@/components/safe-predict/SafePredictDataPro
 import { canViewSafePredictPlatformActions } from "@/lib/safePredictPlatformActions";
 import { summarizeSafePredictDataset } from "@/lib/safePredictData";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { APP_BRAND } from "@/lib/appBrand";
 
 type NavChild = {
   href: string;
@@ -202,8 +203,8 @@ function SafePredictLockup({
   return (
     <span className={cx("relative block overflow-hidden rounded-lg bg-white", className)}>
       <Image
-        src="/brand/safety360docs-reliance-lockup.svg"
-        alt="Safety360Docs by Reliance EHS"
+        src="/brand/safepredict-lockup.svg"
+        alt={APP_BRAND.productName}
         fill
         priority
         sizes={compact ? "176px" : "212px"}
@@ -426,7 +427,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#f7faff] text-[#0f172a]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[252px] flex-col bg-[#061d35] text-white shadow-[18px_0_40px_rgba(5,24,44,0.16)] lg:flex">
         <div className="px-5 pb-4 pt-5">
-          <Link href="/safe-predict" className="block" aria-label="Safety360Docs home">
+          <Link href="/safe-predict" className="block" aria-label={`${APP_BRAND.productName} home`}>
             <SafePredictLockup
               className="h-[74px] w-full border border-blue-100/70 shadow-[0_12px_24px_rgba(5,24,44,0.24)]"
             />
@@ -495,7 +496,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 bg-slate-950/50 lg:hidden" role="dialog" aria-modal="true">
           <div className="flex h-full w-[290px] max-w-[82vw] flex-col bg-[#061d35] text-white shadow-2xl">
             <div className="flex items-center justify-between px-5 py-5">
-              <Link href="/safe-predict" onClick={() => setMobileMenuOpen(false)} className="block" aria-label="Safety360Docs home">
+              <Link href="/safe-predict" onClick={() => setMobileMenuOpen(false)} className="block" aria-label={`${APP_BRAND.productName} home`}>
                 <SafePredictLockup
                   compact
                   className="h-12 w-[176px] border border-blue-100/70 shadow-[0_8px_18px_rgba(5,24,44,0.2)]"
@@ -541,7 +542,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <Link href="/safe-predict" className="block lg:hidden" aria-label="Safety360Docs home">
+              <Link href="/safe-predict" className="block lg:hidden" aria-label={`${APP_BRAND.productName} home`}>
                 <SafePredictLockup
                   compact
                   className="h-11 w-[180px] border border-slate-200 shadow-sm"

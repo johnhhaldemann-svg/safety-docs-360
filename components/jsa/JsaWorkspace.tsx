@@ -23,10 +23,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryLessonPrompt } from "@/components/company-ai/CompanyMemoryLessonPrompt";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 const supabase = getSupabaseBrowserClient();
 
-const OVERLAY_KEY = "safety360docs:jsa-overlay:v1";
+const OVERLAY_KEY = "safepredict:jsa-overlay:v1";
+const LEGACY_OVERLAY_KEYS = ["safety360docs:jsa-overlay:v1"];
 
 type JsaRecordRow = {
   id: string;
@@ -107,7 +109,7 @@ const RISK_LEVELS = ["low", "medium", "high", "critical"] as const;
 function readAllOverlays(): Record<string, JsaOverlay> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(OVERLAY_KEY);
+    const raw = getWithLegacyStorageFallback(window.localStorage, OVERLAY_KEY, LEGACY_OVERLAY_KEYS);
     if (!raw) return {};
     const data = JSON.parse(raw) as Record<string, unknown>;
     return typeof data === "object" && data !== null ? (data as Record<string, JsaOverlay>) : {};

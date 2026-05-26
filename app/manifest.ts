@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_BRAND, productSentence } from "@/lib/appBrand";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SafePredict by Safety360Docs",
-    short_name: "SafePredict",
-    description: "SafePredict by Safety360Docs: safety operations for risk, compliance, documentation, and field execution.",
+    name: APP_BRAND.productName,
+    short_name: APP_BRAND.shortName,
+    description: productSentence(APP_BRAND.productName),
     start_url: "/",
     display: "standalone",
     background_color: "#0f172a",

@@ -2295,7 +2295,7 @@ function compactSentenceRun(values: string[], fallback: string[] = [], limit = 3
   return compactListForExport(values, fallback, limit).join(" ");
 }
 
-const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safety360docs-logo-crop.png"] as const;
+const DEFAULT_CSEP_COVER_LOGO_RELATIVE = ["public", "brand", "safepredict-logo-crop.png"] as const;
 
 function readDefaultCoverLogoFile(): CsepRenderModel["coverLogo"] {
   try {

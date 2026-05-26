@@ -23,7 +23,7 @@ function showStartupFailure(message) {
     `Packaged app: ${app.isPackaged ? "yes" : "no"}`,
     `Main executable:\n${process.execPath}`,
     "",
-    "Tip: Press Win+R, paste %APPDATA%\\SafetyDocs360 Offline Demo and Enter.",
+    "Tip: Press Win+R, paste %APPDATA%\\SafePredict Offline Demo and Enter.",
   ].join("\n");
 
   try {
@@ -36,7 +36,7 @@ function showStartupFailure(message) {
   try {
     const idx = dialog.showMessageBoxSync({
       type: "error",
-      title: "SafetyDocs360 Offline Demo",
+      title: "SafePredict Offline Demo",
       message: "The offline demo could not start.",
       detail,
       buttons: ["Open user data folder", "Close"],

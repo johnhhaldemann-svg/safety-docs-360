@@ -1,5 +1,5 @@
 {
-  "name": "safety_docs_360",
+  "name": "safepredict",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.cjs",
@@ -98,8 +98,8 @@
     "vitest": "^4.1.2"
   },
   "build": {
-    "appId": "com.safety360.docs.offline",
-    "productName": "SafetyDocs360 Offline Demo",
+    "appId": "com.safepredict.offline",
+    "productName": "SafePredict Offline Demo",
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
@@ -116,7 +116,7 @@
     "directories": {
       "output": "dist-electron-out"
     },
-    "artifactName": "SafetyDocs360-Offline-Demo-Setup-${version}.${ext}",
+    "artifactName": "SafePredict-Offline-Demo-Setup-${version}.${ext}",
     "win": {
       "signAndEditExecutable": false,
       "target": "nsis"

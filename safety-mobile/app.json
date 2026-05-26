@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Safety360 Field",
-    "slug": "safety360docs",
+    "name": "SafePredict Field",
+    "slug": "safepredict-field",
     "version": "1.0.0",
-    "description": "Field safety operations companion for Safety360 Docs company users.",
+    "description": "Field safety operations companion for SafePredict company users.",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "safety360field",
+    "scheme": "safepredictfield",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -20,9 +20,9 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Safety360 Field uses the camera to attach field evidence photos to JSAs, audits, and field reports.",
-        "NSPhotoLibraryUsageDescription": "Safety360 Field can attach existing photos as evidence for field safety records.",
-        "NSLocationWhenInUseUsageDescription": "Safety360 Field may use location to support jobsite context for field safety records."
+        "NSCameraUsageDescription": "SafePredict Field uses the camera to attach field evidence photos to JSAs, audits, and field reports.",
+        "NSPhotoLibraryUsageDescription": "SafePredict Field can attach existing photos as evidence for field safety records.",
+        "NSLocationWhenInUseUsageDescription": "SafePredict Field may use location to support jobsite context for field safety records."
       }
     },
     "android": {

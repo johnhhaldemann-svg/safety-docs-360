@@ -1,5 +1,6 @@
 import { serverLog } from "@/lib/serverLog";
 import type { WeatherAlert } from "@/lib/weather/alertFiltering";
+import { defaultNwsUserAgent } from "@/lib/appBrand";
 
 export type NwsPointMetadata = {
   gridId: string | null;
@@ -40,7 +41,7 @@ function getNwsUserAgent(explicit?: string | null) {
   return (
     explicit?.trim() ||
     readEnv("NWS_USER_AGENT") ||
-    "SafePredict/1.0 support@safety360docs.com"
+    defaultNwsUserAgent()
   );
 }
 

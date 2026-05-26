@@ -3,6 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
+import { APP_BRAND, productSentence } from "@/lib/appBrand";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,11 +21,14 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "SafePredict | Safety360Docs",
-    template: "%s | Safety360Docs",
+    default: APP_BRAND.productName,
+    template: `%s | ${APP_BRAND.productName}`,
   },
-  description: "SafePredict by Safety360Docs: safety operations for risk, compliance, documentation, and field execution.",
+  description: productSentence(APP_BRAND.productName),
 };
+
+const tableDensityStorageKey = "safepredict:tableDensity";
+const legacyTableDensityStorageKey = "safety360:tableDensity";
 
 export default function RootLayout({
   children,
@@ -39,7 +43,7 @@ export default function RootLayout({
           id="table-density-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k='safety360:tableDensity';var d=localStorage.getItem(k);if(d==='compact')document.documentElement.setAttribute('data-table-density','compact');else document.documentElement.removeAttribute('data-table-density');}catch(e){}})();`,
+            __html: `(function(){try{var k='${tableDensityStorageKey}';var old='${legacyTableDensityStorageKey}';var d=localStorage.getItem(k);if(d===null){d=localStorage.getItem(old);if(d!==null)localStorage.setItem(k,d);}if(d==='compact')document.documentElement.setAttribute('data-table-density','compact');else document.documentElement.removeAttribute('data-table-density');}catch(e){}})();`,
           }}
         />
         <a href="#main-content" className="app-skip-link">

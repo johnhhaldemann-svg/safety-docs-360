@@ -1,5 +1,6 @@
 import { sanitizeGusMessage } from "@/lib/gus/gusSafetyGate";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
+import { APP_BRAND } from "@/lib/appBrand";
 
 type GusEmailNotificationInput = {
   toEmail: string;
@@ -98,7 +99,7 @@ export function buildGusEmailNotificationPayload(
   const subject = cleanSubject(input.subject || "Gus safety review notification");
   const companyName = cleanText(input.companyName || "your company", 120);
   const jobsiteName = cleanText(input.jobsiteName || "", 120);
-  const senderName = cleanText(input.senderName || "A SafetyDocs360 user", 120);
+  const senderName = cleanText(input.senderName || `A ${APP_BRAND.productName} user`, 120);
   const baseUrl = getBaseUrl();
   const actionUrl = rawActionHref && baseUrl
     ? new URL(rawActionHref, baseUrl).toString()
@@ -148,7 +149,7 @@ export function buildGusEmailNotificationPayload(
         <p style="font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#2563eb;font-weight:700;margin:0 0 12px;">Gus AI Safety Coach</p>
         <h1 style="font-size:24px;line-height:1.2;margin:0 0 16px;">${escapeHtml(safeSubject)}</h1>
         <p style="margin:0 0 16px;color:#475569;">
-          ${escapeHtml(senderName)} sent this Gus safety review note from SafetyDocs360.
+          ${escapeHtml(senderName)} sent this Gus safety review note from ${escapeHtml(APP_BRAND.productName)}.
         </p>
         <div style="border:1px solid #e2e8f0;border-radius:16px;padding:16px 18px;margin:0 0 20px;background:#f8fafc;">
           ${contextRows}
@@ -165,7 +166,7 @@ export function buildGusEmailNotificationPayload(
 
   const text = [
     `Gus AI Safety Coach: ${safeSubject}`,
-    `${senderName} sent this SafetyDocs360 safety review note.`,
+    `${senderName} sent this ${APP_BRAND.productName} safety review note.`,
     `Company: ${companyName}`,
     jobsiteName ? `Jobsite: ${jobsiteName}` : null,
     safeMessage,

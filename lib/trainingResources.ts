@@ -22,7 +22,7 @@ export const trainingResources: TrainingResource[] = [
     estimatedTime: "10 min",
     description:
       "A practical first walkthrough for logging in, setting up a profile, reading the dashboard, searching, and moving around the workspace.",
-    downloadPath: "/training/safety360docs-getting-started.pptx",
+    downloadPath: "/training/safepredict-getting-started.pptx",
     outcomes: [
       "Sign in and confirm account readiness.",
       "Complete the profile fields that power team and training views.",
@@ -42,7 +42,7 @@ export const trainingResources: TrainingResource[] = [
     estimatedTime: "14 min",
     description:
       "How teams find approved records, use marketplace templates, upload files, submit work for review, and build guided safety plan packages.",
-    downloadPath: "/training/safety360docs-documents-marketplace.pptx",
+    downloadPath: "/training/safepredict-documents-marketplace.pptx",
     outcomes: [
       "Find completed documents and unlocked templates.",
       "Upload, submit, and track document review status.",
@@ -65,7 +65,7 @@ export const trainingResources: TrainingResource[] = [
     estimatedTime: "15 min",
     description:
       "A field-focused guide for jobsites, audits, JSA work, permits, incidents, and the field issue log.",
-    downloadPath: "/training/safety360docs-field-work.pptx",
+    downloadPath: "/training/safepredict-field-work.pptx",
     outcomes: [
       "Open jobsite workspaces and field records.",
       "Use audits, JSAs, permits, and incidents for daily control.",
@@ -88,7 +88,7 @@ export const trainingResources: TrainingResource[] = [
     estimatedTime: "12 min",
     description:
       "How team profiles, roles, certifications, requirements, and contractor compliance connect into one readiness view.",
-    downloadPath: "/training/safety360docs-training-tracker-team-access.pptx",
+    downloadPath: "/training/safepredict-training-tracker-team-access.pptx",
     outcomes: [
       "Invite and manage team access responsibly.",
       "Keep profiles and certification expirations current.",
@@ -109,7 +109,7 @@ export const trainingResources: TrainingResource[] = [
     estimatedTime: "16 min",
     description:
       "A leadership walkthrough for the command center, Safety Intelligence, analytics, reports, billing, and admin review routines.",
-    downloadPath: "/training/safety360docs-insights-admin.pptx",
+    downloadPath: "/training/safepredict-insights-admin.pptx",
     outcomes: [
       "Use the command center to prioritize daily prevention work.",
       "Connect Safety Intelligence workflows to reports and analytics.",

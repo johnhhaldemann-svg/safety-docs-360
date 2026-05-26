@@ -30,7 +30,7 @@ function toPsEncodedCommand(script) {
 function tryStopProcessesHoldingPaths(paths) {
   if (process.env.SKIP_DESKTOP_KILL === "1" || process.platform !== "win32") return;
 
-  const demo = "SafetyDocs360 Offline Demo.exe";
+  const demo = "SafePredict Offline Demo.exe";
   spawnSync("taskkill", ["/F", "/IM", demo, "/T"], { stdio: "ignore", windowsHide: true });
 
   const roots = paths.map((p) => p.replace(/'/g, "''"));

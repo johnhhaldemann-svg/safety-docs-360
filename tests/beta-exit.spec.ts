@@ -23,7 +23,7 @@ function supabasePublicEnv() {
 test.describe("Beta exit public surface", () => {
   test("public pages and validation load without a session", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("body")).toContainText(/SafetyDocs360 Platform|Request a Demo|Open Workspace/i);
+    await expect(page.locator("body")).toContainText(/SafePredict|Request a Demo|Open Workspace/i);
 
     await page.goto("/login", { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Secure Access", { exact: false })).toBeVisible();

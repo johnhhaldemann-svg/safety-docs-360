@@ -2,6 +2,7 @@ import type { GusLearningDb } from "@/lib/gusLearning/repository";
 import { insertResearchFinding, listActiveApprovedSourcesForUrl } from "@/lib/gusLearning/repository";
 import { htmlToSafetyText } from "@/lib/gusLearning/sanitize";
 import { sourceMatchesUrl } from "@/lib/gusLearning/sourceValidation";
+import { defaultGusResearchUserAgent } from "@/lib/appBrand";
 
 function titleFromHtml(html: string) {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -52,7 +53,7 @@ export async function fetchApprovedSourceResearch(
 
   const response = await fetch(approved.url.toString(), {
     headers: {
-      "User-Agent": "SafetyDocs360-GusVerifiedLearning/1.0",
+      "User-Agent": defaultGusResearchUserAgent(),
       Accept: "text/html,text/plain,application/xhtml+xml",
     },
   });

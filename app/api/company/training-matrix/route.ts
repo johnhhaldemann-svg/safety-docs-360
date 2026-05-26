@@ -252,7 +252,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-1",
     name: "Jordan Lee",
-    email: "demo.20260425@safety360docs.local",
+    email: "demo.20260425@safepredict.local",
     role: "company_admin",
     status: "Active",
     profile: {
@@ -271,7 +271,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-2",
     name: "Maria Chen",
-    email: "maria.chen@safety360docs.local",
+    email: "maria.chen@safepredict.local",
     role: "safety_manager",
     status: "Active",
     profile: {
@@ -290,7 +290,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-3",
     name: "Eli Brooks",
-    email: "eli.brooks@safety360docs.local",
+    email: "eli.brooks@safepredict.local",
     role: "field_supervisor",
     status: "Active",
     profile: {
@@ -307,7 +307,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-4",
     name: "Nora Williams",
-    email: "nora.williams@safety360docs.local",
+    email: "nora.williams@safepredict.local",
     role: "project_manager",
     status: "Active",
     profile: {
@@ -325,7 +325,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-5",
     name: "Tyler Ruiz",
-    email: "tyler.ruiz@safety360docs.local",
+    email: "tyler.ruiz@safepredict.local",
     role: "company_user",
     status: "Active",
     profile: {
@@ -343,7 +343,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-6",
     name: "Avery Patel",
-    email: "avery.patel@safety360docs.local",
+    email: "avery.patel@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -362,7 +362,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-7",
     name: "Riley Morgan",
-    email: "riley.morgan@safety360docs.local",
+    email: "riley.morgan@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -379,7 +379,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-8",
     name: "Sam Okonkwo",
-    email: "sam.okonkwo@safety360docs.local",
+    email: "sam.okonkwo@safepredict.local",
     role: "field_supervisor",
     status: "Active",
     profile: {
@@ -402,7 +402,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-9",
     name: "Chris Nguyen",
-    email: "chris.nguyen@safety360docs.local",
+    email: "chris.nguyen@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -422,7 +422,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-10",
     name: "Dana Kline",
-    email: "dana.kline@safety360docs.local",
+    email: "dana.kline@safepredict.local",
     role: "safety_manager",
     status: "Active",
     profile: {
@@ -445,7 +445,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-11",
     name: "Jesse Ortega",
-    email: "jesse.ortega@safety360docs.local",
+    email: "jesse.ortega@safepredict.local",
     role: "field_user",
     status: "Pending",
     profile: {
@@ -462,7 +462,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-12",
     name: "Priya Nair",
-    email: "priya.nair@safety360docs.local",
+    email: "priya.nair@safepredict.local",
     role: "company_user",
     status: "Active",
     profile: {
@@ -481,7 +481,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-13",
     name: "Morgan Hill",
-    email: "morgan.hill@safety360docs.local",
+    email: "morgan.hill@safepredict.local",
     role: "read_only",
     status: "Active",
     profile: {
@@ -498,7 +498,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-14",
     name: "Logan Vance",
-    email: "logan.vance@safety360docs.local",
+    email: "logan.vance@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -521,7 +521,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-15",
     name: "Tessa Ward",
-    email: "tessa.ward@safety360docs.local",
+    email: "tessa.ward@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -544,7 +544,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-16",
     name: "Hayden Fisher",
-    email: "hayden.fisher@safety360docs.local",
+    email: "hayden.fisher@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -563,7 +563,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-17",
     name: "Priya Singh",
-    email: "priya.singh@safety360docs.local",
+    email: "priya.singh@safepredict.local",
     role: "field_supervisor",
     status: "Active",
     profile: {
@@ -582,7 +582,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-18",
     name: "Brandon White",
-    email: "brandon.white@safety360docs.local",
+    email: "brandon.white@safepredict.local",
     role: "field_user",
     status: "Active",
     profile: {
@@ -600,7 +600,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-19",
     name: "Olivia Martinez",
-    email: "olivia.martinez@safety360docs.local",
+    email: "olivia.martinez@safepredict.local",
     role: "company_user",
     status: "Active",
     profile: {
@@ -618,7 +618,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-20",
     name: "Noah Campbell",
-    email: "noah.campbell@safety360docs.local",
+    email: "noah.campbell@safepredict.local",
     role: "field_user",
     status: "Pending",
     profile: {
@@ -636,7 +636,7 @@ const SALES_DEMO_USERS: SalesDemoUser[] = [
   {
     id: "demo-user-21",
     name: "Grace Kim",
-    email: "grace.kim@safety360docs.local",
+    email: "grace.kim@safepredict.local",
     role: "safety_manager",
     status: "Active",
     profile: {

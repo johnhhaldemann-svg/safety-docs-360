@@ -205,7 +205,7 @@ const OFFLINE_DEMO_ROWS: MatrixRow[] = [
   {
     userId: "offline-demo-1",
     name: "Jordan Lee",
-    email: "demo.20260425@safety360docs.local",
+    email: "demo.20260425@safepredict.local",
     role: "company_admin",
     status: "Active",
     cells: { "demo-req-a": "match", "demo-req-b": "na", "demo-req-c": "match" },
@@ -229,7 +229,7 @@ const OFFLINE_DEMO_ROWS: MatrixRow[] = [
   {
     userId: "offline-demo-2",
     name: "Tyler Ruiz",
-    email: "tyler.ruiz@safety360docs.local",
+    email: "tyler.ruiz@safepredict.local",
     role: "company_user",
     status: "Active",
     cells: { "demo-req-a": "na", "demo-req-b": "match", "demo-req-c": "match" },
@@ -253,7 +253,7 @@ const OFFLINE_DEMO_ROWS: MatrixRow[] = [
   {
     userId: "offline-demo-3",
     name: "Riley Morgan",
-    email: "riley.morgan@safety360docs.local",
+    email: "riley.morgan@safepredict.local",
     role: "field_user",
     status: "Active",
     cells: { "demo-req-a": "gap", "demo-req-b": "na", "demo-req-c": "gap" },

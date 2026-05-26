@@ -28,6 +28,7 @@ import {
 import { serverLog } from "@/lib/serverLog";
 import { demoCompanyProfile } from "@/lib/demoWorkspace";
 import { isOfflineDesktopEnabled } from "@/lib/offlineDesktopSession";
+import { APP_BRAND } from "@/lib/appBrand";
 
 export const runtime = "nodejs";
 
@@ -472,7 +473,7 @@ async function handleAuthMeGet(request: Request) {
       {
         user: {
           id: auth.user.id,
-          email: auth.user.email ?? "demo@safety360docs.com",
+          email: auth.user.email ?? "demo@safepredict.example",
           linkedContractorId: null,
           role: auth.role,
           roleLabel: formatAppRole(auth.role),
@@ -483,7 +484,7 @@ async function handleAuthMeGet(request: Request) {
           subscriptionStatus: normalizeCompanySubscriptionStatus("active"),
           profile: {
             userId: auth.user.id,
-            fullName: "SafetyDocs360 Demo",
+            fullName: `${APP_BRAND.productName} Demo`,
             preferredName: "Demo",
             jobTitle: "Demo Account",
             tradeSpecialty: "General Construction",

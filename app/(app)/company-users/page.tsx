@@ -1718,7 +1718,7 @@ export default function CompanyUsersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `safety360docs-audit-evidence-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `safepredict-audit-evidence-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }

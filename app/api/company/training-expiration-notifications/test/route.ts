@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     managerItems: [
       {
         workerName: "Example worker",
-        workerEmail: "example.worker@safety360docs.test",
+        workerEmail: "example.worker@safepredict.test",
         trainingTitle: "Example expired training",
         expiresOn: dateOnlyOffset(-1),
         daysUntilExpiry: -1,

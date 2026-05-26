@@ -1,4 +1,4 @@
-# Safety360 Field Mobile
+# SafePredict Field Mobile
 
 Expo/React Native app for field workflows only:
 
@@ -32,7 +32,7 @@ npm run start
 Set `EXPO_PUBLIC_API_BASE_URL` to the platform mobile API base URL, for example:
 
 ```text
-https://safety360docs.com/api/mobile
+https://app.safepredict.com/api/mobile
 ```
 
 ## Device Preview
@@ -87,7 +87,7 @@ For the first submission, use the Apple App Store Connect and Google Play Consol
 
 Before a production store build, confirm:
 
-- `EXPO_PUBLIC_API_BASE_URL` points to `https://safety360docs.com/api/mobile`.
+- `EXPO_PUBLIC_API_BASE_URL` points to the current SafePredict mobile API base URL.
 - Login succeeds with a real company user.
 - Dashboard loads assigned jobsites, expanded module access, counts, and recent activity.
 - JSA can submit with jobsite, trade, hazards, PPE, photo, and printed-name signoff.

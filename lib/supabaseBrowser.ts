@@ -6,6 +6,9 @@ import {
   getOfflineDemoToken,
 } from "@/lib/offlineDesktopSession";
 
+const OFFLINE_DEMO_STORAGE_KEY = "safepredict:offline-demo-token";
+const LEGACY_OFFLINE_DEMO_STORAGE_KEY = "safety360:offline-demo-token";
+
 let browserClient: SupabaseClient | null = null;
 let offlineSessionBootstrapped = false;
 
@@ -39,7 +42,7 @@ async function ensureOfflineSession() {
   }
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("safety360:offline-demo-token", token);
+    window.localStorage.setItem(OFFLINE_DEMO_STORAGE_KEY, token);
     document.cookie = `${getOfflineDemoCookieName()}=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
   }
 
@@ -74,7 +77,8 @@ function createOfflineClient() {
       },
       async signOut() {
         if (typeof window !== "undefined") {
-          window.localStorage.removeItem("safety360:offline-demo-token");
+          window.localStorage.removeItem(OFFLINE_DEMO_STORAGE_KEY);
+          window.localStorage.removeItem(LEGACY_OFFLINE_DEMO_STORAGE_KEY);
           document.cookie = `${getOfflineDemoCookieName()}=; Max-Age=0; path=/; SameSite=Lax`;
         }
         return { error: null };

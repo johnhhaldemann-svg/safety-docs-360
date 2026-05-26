@@ -101,7 +101,7 @@ function buildSalesDemoReadinessResponse() {
       row: {
         userId: "demo-maria",
         name: "Maria L.",
-        email: "maria.demo@safety360docs.local",
+        email: "maria.demo@safepredict.local",
         role: "Safety Manager",
         cells: { "demo-fall": "match", "demo-jsa": "match" },
         cellDetails: {
@@ -116,7 +116,7 @@ function buildSalesDemoReadinessResponse() {
       assignmentId: "demo-derrick-assignment",
       employeeId: "demo-derrick",
       name: "Derrick P.",
-      email: "derrick.demo@safety360docs.local",
+      email: "derrick.demo@safepredict.local",
       contractorId: "demo-roof",
       contractorName: "Roofing Partner",
       jobsiteId: "demo-site",

@@ -69,7 +69,7 @@ export function LoadingState({ title = "Loading workspace..." }: { title?: strin
   return (
     <AppCard>
       <Text style={styles.stateTitle}>{title}</Text>
-      <Text style={styles.stateText}>Syncing with Safety360 Docs.</Text>
+      <Text style={styles.stateText}>Syncing with SafePredict.</Text>
     </AppCard>
   );
 }

@@ -286,7 +286,7 @@ const initialForm: CSEPForm = {
   continuous_improvement_text: "",
 };
 
-const OFFLINE_DEMO_EMAIL = "demo.20260425@safety360docs.local";
+const OFFLINE_DEMO_EMAIL = "demo.20260425@safepredict.local";
 const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   jobsite_id: "demo-jobsite-1",
   project_name: "North Tower",
@@ -301,7 +301,7 @@ const OFFLINE_DEMO_CSEP_PREFILL: Partial<CSEPForm> = {
   contractor_company: "Summit Ridge Field Services",
   contractor_contact: "Jordan Lee",
   contractor_phone: "555-0140",
-  contractor_email: "demo@safety360docs.com",
+  contractor_email: "demo@safepredict.example",
   trade: "Structural Steel and Erection",
   subTrade: "Steel Erection and Decking",
   tasks: ["Hoisting and Rigging", "Steel Erection", "Welding and Cutting", "Work at Heights"],
@@ -2797,7 +2797,7 @@ export default function CSEPPage() {
                           <span className="font-semibold text-[var(--app-text-strong)]">Offline demo pack:</span> a finished Word
                           example is generated next to the project folder, e.g.{" "}
                           <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-                            …\safety360_offline_demo_pack\deliverables\North_Tower_Issued_CSEP_Summit_Ridge.docx
+                            …\safepredict_offline_demo_pack\deliverables\North_Tower_Issued_CSEP_Summit_Ridge.docx
                           </code>{" "}
                           (use the same handoff you built with the desktop installer).
                           <div className="mt-3">

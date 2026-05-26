@@ -27,7 +27,7 @@ export const demoCompanyProfile: DashboardCompanyProfile = {
   postal_code: "78701",
   country: "USA",
   primary_contact_name: "Jordan Lee",
-  primary_contact_email: "demo@safety360docs.com",
+  primary_contact_email: "demo@safepredict.example",
   logo_data_url: null,
   logo_file_name: null,
   status: "active",

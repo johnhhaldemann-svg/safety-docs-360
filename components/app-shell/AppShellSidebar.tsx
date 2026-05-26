@@ -7,6 +7,7 @@ import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
 import { formatUserRoleLabel, getUserDisplayName } from "@/lib/userRoleDisplay";
 import { getWorkspaceNavItemMeta } from "@/lib/workspaceNavigationModel";
 import { getNavSectionIcon } from "@/lib/navSectionIcon";
+import { APP_BRAND } from "@/lib/appBrand";
 import { ProfileAvatar, type ProfileSummary } from "./ProfileAvatar";
 import { ChevronDownIcon } from "./shellIcons";
 
@@ -54,10 +55,10 @@ export function AppShellSidebar({
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="p-3.5 pb-1">
-          <div className="relative h-[4.9rem] w-full" aria-label="Safety360 Docs">
+          <div className="relative h-[4.9rem] w-full" aria-label={APP_BRAND.productName}>
             <Image
-              src="/brand/safety360docs-reliance-lockup.svg"
-              alt="Safety360Docs by Reliance EHS"
+              src="/brand/safepredict-lockup.svg"
+              alt={APP_BRAND.productName}
               fill
               priority
               sizes="236px"

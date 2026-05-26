@@ -14,7 +14,7 @@ import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 
 const isOfflineDesktop = process.env.NEXT_PUBLIC_OFFLINE_DESKTOP === "1";
-const DASHBOARD_LAYOUT_UPDATED_EVENT = "safety360:dashboard-layout-updated";
+const DASHBOARD_LAYOUT_UPDATED_EVENT = "safepredict:dashboard-layout-updated";
 
 type DashboardLayoutResponse = {
   savedLayout: DashboardBlockId[] | null;

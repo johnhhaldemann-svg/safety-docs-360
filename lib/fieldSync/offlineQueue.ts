@@ -3,7 +3,7 @@
  * Used by the jobsite toolbox page as an offline pilot.
  */
 
-const DB_NAME = "safety360-field-sync";
+const DB_NAME = "safepredict-field-sync";
 const DB_VERSION = 1;
 const STORE = "toolbox_ops";
 

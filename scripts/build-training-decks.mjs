@@ -70,8 +70,8 @@ const colors = {
 
 const deckSpecs = [
   {
-    fileName: "safety360docs-getting-started.pptx",
-    title: "Getting Started With Safety360Docs",
+    fileName: "SafePredict-getting-started.pptx",
+    title: "Getting Started With SafePredict",
     subtitle: "Login, profile, dashboard, search, and navigation basics.",
     audience: "All users",
     accent: colors.blue,
@@ -112,7 +112,7 @@ const deckSpecs = [
     ],
   },
   {
-    fileName: "safety360docs-documents-marketplace.pptx",
+    fileName: "SafePredict-documents-marketplace.pptx",
     title: "Documents, Library, And Marketplace",
     subtitle: "Find, upload, submit, review, and build safety documentation.",
     audience: "Document owners",
@@ -154,7 +154,7 @@ const deckSpecs = [
     ],
   },
   {
-    fileName: "safety360docs-field-work.pptx",
+    fileName: "SafePredict-field-work.pptx",
     title: "Field Workflows For Jobsites",
     subtitle: "Jobsites, audits, JSAs, permits, incidents, and field issue tracking.",
     audience: "Field teams",
@@ -196,7 +196,7 @@ const deckSpecs = [
     ],
   },
   {
-    fileName: "safety360docs-training-tracker-team-access.pptx",
+    fileName: "SafePredict-training-tracker-team-access.pptx",
     title: "Training Tracker And Team Access",
     subtitle: "Team roles, profiles, certifications, requirements, and contractor readiness.",
     audience: "Admins and supervisors",
@@ -238,7 +238,7 @@ const deckSpecs = [
     ],
   },
   {
-    fileName: "safety360docs-insights-admin.pptx",
+    fileName: "SafePredict-insights-admin.pptx",
     title: "Insights, Safety Intelligence, And Admin Basics",
     subtitle: "Command center, Safety Intelligence, analytics, reports, billing, and admin routines.",
     audience: "Leaders and admins",
@@ -338,7 +338,7 @@ function addCover(presentation, spec) {
         rowGap: 48,
       },
       [
-        text("Safety360Docs Platform Training", {
+        text("SafePredict Platform Training", {
           name: "cover-eyebrow",
           columnSpan: 2,
           width: fill,
@@ -510,7 +510,7 @@ function addClose(presentation, spec) {
         }),
         rule({ name: "close-rule", width: fixed(320), stroke: spec.accent, weight: 7 }),
         bulletList(spec.close, spec.accent),
-        text("Next step: open Safety360Docs, repeat the workflow, and assign one owner for any cleanup found during training.", {
+        text("Next step: open SafePredict, repeat the workflow, and assign one owner for any cleanup found during training.", {
           name: "close-next-step",
           width: wrap(1320),
           height: hug,

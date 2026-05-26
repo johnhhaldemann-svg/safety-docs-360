@@ -36,6 +36,7 @@ import {
   CONTRACTOR_SAFETY_BLUEPRINT_TITLE,
 } from "@/lib/safetyBlueprintLabels";
 import type { WorkspaceProduct } from "@/lib/workspaceProduct";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 type DocumentRow = {
   id: string;
@@ -160,7 +161,8 @@ function normalizeWorkspaceIssue(message?: string | null) {
   return message.trim();
 }
 
-const DASHBOARD_FILTER_STORAGE_KEY = "safety360:company-dashboard-filters";
+const DASHBOARD_FILTER_STORAGE_KEY = "safepredict:company-dashboard-filters";
+const LEGACY_DASHBOARD_FILTER_STORAGE_KEYS = ["safety360:company-dashboard-filters"];
 
 export function CompanyAdminDashboard({
   loading,
@@ -223,7 +225,11 @@ export function CompanyAdminDashboard({
   useEffect(() => {
     queueMicrotask(() => {
       try {
-        const stored = window.localStorage.getItem(DASHBOARD_FILTER_STORAGE_KEY);
+        const stored = getWithLegacyStorageFallback(
+          window.localStorage,
+          DASHBOARD_FILTER_STORAGE_KEY,
+          LEGACY_DASHBOARD_FILTER_STORAGE_KEYS
+        );
         if (!stored) {
           setFiltersLoaded(true);
           return;

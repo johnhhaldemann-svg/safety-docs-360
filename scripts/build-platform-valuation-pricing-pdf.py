@@ -21,7 +21,7 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "output" / "pdf" / "safety360docs-platform-valuation-pricing.pdf"
+OUT = ROOT / "output" / "pdf" / "SafePredict-platform-valuation-pricing.pdf"
 
 
 PAGE_W, PAGE_H = letter
@@ -149,7 +149,7 @@ def footer(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(MUTED)
-    canvas.drawString(MARGIN, 0.35 * inch, "Safety360Docs - working valuation and pricing model")
+    canvas.drawString(MARGIN, 0.35 * inch, "SafePredict - working valuation and pricing model")
     canvas.drawRightString(PAGE_W - MARGIN, 0.35 * inch, f"Page {doc.page}")
     canvas.restoreState()
 
@@ -157,7 +157,7 @@ def footer(canvas, doc):
 def build_story():
     story = []
 
-    story.append(p("Safety360Docs Platform Valuation + Pricing Model", "TitleCustom"))
+    story.append(p("SafePredict Platform Valuation + Pricing Model", "TitleCustom"))
     story.append(
         p(
             "Working estimate updated May 20, 2026. This is a practical business valuation and commercial packaging view, not a formal appraisal, legal opinion, or investment advice.",
@@ -168,7 +168,7 @@ def build_story():
     story.append(p("Bottom Line", "Section"))
     story.append(
         p(
-            "As built today, Safety360Docs is plausibly worth <b>$1.5M-$4M</b> as a fundable early-stage platform. If sold strictly as software/IP without recurring revenue, the more conservative asset-sale range is <b>$300k-$900k</b>. The number gets meaningfully stronger once paid pilots convert into ARR.",
+            "As built today, SafePredict is plausibly worth <b>$1.5M-$4M</b> as a fundable early-stage platform. If sold strictly as software/IP without recurring revenue, the more conservative asset-sale range is <b>$300k-$900k</b>. The number gets meaningfully stronger once paid pilots convert into ARR.",
         )
     )
     story.append(
@@ -565,7 +565,7 @@ def build_story():
     story.append(p("Construction Platform Inventory", "Section"))
     story.append(
         p(
-            "Safety360Docs is the most valuable vertical today because it is the built wedge. The construction platform includes both the shared core and construction-specific workflows. These line items explain the value inside the current product.",
+            "SafePredict is the most valuable vertical today because it is the built wedge. The construction platform includes both the shared core and construction-specific workflows. These line items explain the value inside the current product.",
             "BodyCustom",
         )
     )
@@ -628,7 +628,7 @@ def build_story():
     )
     story.append(
         p(
-            "<b>Construction platform summary:</b> if valued only as IP, Safety360Docs remains around <b>$300k-$900k</b>. As a fundable, demo-ready vertical SaaS platform, it supports the existing <b>$1.5M-$4M</b> range before ARR. With paid pilots and retention, the ARR-based ranges become more important than the module-by-module inventory.",
+            "<b>Construction platform summary:</b> if valued only as IP, SafePredict remains around <b>$300k-$900k</b>. As a fundable, demo-ready vertical SaaS platform, it supports the existing <b>$1.5M-$4M</b> range before ARR. With paid pilots and retention, the ARR-based ranges become more important than the module-by-module inventory.",
             "BodyCustom",
         )
     )
@@ -651,7 +651,7 @@ def build_story():
                     cell("First paid customer value", True),
                 ],
                 [
-                    cell("Safety360Docs - Construction"),
+                    cell("SafePredict - Construction"),
                     cell("CSEP, JSAs, permits, incidents, jobsite safety, training, predictive risk, safety intelligence."),
                     cell("$1.5M-$4M built platform"),
                     cell("Already demo-ready"),
@@ -843,7 +843,7 @@ def build_story():
     story.append(p("Parent Company / Multi-Vertical Upside", "Section"))
     story.append(
         p(
-            "Safety360Docs can be positioned as the construction wedge for a broader AI compliance operating system. The same workspace, document, risk, review, billing, analytics, and audit infrastructure can support regulated verticals such as biotech, general compliance, and sustainability.",
+            "SafePredict can be positioned as the construction wedge for a broader AI compliance operating system. The same workspace, document, risk, review, billing, analytics, and audit infrastructure can support regulated verticals such as biotech, general compliance, and sustainability.",
             "BodyCustom",
         )
     )
@@ -852,7 +852,7 @@ def build_story():
             [
                 [cell("Vertical product", True), cell("Primary buyer", True), cell("Shared platform engine", True), cell("Vertical-specific layer", True)],
                 [
-                    cell("Safety360Docs"),
+                    cell("SafePredict"),
                     cell("Construction contractors, owners, safety teams"),
                     cell("Workspace, documents, AI review, risk memory, billing, analytics"),
                     cell("JSAs, permits, CSEP, OSHA-style safety workflows"),
@@ -885,8 +885,8 @@ def build_story():
         table(
             [
                 [cell("Stage", True), cell("Parent company valuation", True)],
-                [cell("Safety360Docs only, no ARR, asset sale"), cell("$300k-$900k")],
-                [cell("Safety360Docs demo-ready/fundable"), cell("$1.5M-$4M")],
+                [cell("SafePredict only, no ARR, asset sale"), cell("$300k-$900k")],
+                [cell("SafePredict demo-ready/fundable"), cell("$1.5M-$4M")],
                 [cell("Multi-vertical platform concept with shared engine"), cell("$2M-$6M")],
                 [cell("3 paid construction pilots"), cell("$2M-$5M")],
                 [cell("Paid customers across 2 verticals"), cell("$4M-$10M")],
@@ -920,8 +920,8 @@ def main():
         rightMargin=MARGIN,
         topMargin=0.55 * inch,
         bottomMargin=0.55 * inch,
-        title="Safety360Docs Platform Valuation + Pricing Model",
-        author="Safety360Docs",
+        title="SafePredict Platform Valuation + Pricing Model",
+        author="SafePredict",
     )
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="normal")
     doc.addPageTemplates([PageTemplate(id="main", frames=[frame], onPage=footer)])

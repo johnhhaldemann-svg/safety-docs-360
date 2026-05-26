@@ -1,9 +1,9 @@
 import type { User } from "@supabase/supabase-js";
 
-const OFFLINE_DEMO_TOKEN = "safety360-offline-demo-token";
+const OFFLINE_DEMO_TOKEN = "safepredict-offline-demo-token";
 const OFFLINE_DEMO_COOKIE = "offline_demo_token";
 const OFFLINE_DEMO_USER_ID = "offline-sales-demo-user";
-export const OFFLINE_DEMO_EMAIL = "demo.20260425@safety360docs.local";
+export const OFFLINE_DEMO_EMAIL = "demo.20260425@safepredict.local";
 const OFFLINE_DEMO_TEAM = "Demo Workspace";
 const OFFLINE_DEMO_COMPANY_ID = "demo-company";
 const OFFLINE_DEMO_COMPANY_NAME = "Summit Ridge Constructors";
@@ -72,7 +72,7 @@ export function buildOfflineDemoSupabaseUser(): User {
       team: OFFLINE_DEMO_TEAM,
       company_id: OFFLINE_DEMO_COMPANY_ID,
       account_status: "active",
-      full_name: "SafetyDocs360 Demo",
+      full_name: "SafePredict Demo",
     },
     aud: "authenticated",
     confirmation_sent_at: undefined,

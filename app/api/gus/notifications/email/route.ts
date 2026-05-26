@@ -7,6 +7,7 @@ import {
   normalizeGusNotificationSettings,
   shouldPersistGusInAppNotification,
 } from "@/lib/gus/gusNotificationSettings";
+import { APP_BRAND } from "@/lib/appBrand";
 import { authorizeRequest } from "@/lib/rbac";
 
 export const runtime = "nodejs";
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     toEmail,
     companyName: companyScope.companyName,
     jobsiteName: body.jobsiteName,
-    senderName: auth.user.email ?? "SafetyDocs360 user",
+    senderName: auth.user.email ?? `${APP_BRAND.productName} user`,
     subject: body.subject,
     message: body.message ?? "",
     reason: body.reason,

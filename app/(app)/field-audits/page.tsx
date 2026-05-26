@@ -27,9 +27,11 @@ import {
   type FieldAuditStatusMap,
   type FieldAuditNotesMap,
 } from "@/lib/fieldAudits/normalize";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 const supabase = getSupabaseBrowserClient();
-const DRAFT_KEY = "safety360docs:company-field-audit-draft:v1";
+const DRAFT_KEY = "safepredict:company-field-audit-draft:v1";
+const LEGACY_DRAFT_KEYS = ["safety360docs:company-field-audit-draft:v1"];
 
 type Jobsite = {
   id: string;
@@ -128,7 +130,7 @@ function emptyDraft(): Draft {
 function loadDraft(): Draft {
   if (typeof window === "undefined") return emptyDraft();
   try {
-    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const raw = getWithLegacyStorageFallback(window.localStorage, DRAFT_KEY, LEGACY_DRAFT_KEYS);
     if (!raw) return emptyDraft();
     const parsed = JSON.parse(raw) as Partial<Draft>;
     return {

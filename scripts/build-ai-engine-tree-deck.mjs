@@ -13,14 +13,14 @@ const { Canvas } = await import(
 const outDir = resolve("docs", "ai-engine-tree");
 mkdirSync(outDir, { recursive: true });
 
-const pptxPath = join(outDir, "safety360-ai-engine-tree.pptx");
-const previewPath = join(outDir, "safety360-ai-engine-tree-preview.png");
+const pptxPath = join(outDir, "safepredict-ai-engine-tree.pptx");
+const previewPath = join(outDir, "safepredict-ai-engine-tree-preview.png");
 
 const pptx = new pptxgen();
-pptx.author = "Safety360docs";
-pptx.company = "Safety360docs";
+pptx.author = "SafePredict";
+pptx.company = "SafePredict";
 pptx.subject = "AI Engine tree with behavior risk model";
-pptx.title = "Safety360 AI Engine Tree";
+pptx.title = "SafePredict AI Engine Tree";
 pptx.lang = "en-US";
 pptx.layout = "LAYOUT_WIDE";
 pptx.theme = {
@@ -134,7 +134,7 @@ function addPill(text, x, y, w, fill, color = C.white) {
   });
 }
 
-addText("Safety360 AI Engine", 0.48, 0.34, 5.5, 0.5, {
+addText("SafePredict AI Engine", 0.48, 0.34, 5.5, 0.5, {
   fontFace: "Aptos Display",
   fontSize: 26,
   bold: true,
@@ -412,7 +412,7 @@ function drawPill(label, x, y, w, fill) {
 
 ctx.fillStyle = `#${C.paper}`;
 ctx.fillRect(0, 0, 1920, 1080);
-drawText("Safety360 AI Engine", 0.48, 0.32, 5.5, { face: "Arial", size: 38, bold: true, color: C.ink });
+drawText("SafePredict AI Engine", 0.48, 0.32, 5.5, { face: "Arial", size: 38, bold: true, color: C.ink });
 drawText("Tree view with the new behavior-risk model as the scoring trunk", 0.52, 0.89, 6.6, { size: 14, color: C.muted });
 drawText("Evidence -> deterministic scoring -> AI surfaces -> telemetry -> learning loop", 7.05, 0.48, 5.65, {
   size: 19,

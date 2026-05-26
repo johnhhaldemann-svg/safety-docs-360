@@ -2,7 +2,7 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://safety360docs.com/api/mobile";
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://app.safepredict.com/api/mobile";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -62,7 +62,7 @@ export function getApiErrorStatus(error: unknown) {
 
 export function getFriendlyApiError(error: unknown, fallback = "Something went wrong. Check your connection and try again.") {
   if (error instanceof Error && error.message.trim()) {
-    if (error.message.includes("Network Error")) return "Could not reach Safety360 Docs. Check your internet connection.";
+    if (error.message.includes("Network Error")) return "Could not reach SafePredict. Check your internet connection.";
     if (error.message.includes("timeout")) return "The request took too long. Try again with a stronger connection.";
     if (error.message.includes("API returned 401")) return "Your session expired. Sign in again.";
     return error.message;

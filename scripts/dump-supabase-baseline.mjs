@@ -117,7 +117,7 @@ const dumped = [
 validateSchemaOnlySql(dumped, baselinePath);
 
 const header = [
-  "-- SafetyDocs360 Supabase schema baseline.",
+  "-- SafePredict Supabase schema baseline.",
   `-- Source project ref: ${expectedSourceRef}`,
   `-- Baseline migration: ${baselineVersion}_${baselineName}`,
   "-- Data handling: schema-only dump for public/private schemas; no production rows.",
@@ -170,7 +170,7 @@ order by sort_key, ddl;
 );
 
 const storageSql = [
-  "-- SafetyDocs360 Supabase storage config baseline.",
+  "-- SafePredict Supabase storage config baseline.",
   `-- Source project ref: ${expectedSourceRef}`,
   `-- Baseline migration: ${baselineVersion}_${baselineName}`,
   "-- Data handling: bucket configuration and storage.objects policies only; no storage objects.",

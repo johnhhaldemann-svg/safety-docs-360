@@ -13,14 +13,14 @@ const { Canvas } = await import(
 const outDir = resolve("docs", "platform-flow-map");
 mkdirSync(outDir, { recursive: true });
 
-const pptxPath = join(outDir, "safety360-platform-flow-map.pptx");
-const previewPath = join(outDir, "safety360-platform-flow-map-preview.png");
+const pptxPath = join(outDir, "safepredict-platform-flow-map.pptx");
+const previewPath = join(outDir, "safepredict-platform-flow-map-preview.png");
 
 const pptx = new pptxgen();
-pptx.author = "Safety360docs";
-pptx.company = "Safety360docs";
+pptx.author = "SafePredict";
+pptx.company = "SafePredict";
 pptx.subject = "Current platform process flow";
-pptx.title = "Safety360 Platform Flow Map";
+pptx.title = "SafePredict Platform Flow Map";
 pptx.lang = "en-US";
 pptx.defineLayout({ name: "WIDE", width: 13.333, height: 7.5 });
 pptx.layout = "WIDE";
@@ -144,7 +144,7 @@ function lane(label, x, y, w, color) {
   });
 }
 
-text("Safety360 Platform Process Flow", 0.44, 0.28, 6.1, 0.45, {
+text("SafePredict Platform Process Flow", 0.44, 0.28, 6.1, 0.45, {
   fontFace: "Aptos Display",
   fontSize: 24,
   bold: true,
@@ -329,7 +329,7 @@ function drawArrow(x1, y1, x2, y2, color = C.line, width = 2) {
 
 ctx.fillStyle = `#${C.bg}`;
 ctx.fillRect(0, 0, 1920, 1080);
-drawText("Safety360 Platform Process Flow", 0.44, 0.28, 6.1, { size: 34, bold: true, color: C.ink });
+drawText("SafePredict Platform Process Flow", 0.44, 0.28, 6.1, { size: 34, bold: true, color: C.ink });
 drawText("Current operating loop across access, setup, field execution, documents, AI, analytics, and admin controls", 0.47, 0.8, 8.5, {
   size: 13,
   color: C.muted,

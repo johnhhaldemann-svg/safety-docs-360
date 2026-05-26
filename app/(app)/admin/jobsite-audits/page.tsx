@@ -28,6 +28,7 @@ import {
   fieldCompliancePercentForSections,
   getFieldAuditSectionsForTrade,
 } from "@/lib/jobsiteAudits/fieldAuditTradeScope";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 type AuditTrade =
   (typeof AUDIT_SYSTEM_BLUEPRINT.audit_system.audit_header.trade_scope_being_audited)[number];
@@ -43,9 +44,12 @@ function parseSelectedTrade(raw: unknown): AuditTrade {
 
 const supabase = getSupabaseBrowserClient();
 
-const STORAGE_KEY_V2 = "safety360docs:jobsite-audit-checklist:v2";
-const STORAGE_KEY_V1 = "safety360docs:jobsite-audit-checklist:v1";
-const HISTORY_KEY = "safety360docs:audit-compliance-history:v1";
+const STORAGE_KEY_V2 = "safepredict:jobsite-audit-checklist:v2";
+const STORAGE_KEY_V1 = "safepredict:jobsite-audit-checklist:v1";
+const HISTORY_KEY = "safepredict:audit-compliance-history:v1";
+const LEGACY_STORAGE_KEY_V2 = "safety360docs:jobsite-audit-checklist:v2";
+const LEGACY_STORAGE_KEY_V1 = "safety360docs:jobsite-audit-checklist:v1";
+const LEGACY_HISTORY_KEY = "safety360docs:audit-compliance-history:v1";
 
 type RowStatus = "" | "pass" | "fail" | "na";
 
@@ -64,7 +68,7 @@ type PersistedDraft = {
 function loadHistory(): MonthPoint[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(HISTORY_KEY);
+    const raw = getWithLegacyStorageFallback(window.localStorage, HISTORY_KEY, [LEGACY_HISTORY_KEY]);
     if (!raw) return [];
     const data = JSON.parse(raw) as unknown;
     if (!Array.isArray(data)) return [];
@@ -111,7 +115,7 @@ function loadDraft(): PersistedDraft {
     };
   }
   try {
-    const rawV2 = window.localStorage.getItem(STORAGE_KEY_V2);
+    const rawV2 = getWithLegacyStorageFallback(window.localStorage, STORAGE_KEY_V2, [LEGACY_STORAGE_KEY_V2]);
     if (rawV2) {
       const data = JSON.parse(rawV2) as Partial<PersistedDraft>;
       return {
@@ -126,7 +130,7 @@ function loadDraft(): PersistedDraft {
           data.photoCounts && typeof data.photoCounts === "object" ? data.photoCounts : {},
       };
     }
-    const rawV1 = window.localStorage.getItem(STORAGE_KEY_V1);
+    const rawV1 = getWithLegacyStorageFallback(window.localStorage, STORAGE_KEY_V1, [LEGACY_STORAGE_KEY_V1]);
     if (rawV1) {
       const data = JSON.parse(rawV1) as {
         jobsite?: string;
@@ -299,7 +303,7 @@ export default function AdminJobsiteAuditsPage() {
         ...profile.required_permits,
       ]);
     return {
-      version: "safety360-jobsite-audit-v3",
+      version: "safepredict-jobsite-audit-v3",
       capturedAt: new Date().toISOString(),
       sourcePath: "/admin/jobsite-audits",
       query,

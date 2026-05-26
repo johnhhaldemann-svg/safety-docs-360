@@ -37,6 +37,7 @@ import {
   isArchivedDocumentStatus,
 } from "@/lib/documentStatus";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -79,7 +80,8 @@ type ExcerptModalState = {
   pdfObjectUrl?: string | null;
 };
 
-const LIBRARY_FILTER_STORAGE_KEY = "safety360:library-filters";
+const LIBRARY_FILTER_STORAGE_KEY = "safepredict:library-filters";
+const LEGACY_LIBRARY_FILTER_STORAGE_KEYS = ["safety360:library-filters"];
 
 const LIBRARY_PRIMARY_TABS = ["documents", "templates", "marketplace"] as const;
 
@@ -579,7 +581,11 @@ function DocumentsPageContent() {
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(LIBRARY_FILTER_STORAGE_KEY);
+      const saved = getWithLegacyStorageFallback(
+        window.localStorage,
+        LIBRARY_FILTER_STORAGE_KEY,
+        LEGACY_LIBRARY_FILTER_STORAGE_KEYS
+      );
       if (!saved) {
         setFiltersLoaded(true);
         return;

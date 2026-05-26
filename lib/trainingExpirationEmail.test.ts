@@ -9,7 +9,7 @@ describe("training expiration email", () => {
   it("sends one grouped email with worker and safety manager sections", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("TRAINING_EXPIRATION_FROM_EMAIL", "training@example.com");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://safety360docs.com");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://app.safepredict.com");
     const fetcher = vi.fn(
       async (_input: Parameters<typeof fetch>[0], _init?: Parameters<typeof fetch>[1]) =>
         Response.json({ id: "email-1" })
@@ -57,7 +57,7 @@ describe("training expiration email", () => {
     expect(body.html).toContain("Your training renewals");
     expect(body.html).toContain("Safety manager digest");
     expect(body.text).toContain("Worker email: missing");
-    expect(body.text).toContain("https://safety360docs.com/training-matrix");
+    expect(body.text).toContain("https://app.safepredict.com/training-matrix");
   });
 
   it("skips when Resend is not configured", async () => {

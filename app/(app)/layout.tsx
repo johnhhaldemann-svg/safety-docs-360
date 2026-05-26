@@ -36,6 +36,7 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { isWorkspaceNavActive } from "@/lib/workspaceNavActive";
 import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
+import { getWithLegacyStorageFallback } from "@/lib/localStorageMigration";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AppLoading } from "@/components/app-shell/AppLoading";
 import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
@@ -77,7 +78,8 @@ function hasPersistedSupabaseAuthKeys() {
   return false;
 }
 
-const AGREEMENT_CACHE_PREFIX = "safety360docs:accepted-terms:";
+const AGREEMENT_CACHE_PREFIX = "safepredict:accepted-terms:";
+const LEGACY_AGREEMENT_CACHE_PREFIX = "safety360docs:accepted-terms:";
 const PROFILE_SETUP_ALLOWED_ROUTES = [
   "/documents",
   "/library",
@@ -90,13 +92,21 @@ function getAgreementCacheKey(email: string, version: string) {
   return `${AGREEMENT_CACHE_PREFIX}${email.trim().toLowerCase()}:${version}`;
 }
 
+function getLegacyAgreementCacheKey(email: string, version: string) {
+  return `${LEGACY_AGREEMENT_CACHE_PREFIX}${email.trim().toLowerCase()}:${version}`;
+}
+
 function readAcceptedTermsCache(email: string, version: string) {
   if (typeof window === "undefined" || !email.trim()) {
     return false;
   }
 
   try {
-    return window.localStorage.getItem(getAgreementCacheKey(email, version)) === "true";
+    return getWithLegacyStorageFallback(
+      window.localStorage,
+      getAgreementCacheKey(email, version),
+      [getLegacyAgreementCacheKey(email, version)]
+    ) === "true";
   } catch {
     return false;
   }

@@ -29,11 +29,11 @@ function resolveDemoPackDeliverablesCandidates() {
   const oneDriveConsumer = process.env.OneDriveConsumer?.trim() || "";
 
   const candidates = [
-    path.join(/* turbopackIgnore: true */ oneDrive, "Desktop", "safety360_offline_demo_pack", "deliverables"),
-    path.join(/* turbopackIgnore: true */ oneDriveConsumer, "Desktop", "safety360_offline_demo_pack", "deliverables"),
-    path.join(/* turbopackIgnore: true */ userProfile, "OneDrive", "Desktop", "safety360_offline_demo_pack", "deliverables"),
-    path.join(/* turbopackIgnore: true */ userProfile, "Desktop", "safety360_offline_demo_pack", "deliverables"),
-    path.join(/* turbopackIgnore: true */ home, "Desktop", "safety360_offline_demo_pack", "deliverables"),
+    path.join(/* turbopackIgnore: true */ oneDrive, "Desktop", "safepredict_offline_demo_pack", "deliverables"),
+    path.join(/* turbopackIgnore: true */ oneDriveConsumer, "Desktop", "safepredict_offline_demo_pack", "deliverables"),
+    path.join(/* turbopackIgnore: true */ userProfile, "OneDrive", "Desktop", "safepredict_offline_demo_pack", "deliverables"),
+    path.join(/* turbopackIgnore: true */ userProfile, "Desktop", "safepredict_offline_demo_pack", "deliverables"),
+    path.join(/* turbopackIgnore: true */ home, "Desktop", "safepredict_offline_demo_pack", "deliverables"),
   ].filter(Boolean);
 
   return Array.from(new Set(candidates));
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Demo pack folder was not found. Run desktop:build:handoff first so safety360_offline_demo_pack is created on Desktop.",
+          "Demo pack folder was not found. Run desktop:build:handoff first so safepredict_offline_demo_pack is created on Desktop.",
         candidates,
       },
       { status: 404 }
@@ -119,7 +119,7 @@ export async function POST() {
     return NextResponse.json(
       {
         error:
-          "Demo pack folder was not found. Run desktop:build:handoff first so safety360_offline_demo_pack is created on Desktop.",
+          "Demo pack folder was not found. Run desktop:build:handoff first so safepredict_offline_demo_pack is created on Desktop.",
         candidates,
       },
       { status: 404 }
