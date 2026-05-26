@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { createCompanyNotification } from "@/lib/companyNotifications";
 import { sendGusEmailNotification } from "@/lib/gus/gusEmailNotifications";
+import {
+  isGusCriticalSafetyNotification,
+  normalizeGusNotificationSettings,
+  shouldPersistGusInAppNotification,
+} from "@/lib/gus/gusNotificationSettings";
 import { authorizeRequest } from "@/lib/rbac";
 
 export const runtime = "nodejs";
@@ -14,6 +19,9 @@ type GusEmailBody = {
   actionLabel?: string;
   actionHref?: string;
   jobsiteName?: string;
+  priority?: number;
+  category?: string;
+  attentionLevel?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -22,6 +30,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : undefined;
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 export async function POST(request: Request) {
@@ -43,6 +55,9 @@ export async function POST(request: Request) {
     actionLabel: stringValue(rawBody.actionLabel),
     actionHref: stringValue(rawBody.actionHref),
     jobsiteName: stringValue(rawBody.jobsiteName),
+    priority: numberValue(rawBody.priority),
+    category: stringValue(rawBody.category),
+    attentionLevel: stringValue(rawBody.attentionLevel),
   };
 
   const toEmail = auth.user.email?.trim().toLowerCase() ?? "";
@@ -56,6 +71,28 @@ export async function POST(request: Request) {
     fallbackTeam: auth.team,
     authUser: auth.user,
   });
+  const settingsResult = await auth.supabase
+    .from("user_profiles")
+    .select("gus_notification_settings")
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
+  if (settingsResult.error) {
+    return NextResponse.json({ error: settingsResult.error.message || "Failed to load Gus notification settings." }, { status: 500 });
+  }
+
+  const settings = normalizeGusNotificationSettings(
+    (settingsResult.data as { gus_notification_settings?: unknown } | null)?.gus_notification_settings,
+  );
+  if (!settings.emailEnabled) {
+    return NextResponse.json({ error: "Gus email notifications are turned off in your profile." }, { status: 403 });
+  }
+
+  const notificationSignal = {
+    priority: body.priority,
+    category: body.category,
+    attentionLevel: body.attentionLevel,
+  };
 
   const result = await sendGusEmailNotification({
     toEmail,
@@ -75,28 +112,31 @@ export async function POST(request: Request) {
   }
 
   if (companyScope.companyId) {
-    await createCompanyNotification({
-      supabase: auth.supabase,
-      companyId: companyScope.companyId,
-      recipientUserId: auth.user.id,
-      actorUserId: auth.user.id,
-      eventType: "gus_email_notification",
-      title: result.sent ? "Gus email notification sent" : "Gus email notification not sent",
-      body: result.sent
-        ? `Gus emailed this safety review note to ${toEmail}.`
-        : result.warning,
-      priority: result.sent ? "normal" : "high",
-      href: result.payload?.actionHref ?? "/dashboard",
-      sourceTable: "gus",
-      sourceId: null,
-      metadata: {
-        channel: "email",
-        status: result.status,
-        providerMessageId: result.providerMessageId ?? null,
-        subject: result.payload?.subject ?? body.subject ?? null,
-      },
-      ignorePreference: true,
-    });
+    const shouldPersistNotification = shouldPersistGusInAppNotification(settings, notificationSignal);
+    if (shouldPersistNotification) {
+      await createCompanyNotification({
+        supabase: auth.supabase,
+        companyId: companyScope.companyId,
+        recipientUserId: auth.user.id,
+        actorUserId: auth.user.id,
+        eventType: "gus_email_notification",
+        title: result.sent ? "Gus email notification sent" : "Gus email notification not sent",
+        body: result.sent
+          ? `Gus emailed this safety review note to ${toEmail}.`
+          : result.warning,
+        priority: isGusCriticalSafetyNotification(notificationSignal) ? "critical" : result.sent ? "normal" : "high",
+        href: result.payload?.actionHref ?? "/dashboard",
+        sourceTable: "gus",
+        sourceId: null,
+        metadata: {
+          channel: "email",
+          status: result.status,
+          providerMessageId: result.providerMessageId ?? null,
+          subject: result.payload?.subject ?? body.subject ?? null,
+        },
+        ignorePreference: isGusCriticalSafetyNotification(notificationSignal),
+      });
+    }
   }
 
   return NextResponse.json({

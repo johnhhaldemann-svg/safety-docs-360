@@ -6,6 +6,7 @@ import {
   isGusAllowedRoute,
   isGusDisabledRoute,
 } from "@/components/gus/gusConfig";
+import { useGusNotificationSettings } from "@/components/gus/useGusNotificationSettings";
 import {
   canGusSpeak,
   chooseGusBrowserVoice,
@@ -91,17 +92,18 @@ export function useGusVoice({
   voice = GUS_DEFAULT_VOICE,
   style = GUS_DEFAULT_VOICE_STYLE,
 }: UseGusVoiceOptions) {
+  const { settings: notificationSettings, updateSettings } = useGusNotificationSettings();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const typingUntilRef = useRef(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(() => readStorageValue(gusStorageKeys.voiceEnabled) === "true");
-  const [textOnlyMode, setTextOnlyMode] = useState(() => readStorageValue(gusStorageKeys.textOnlyMode) === "true");
   const [disabledUntilMs, setDisabledUntilMs] = useState(() => readFutureTimeMs(gusStorageKeys.voiceDisabledUntil));
   const [isSuppressedToday, setIsSuppressedToday] = useState(() => readFutureTimeMs(gusStorageKeys.voiceDisabledUntil) > 0);
   const [lastSpokenText, setLastSpokenText] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "playing" | "muted" | "error">("idle");
   const speechText = sanitizeGusSpeechText(message.spokenText ?? message.message);
   const routeAllowsVoice = isGusAllowedRoute(route) && !isGusDisabledRoute(route);
+  const voiceEnabled = notificationSettings.voiceEnabled;
+  const textOnlyMode = notificationSettings.textOnlyMode;
 
   const stopAudio = useCallback(() => {
     audioRef.current?.pause();
@@ -239,8 +241,7 @@ export function useGusVoice({
     writeStorageValue(gusStorageKeys.voiceEnabled, "true");
     writeStorageValue(gusStorageKeys.textOnlyMode, "false");
     removeStorageValue(gusStorageKeys.voiceDisabledUntil);
-    setVoiceEnabled(true);
-    setTextOnlyMode(false);
+    void updateSettings({ voiceEnabled: true, textOnlyMode: false }).catch(() => undefined);
     setDisabledUntilMs(0);
     setIsSuppressedToday(false);
     setStatus("idle");
@@ -249,7 +250,7 @@ export function useGusVoice({
 
   function muteVoice() {
     writeStorageValue(gusStorageKeys.voiceEnabled, "false");
-    setVoiceEnabled(false);
+    void updateSettings({ voiceEnabled: false }).catch(() => undefined);
     stopAudio();
     setStatus("muted");
   }
@@ -257,8 +258,7 @@ export function useGusVoice({
   function useTextOnlyMode() {
     writeStorageValue(gusStorageKeys.voiceEnabled, "false");
     writeStorageValue(gusStorageKeys.textOnlyMode, "true");
-    setVoiceEnabled(false);
-    setTextOnlyMode(true);
+    void updateSettings({ voiceEnabled: false, textOnlyMode: true }).catch(() => undefined);
     stopAudio();
     setStatus("muted");
   }

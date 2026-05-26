@@ -336,6 +336,12 @@ export async function POST(
       mitigationState: nextMitigationState,
       riskReductionPoints,
       evidenceProvided: body?.evidenceProvided === true,
+      actionDecisionIntent: cleanText(body?.actionDecisionIntent, 80) || null,
+      actionDecisionTriggerId: cleanText(body?.actionDecisionTriggerId, 120) || null,
+      confirmation: body?.confirmation === true,
+      fieldVerificationSummary: cleanText(body?.fieldVerificationSummary, 700) || null,
+      dismissReason: cleanText(body?.dismissReason, 700) || null,
+      notes: cleanText(body?.notes, 1000) || null,
     }),
   });
 
@@ -351,6 +357,8 @@ export async function POST(
       actionType,
       mitigationState: nextMitigationState,
       riskReductionPoints,
+      actionDecisionIntent: cleanText(body?.actionDecisionIntent, 80) || null,
+      actionDecisionTriggerId: cleanText(body?.actionDecisionTriggerId, 120) || null,
     }),
     createdBy: auth.user.id,
   });
@@ -361,5 +369,6 @@ export async function POST(
     linkedModule: linked.linkedModule,
     linkedRecordId: linked.linkedRecordId,
     riskReductionPoints,
+    eventId: null,
   });
 }

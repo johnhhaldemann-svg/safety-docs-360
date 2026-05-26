@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { SafePredictNativeWorkspace } from "@/components/safe-predict/SafePredictNativeWorkspace";
+import {
+  SafePredictNativeWorkspace,
+  SettingsProfileHub,
+  type SettingsUserContext,
+} from "@/components/safe-predict/SafePredictNativeWorkspace";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -70,5 +74,60 @@ describe("SafePredictNativeWorkspace analytics", () => {
 
     expect(html).toContain("Log Incident");
     expect(html).not.toContain('href="/safe-predict/incidents"');
+  });
+
+  it("renders the settings profile card and preserves existing settings controls", () => {
+    const html = renderToStaticMarkup(<SafePredictNativeWorkspace workspace="settings" />);
+
+    expect(html).toContain("My Profile");
+    expect(html).toContain("Edit Profile");
+    expect(html).toContain("Workspace Data Mode");
+    expect(html).toContain("Predictability Engine");
+    expect(html).toContain("Risk Thresholds");
+  });
+});
+
+describe("SettingsProfileHub", () => {
+  const companyAdminUser = {
+    email: "jack@example.com",
+    role: "company_admin",
+    roleLabel: "Company Admin",
+    team: "TJ Contracting",
+    companyId: "company-1",
+    companyName: "TJ Contracting",
+    profileComplete: true,
+    permissionMap: { can_manage_company_users: true },
+    profile: {
+      fullName: "Jack Jane",
+      preferredName: "Jack",
+      jobTitle: "Safety Director",
+      tradeSpecialty: "General Contractor",
+    },
+  } satisfies SettingsUserContext;
+
+  it("shows company admin functions for company admins", () => {
+    const html = renderToStaticMarkup(<SettingsProfileHub user={companyAdminUser} />);
+
+    expect(html).toContain("Jack");
+    expect(html).toContain("Company Admin Functions");
+    expect(html).toContain("Team &amp; Access");
+    expect(html).toContain('href="/company-users"');
+    expect(html).toContain('href="/company-integrations"');
+    expect(html).toContain('href="/settings/risk-memory"');
+    expect(html).not.toContain('href="/admin');
+  });
+
+  it("does not show company admin functions for non-admin users", () => {
+    const user = {
+      ...companyAdminUser,
+      role: "company_user",
+      roleLabel: "Company User",
+      permissionMap: { can_manage_company_users: false },
+    } satisfies SettingsUserContext;
+    const html = renderToStaticMarkup(<SettingsProfileHub user={user} />);
+
+    expect(html).toContain("My Profile");
+    expect(html).not.toContain("Company Admin Functions");
+    expect(html).not.toContain('href="/company-users"');
   });
 });

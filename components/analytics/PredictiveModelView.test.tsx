@@ -146,6 +146,24 @@ describe("PredictiveModelView", () => {
             feedbackInfluence: [],
             feedbackConfidenceAdjustment: "neutral" as const,
             memoryInfluence: [],
+            decisionTriggers: [
+              {
+                id: "trigger-verify",
+                source: "ai_action_queue" as const,
+                sourceId: "action-1",
+                sourceText: "Verify workface controls.",
+                actionWord: "verify",
+                intent: "request_field_verification" as const,
+                targetModule: "command_center" as const,
+                riskLevel: "high" as const,
+                requiresConfirmation: false,
+                humanReviewRequired: true,
+                blocked: false,
+                blockedReason: null,
+                recommendedSafeAction: "Verify workface controls before work proceeds.",
+                evidenceRefs: [],
+              },
+            ],
           },
         ],
       },
@@ -158,6 +176,7 @@ describe("PredictiveModelView", () => {
     expect(html).toContain("Predicted workface conflicts");
     expect(html).toContain("Hot work overlaps combustible or flammable exposure");
     expect(html).toContain("Predicted workface conflict");
+    expect(html).toContain("Request verification");
     expect(html).toContain("Human review required before work proceeds");
     expect(html).not.toMatch(/safe to start|cleared|guaranteed/i);
   });

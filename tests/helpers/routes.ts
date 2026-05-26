@@ -34,7 +34,6 @@ export const PUBLIC_ROUTES = [
   "/safe-predict/permit-center",
   "/safe-predict/permits",
   "/safe-predict/peshep",
-  "/safe-predict/platform-actions",
   "/safe-predict/predictive-risk",
   "/safe-predict/reports",
   "/safe-predict/risk-mitigation",

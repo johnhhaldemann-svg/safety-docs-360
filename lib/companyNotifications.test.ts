@@ -71,6 +71,10 @@ describe("company notification helpers", () => {
       inAppEnabled: true,
       emailEnabled: true,
     });
+    expect(defaultNotificationPreference("gus_email_notification")).toEqual({
+      inAppEnabled: true,
+      emailEnabled: true,
+    });
     expect(defaultNotificationPreference("custom_event")).toEqual({
       inAppEnabled: true,
       emailEnabled: false,

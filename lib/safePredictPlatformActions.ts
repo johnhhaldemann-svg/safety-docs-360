@@ -21,6 +21,21 @@ export type SafePredictPlatformActionSection = {
   items: SafePredictPlatformAction[];
 };
 
+function normalizeSafePredictPlatformRole(role?: string | null) {
+  const normalized = (role ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  if (normalized === "superadmin") return "super_admin";
+
+  return normalized;
+}
+
+export function canViewSafePredictPlatformActions(role?: string | null) {
+  return normalizeSafePredictPlatformRole(role) === "super_admin";
+}
+
 function actionSource(section: NavSection): SafePredictPlatformAction["source"] {
   if (section.items.some((item) => item.href.startsWith("/superadmin"))) return "superadmin";
   if (section.title === "Platform") return "platform";

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Building2,
@@ -11,12 +12,20 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
+  canViewSafePredictPlatformActions,
   filterSafePredictPlatformActions,
   safePredictPlatformActionSections,
   type SafePredictPlatformAction,
   type SafePredictPlatformActionSection,
 } from "@/lib/safePredictPlatformActions";
 import { Card, PageHeader, SectionTitle, cx } from "@/components/safe-predict/SafePredictPrimitives";
+import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+
+type AuthMeResponse = {
+  user?: {
+    role?: string | null;
+  } | null;
+};
 
 const sourceLabels: Record<SafePredictPlatformAction["source"], string> = {
   company: "Company",
@@ -51,8 +60,53 @@ function sectionMatchesSource(
 }
 
 export function SafePredictPlatformActions() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SafePredictPlatformAction["source"] | "all">("all");
+  const [accessResolved, setAccessResolved] = useState(false);
+  const [canViewActions, setCanViewActions] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccess() {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        if (!cancelled) router.replace("/safe-predict");
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = (await response.json().catch(() => null)) as AuthMeResponse | null;
+        const allowed = response.ok && canViewSafePredictPlatformActions(data?.user?.role);
+
+        if (cancelled) return;
+
+        if (!allowed) {
+          router.replace("/safe-predict");
+          return;
+        }
+
+        setCanViewActions(true);
+        setAccessResolved(true);
+      } catch {
+        if (!cancelled) router.replace("/safe-predict");
+      }
+    }
+
+    void loadAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const sections = useMemo(() => {
     return safePredictPlatformActionSections
@@ -65,6 +119,10 @@ export function SafePredictPlatformActions() {
   }, [query, sourceFilter]);
 
   const totalActions = sections.reduce((sum, section) => sum + section.items.length, 0);
+
+  if (!accessResolved || !canViewActions) {
+    return <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7" />;
+  }
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">

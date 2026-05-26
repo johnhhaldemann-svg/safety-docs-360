@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MailCheck } from "lucide-react";
+import { useGusNotificationSettings } from "@/components/gus/useGusNotificationSettings";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusDecision, GusMessage } from "@/lib/gus/gusTypes";
 
@@ -14,8 +15,27 @@ type GusEmailNotificationControlsProps = {
 type SendState = "idle" | "sending" | "sent" | "skipped" | "error";
 
 export function GusEmailNotificationControls({ message, decision, context }: GusEmailNotificationControlsProps) {
+  const { settings } = useGusNotificationSettings();
   const [status, setStatus] = useState<SendState>("idle");
   const [statusMessage, setStatusMessage] = useState("");
+
+  if (!settings.emailEnabled) {
+    return (
+      <div className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+        <button
+          type="button"
+          disabled
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--app-muted)] disabled:cursor-not-allowed"
+        >
+          <MailCheck className="h-4 w-4" aria-hidden="true" />
+          Gus email notifications off
+        </button>
+        <p className="mt-2 text-[11px] leading-4 text-[var(--app-muted)]" role="status">
+          Update Gus notification preferences from your profile.
+        </p>
+      </div>
+    );
+  }
 
   async function sendEmailNotification() {
     if (status === "sending") return;
@@ -39,6 +59,9 @@ export function GusEmailNotificationControls({ message, decision, context }: Gus
           actionLabel: message.actionLabel ?? decision.actions[0]?.label,
           actionHref: message.actionHref ?? decision.actions[0]?.href,
           jobsiteName: context.currentPage.includes("Jobsite") ? context.currentPage : undefined,
+          priority: message.priority,
+          category: message.category,
+          attentionLevel: decision.attentionLevel,
         }),
       });
       const payload = (await response.json().catch(() => null)) as {

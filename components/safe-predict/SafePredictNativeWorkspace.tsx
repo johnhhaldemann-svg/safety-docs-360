@@ -58,6 +58,7 @@ import {
   type SafePredictWorkspaceSlug,
 } from "@/lib/safePredictWorkspaceConfig";
 import { mapSafePredictOperationHref, mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
+import type { PermissionMap } from "@/lib/rbac";
 import {
   DEFAULT_PREDICTABILITY_SETTINGS,
   PREDICTABILITY_DATA_MODES,
@@ -161,6 +162,104 @@ type IncidentNotificationSummary = {
   error?: string | null;
 };
 
+export type SettingsUserContext = {
+  id?: string;
+  email?: string;
+  role?: string;
+  roleLabel?: string;
+  team?: string;
+  companyId?: string | null;
+  companyName?: string | null;
+  profileComplete?: boolean;
+  permissionMap?: Partial<PermissionMap> | null;
+  profile?: {
+    fullName?: string;
+    preferredName?: string;
+    jobTitle?: string;
+    tradeSpecialty?: string;
+    photoUrl?: string;
+  } | null;
+};
+
+type AuthMeSettingsResponse = {
+  user?: SettingsUserContext;
+};
+
+const companyAdminFunctionLinks: Array<{
+  href: string;
+  title: string;
+  detail: string;
+  icon: ReactNode;
+}> = [
+  {
+    href: "/company-users",
+    title: "Team & Access",
+    detail: "Invite users, manage roles, and review company permissions.",
+    icon: <Users className="h-5 w-5" />,
+  },
+  {
+    href: "/company-integrations",
+    title: "Apps & Integrations",
+    detail: "Manage connected apps, imports, and workspace data exchange.",
+    icon: <Sparkles className="h-5 w-5" />,
+  },
+  {
+    href: "/company-onboarding",
+    title: "Onboarding Import",
+    detail: "Load roster, jobsite, and training data without adding seats.",
+    icon: <Download className="h-5 w-5" />,
+  },
+  {
+    href: "/training-matrix",
+    title: "Training Tracker",
+    detail: "Review readiness, credentials, assignments, and gaps.",
+    icon: <GraduationCap className="h-5 w-5" />,
+  },
+  {
+    href: "/company-safety-forms",
+    title: "Safety Forms",
+    detail: "Configure forms and checklists crews complete in the field.",
+    icon: <FileText className="h-5 w-5" />,
+  },
+  {
+    href: "/company-inductions",
+    title: "Inductions",
+    detail: "Manage site access requirements and induction programs.",
+    icon: <CalendarCheck className="h-5 w-5" />,
+  },
+  {
+    href: "/customer/billing",
+    title: "Billing",
+    detail: "Review invoices, plan access, payments, and account charges.",
+    icon: <ClipboardCheck className="h-5 w-5" />,
+  },
+  {
+    href: "/settings/risk-memory",
+    title: "Risk Memory Setup",
+    detail: "Maintain contractor and crew lists used by risk workflows.",
+    icon: <Settings className="h-5 w-5" />,
+  },
+];
+
+function settingsDisplayName(user?: SettingsUserContext | null) {
+  const preferred = user?.profile?.preferredName?.trim();
+  const full = user?.profile?.fullName?.trim();
+  return preferred || full || user?.email?.trim() || "Your Profile";
+}
+
+function settingsInitials(name: string) {
+  const parts = name
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return ((parts[0]?.[0] ?? "Y") + (parts[1]?.[0] ?? "P")).toUpperCase();
+}
+
+function canViewCompanyAdminSettings(user?: SettingsUserContext | null) {
+  return user?.role === "company_admin" || Boolean(user?.permissionMap?.can_manage_company_users);
+}
+
 function permitTypeApiValue(type: string) {
   return type.toLowerCase().replace(/\s*\/\s*/g, "_").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
@@ -259,6 +358,109 @@ function WorkspaceIcon({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
   if (workspace === "analytics") return <BarChart3 className="h-6 w-6" />;
   if (workspace === "reports") return <Download className="h-6 w-6" />;
   return <Settings className="h-6 w-6" />;
+}
+
+export function SettingsProfileHub({
+  user,
+  loading = false,
+  message = "",
+}: {
+  user: SettingsUserContext | null;
+  loading?: boolean;
+  message?: string;
+}) {
+  const displayName = settingsDisplayName(user);
+  const profileTitle = [user?.profile?.jobTitle, user?.profile?.tradeSpecialty]
+    .map((item) => item?.trim())
+    .filter(Boolean)
+    .join(" | ");
+  const companyLabel = user?.companyName?.trim() || user?.team?.trim() || "Company not linked";
+  const roleLabel = user?.roleLabel?.trim() || "Workspace member";
+  const photoUrl = user?.profile?.photoUrl?.trim() || "";
+  const showAdminFunctions = canViewCompanyAdminSettings(user);
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <SectionTitle
+          title="My Profile"
+          action={
+            <Link href="/profile" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700">
+              Edit Profile
+            </Link>
+          }
+        />
+        <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
+            {photoUrl ? (
+              <div
+                aria-label={`${displayName} profile photo`}
+                className="h-24 w-24 shrink-0 rounded-2xl border border-slate-200 bg-cover bg-center shadow-sm"
+                style={{ backgroundImage: `url("${photoUrl.replace(/"/g, "%22")}")` }}
+              />
+            ) : (
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 text-2xl font-black text-blue-700 shadow-sm">
+                {settingsInitials(displayName)}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Profile Summary</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{loading && !user ? "Loading profile..." : displayName}</h2>
+              <p className="mt-1 text-sm font-bold text-slate-600">{profileTitle || user?.email || "Profile details are still being loaded."}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-700">{roleLabel}</span>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">{companyLabel}</span>
+                <span className={cx(
+                  "rounded-full border px-3 py-1.5 text-xs font-black",
+                  user?.profileComplete
+                    ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                    : "border-amber-100 bg-amber-50 text-amber-700"
+                )}>
+                  {user?.profileComplete ? "Profile Complete" : "Profile Needs Details"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid min-w-0 gap-3 text-sm lg:w-80">
+            <ProfileFact label="Email" value={user?.email || "No email on file"} />
+            <ProfileFact label="Company ID" value={user?.companyId || "Company scope unavailable"} />
+          </div>
+        </div>
+        {message ? <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{message}</p> : null}
+      </Card>
+
+      {showAdminFunctions ? (
+        <Card className="p-5">
+          <SectionTitle title="Company Admin Functions" />
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {companyAdminFunctionLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-blue-100 bg-white text-blue-700 shadow-sm group-hover:border-blue-200">
+                  {item.icon}
+                </span>
+                <span className="mt-3 block text-sm font-black text-slate-950">{item.title}</span>
+                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{item.detail}</span>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</span>
+      <span className="mt-1 block truncate text-sm font-bold text-slate-800">{value}</span>
+    </div>
+  );
 }
 
 function siteName(siteId: string, jobsites: Array<{ id: string; name: string }>) {
@@ -613,8 +815,59 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [predictabilitySettingsLoading, setPredictabilitySettingsLoading] = useState(false);
   const [predictabilitySettingsSaving, setPredictabilitySettingsSaving] = useState(false);
   const [predictabilitySettingsMessage, setPredictabilitySettingsMessage] = useState("");
+  const [settingsUser, setSettingsUser] = useState<SettingsUserContext | null>(null);
+  const [settingsUserLoading, setSettingsUserLoading] = useState(false);
+  const [settingsUserMessage, setSettingsUserMessage] = useState("");
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
+
+  useEffect(() => {
+    if (workspace !== "settings") return;
+    let active = true;
+
+    async function loadSettingsUser() {
+      setSettingsUserLoading(true);
+      setSettingsUserMessage("");
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const headers = session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined;
+        const response = await fetch("/api/auth/me", { headers });
+        const body = (await response.json().catch(() => null)) as AuthMeSettingsResponse | { error?: string } | null;
+
+        if (!active) return;
+        if (!response.ok) {
+          setSettingsUser(null);
+          setSettingsUserMessage(
+            body && "error" in body && body.error
+              ? body.error
+              : "Profile summary is unavailable."
+          );
+          return;
+        }
+
+        setSettingsUser((body as AuthMeSettingsResponse | null)?.user ?? null);
+      } catch {
+        if (active) {
+          setSettingsUser(null);
+          setSettingsUserMessage("Profile summary is unavailable.");
+        }
+      } finally {
+        if (active) {
+          setSettingsUserLoading(false);
+        }
+      }
+    }
+
+    void loadSettingsUser();
+    return () => {
+      active = false;
+    };
+  }, [workspace]);
 
   useEffect(() => {
     if (workspace !== "settings") return;
@@ -1939,65 +2192,73 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
       ) : null}
 
       {workspace === "settings" ? (
-        <div className="mt-5 grid gap-5 xl:grid-cols-2">
-          <Card className="p-5">
-            <SectionTitle title="Workspace Data Mode" />
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafePredict reads authenticated workspace APIs when live data is enabled. If live data is empty or unavailable, the shell company data keeps the platform ready for walkthroughs.</p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button type="button" onClick={() => setMode("live")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "live" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Live data</button>
-              <button type="button" onClick={() => setMode("demo")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "demo" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Sample data</button>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <SectionTitle title="Predictability Engine" />
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Choose how predictions move from this company&apos;s own records to anonymized platform benchmark data and OSHA public baseline data.
-            </p>
-            <div className="mt-5 space-y-3">
-              {PREDICTABILITY_DATA_MODES.map((option) => {
-                const selected = predictabilitySettings.predictabilityDataMode === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => selectPredictabilityMode(option)}
-                    className={cx(
-                      "w-full rounded-lg border p-4 text-left transition-colors",
-                      selected ? "border-blue-500 bg-blue-50 text-blue-950" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
-                    )}
-                  >
-                    <span className="block text-sm font-black">{PREDICTABILITY_MODE_LABELS[option]}</span>
-                    <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
-                      {PREDICTABILITY_MODE_DESCRIPTIONS[option]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
-              Enabled sources: {predictabilitySettings.visibleBenchmarkSources.join(", ").replace("platform_aggregate", "anonymized platform benchmark").replace("osha", "OSHA baseline").replace("company", "company data")}.
-            </div>
-            {predictabilitySettingsMessage ? (
-              <p className="mt-3 text-sm font-bold text-slate-600">{predictabilitySettingsMessage}</p>
-            ) : null}
-            <button
-              type="button"
-              onClick={savePredictabilitySettings}
-              disabled={predictabilitySettingsLoading || predictabilitySettingsSaving}
-              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-55"
-            >
-              {predictabilitySettingsSaving ? "Saving..." : predictabilitySettingsLoading ? "Loading..." : "Save Predictability Settings"}
-            </button>
-          </Card>
-          <Card className="p-5">
-            <SectionTitle title="Risk Thresholds" />
-            <div className="mt-4 space-y-3 text-sm font-black text-slate-700">
-              <p className="flex justify-between rounded-lg bg-red-50 p-3 text-red-700"><span>Critical</span><span>90-100</span></p>
-              <p className="flex justify-between rounded-lg bg-orange-50 p-3 text-orange-700"><span>High</span><span>70-89</span></p>
-              <p className="flex justify-between rounded-lg bg-amber-50 p-3 text-amber-700"><span>Medium</span><span>40-69</span></p>
-              <p className="flex justify-between rounded-lg bg-emerald-50 p-3 text-emerald-700"><span>Low</span><span>0-39</span></p>
-            </div>
-          </Card>
+        <div className="mt-5 space-y-5">
+          <SettingsProfileHub
+            user={settingsUser}
+            loading={settingsUserLoading}
+            message={settingsUserMessage}
+          />
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card className="p-5">
+              <SectionTitle title="Workspace Data Mode" />
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">SafePredict reads authenticated workspace APIs when live data is enabled. If live data is empty or unavailable, the shell company data keeps the platform ready for walkthroughs.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={() => setMode("live")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "live" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Live data</button>
+                <button type="button" onClick={() => setMode("demo")} className={cx("rounded-lg border px-4 py-3 text-sm font-black", mode === "demo" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>Sample data</button>
+              </div>
+            </Card>
+            <Card className="p-5">
+              <SectionTitle title="Predictability Engine" />
+              <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                Choose how predictions move from this company&apos;s own records to anonymized platform benchmark data and OSHA public baseline data.
+              </p>
+              <div className="mt-5 space-y-3">
+                {PREDICTABILITY_DATA_MODES.map((option) => {
+                  const selected = predictabilitySettings.predictabilityDataMode === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => selectPredictabilityMode(option)}
+                      className={cx(
+                        "w-full rounded-lg border p-4 text-left transition-colors",
+                        selected ? "border-blue-500 bg-blue-50 text-blue-950" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
+                      )}
+                    >
+                      <span className="block text-sm font-black">{PREDICTABILITY_MODE_LABELS[option]}</span>
+                      <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">
+                        {PREDICTABILITY_MODE_DESCRIPTIONS[option]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+                Enabled sources: {predictabilitySettings.visibleBenchmarkSources.join(", ").replace("platform_aggregate", "anonymized platform benchmark").replace("osha", "OSHA baseline").replace("company", "company data")}.
+              </div>
+              {predictabilitySettingsMessage ? (
+                <p className="mt-3 text-sm font-bold text-slate-600">{predictabilitySettingsMessage}</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={savePredictabilitySettings}
+                disabled={predictabilitySettingsLoading || predictabilitySettingsSaving}
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {predictabilitySettingsSaving ? "Saving..." : predictabilitySettingsLoading ? "Loading..." : "Save Predictability Settings"}
+              </button>
+            </Card>
+            <Card className="p-5">
+              <SectionTitle title="Risk Thresholds" />
+              <div className="mt-4 space-y-3 text-sm font-black text-slate-700">
+                <p className="flex justify-between rounded-lg bg-red-50 p-3 text-red-700"><span>Critical</span><span>90-100</span></p>
+                <p className="flex justify-between rounded-lg bg-orange-50 p-3 text-orange-700"><span>High</span><span>70-89</span></p>
+                <p className="flex justify-between rounded-lg bg-amber-50 p-3 text-amber-700"><span>Medium</span><span>40-69</span></p>
+                <p className="flex justify-between rounded-lg bg-emerald-50 p-3 text-emerald-700"><span>Low</span><span>0-39</span></p>
+              </div>
+            </Card>
+          </div>
         </div>
       ) : null}
 

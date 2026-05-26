@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { canViewSafePredictPlatformActions } from "@/lib/safePredictPlatformActions";
 import { summarizeSafePredictDataset } from "@/lib/safePredictData";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
@@ -123,7 +124,6 @@ const navGroups: NavGroup[] = [
     icon: LayoutGrid,
     items: [
       { href: "/safe-predict/apps-integrations", label: "Apps & Integrations", icon: LayoutGrid },
-      { href: "/safe-predict/platform-actions", label: "Platform Actions", icon: LayoutGrid },
       { href: "/safe-predict/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -225,9 +225,13 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const currentRiskBand = riskBand(summary.riskScore, hasRiskSignals);
 
   const visibleNavGroups = useMemo(() => {
+    const canViewPlatformActions = canViewSafePredictPlatformActions(viewerRole);
     const platformItems: NavChild[] = [
+      ...(canViewPlatformActions
+        ? [{ href: "/safe-predict/platform-actions", label: "Platform Actions", icon: LayoutGrid }]
+        : []),
       ...(canAccessInternalAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
-      ...(viewerRole === "super_admin" ? [{ href: "/superadmin", label: "Superadmin", icon: LayoutGrid }] : []),
+      ...(canViewPlatformActions ? [{ href: "/superadmin", label: "Superadmin", icon: LayoutGrid }] : []),
     ];
 
     if (platformItems.length === 0) {

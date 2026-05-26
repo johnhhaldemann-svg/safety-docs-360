@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 import { companyAdminSideSections } from "@/lib/appNavigation";
 import { mapSafePredictSurfaceHref } from "@/lib/safePredictRouteMap";
 import {
+  canViewSafePredictPlatformActions,
   filterSafePredictPlatformActions,
   safePredictPlatformActions,
   safePredictPlatformActionSections,
 } from "@/lib/safePredictPlatformActions";
 
 describe("safePredictPlatformActions", () => {
+  it("limits the SafePredict platform actions hub to super admin roles", () => {
+    expect(canViewSafePredictPlatformActions("super_admin")).toBe(true);
+    expect(canViewSafePredictPlatformActions("superadmin")).toBe(true);
+
+    for (const role of ["platform_admin", "admin", "company_admin", "sales_demo", "", null]) {
+      expect(canViewSafePredictPlatformActions(role), String(role)).toBe(false);
+    }
+  });
+
   it("exposes company admin actions through SafePredict beta routes", () => {
     const safePredictHrefs = new Set(safePredictPlatformActions.map((action) => action.href));
     const originalCompanyHrefs = companyAdminSideSections

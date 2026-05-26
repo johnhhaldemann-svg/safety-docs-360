@@ -41,4 +41,20 @@ describe("CommandCenterWorkspace AI conflict panel copy", () => {
     expect(block).toContain("Hierarchy-of-controls lens");
     expect(block).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
   });
+
+  it("includes confirmed action-word workflow controls with review-safe wording", () => {
+    const source = readFileSync("components/command-center/CommandCenterWorkspace.tsx", "utf8");
+    const start = source.indexOf("function executableTriggerLabel");
+    const end = source.indexOf("Morning briefing");
+    const block = source.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(block).toContain("Assign reviewer");
+    expect(block).toContain("Record verification");
+    expect(block).toContain("Resolve with verification");
+    expect(block).toContain("Dismiss with reason");
+    expect(block).toContain("AI cannot approve this. Human review is required.");
+    expect(block).not.toMatch(/\bapproved\b|\bsafe\b|\bcompliant\b|\bcleared\b|\bguaranteed\b/i);
+  });
 });

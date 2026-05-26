@@ -44,6 +44,7 @@ export const gusStorageKeys = {
   autonomyState: "gus_autonomy_state",
   lastAutonomyCheckAt: "gus_last_autonomy_check_at",
   lastUnresolvedPriority: "gus_last_unresolved_priority",
+  notificationSettings: "gus_notification_settings",
 } as const;
 
 export const gusFeatureFlags = {

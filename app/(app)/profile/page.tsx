@@ -13,6 +13,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "@/components/WorkspacePrimitives";
+import { GusNotificationPreferencesCard } from "@/components/gus/GusNotificationPreferencesCard";
 import {
   PROFILE_CERTIFICATION_GROUPS,
   PROFILE_CERTIFICATION_SET,
@@ -778,6 +779,8 @@ export default function ProfilePage() {
           </div>
         </SectionCard>
       ) : null}
+
+      {!managedProfile ? <GusNotificationPreferencesCard /> : null}
 
       {leadershipScore ? (
         <SectionCard

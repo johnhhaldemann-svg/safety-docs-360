@@ -45,6 +45,7 @@ export type NotificationEvent =
   | "training_gap"
   | "permit_auto_assignment"
   | "risk_recommendation"
+  | "gus_email_notification"
   | "webhook_delivery_failed"
   | "integration_webhook_test"
   | "system";
@@ -93,6 +94,7 @@ export const DEFAULT_NOTIFICATION_EVENTS: Array<{
   { eventType: "training_gap", label: "Training gaps", defaultInApp: true, defaultEmail: false },
   { eventType: "permit_auto_assignment", label: "Permit auto-assignments", defaultInApp: true, defaultEmail: false },
   { eventType: "risk_recommendation", label: "Risk recommendations", defaultInApp: true, defaultEmail: false },
+  { eventType: "gus_email_notification", label: "Gus safety review notes", defaultInApp: true, defaultEmail: true },
   { eventType: "webhook_delivery_failed", label: "Webhook delivery failures", defaultInApp: true, defaultEmail: true },
   { eventType: "integration_webhook_test", label: "Integration webhook tests", defaultInApp: true, defaultEmail: false },
 ];

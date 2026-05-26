@@ -12,6 +12,8 @@ import {
   isGusDisabledRoute,
 } from "@/components/gus/gusConfig";
 import { gusFallbackMessage, gusRouteMessages } from "@/components/gus/gusMessages";
+import { useGusNotificationSettings } from "@/components/gus/useGusNotificationSettings";
+import { shouldAutoOpenGusNotification } from "@/lib/gus/gusNotificationSettings";
 import { decideGusBehavior } from "@/lib/gus/gusBrain";
 import { createGusAutonomousMessage, getGusSocialLineId } from "@/lib/gus/gusSocialCoach";
 import { buildGusSitrepMessage, buildGusSteadySitrepMessage } from "@/lib/gus/gusSitrep";
@@ -177,6 +179,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
   const [voiceEnabled] = useState(initialVoiceEnabled);
   const [feedback, setFeedback] = useState<"helpful" | "not_helpful" | null>(null);
   const [activeMessage, setActiveMessage] = useState<GusMessage | null>(null);
+  const { settings: notificationSettings } = useGusNotificationSettings();
   const isAllowed = isGusAllowedRoute(pathname) && !isGusDisabledRoute(pathname);
   const isVisible = isAllowed && !disabledToday && !dismissed && !quietMode;
   const candidateMessage = findRouteMessage(pathname, readStorageValue(gusStorageKeys.lastMessageId));
@@ -225,6 +228,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
       const lastShownMessageId = readStorageValue(gusStorageKeys.lastMessageId);
 
       if (!isVisible || open) return false;
+      if (!shouldAutoOpenGusNotification(notificationSettings, candidate)) return false;
       if (popupsThisSessionRef.current >= gusPopupTiming.maxPopupsPerSession) return false;
       if (lastShownMessageId === candidate.messageId) return false;
       if (lastShownAt && now - lastShownAt < gusPopupTiming.globalCooldownMs) return false;
@@ -234,7 +238,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
 
       return true;
     },
-    [isVisible, open],
+    [isVisible, notificationSettings, open],
   );
 
   useEffect(() => {
@@ -366,6 +370,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
         ...sitrepMessage,
         shouldSpeak: gusSitrepTiming.sitrepCriticalVoiceOnly ? sitrepMessage.priority <= 2 : sitrepMessage.shouldSpeak,
       };
+      if (!shouldAutoOpenGusNotification(notificationSettings, safeSitrep)) return;
       setActiveMessage(safeSitrep);
       rememberSitrepMessage(safeSitrep);
       setOpen(true);
@@ -383,6 +388,7 @@ export function useGusAssistant(options: UseGusAssistantOptions = {}) {
     isVisible,
     jobsiteId,
     liveContext,
+    notificationSettings,
     open,
     pathname,
     rememberSitrepMessage,

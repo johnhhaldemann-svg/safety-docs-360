@@ -161,6 +161,22 @@ export default function PredictiveModelPage() {
       setRiskActionLoading(true);
       setRiskActionMessage("");
       try {
+        let fieldVerificationSummary: string | null = null;
+        let dismissReason: string | null = null;
+        if (actionType === "mark_field_used" || actionType === "resolve") {
+          fieldVerificationSummary = window.prompt("Enter the field verification summary for this recommendation.")?.trim() ?? null;
+          if (!fieldVerificationSummary) {
+            setRiskActionMessage("Field verification summary is required before recording this action.");
+            return;
+          }
+        }
+        if (actionType === "dismiss") {
+          dismissReason = window.prompt("Enter the human review reason for dismissing this recommendation.")?.trim() ?? null;
+          if (!dismissReason) {
+            setRiskActionMessage("Dismiss reason is required before recording this action.");
+            return;
+          }
+        }
         const headers = await getAuthHeaders();
         const res = await fetch(`/api/company/risk-memory/recommendations/${encodeURIComponent(id)}/actions`, {
           method: "POST",
@@ -168,7 +184,13 @@ export default function PredictiveModelPage() {
             ...headers,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ actionType }),
+          body: JSON.stringify({
+            actionType,
+            confirmation: true,
+            fieldVerificationSummary,
+            dismissReason,
+            evidenceProvided: Boolean(fieldVerificationSummary),
+          }),
         });
         const body = (await res.json().catch(() => null)) as {
           error?: string;

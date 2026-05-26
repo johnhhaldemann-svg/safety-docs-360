@@ -55,6 +55,8 @@ const supabase = getSupabaseBrowserClient();
 
 type HubTab = (typeof COMMAND_CENTER_HUB_TABS)[number];
 type InsightsSection = (typeof INSIGHTS_SECTIONS)[number];
+type CommandCenterAiSafetyActionItem = PredictiveRiskPayload["aiSafetyActionQueue"]["items"][number];
+type CommandCenterAiActionDecisionTrigger = NonNullable<CommandCenterAiSafetyActionItem["decisionTriggers"]>[number];
 
 type AnalyticsSummaryPayload = {
   summary?: AnalyticsSummary;
@@ -325,12 +327,20 @@ function DailySafetyCommandCenterPanel({
   syncingActions,
   syncMessage,
   onSyncActions,
+  syncedActionIds,
+  executingActionId,
+  executionMessage,
+  onExecuteActionDecision,
 }: {
   predictiveRisk: PredictiveRiskPayload | null;
   loading: boolean;
   syncingActions: boolean;
   syncMessage: string;
   onSyncActions: () => void;
+  syncedActionIds: Record<string, string>;
+  executingActionId: string | null;
+  executionMessage: string;
+  onExecuteActionDecision: (item: CommandCenterAiSafetyActionItem, trigger: CommandCenterAiActionDecisionTrigger) => void;
 }) {
   const briefing = predictiveRisk?.dailyBriefing;
   const actionQueue = predictiveRisk?.aiSafetyActionQueue;
@@ -369,6 +379,38 @@ function DailySafetyCommandCenterPanel({
         ...(briefing.missingData.length > 0 ? [`Missing data lowers confidence: ${briefing.missingData.slice(0, 2).join("; ")}`] : []),
       ]
     : [];
+
+  function executableTriggerLabel(trigger: CommandCenterAiActionDecisionTrigger) {
+    if (trigger.blocked) return "Review required";
+    if (trigger.intent === "request_assignment") return "Assign reviewer";
+    if (trigger.intent === "request_field_verification") return "Record verification";
+    if (trigger.intent === "request_escalation" || trigger.intent === "stop_work_review" || trigger.intent === "pause_or_hold_work") return "Escalate review";
+    if (trigger.intent === "request_resolution") return "Resolve with verification";
+    if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "Dismiss with reason";
+    if (trigger.intent === "create_action") return "Create action";
+    return "Route for review";
+  }
+
+  function executableTriggers(item: CommandCenterAiSafetyActionItem) {
+    return (item.decisionTriggers ?? [])
+      .filter((trigger) =>
+        trigger.blocked ||
+        [
+          "request_assignment",
+          "request_field_verification",
+          "request_escalation",
+          "stop_work_review",
+          "pause_or_hold_work",
+          "request_resolution",
+          "request_dismissal",
+          "suppress_or_ignore",
+          "create_action",
+          "request_review",
+          "resequence_work",
+        ].includes(trigger.intent),
+      )
+      .slice(0, 3);
+  }
 
   return (
     <SectionCard
@@ -696,6 +738,11 @@ function DailySafetyCommandCenterPanel({
               {syncMessage}
             </p>
           ) : null}
+          {executionMessage ? (
+            <p className="mt-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs leading-5 text-[var(--app-text)]">
+              {executionMessage}
+            </p>
+          ) : null}
           <div className="mt-3 grid gap-3 xl:grid-cols-2">
             {actionQueue.items.slice(0, 6).map((item) => (
               <div key={item.id} className="rounded-xl border border-[var(--app-border)] bg-white/90 px-3 py-3">
@@ -733,6 +780,32 @@ function DailySafetyCommandCenterPanel({
                         {trigger.actionWord}: {trigger.intent.replace(/_/g, " ")}
                       </span>
                     ))}
+                  </div>
+                ) : null}
+                {executableTriggers(item).length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {executableTriggers(item).map((trigger) => {
+                      const recommendationId = syncedActionIds[item.sourceKey];
+                      const disabled = Boolean(executingActionId) || trigger.blocked || !recommendationId;
+                      return (
+                        <button
+                          key={`${item.id}-${trigger.id}-execute`}
+                          type="button"
+                          className={trigger.blocked ? appButtonQuietClassName : appButtonSecondaryClassName}
+                          disabled={disabled}
+                          title={
+                            trigger.blocked
+                              ? "AI cannot approve this. Human review is required."
+                              : recommendationId
+                                ? trigger.recommendedSafeAction
+                                : "Create/Sync AI Actions before executing this decision."
+                          }
+                          onClick={() => onExecuteActionDecision(item, trigger)}
+                        >
+                          {executingActionId === `${item.sourceKey}:${trigger.id}` ? "Recording..." : executableTriggerLabel(trigger)}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : null}
                 {syncMessage ? (
@@ -1080,6 +1153,9 @@ export function CommandCenterWorkspace() {
   const [riskSnapWorking, setRiskSnapWorking] = useState(false);
   const [aiActionSyncWorking, setAiActionSyncWorking] = useState(false);
   const [aiActionSyncMessage, setAiActionSyncMessage] = useState("");
+  const [aiActionExecutionMessage, setAiActionExecutionMessage] = useState("");
+  const [aiActionExecutingId, setAiActionExecutingId] = useState<string | null>(null);
+  const [syncedAiActionIds, setSyncedAiActionIds] = useState<Record<string, string>>({});
   const [aiExecutiveReportWorking, setAiExecutiveReportWorking] = useState<"weekly" | "monthly" | null>(null);
   const [aiExecutiveReportMessage, setAiExecutiveReportMessage] = useState("");
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
@@ -1372,9 +1448,33 @@ export function CommandCenterWorkspace() {
         "AI safety action sync"
       );
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; insertedCount?: number; skippedDuplicateCount?: number; existingActionCount?: number }
+        | {
+            error?: string;
+            insertedCount?: number;
+            skippedDuplicateCount?: number;
+            existingActionCount?: number;
+            recommendations?: Array<{
+              id?: string | null;
+              evidence_summary?: {
+                aiSafetyAction?: {
+                  sourceKey?: string | null;
+                };
+              } | null;
+            }>;
+          }
         | null;
       if (!res.ok) throw new Error(data?.error || "Could not sync AI safety actions.");
+      const nextSyncedIds = Object.fromEntries(
+        (data?.recommendations ?? [])
+          .map((recommendation) => {
+            const sourceKey = recommendation.evidence_summary?.aiSafetyAction?.sourceKey;
+            return sourceKey && recommendation.id ? [sourceKey, recommendation.id] : null;
+          })
+          .filter((entry): entry is [string, string] => Array.isArray(entry)),
+      );
+      if (Object.keys(nextSyncedIds).length > 0) {
+        setSyncedAiActionIds((current) => ({ ...current, ...nextSyncedIds }));
+      }
       setAiActionSyncMessage(
         `${data?.insertedCount ?? 0} action${data?.insertedCount === 1 ? "" : "s"} created; ${data?.skippedDuplicateCount ?? 0} duplicate${data?.skippedDuplicateCount === 1 ? "" : "s"} skipped.`
       );
@@ -1383,6 +1483,72 @@ export function CommandCenterWorkspace() {
       setPredictiveErr(error instanceof Error ? error.message : "AI safety action sync failed.");
     } finally {
       setAiActionSyncWorking(false);
+    }
+  }
+
+  async function executeAiActionDecision(item: CommandCenterAiSafetyActionItem, trigger: CommandCenterAiActionDecisionTrigger) {
+    const recommendationId = syncedAiActionIds[item.sourceKey];
+    if (!recommendationId) {
+      setAiActionExecutionMessage("Create/Sync AI Actions before executing this decision.");
+      return;
+    }
+    if (trigger.blocked) {
+      setAiActionExecutionMessage("AI cannot approve this. Human review is required before any workflow change.");
+      return;
+    }
+
+    let fieldVerificationSummary: string | null = null;
+    let dismissReason: string | null = null;
+    let notes: string | null = null;
+    if (trigger.intent === "request_field_verification" || trigger.intent === "request_resolution") {
+      fieldVerificationSummary = window.prompt("Enter the field verification summary required for this action.")?.trim() ?? null;
+      if (!fieldVerificationSummary) return;
+    }
+    if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") {
+      dismissReason = window.prompt("Enter the human review reason for dismissing or suppressing this recommendation.")?.trim() ?? null;
+      if (!dismissReason) return;
+    }
+    if (trigger.intent === "request_escalation" || trigger.intent === "stop_work_review" || trigger.intent === "pause_or_hold_work") {
+      notes = window.prompt("Enter escalation notes for the reviewer or competent person.")?.trim() ?? null;
+      if (!notes) return;
+    }
+
+    const executionId = `${item.sourceKey}:${trigger.id}`;
+    setAiActionExecutingId(executionId);
+    setAiActionExecutionMessage("");
+    setPredictiveErr("");
+    try {
+      const headers = { ...(await getAuthHeaders()), "Content-Type": "application/json" };
+      const res = await fetchWithTimeoutSafe(
+        "/api/company/ai/action-decision/execute",
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            recommendationId,
+            triggerId: trigger.id,
+            intent: trigger.intent,
+            confirmation: true,
+            fieldVerificationSummary,
+            dismissReason,
+            notes,
+          }),
+        },
+        20000,
+        "AI action decision"
+      );
+      const data = (await res.json().catch(() => null)) as { error?: string; blockedReason?: string | null; executedAction?: string | null } | null;
+      if (!res.ok || data?.error) throw new Error(data?.error || "Could not record AI action decision.");
+      if (data?.blockedReason) {
+        setAiActionExecutionMessage(data.blockedReason);
+      } else {
+        setAiActionExecutionMessage(`Action decision recorded: ${(data?.executedAction ?? trigger.intent).replace(/_/g, " ")}.`);
+      }
+      await load();
+    } catch (error) {
+      setPredictiveErr(error instanceof Error ? error.message : "AI action decision failed.");
+    } finally {
+      setAiActionExecutingId(null);
     }
   }
 
@@ -1480,6 +1646,10 @@ export function CommandCenterWorkspace() {
         syncingActions={aiActionSyncWorking}
         syncMessage={aiActionSyncMessage}
         onSyncActions={syncAiSafetyActions}
+        syncedActionIds={syncedAiActionIds}
+        executingActionId={aiActionExecutingId}
+        executionMessage={aiActionExecutionMessage}
+        onExecuteActionDecision={executeAiActionDecision}
       />
 
       <AiSafetyCalibrationPanel

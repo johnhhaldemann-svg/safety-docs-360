@@ -86,6 +86,17 @@ function actionTypeLabel(actionType?: string) {
   return "Assign";
 }
 
+function decisionTriggerLabel(intent?: string) {
+  if (intent === "request_assignment") return "Assign reviewer";
+  if (intent === "request_field_verification") return "Request verification";
+  if (intent === "request_escalation" || intent === "stop_work_review" || intent === "pause_or_hold_work") return "Escalate review";
+  if (intent === "request_resolution") return "Resolve with verification";
+  if (intent === "request_dismissal" || intent === "suppress_or_ignore") return "Dismiss with reason";
+  if (intent === "create_action") return "Create action";
+  if (intent === "blocked_authority") return "Human review required";
+  return "Route for review";
+}
+
 function mitigationLabel(state?: string) {
   if (state === "documentation_requested") return "Documentation requested";
   if (state === "inspection_requested") return "Inspection requested";
@@ -619,6 +630,18 @@ function DailyRiskBriefingPanel({ data, loading }: { data: PredictiveRiskPayload
                         title={trigger.blocked ? "AI cannot grant final authorization. Human review required." : trigger.recommendedSafeAction}
                       >
                         {trigger.actionWord}: {trigger.intent.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {item.decisionTriggers && item.decisionTriggers.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {item.decisionTriggers.slice(0, 3).map((trigger) => (
+                      <span
+                        key={`${trigger.id}-confirmed-action`}
+                        className="rounded-md border border-[var(--app-border)] bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-text-strong)]"
+                      >
+                        {decisionTriggerLabel(trigger.intent)}
                       </span>
                     ))}
                   </div>
