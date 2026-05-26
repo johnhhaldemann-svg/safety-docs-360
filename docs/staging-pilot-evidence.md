@@ -28,6 +28,16 @@ This file is the working evidence log for the staging-first pilot readiness pass
 | Root blocker | Blocked | Local migrations start with policy/RLS changes against pre-existing tables such as `public.submissions`, `public.documents`, and `public.subscriptions`, but no baseline migration or schema dump for those tables exists in `supabase/`. Add a baseline schema migration or obtain a schema-only dump from the current Supabase project before staging can be rebuilt safely. |
 | Empty staging project cleanup | Blocked | Attempted to pause `dacafxrcrijqevgjotjc`; Supabase rejected it with `Project is not free-tier. Please downgrade it to free-tier first and try again.` Handle billing/project cleanup in the Supabase dashboard if this project should not remain billable. |
 
+## Baseline Recovery Attempt - 2026-05-26
+
+| Item | Status | Evidence / Needed Action |
+| --- | --- | --- |
+| Schema-only baseline artifact | Ready | Created `supabase/baseline/20260522135305_schema.sql` from source project `mdqkfbnwxrasdmbsjcqv` at remote migration `20260522135305_gus_planning_sessions`. Dump includes `public` and `private` schemas only. |
+| Storage config baseline artifact | Ready | Created `supabase/baseline/20260522135305_storage_config.sql` from source project metadata. File includes storage bucket configuration and `storage.objects` policies only; it does not include storage objects. |
+| Baseline safety validation | Ready | `npm run db:baseline:dump -- --dry-run` passed after Docker Desktop was started. `npm run db:baseline:dump` wrote the baseline files and rejected data-dump markers including `COPY`, pg_dump data sections, migration history, auth user data statements, and key-like secrets. Follow-up search found no forbidden markers. |
+| Repeatable staging tooling | Ready | Added `db:baseline:dump`, `db:staging:bootstrap`, and `db:staging:verify` package scripts. Bootstrap refuses production ref `mdqkfbnwxrasdmbsjcqv`, defaults to staging ref `dacafxrcrijqevgjotjc`, checks for existing app tables, applies schema/storage baselines, repairs migration history through `20260522135305`, and then applies pending migrations. |
+| Live staging bootstrap | Blocked | `npm run db:staging:verify` currently fails with `Missing STAGING_DATABASE_URL`. Add the staging project's Session pooler URI to `.env.staging.local` as `STAGING_DATABASE_URL` or `SUPABASE_STAGING_DB_URL`, plus `STAGING_SUPABASE_REF=dacafxrcrijqevgjotjc`, then run `npm run db:staging:bootstrap`. |
+
 ## Migration Sync Evidence
 
 | Source | Latest Migration |
