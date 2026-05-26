@@ -923,6 +923,7 @@ export default function JobsitesPage() {
                     {selectedJobsite.source === "table" ? (
                       <>
                         <Link href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/overview`} className={appButtonPrimaryClassName}>Open Jobsite</Link>
+                        <Link href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/emergency-action-plan`} className={appButtonSecondaryClassName}>Emergency Action Plan</Link>
                         <Link href={`/jobsites/${encodeURIComponent(selectedJobsite.id)}/contractor-training`} className={appButtonQuietClassName}>Contractor Training</Link>
                       </>
                     ) : (

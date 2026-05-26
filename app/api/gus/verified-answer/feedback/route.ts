@@ -27,6 +27,12 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 500 });
   const result = await recordGusAnswerFeedback(admin, {
     answerId,
+    answerAuditId:
+      typeof body.answerAuditId === "string"
+        ? body.answerAuditId
+        : typeof body.answer_audit_id === "string"
+          ? body.answer_audit_id
+          : null,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     projectId: typeof body.projectId === "string" ? body.projectId : typeof body.project_id === "string" ? body.project_id : null,
@@ -34,5 +40,5 @@ export async function POST(request: Request) {
     comment: typeof body.comment === "string" ? body.comment : null,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
-  return NextResponse.json({ feedback: result.feedback }, { status: 201 });
+  return NextResponse.json({ feedback: result.feedback, reviewItem: result.reviewItem ?? null }, { status: 201 });
 }

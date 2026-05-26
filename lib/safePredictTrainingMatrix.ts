@@ -42,12 +42,47 @@ export type SafePredictTrainingTradeGroup = {
   overallStatus: "Compliant" | "Expiring" | "Overdue";
 };
 
+export type SafePredictTrainingPersonStatus = "gap" | "expiring" | "compliant" | "not_applicable";
+
+export type SafePredictTrainingPersonSummary = {
+  id: string;
+  name: string;
+  email: string;
+  trade: string;
+  position: string;
+  portalType: "licensed_user" | "tracked_employee";
+  portalLabel: string;
+  status: SafePredictTrainingPersonStatus;
+  statusLabel: string;
+  gapCount: number;
+  expiringCount: number;
+  compliantCount: number;
+  notApplicableCount: number;
+};
+
+export type SafePredictTrainingRosterTotals = {
+  people: number;
+  licensedUsers: number;
+  trackedWorkers: number;
+  peopleWithGaps: number;
+  peopleExpiring: number;
+};
+
 function clean(value: string | null | undefined, fallback: string) {
   return value?.trim() || fallback;
 }
 
 function normalizeCellState(value: unknown): SafePredictTrainingCellState {
   return value === "match" || value === "na" ? value : "gap";
+}
+
+function normalizePersonType(row: SafePredictTrainingMatrixRow): "licensed_user" | "tracked_employee" {
+  if (row.personType === "tracked_employee" || row.trackedEmployeeId) return "tracked_employee";
+  return "licensed_user";
+}
+
+export function safePredictTrainingPortalLabel(row: SafePredictTrainingMatrixRow) {
+  return normalizePersonType(row) === "tracked_employee" ? "Tracked worker / no portal access" : "Licensed user";
 }
 
 function workerId(row: SafePredictTrainingMatrixRow) {
@@ -121,6 +156,94 @@ function sortTrades(left: SafePredictTrainingTradeGroup, right: SafePredictTrain
     right.expiringCount - left.expiringCount ||
     left.trade.localeCompare(right.trade)
   );
+}
+
+function personStatusRank(status: SafePredictTrainingPersonStatus) {
+  if (status === "gap") return 0;
+  if (status === "expiring") return 1;
+  if (status === "compliant") return 2;
+  return 3;
+}
+
+export function summarizeSafePredictTrainingPerson(
+  row: SafePredictTrainingMatrixRow,
+  requirements: SafePredictTrainingRequirement[]
+): SafePredictTrainingPersonSummary {
+  let gapCount = 0;
+  let expiringCount = 0;
+  let compliantCount = 0;
+  let notApplicableCount = 0;
+
+  for (const requirement of requirements) {
+    const state = normalizeCellState(row.cells?.[requirement.id]);
+    const detail = row.cellDetails?.[requirement.id];
+    if (state === "na") {
+      notApplicableCount += 1;
+    } else if (state === "gap" || detail?.expiryStatus === "expired") {
+      gapCount += 1;
+    } else if (detail?.expiryStatus === "soon") {
+      expiringCount += 1;
+    } else {
+      compliantCount += 1;
+    }
+  }
+
+  const status: SafePredictTrainingPersonStatus =
+    gapCount > 0
+      ? "gap"
+      : expiringCount > 0
+        ? "expiring"
+        : compliantCount > 0
+          ? "compliant"
+          : "not_applicable";
+  const portalType = normalizePersonType(row);
+
+  return {
+    id: workerId(row),
+    name: clean(row.name, "Unnamed worker"),
+    email: clean(row.email, "No email"),
+    trade: clean(row.profileFields?.tradeSpecialty, "Unspecified trade"),
+    position: clean(row.profileFields?.jobTitle, clean(row.role, "Worker")),
+    portalType,
+    portalLabel: portalType === "tracked_employee" ? "Tracked worker / no portal access" : "Licensed user",
+    status,
+    statusLabel:
+      status === "gap"
+        ? "Overdue / missing"
+        : status === "expiring"
+          ? "Expiring"
+          : status === "compliant"
+            ? "Compliant"
+            : "Not applicable",
+    gapCount,
+    expiringCount,
+    compliantCount,
+    notApplicableCount,
+  };
+}
+
+export function buildSafePredictTrainingPeopleRoster(
+  trainingMatrix: SafePredictTrainingMatrix
+): SafePredictTrainingPersonSummary[] {
+  return trainingMatrix.rows
+    .map((row) => summarizeSafePredictTrainingPerson(row, trainingMatrix.requirements))
+    .sort(
+      (left, right) =>
+        personStatusRank(left.status) - personStatusRank(right.status) ||
+        left.name.localeCompare(right.name)
+    );
+}
+
+export function summarizeSafePredictTrainingRoster(
+  people: SafePredictTrainingPersonSummary[]
+): SafePredictTrainingRosterTotals {
+  return {
+    people: people.length,
+    licensedUsers: people.filter((person) => person.portalType === "licensed_user").length,
+    trackedWorkers: people.filter((person) => person.portalType === "tracked_employee").length,
+    peopleWithGaps: people.filter((person) => person.gapCount > 0).length,
+    peopleExpiring: people.filter((person) => person.expiringCount > 0).length,
+  };
 }
 
 export function buildSafePredictTrainingTradeGroups(

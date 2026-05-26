@@ -18,6 +18,7 @@ export const DEFAULT_ACTIVE_SURFACES = [
   "training-records.photo-extract",
   "field-audits.ai-review",
   "superadmin.ai-engine.recommendations",
+  "gus.verified-learning",
 ];
 
 function readJsonFile(path) {

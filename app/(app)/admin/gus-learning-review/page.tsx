@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, CheckCircle2, ExternalLink, FileSearch, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { Archive, CheckCircle2, ClipboardCheck, ExternalLink, Eye, FileSearch, Flag, Gauge, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import {
   EmptyState,
   InlineMessage,
@@ -17,6 +17,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import type {
   ApprovedKnowledgeRow,
   ApprovedSourceRow,
+  GusAnswerAuditRow,
+  GusLearningReviewItemRow,
   GusRequiredControlType,
   GusLearningTrustLevel,
   ResearchQueueRow,
@@ -33,6 +35,9 @@ type Overview = {
   knowledgeDueForReview: ApprovedKnowledgeRow[];
   changeLog: Array<{ id: string; change_type: string; change_reason: string | null; created_at: string }>;
   feedbackForReview: Array<{ id: string; answer_id: string; feedback_type: string; comment: string | null; created_at: string }>;
+  answerAudits: GusAnswerAuditRow[];
+  reviewItems: GusLearningReviewItemRow[];
+  weakCitationKnowledge: ApprovedKnowledgeRow[];
 };
 
 const SOURCE_TYPES = [
@@ -78,6 +83,12 @@ function statusTone(status: string) {
   return "warning" as const;
 }
 
+function qualityTone(score: number) {
+  if (score >= 75) return "success" as const;
+  if (score >= 55) return "warning" as const;
+  return "error" as const;
+}
+
 function RowShell({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-[var(--app-border)] bg-white/95 p-4 shadow-[var(--app-shadow-soft)]">{children}</div>;
 }
@@ -99,6 +110,9 @@ function PendingFinding({
     return date.toISOString().slice(0, 10);
   });
   const [jurisdiction, setJurisdiction] = useState(row.jurisdiction);
+  const [citationExcerpt, setCitationExcerpt] = useState("");
+  const [citationLocator, setCitationLocator] = useState("");
+  const [verificationNotes, setVerificationNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -116,6 +130,9 @@ function PendingFinding({
           requiredControlType: controlType,
           reviewDueDate,
           jurisdiction,
+          citationExcerpt,
+          citationLocator,
+          verificationNotes,
           reviewerNotes: notes,
           affectedModules: row.affected_modules,
         }),
@@ -154,6 +171,9 @@ function PendingFinding({
           </select>
           <input value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" placeholder="Jurisdiction" />
           <input value={reviewDueDate} onChange={(e) => setReviewDueDate(e.target.value)} type="date" className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" />
+          <input value={citationLocator} onChange={(e) => setCitationLocator(e.target.value)} className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" placeholder="Citation locator / section" />
+          <textarea value={citationExcerpt} onChange={(e) => setCitationExcerpt(e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" placeholder="Approved citation excerpt" />
+          <textarea value={verificationNotes} onChange={(e) => setVerificationNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" placeholder="Verification notes" />
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-[var(--app-border)] px-3 py-2 text-sm" placeholder="Reviewer notes" />
         </div>
       </div>
@@ -217,7 +237,7 @@ export default function GusLearningReviewPage() {
       { label: "Pending", value: ov?.pendingResearch.length ?? 0 },
       { label: "Approved", value: ov?.approvedFindings.length ?? 0 },
       { label: "Expired", value: ov?.expiredKnowledge.length ?? 0 },
-      { label: "Feedback flags", value: ov?.feedbackForReview.length ?? 0 },
+      { label: "Review items", value: ov?.reviewItems.length ?? 0 },
     ];
   }, [overview]);
 
@@ -302,6 +322,25 @@ export default function GusLearningReviewPage() {
     }
   };
 
+  const updateReviewItem = async (row: GusLearningReviewItemRow, action: "start_review" | "resolve" | "archive") => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/gus-learning/review-items/${row.id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reviewNotes: action === "resolve" ? "Resolved from Gus learning review dashboard." : "Updated from Gus learning review dashboard." }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Failed to update review item.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update review item.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="space-y-6">
       <PageHero
@@ -330,6 +369,56 @@ export default function GusLearningReviewPage() {
       <SectionCard eyebrow="Queue" title="Pending research findings" description="Findings stay here until a company admin approves, rejects, or requests more review.">
         {overview?.pendingResearch.length ? overview.pendingResearch.map((row) => <PendingFinding key={row.id} row={row} token={token} onDone={() => void load()} />) : <EmptyState title="No pending findings" description="Approved-source research requests will appear here for human review." align="left" />}
       </SectionCard>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard eyebrow="Answer review" title="Learning review items" description="Feedback and weak evidence are routed here before they become research or knowledge changes.">
+          {(overview?.reviewItems ?? []).length ? overview?.reviewItems.slice(0, 10).map((row) => (
+            <RowShell key={row.id}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{row.title}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">{row.recommended_admin_action}</p>
+                  {row.user_comment ? <p className="mt-2 text-xs text-[var(--app-text)]">{row.user_comment}</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge label={row.item_type.replace(/_/g, " ")} tone="warning" />
+                  <StatusBadge label={row.status.replace(/_/g, " ")} tone={statusTone(row.status)} />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" disabled={busy || row.status === "in_review"} onClick={() => void updateReviewItem(row, "start_review")} className={appButtonSecondaryClassName}>
+                  <Eye className="h-4 w-4" />
+                  Review
+                </button>
+                <button type="button" disabled={busy} onClick={() => void updateReviewItem(row, "resolve")} className={appButtonPrimaryClassName}>
+                  <ClipboardCheck className="h-4 w-4" />
+                  Resolve
+                </button>
+              </div>
+            </RowShell>
+          )) : <EmptyState title="No learning review items" description="Unsafe, incorrect, missing-source, weak-citation, and expired-source issues will appear here." align="left" icon={Flag} />}
+        </SectionCard>
+
+        <SectionCard eyebrow="Answer audit" title="Recent verified answers" description="Trace what Gus retrieved, cited, and rejected for recent verified answers.">
+          {(overview?.answerAudits ?? []).length ? overview?.answerAudits.slice(0, 10).map((row) => (
+            <RowShell key={row.id}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-[var(--app-text-strong)]">{row.question}</p>
+                  <p className="mt-1 text-xs text-[var(--app-muted)]">
+                    {row.retrieval_method} retrieval · {row.selected_knowledge_ids.length} cited · {row.rejected_candidate_ids.length} rejected
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge label={row.confidence} tone={row.confidence === "High" ? "success" : row.confidence === "Medium" ? "warning" : "error"} />
+                  {row.unsupported ? <StatusBadge label="unsupported" tone="error" /> : null}
+                  {row.needs_review ? <StatusBadge label="needs review" tone="warning" /> : null}
+                </div>
+              </div>
+            </RowShell>
+          )) : <EmptyState title="No answer audits" description="Verified-answer trace records will appear after users ask Gus safety questions." align="left" icon={Gauge} />}
+        </SectionCard>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SectionCard eyebrow="Research" title="Request approved-source research" description="Gus will fetch only active, non-blocked approved sources.">
@@ -424,6 +513,25 @@ export default function GusLearningReviewPage() {
           </RowShell>
         ))}
         {!(overview?.expiredKnowledge.length || overview?.knowledgeDueForReview.length) ? <EmptyState title="No review-due knowledge" description="Approved knowledge is current based on configured review dates." align="left" icon={ShieldCheck} /> : null}
+      </SectionCard>
+
+      <SectionCard eyebrow="Citation quality" title="Weak citations and low-quality knowledge" description="These records are still visible to admins, but Gus de-prioritizes them until citations and review notes improve.">
+        {(overview?.weakCitationKnowledge ?? []).length ? overview?.weakCitationKnowledge.slice(0, 12).map((row) => (
+          <RowShell key={row.id}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-bold text-[var(--app-text-strong)]">{row.knowledge_title}</p>
+                <p className="mt-1 text-xs text-[var(--app-muted)]">
+                  {row.citation_locator || "No citation locator"} · {row.citation_excerpt ? "Excerpt present" : "Missing excerpt"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge label={`quality ${Math.round(Number(row.quality_score ?? 0))}`} tone={qualityTone(Number(row.quality_score ?? 0))} />
+                <StatusBadge label={row.required_control_type.replace(/_/g, " ")} tone="info" />
+              </div>
+            </div>
+          </RowShell>
+        )) : <EmptyState title="No weak citations" description="Approved knowledge has enough citation detail for the current quality threshold." align="left" />}
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-2">

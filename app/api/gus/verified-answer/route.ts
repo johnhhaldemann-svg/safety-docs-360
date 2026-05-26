@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory";
-import { buildVerifiedSafetyAnswer, canAskGusVerifiedQuestions, retrieveApprovedKnowledge } from "@/lib/gusLearning";
+import { buildVerifiedSafetyAnswer, canAskGusVerifiedQuestions, recordGusAnswerAudit, retrieveApprovedKnowledge } from "@/lib/gusLearning";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
@@ -53,12 +53,36 @@ export async function POST(request: Request) {
     knowledge: knowledge.items,
     uploadedDocumentMatches: memory.chunks,
   });
+  const selectedKnowledgeIds = answer.citations.map((citation) => citation.knowledgeId);
+  const selected = new Set(selectedKnowledgeIds);
+  const rejectedCandidateIds = knowledge.items.map((item) => item.id).filter((id) => !selected.has(id));
+  const audit = await recordGusAnswerAudit(db, {
+    userId: auth.user.id,
+    companyId,
+    projectId,
+    question,
+    answer,
+    retrievalMethod: knowledge.method,
+    selectedKnowledgeIds,
+    rejectedCandidateIds,
+    retrievalTrace: {
+      ...(knowledge.trace ?? {}),
+      approvedKnowledgeMethod: knowledge.method,
+      uploadedDocumentMethod: memory.method,
+      uploadedDocumentCount: memory.chunks.length,
+    },
+    citationSnippets: answer.citationSnippets,
+    qualitySignals: answer.qualitySignals,
+  });
 
   return NextResponse.json({
     ...answer,
+    answerAuditId: audit.ok ? audit.audit.id : null,
     retrieval: {
       approvedKnowledge: knowledge.method,
       uploadedDocuments: memory.method,
     },
+    retrievalTrace: audit.ok ? audit.audit.retrieval_trace : knowledge.trace ?? {},
+    qualitySignals: answer.qualitySignals,
   });
 }

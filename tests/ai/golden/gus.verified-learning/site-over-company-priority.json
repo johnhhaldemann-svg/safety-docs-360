@@ -1,0 +1,11 @@
+{
+  "surface": "gus.verified-learning",
+  "name": "Site-specific knowledge outranks company policy",
+  "question": "What fall protection rule applies on this jobsite?",
+  "expected": {
+    "firstClassification": "site_requirement",
+    "mustContain": [
+      "site-specific requirement"
+    ]
+  }
+}

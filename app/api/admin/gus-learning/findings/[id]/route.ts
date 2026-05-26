@@ -73,6 +73,18 @@ export async function PATCH(request: Request, context: Context) {
       requiredControlType: requiredControlType as GusRequiredControlType,
       jurisdiction: typeof body.jurisdiction === "string" ? body.jurisdiction : null,
       reviewDueDate,
+      citationExcerpt: typeof body.citationExcerpt === "string" ? body.citationExcerpt : typeof body.citation_excerpt === "string" ? body.citation_excerpt : null,
+      citationLocator: typeof body.citationLocator === "string" ? body.citationLocator : typeof body.citation_locator === "string" ? body.citation_locator : null,
+      sourceContentHash:
+        typeof body.sourceContentHash === "string" ? body.sourceContentHash : typeof body.source_content_hash === "string" ? body.source_content_hash : null,
+      verificationNotes:
+        typeof body.verificationNotes === "string" ? body.verificationNotes : typeof body.verification_notes === "string" ? body.verification_notes : null,
+      supersedesKnowledgeId:
+        typeof body.supersedesKnowledgeId === "string"
+          ? body.supersedesKnowledgeId
+          : typeof body.supersedes_knowledge_id === "string"
+            ? body.supersedes_knowledge_id
+            : null,
       reviewerNotes: typeof body.reviewerNotes === "string" ? body.reviewerNotes : typeof body.reviewer_notes === "string" ? body.reviewer_notes : null,
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

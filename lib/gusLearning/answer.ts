@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import type { CompanyMemoryItemRow } from "@/lib/companyMemory/types";
-import type { ApprovedKnowledgeRow, GusLearningAnswer, GusRequiredControlType } from "@/lib/gusLearning/types";
+import type {
+  ApprovedKnowledgeRow,
+  GusCitationSnippet,
+  GusLearningAnswer,
+  GusQualitySignals,
+  GusRequiredControlType,
+} from "@/lib/gusLearning/types";
 
 export const UNSUPPORTED_REQUIREMENT_WARNING =
   "I do not have a verified source for that requirement. This should be reviewed by a qualified safety professional before being used as official guidance.";
@@ -26,6 +32,33 @@ function isExpired(row: ApprovedKnowledgeRow, now = new Date()) {
   return due < today.getTime() || row.review_status === "needs_review";
 }
 
+function hasSpecificCitation(row: ApprovedKnowledgeRow) {
+  return Boolean(clean(row.citation_excerpt, 1_000)) && Boolean(clean(row.citation_locator, 200));
+}
+
+export function calculateKnowledgeQualityScore(row: ApprovedKnowledgeRow, now = new Date()) {
+  let score = 35;
+  if (row.is_active) score += 10;
+  if (!isExpired(row, now)) score += 18;
+  if (hasSpecificCitation(row)) score += 18;
+  else if (clean(row.citation_excerpt, 1_000) || clean(row.citation_locator, 200)) score += 8;
+  if (row.source_content_hash) score += 6;
+  if (clean(row.verification_notes, 500)) score += 4;
+  if (row.required_control_type !== "ai_suggestion") score += 5;
+  if (row.required_control_type === "regulatory_requirement" && row.regulation_reference) score += 4;
+
+  const approved = Date.parse(row.approved_at);
+  if (Number.isFinite(approved)) {
+    const ageDays = Math.max(0, (now.getTime() - approved) / (24 * 60 * 60 * 1000));
+    if (ageDays <= 180) score += 5;
+    else if (ageDays > 730) score -= 6;
+  }
+  if (row.superseded_by_knowledge_id) score -= 35;
+  if (row.review_status === "needs_review") score -= 18;
+  if (!row.is_active) score -= 40;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function priority(row: ApprovedKnowledgeRow, projectId?: string | null) {
   if (projectId && row.project_id === projectId) return 0;
   if (row.required_control_type === "site_requirement") return 1;
@@ -46,6 +79,8 @@ export function rankApprovedKnowledge(rows: ApprovedKnowledgeRow[], projectId?: 
       if (expiredDelta) return expiredDelta;
       const priorityDelta = priority(a, projectId) - priority(b, projectId);
       if (priorityDelta) return priorityDelta;
+      const qualityDelta = calculateKnowledgeQualityScore(b, now) - calculateKnowledgeQualityScore(a, now);
+      if (qualityDelta) return qualityDelta;
       return Date.parse(b.approved_at) - Date.parse(a.approved_at);
     });
 }
@@ -71,6 +106,39 @@ function sourceBasis(rows: ApprovedKnowledgeRow[]) {
   return Object.entries(byType)
     .map(([label, values]) => `- ${label}: ${values.length ? values.slice(0, 3).join("; ") : "None found."}`)
     .join("\n");
+}
+
+function citationSnippet(row: ApprovedKnowledgeRow): GusCitationSnippet {
+  return {
+    knowledgeId: row.id,
+    title: row.knowledge_title,
+    url: row.source_url,
+    classification: row.required_control_type,
+    excerpt: clean(row.citation_excerpt, 700) || clean(row.approved_summary, 400) || null,
+    locator: clean(row.citation_locator, 180) || row.regulation_reference || null,
+    reviewStatus: row.review_status,
+    qualityScore: Math.round(Number(row.quality_score || calculateKnowledgeQualityScore(row))),
+  };
+}
+
+function qualitySignals(rows: ApprovedKnowledgeRow[], now = new Date()): GusQualitySignals {
+  if (!rows.length) {
+    return {
+      averageQualityScore: 0,
+      lowestQualityScore: 0,
+      weakCitationCount: 0,
+      expiredCitationCount: 0,
+      selectedKnowledgeCount: 0,
+    };
+  }
+  const scores = rows.map((row) => Math.round(Number(row.quality_score || calculateKnowledgeQualityScore(row, now))));
+  return {
+    averageQualityScore: Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length),
+    lowestQualityScore: Math.min(...scores),
+    weakCitationCount: rows.filter((row) => !hasSpecificCitation(row) || Number(row.quality_score || calculateKnowledgeQualityScore(row, now)) < 55).length,
+    expiredCitationCount: rows.filter((row) => isExpired(row, now)).length,
+    selectedKnowledgeCount: rows.length,
+  };
 }
 
 function confidenceFor(rows: ApprovedKnowledgeRow[]) {
@@ -132,15 +200,23 @@ export function buildVerifiedSafetyAnswer(params: {
       text,
       confidence: "Low",
       citations: [],
+      citationSnippets: [],
+      statements: [],
+      qualitySignals: qualitySignals([]),
       unsupported: true,
       needsReview: true,
     };
   }
 
-  const summaryLines = usable.slice(0, 4).map((row) => {
-    const classification = CONTROL_LABELS[row.required_control_type];
-    return `- ${classification}: ${clean(row.approved_summary, 380)}`;
+  const selected = usable.slice(0, 4);
+  const statements = selected.map((row) => {
+    return {
+      classification: row.required_control_type,
+      text: clean(row.approved_summary, 380),
+      knowledgeId: row.id,
+    };
   });
+  const summaryLines = statements.map((statement) => `- ${CONTROL_LABELS[statement.classification]}: ${statement.text}`);
   const limits = [
     expired.length ? `${expired.length} matching knowledge item${expired.length === 1 ? " is" : "s are"} past review due date and may be outdated.` : null,
     uploadedDocs.length
@@ -177,7 +253,11 @@ export function buildVerifiedSafetyAnswer(params: {
       sourceType: row.source_type,
       classification: row.required_control_type,
       reviewStatus: row.review_status,
+      qualityScore: Math.round(Number(row.quality_score || calculateKnowledgeQualityScore(row, params.now))),
     })),
+    citationSnippets: usable.map(citationSnippet),
+    statements,
+    qualitySignals: qualitySignals(usable, params.now),
     unsupported: false,
     needsReview: expired.length > 0,
   };

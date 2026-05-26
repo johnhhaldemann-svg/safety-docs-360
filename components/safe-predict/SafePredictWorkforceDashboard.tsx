@@ -53,7 +53,10 @@ import {
   type SafePredictWorkforceReportKind,
 } from "@/lib/safePredictWorkforceReportPdf";
 import {
+  buildSafePredictTrainingPeopleRoster,
   buildSafePredictTrainingTradeGroups,
+  summarizeSafePredictTrainingRoster,
+  type SafePredictTrainingPersonStatus,
   type SafePredictTrainingRequirementGroup,
   type SafePredictTrainingTradeGroup,
   type SafePredictTrainingWorkerSummary,
@@ -289,6 +292,13 @@ function employeeStatusClass(status: SafePredictDemoEmployeeStatus) {
   if (status === "overdue") return "bg-red-50 text-red-600";
   if (status === "expiring") return "bg-amber-50 text-amber-800";
   return "bg-emerald-50 text-emerald-800";
+}
+
+function trainingPersonStatusClass(status: SafePredictTrainingPersonStatus) {
+  if (status === "gap") return "bg-red-50 text-red-600";
+  if (status === "expiring") return "bg-amber-50 text-amber-800";
+  if (status === "compliant") return "bg-emerald-50 text-emerald-800";
+  return "bg-slate-100 text-slate-600";
 }
 
 function workflowToneClass(severity: WorkflowSeverity) {
@@ -1312,8 +1322,10 @@ function StaticTrainingFallback({
   );
 }
 
-function TrainingMatrixTab({ groups, trainingMatrix }: { groups: TrainingGroup[]; trainingMatrix: SafePredictTrainingMatrix }) {
+export function TrainingMatrixTab({ groups, trainingMatrix }: { groups: TrainingGroup[]; trainingMatrix: SafePredictTrainingMatrix }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const peopleRoster = useMemo(() => buildSafePredictTrainingPeopleRoster(trainingMatrix), [trainingMatrix]);
+  const peopleTotals = useMemo(() => summarizeSafePredictTrainingRoster(peopleRoster), [peopleRoster]);
   const dynamicGroups = useMemo(() => buildSafePredictTrainingTradeGroups(trainingMatrix), [trainingMatrix]);
   const hasDynamicMatrix = dynamicGroups.length > 0;
 
@@ -1339,6 +1351,66 @@ function TrainingMatrixTab({ groups, trainingMatrix }: { groups: TrainingGroup[]
           </p>
         ) : null}
       </div>
+      {peopleRoster.length > 0 ? (
+        <section className="border-b border-slate-200 bg-slate-50/70 p-5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">All People</p>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Company training roster</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-600">
+                Licensed portal users and no-portal tracked workers included in the live company matrix.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <TrainingRosterMetric label="All people" value={peopleTotals.people} />
+            <TrainingRosterMetric label="Licensed users" value={peopleTotals.licensedUsers} />
+            <TrainingRosterMetric label="Tracked / no portal" value={peopleTotals.trackedWorkers} />
+            <TrainingRosterMetric label="Training gaps" value={peopleTotals.peopleWithGaps} tone="red" />
+            <TrainingRosterMetric label="Expiring" value={peopleTotals.peopleExpiring} tone="amber" />
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="bg-white text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Person</th>
+                  <th className="px-4 py-3">Trade / Position</th>
+                  <th className="px-4 py-3">Portal Type</th>
+                  <th className="px-4 py-3">Training Status</th>
+                  <th className="px-4 py-3 text-right">Counts</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {peopleRoster.map((person) => (
+                  <tr key={person.id} className="align-top">
+                    <td className="px-4 py-3">
+                      <p className="font-black text-slate-950">{person.name}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-500">{person.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-slate-800">{person.trade}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-500">{person.position}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700">
+                        {person.portalLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cx("inline-flex rounded-full px-2.5 py-1 text-xs font-black", trainingPersonStatusClass(person.status))}>
+                        {person.statusLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-black text-slate-600">
+                      {person.gapCount} gap{person.gapCount === 1 ? "" : "s"} - {person.expiringCount} expiring - {person.compliantCount} met
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
       {hasDynamicMatrix ? (
         <div className="divide-y divide-slate-100">
           {dynamicGroups.map((group) => {
@@ -1357,6 +1429,21 @@ function TrainingMatrixTab({ groups, trainingMatrix }: { groups: TrainingGroup[]
         <StaticTrainingFallback groups={groups} />
       )}
     </Card>
+  );
+}
+
+function TrainingRosterMetric({ label, value, tone = "slate" }: { label: string; value: number; tone?: "slate" | "red" | "amber" }) {
+  const toneClass =
+    tone === "red"
+      ? "bg-red-50 text-red-700"
+      : tone === "amber"
+        ? "bg-amber-50 text-amber-800"
+        : "bg-white text-slate-900";
+  return (
+    <div className={cx("rounded-lg border border-slate-200 p-3 shadow-sm", toneClass)}>
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] opacity-70">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
   );
 }
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildSafePredictTrainingTradeGroups } from "@/lib/safePredictTrainingMatrix";
+import {
+  buildSafePredictTrainingPeopleRoster,
+  buildSafePredictTrainingTradeGroups,
+  summarizeSafePredictTrainingRoster,
+} from "@/lib/safePredictTrainingMatrix";
 import type { SafePredictTrainingMatrix } from "@/lib/safePredictData";
 
 const matrix: SafePredictTrainingMatrix = {
@@ -60,6 +64,17 @@ const matrix: SafePredictTrainingMatrix = {
         },
       },
     },
+    {
+      userId: "office-1",
+      trackedEmployeeId: "tracked-office-1",
+      personType: "tracked_employee",
+      name: "Devon Desk",
+      email: "",
+      role: "visitor",
+      profileFields: { tradeSpecialty: "Office Support", jobTitle: "Visitor" },
+      cells: { fall: "na", loto: "na" },
+      cellDetails: { fall: { state: "na" }, loto: { state: "na" } },
+    },
   ],
 };
 
@@ -96,5 +111,31 @@ describe("buildSafePredictTrainingTradeGroups", () => {
     expect(fallProtection?.overdueWorkers.map((worker) => worker.name)).toEqual(["Avery Drywall"]);
     expect(fallProtection?.expiringWorkers.map((worker) => worker.name)).toEqual(["Blake Board"]);
     expect(fallProtection?.expiringWorkers[0]?.detail).toContain("2026-06-01");
+  });
+});
+
+describe("buildSafePredictTrainingPeopleRoster", () => {
+  it("includes licensed users and tracked workers even when no requirements apply", () => {
+    const people = buildSafePredictTrainingPeopleRoster(matrix);
+    const totals = summarizeSafePredictTrainingRoster(people);
+
+    expect(people.map((person) => person.name)).toEqual([
+      "Avery Drywall",
+      "Blake Board",
+      "Casey Current",
+      "Devon Desk",
+    ]);
+    expect(totals).toEqual({
+      people: 4,
+      licensedUsers: 3,
+      trackedWorkers: 1,
+      peopleWithGaps: 1,
+      peopleExpiring: 1,
+    });
+    expect(people.find((person) => person.name === "Devon Desk")).toMatchObject({
+      email: "No email",
+      portalLabel: "Tracked worker / no portal access",
+      statusLabel: "Not applicable",
+    });
   });
 });

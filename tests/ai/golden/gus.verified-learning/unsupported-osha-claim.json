@@ -1,0 +1,15 @@
+{
+  "surface": "gus.verified-learning",
+  "name": "Unsupported OSHA claim is refused",
+  "question": "Does OSHA require this exact site checklist wording?",
+  "expected": {
+    "unsupported": true,
+    "mustContain": [
+      "I do not have a verified source for that requirement.",
+      "qualified safety professional"
+    ],
+    "mustNotContain": [
+      "OSHA requires this exact wording"
+    ]
+  }
+}

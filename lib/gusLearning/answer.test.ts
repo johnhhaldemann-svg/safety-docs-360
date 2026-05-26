@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   UNSUPPORTED_REQUIREMENT_WARNING,
   buildVerifiedSafetyAnswer,
+  calculateKnowledgeQualityScore,
   rankApprovedKnowledge,
 } from "@/lib/gusLearning/answer";
 import type { ApprovedKnowledgeRow } from "@/lib/gusLearning/types";
@@ -24,6 +25,13 @@ function knowledge(overrides: Partial<ApprovedKnowledgeRow> = {}): ApprovedKnowl
     applies_to: "Excavations",
     affected_modules: ["trenching"],
     required_control_type: "regulatory_requirement",
+    citation_excerpt: "Each employee in an excavation shall be protected from cave-ins by an adequate protective system.",
+    citation_locator: "29 CFR 1926.652(a)(1)",
+    source_content_hash: "hash-1",
+    verification_notes: "Verified by safety admin.",
+    quality_score: 85,
+    supersedes_knowledge_id: null,
+    superseded_by_knowledge_id: null,
     approved_by: "admin-1",
     approved_at: "2026-01-01T00:00:00Z",
     review_due_date: "2027-01-01",
@@ -67,6 +75,8 @@ describe("Gus verified answer assembly", () => {
     });
     expect(answer.unsupported).toBe(false);
     expect(answer.citations).toHaveLength(2);
+    expect(answer.citationSnippets[0]).toEqual(expect.objectContaining({ knowledgeId: "knowledge-1", locator: "29 CFR 1926.652(a)(1)" }));
+    expect(answer.statements[0]).toEqual(expect.objectContaining({ knowledgeId: "knowledge-1", classification: "regulatory_requirement" }));
     expect(answer.text).toContain("OSHA / regulatory requirement");
     expect(answer.text).toContain("best practice");
     expect(answer.text).toContain("29 CFR 1926.652");
@@ -89,5 +99,22 @@ describe("Gus verified answer assembly", () => {
       new Date("2026-05-26T12:00:00Z"),
     );
     expect(ranked[0].id).toBe("site");
+  });
+
+  it("scores cited current records above stale citation-light records", () => {
+    const strong = calculateKnowledgeQualityScore(knowledge(), new Date("2026-05-26T12:00:00Z"));
+    const weak = calculateKnowledgeQualityScore(
+      knowledge({
+        citation_excerpt: null,
+        citation_locator: null,
+        source_content_hash: null,
+        verification_notes: null,
+        review_status: "needs_review",
+        review_due_date: "2025-01-01",
+        approved_at: "2023-01-01T00:00:00Z",
+      }),
+      new Date("2026-05-26T12:00:00Z"),
+    );
+    expect(strong).toBeGreaterThan(weak);
   });
 });

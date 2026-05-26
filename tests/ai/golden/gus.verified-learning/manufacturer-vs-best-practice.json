@@ -1,0 +1,13 @@
+{
+  "surface": "gus.verified-learning",
+  "name": "Manufacturer instruction is not mislabeled as best practice",
+  "question": "How should this lift anchor be inspected?",
+  "expected": {
+    "mustContain": [
+      "manufacturer instruction"
+    ],
+    "mustNotContain": [
+      "OSHA requires the manufacturer recommendation"
+    ]
+  }
+}

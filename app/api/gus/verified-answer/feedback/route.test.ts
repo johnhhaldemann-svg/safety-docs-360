@@ -35,16 +35,19 @@ describe("Gus verified answer feedback route", () => {
     mocks.authorizeRequest.mockResolvedValue({ role: "field_user", user: { id: "user-1" }, supabase: {}, team: null });
     mocks.getCompanyScope.mockResolvedValue({ companyId: "company-1" });
     mocks.createSupabaseAdminClient.mockReturnValue({ from: vi.fn() });
-    mocks.recordGusAnswerFeedback.mockResolvedValue({ ok: true, feedback: { id: "feedback-1", needs_admin_review: true } });
+    mocks.recordGusAnswerFeedback.mockResolvedValue({ ok: true, feedback: { id: "feedback-1", needs_admin_review: true }, reviewItem: { id: "review-1" } });
   });
 
   it("records unsafe feedback for admin review", async () => {
-    const response = expectResponse(await POST(request({ answerId: "answer-1", feedbackType: "unsafe", comment: "Bad advice" })));
+    const response = expectResponse(await POST(request({ answerId: "answer-1", answerAuditId: "audit-1", feedbackType: "unsafe", comment: "Bad advice" })));
     expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body.reviewItem.id).toBe("review-1");
     expect(mocks.recordGusAnswerFeedback).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         answerId: "answer-1",
+        answerAuditId: "audit-1",
         userId: "user-1",
         companyId: "company-1",
         feedbackType: "unsafe",

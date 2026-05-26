@@ -1,12 +1,20 @@
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmbedding } from "@/lib/companyMemory/embed";
+import { calculateKnowledgeQualityScore, rankApprovedKnowledge } from "@/lib/gusLearning/answer";
 import type {
+  GusAnswerAuditRow,
   ApprovedKnowledgeRow,
   ApprovedSourceRow,
+  GusCitationSnippet,
   GusAnswerFeedbackType,
   GusKnowledgeChangeType,
+  GusLearningAnswer,
+  GusLearningReviewItemRow,
+  GusLearningReviewItemType,
   GusLearningSourceType,
   GusLearningTrustLevel,
+  GusQualitySignals,
   GusRequiredControlType,
   GusResearchStatus,
   KnowledgeChangeLogRow,
@@ -25,8 +33,12 @@ function toError(error: { message?: string } | null | undefined, fallback: strin
   return error?.message || fallback;
 }
 
+function hashText(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 export async function listGusLearningOverview(db: GusLearningDb, companyId: string) {
-  const [sources, pending, approved, rejected, expired, due, changeLog, feedback] = await Promise.all([
+  const [sources, pending, approved, rejected, expired, due, changeLog, feedback, answerAudits, reviewItems, weakKnowledge] = await Promise.all([
     db
       .from("approved_sources")
       .select("id, company_id, source_name, source_url, domain, source_type, jurisdiction, trust_level, is_active, created_by, created_at, updated_at")
@@ -82,10 +94,41 @@ export async function listGusLearningOverview(db: GusLearningDb, companyId: stri
       .eq("needs_admin_review", true)
       .order("created_at", { ascending: false })
       .limit(100),
+    db
+      .from("gus_answer_audit")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    db
+      .from("gus_learning_review_items")
+      .select("*")
+      .eq("company_id", companyId)
+      .neq("status", "resolved")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    db
+      .from("approved_knowledge")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .lt("quality_score", 55)
+      .order("quality_score", { ascending: true })
+      .limit(100),
   ]);
 
   const firstError =
-    sources.error || pending.error || approved.error || rejected.error || expired.error || due.error || changeLog.error || feedback.error;
+    sources.error ||
+    pending.error ||
+    approved.error ||
+    rejected.error ||
+    expired.error ||
+    due.error ||
+    changeLog.error ||
+    feedback.error ||
+    answerAudits.error ||
+    reviewItems.error ||
+    weakKnowledge.error;
   if (firstError) {
     return { ok: false as const, error: firstError.message };
   }
@@ -101,6 +144,9 @@ export async function listGusLearningOverview(db: GusLearningDb, companyId: stri
       knowledgeDueForReview: (due.data ?? []) as ApprovedKnowledgeRow[],
       changeLog: (changeLog.data ?? []) as KnowledgeChangeLogRow[],
       feedbackForReview: feedback.data ?? [],
+      answerAudits: (answerAudits.data ?? []) as GusAnswerAuditRow[],
+      reviewItems: (reviewItems.data ?? []) as GusLearningReviewItemRow[],
+      weakCitationKnowledge: (weakKnowledge.data ?? []) as ApprovedKnowledgeRow[],
     },
   };
 }
@@ -289,6 +335,11 @@ export async function approveResearchFinding(
     requiredControlType: GusRequiredControlType;
     jurisdiction?: string | null;
     reviewDueDate: string;
+    citationExcerpt?: string | null;
+    citationLocator?: string | null;
+    sourceContentHash?: string | null;
+    verificationNotes?: string | null;
+    supersedesKnowledgeId?: string | null;
     reviewerNotes?: string | null;
   },
 ) {
@@ -320,6 +371,11 @@ export async function approveResearchFinding(
       applies_to: clean(input.appliesTo, 500) || null,
       affected_modules: input.affectedModules?.length ? input.affectedModules : row.affected_modules,
       required_control_type: input.requiredControlType,
+      citation_excerpt: clean(input.citationExcerpt, 1_500) || null,
+      citation_locator: clean(input.citationLocator, 240) || null,
+      source_content_hash: clean(input.sourceContentHash, 160) || hashText(`${row.source_url}\n${row.raw_summary}`),
+      verification_notes: clean(input.verificationNotes, 1_000) || null,
+      supersedes_knowledge_id: input.supersedesKnowledgeId ?? null,
       approved_by: input.approvedBy,
       review_due_date: input.reviewDueDate,
       review_status: "current",
@@ -329,7 +385,15 @@ export async function approveResearchFinding(
     .single();
 
   if (insertError) return { ok: false as const, status: 500, error: insertError.message };
-  const knowledgeRow = knowledge as ApprovedKnowledgeRow;
+  const insertedKnowledgeRow = knowledge as ApprovedKnowledgeRow;
+  const qualityScore = calculateKnowledgeQualityScore(insertedKnowledgeRow);
+  const { data: qualityUpdated } = await db
+    .from("approved_knowledge")
+    .update({ quality_score: qualityScore })
+    .eq("id", insertedKnowledgeRow.id)
+    .select("*")
+    .single();
+  const knowledgeRow = (qualityUpdated ?? { ...insertedKnowledgeRow, quality_score: qualityScore }) as ApprovedKnowledgeRow;
 
   await Promise.all([
     db
@@ -350,6 +414,13 @@ export async function approveResearchFinding(
       changeReason: input.reviewerNotes || "Research finding approved into verified knowledge.",
     }),
     embedApprovedKnowledge(db, knowledgeRow.id, `${knowledgeRow.topic}\n${knowledgeRow.knowledge_title}\n${knowledgeRow.approved_summary}`),
+    input.supersedesKnowledgeId
+      ? db
+          .from("approved_knowledge")
+          .update({ superseded_by_knowledge_id: knowledgeRow.id, is_active: false, review_status: "archived" })
+          .eq("id", input.supersedesKnowledgeId)
+          .eq("company_id", input.companyId)
+      : Promise.resolve({ error: null }),
   ]);
 
   return { ok: true as const, knowledge: knowledgeRow };
@@ -486,34 +557,183 @@ export async function retrieveApprovedKnowledge(
   input: { companyId: string; projectId?: string | null; question: string; topK?: number },
 ) {
   const topK = Math.min(Math.max(input.topK ?? 8, 1), 16);
+  const seen = new Set<string>();
+  const items: ApprovedKnowledgeRow[] = [];
+  let semanticCount = 0;
+  let keywordCount = 0;
   try {
     const embedding = await createEmbedding(input.question);
     const { data, error } = await db.rpc("match_approved_knowledge", {
       p_company_id: input.companyId,
       p_project_id: input.projectId ?? null,
       p_query_embedding: embedding,
-      p_match_count: topK,
+      p_match_count: topK * 2,
     });
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return { ok: true as const, items: data as ApprovedKnowledgeRow[], method: "semantic" as const };
+    if (!error && Array.isArray(data)) {
+      for (const row of data as ApprovedKnowledgeRow[]) {
+        if (!row?.id || seen.has(row.id)) continue;
+        seen.add(row.id);
+        items.push(row);
+        semanticCount += 1;
+      }
     }
   } catch {
-    // Fall back to keyword search when embeddings are unavailable.
+    // Continue with keyword search when embeddings are unavailable.
   }
   const keyword = await searchApprovedKnowledgeKeyword(db, {
     companyId: input.companyId,
     projectId: input.projectId,
     question: input.question,
-    limit: topK,
+    limit: topK * 2,
   });
   if (!keyword.ok) return { ok: false as const, error: keyword.error, items: [] as ApprovedKnowledgeRow[], method: "keyword" as const };
-  return { ok: true as const, items: keyword.items, method: keyword.items.length ? ("keyword" as const) : ("none" as const) };
+  for (const row of keyword.items) {
+    if (!row?.id || seen.has(row.id)) continue;
+    seen.add(row.id);
+    items.push(row);
+    keywordCount += 1;
+  }
+  const ranked = rankApprovedKnowledge(items, input.projectId).slice(0, topK);
+  const method = semanticCount && keywordCount ? "hybrid" : semanticCount ? "semantic" : keywordCount ? "keyword" : "none";
+  return {
+    ok: true as const,
+    items: ranked,
+    method: method as "hybrid" | "semantic" | "keyword" | "none",
+    trace: {
+      semanticCount,
+      keywordCount,
+      returnedCount: ranked.length,
+      candidateCount: items.length,
+    },
+  };
+}
+
+export async function recordGusAnswerAudit(
+  db: GusLearningDb,
+  input: {
+    userId: string | null;
+    companyId: string | null;
+    projectId?: string | null;
+    question: string;
+    answer: GusLearningAnswer;
+    retrievalMethod: string;
+    selectedKnowledgeIds: string[];
+    rejectedCandidateIds?: string[];
+    retrievalTrace?: Record<string, unknown>;
+    citationSnippets: GusCitationSnippet[];
+    qualitySignals: GusQualitySignals;
+  },
+) {
+  const { data, error } = await db
+    .from("gus_answer_audit")
+    .insert({
+      answer_id: input.answer.answerId,
+      user_id: input.userId,
+      company_id: input.companyId,
+      project_id: input.projectId ?? null,
+      question: clean(input.question, 4_000),
+      question_hash: hashText(input.question),
+      retrieval_method: input.retrievalMethod,
+      selected_knowledge_ids: input.selectedKnowledgeIds,
+      rejected_candidate_ids: input.rejectedCandidateIds ?? [],
+      confidence: input.answer.confidence,
+      unsupported: input.answer.unsupported,
+      needs_review: input.answer.needsReview,
+      answer_text_hash: hashText(input.answer.text),
+      retrieval_trace: input.retrievalTrace ?? {},
+      citation_snippets: input.citationSnippets,
+      quality_signals: input.qualitySignals,
+    })
+    .select("*")
+    .single();
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, audit: data as GusAnswerAuditRow };
+}
+
+function reviewItemTypeForFeedback(feedbackType: GusAnswerFeedbackType): GusLearningReviewItemType | null {
+  if (feedbackType === "unsafe") return "unsafe_answer";
+  if (feedbackType === "incorrect") return "incorrect_answer";
+  if (feedbackType === "missing_source") return "missing_source";
+  return null;
+}
+
+function recommendedActionForReviewItem(type: GusLearningReviewItemType) {
+  if (type === "unsafe_answer") return "Review the cited knowledge and answer wording before Gus uses this pattern again.";
+  if (type === "incorrect_answer") return "Compare the answer against approved knowledge and supersede or correct any bad record.";
+  if (type === "missing_source") return "Add approved-source research or approved knowledge before treating this as official guidance.";
+  if (type === "expired_source_used") return "Review and renew, edit, or archive the expired knowledge record.";
+  if (type === "weak_citation") return "Add a citation excerpt and locator or request more source review.";
+  return "Review whether the classification should be regulatory, company, site, manufacturer, best practice, or AI suggestion.";
+}
+
+export async function createGusLearningReviewItem(
+  db: GusLearningDb,
+  input: {
+    companyId: string | null;
+    projectId?: string | null;
+    answerAuditId?: string | null;
+    feedbackId?: string | null;
+    itemType: GusLearningReviewItemType;
+    title: string;
+    userComment?: string | null;
+    createdBy?: string | null;
+    recommendedAdminAction?: string | null;
+  },
+) {
+  const { data, error } = await db
+    .from("gus_learning_review_items")
+    .insert({
+      company_id: input.companyId,
+      project_id: input.projectId ?? null,
+      answer_audit_id: input.answerAuditId ?? null,
+      feedback_id: input.feedbackId ?? null,
+      item_type: input.itemType,
+      title: clean(input.title, 240),
+      user_comment: clean(input.userComment, 1_000) || null,
+      created_by: input.createdBy ?? null,
+      recommended_admin_action: clean(input.recommendedAdminAction, 1_000) || recommendedActionForReviewItem(input.itemType),
+    })
+    .select("*")
+    .single();
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, reviewItem: data as GusLearningReviewItemRow };
+}
+
+export async function updateGusLearningReviewItemStatus(
+  db: GusLearningDb,
+  input: {
+    reviewItemId: string;
+    companyId: string;
+    status: "in_review" | "resolved" | "archived";
+    reviewerId: string;
+    reviewNotes?: string | null;
+  },
+) {
+  const patch: Record<string, unknown> = {
+    status: input.status,
+    review_notes: clean(input.reviewNotes, 1_000) || null,
+  };
+  if (input.status === "resolved" || input.status === "archived") {
+    patch.resolved_by = input.reviewerId;
+    patch.resolved_at = new Date().toISOString();
+  }
+  const { data, error } = await db
+    .from("gus_learning_review_items")
+    .update(patch)
+    .eq("id", input.reviewItemId)
+    .eq("company_id", input.companyId)
+    .select("*")
+    .maybeSingle();
+  if (error) return { ok: false as const, status: 500, error: error.message };
+  if (!data) return { ok: false as const, status: 404, error: "Gus learning review item not found." };
+  return { ok: true as const, reviewItem: data as GusLearningReviewItemRow };
 }
 
 export async function recordGusAnswerFeedback(
   db: GusLearningDb,
   input: {
     answerId: string;
+    answerAuditId?: string | null;
     userId: string;
     companyId: string | null;
     projectId?: string | null;
@@ -526,6 +746,7 @@ export async function recordGusAnswerFeedback(
     .from("gus_answer_feedback")
     .insert({
       answer_id: clean(input.answerId, 160),
+      answer_audit_id: input.answerAuditId ?? null,
       user_id: input.userId,
       company_id: input.companyId,
       project_id: input.projectId ?? null,
@@ -537,5 +758,21 @@ export async function recordGusAnswerFeedback(
     .select("*")
     .single();
   if (error) return { ok: false as const, error: toError(error, "Failed to save feedback.") };
-  return { ok: true as const, feedback: data };
+  const feedback = data as { id: string };
+  const itemType = reviewItemTypeForFeedback(input.feedbackType);
+  let reviewItem: GusLearningReviewItemRow | null = null;
+  if (itemType) {
+    const review = await createGusLearningReviewItem(db, {
+      companyId: input.companyId,
+      projectId: input.projectId,
+      answerAuditId: input.answerAuditId ?? null,
+      feedbackId: feedback.id,
+      itemType,
+      title: `Gus answer flagged: ${input.feedbackType.replace("_", " ")}`,
+      userComment: input.comment,
+      createdBy: input.userId,
+    });
+    if (review.ok) reviewItem = review.reviewItem;
+  }
+  return { ok: true as const, feedback: data, reviewItem };
 }

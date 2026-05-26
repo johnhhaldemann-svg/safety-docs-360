@@ -1,0 +1,13 @@
+{
+  "surface": "gus.verified-learning",
+  "name": "Expired knowledge is cited with warning",
+  "question": "What is our confined space entry rule?",
+  "expected": {
+    "unsupported": false,
+    "needsReview": true,
+    "mustContain": [
+      "past review due date",
+      "may be outdated"
+    ]
+  }
+}
