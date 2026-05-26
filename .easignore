@@ -1,0 +1,29 @@
+# Keep EAS archives source-only. Local dependency/build folders can carry
+# Windows or OneDrive permissions that break npm install on macOS builders.
+node_modules/
+safety-mobile/node_modules/
+
+.next/
+out/
+build/
+safety-mobile/.expo/
+safety-mobile/dist/
+
+.codex_tmp/
+.codex_worktrees/
+.codex-docx-review/
+.codex-prod-deploy/
+.codex-reference-render/
+annotated_pictures/
+docx_work/
+output/
+repaired-docs/
+tmp/
+tmp_review_notes_copy.docx
+
+.env*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo

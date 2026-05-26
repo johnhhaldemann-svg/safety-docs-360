@@ -233,6 +233,14 @@ export const adminSideSections: NavSection[] = [
         primaryActionLabel: "Open queue",
         audience: "admin",
       },
+      {
+        href: "/admin/gus-learning-review",
+        label: "Gus Learning Review",
+        short: "GL",
+        description: "Approve Gus research findings, manage trusted sources, and audit verified knowledge.",
+        primaryActionLabel: "Open learning review",
+        audience: "admin",
+      },
     ],
   },
   {
@@ -358,6 +366,7 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
+      { href: "/admin/gus-learning-review", label: "Gus Learning Review", short: "GL" },
       { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
       { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
       { href: "/safe-predict", label: "SafePredict AI", short: "SP" },
@@ -437,6 +446,7 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
+      { href: "/admin/gus-learning-review", label: "Gus Learning Review", short: "GL" },
       { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
       { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
       { href: "/safe-predict", label: "SafePredict AI", short: "SP" },

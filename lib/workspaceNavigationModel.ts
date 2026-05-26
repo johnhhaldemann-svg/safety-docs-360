@@ -274,6 +274,12 @@ const ITEM_META: Array<{
     primaryActionLabel: "Open review queue",
   },
   {
+    matcher: (href) => href === "/admin/gus-learning-review",
+    group: "programs",
+    description: "Approve Gus research findings, manage trusted sources, and audit verified knowledge.",
+    primaryActionLabel: "Open learning review",
+  },
+  {
     matcher: (href) => href === "/admin/marketplace",
     group: "documents",
     description: "Manage marketplace records, preview generation, and template publication controls.",

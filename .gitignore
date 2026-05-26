@@ -69,6 +69,7 @@ yarn-error.log*
 /output/
 /repaired-docs/
 /tmp/
+/tmp_review_notes_copy.docx
 
 # env files (can opt-in for committing if needed)
 .env*
