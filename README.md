@@ -31,7 +31,7 @@ These are **two separate systems**. There is no single “push” to both.
 | Step | What | How |
 |------|------|-----|
 | **1. Database** | Apply SQL migrations to your **Supabase** project | Locally: `supabase link --project-ref <ref>` then `npm run db:push`. Or enable [`.github/workflows/supabase-db-push.yml`](.github/workflows/supabase-db-push.yml) (GitHub secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`) and merge migration changes / run the workflow. |
-| **2. App** | Deploy the **Next.js** app to **Vercel** | Push to the branch Vercel uses for Production (usually `main`), or run `npm run vercel:prod` (uses `npx vercel`; run `npx vercel login` once). Preview: `npm run vercel:preview`. |
+| **2. App** | Deploy the **Next.js** app to **Vercel** | Push to the branch Vercel uses for Production (usually `main`), or run `npm run vercel:prod` (runs Vercel/Node checks and Supabase migration sync before `npx vercel`; run `npx vercel login` once). Preview: `npm run vercel:preview`. |
 
 Always do **step 1 before step 2** when migrations changed, so production code matches the database. Env vars for Vercel are in the project dashboard (same keys as [`.env.example`](.env.example)). Full checklist: [`docs/production-deployment.md`](docs/production-deployment.md) (includes a **Vercel build failure** troubleshooting table: root directory, lockfile, Node 20, env vars, Git, build settings).
 
@@ -92,9 +92,12 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for Supabase workflow, cron, E2E se
 | `npm run test:e2e:ci` | Build + production server + Playwright |
 | `npm run seed:csep-test` | Seed CSEP test user (needs service role) |
 | `npm run seed:pilot-company` | Seed an approved pilot company, admin user, optional field user, and starter jobsite (needs service role) |
+| `npm run verify:pilot` | Paid-pilot gate: Vercel Node check, Supabase migration sync, typecheck, lint, tests, navigation, links, and build |
+| `npm run db:check-sync` | Read-only guard that fails when the target Supabase project is missing the latest local migration |
+| `npm run vercel:check` | Read-only guard that confirms repo Node 20 settings and warns about mismatched linked Vercel metadata |
 | `npm run db:push` | `supabase db push --yes` (after `supabase link`) |
-| `npm run vercel:prod` | Production deploy (`npx vercel deploy --prod`) |
-| `npm run vercel:preview` | Preview deploy (`npx vercel deploy`) |
+| `npm run vercel:prod` | Production deploy after `vercel:check` and `db:check-sync` |
+| `npm run vercel:preview` | Preview deploy after `vercel:check` and `db:check-sync` |
 
 Keep the **Supabase CLI** (`supabase` in `devDependencies`) current with `npm install`; the GitHub **Supabase DB push** workflow pins the same major line in [`.github/workflows/supabase-db-push.yml`](.github/workflows/supabase-db-push.yml).
 

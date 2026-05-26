@@ -7,14 +7,16 @@ Run on **staging** (see [pilot-staging-and-env](./pilot-staging-and-env.md)) bef
 From repo root:
 
 ```bash
-npm run verify:release
+npm run verify:pilot
 ```
 
-Expected: TypeScript, Vitest, navigation, link checks, lint per [release-readiness](./release-readiness.md).
+Expected: Vercel Node check, Supabase migration sync, TypeScript, lint, Vitest, navigation, link checks, and build per [pilot-revenue-readiness](./pilot-revenue-readiness.md).
 
 | Gate | Pass? | Notes / link |
 |------|-------|----------------|
-| `npm run verify:release` | ☐ | |
+| `npm run verify:pilot` | ☐ | |
+| Supabase advisors reviewed after latest migration | ☐ | |
+| Vercel connector/deployment evidence captured | ☐ | |
 
 ## Staging smoke (from release-readiness)
 

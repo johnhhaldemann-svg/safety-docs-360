@@ -55,8 +55,9 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
    **Injury Weather — deterministic vs AI:** Trade momentum, predicted injuries, risk levels, and trend series come from the **deterministic** engine ([`lib/injuryWeather/service.ts`](../lib/injuryWeather/service.ts), [`lib/injuryWeather/riskModel.ts`](../lib/injuryWeather/riskModel.ts)) and **do not** require `OPENAI_API_KEY`. OpenAI (or the gateway) is used only for **optional** layers: narrative insights, optional web-research bullets, and an optional structured forecast override when `INJURY_WEATHER_AI_FORECAST_OVERRIDE=1` — see [`lib/injuryWeather/ai.ts`](../lib/injuryWeather/ai.ts) and the Injury Weather block in [`.env.example`](../.env.example).
 
 3. **Custom domain**: attach domain in Vercel; ensure DNS and HTTPS complete. Update Supabase redirect URLs to match.
-4. **Build**: confirm `npm run build` succeeds locally (Vercel runs the same command for Next.js). This repo declares **`engines.node` ≥ 20.9** in [`package.json`](../package.json) so Vercel uses a compatible Node runtime.
-5. **If the deployment fails**, use the table below before changing code.
+4. **Pilot release gate**: run `npm run verify:pilot` before a paid pilot cutover. This checks Vercel Node evidence, Supabase migration sync, TypeScript, lint, tests, navigation, links, and build. If you only need the deploy blockers, run `npm run vercel:check` and `npm run db:check-sync`.
+5. **Build**: confirm `npm run build` succeeds locally (Vercel runs the same command for Next.js). This repo pins **`engines.node` to `20.x`** in [`package.json`](../package.json) so Vercel uses a compatible Node runtime even if the dashboard default changes. Still set **Project Settings → Build and Deployment → Node.js Version** to **20.x** for clean evidence.
+6. **If the deployment fails**, use the table below before changing code.
 
 ### Vercel build failures — typical causes
 
@@ -64,7 +65,7 @@ Run **Supabase migrations first** whenever migration files changed, then deploy 
 |-----------------|------------|
 | **Wrong repo / folder** | **Settings → General → Root Directory** must be the folder that contains `package.json` (repo root if the app lives at the repository root). |
 | **No install / lockfile** | Commit **`package-lock.json`** (or `pnpm-lock.yaml` / `yarn.lock` if you use that manager). Vercel installs from the lockfile at the root directory above. |
-| **Node too old** | Use **Node 20+** for Next.js 16. In Vercel: **Settings → General → Node.js Version** → **20.x**. This repo also sets **`engines`** in `package.json` and [`.nvmrc`](../.nvmrc) to `20`. |
+| **Wrong Node runtime** | Use **Node 20.x** for pilot deployments. In Vercel: **Settings → Build and Deployment → Node.js Version** → **20.x**. This repo also sets **`engines.node`** in `package.json` and [`.nvmrc`](../.nvmrc) to `20`. Run `npm run vercel:check` before deploy. |
 | **Missing env vars** | Some failures happen at **build** if code reads env at import time. **Settings → Environment Variables**: set at least `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for server routes. Copy values for **Production** and **Preview** if previews should work. See the table in §2 above. |
 | **Git not connected / no push** | Confirm the GitHub/GitLab app is installed on the org/account, the repo is linked, and **Production Branch** matches the branch you push (often `main`). |
 | **Build / output settings overridden** | **Settings → General → Build & Development Settings**: leave **Build Command** as **`npm run build`** or **empty** (Vercel’s Next.js default). **Output Directory** should be **default/empty** unless you use a custom static export. **Install Command** should be **default** unless you standardize on `pnpm install` / `yarn install`. |
