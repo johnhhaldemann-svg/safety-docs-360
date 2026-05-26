@@ -12,7 +12,7 @@ type GusCompanionStageProps = {
 };
 
 function attentionLabel(decision: GusDecision) {
-  if (decision.attentionLevel === "critical" || decision.attentionLevel === "high") return "Review needed";
+  if (decision.attentionLevel === "critical" || decision.attentionLevel === "high") return "Safety check needed";
   if (decision.kind === "planning_offer") return "Plan ready";
   return "Watching";
 }
@@ -31,7 +31,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
               {attentionLabel(decision)}
             </p>
             <p className="mt-2 text-xs leading-5 text-slate-600">
-              Gus is checking risk signals now and keeping draft-only review steps close.
+              Gus is checking risk signals now and keeping draft-only safety steps close.
             </p>
           </div>
         </div>
@@ -64,7 +64,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
           </span>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">Attention state</p>
-            <p className="mt-1 text-xs leading-4 text-slate-600">Gus uses pulse and motion when review needs attention.</p>
+            <p className="mt-1 text-xs leading-4 text-slate-600">Gus uses pulse and motion when a safety check needs attention.</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -82,7 +82,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
           </span>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">Draft only</p>
-            <p className="mt-1 text-xs leading-4 text-slate-600">Plans and notices always require human review.</p>
+            <p className="mt-1 text-xs leading-4 text-slate-600">Plans and notices always require a human safety check.</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -91,7 +91,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
           </span>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">Quick actions</p>
-            <p className="mt-1 text-xs leading-4 text-slate-600">Plan, email, mute, dismiss, and review controls stay close.</p>
+            <p className="mt-1 text-xs leading-4 text-slate-600">Plan, email, mute, set aside, and controls stay close.</p>
           </div>
         </div>
       </div>

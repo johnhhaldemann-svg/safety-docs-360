@@ -87,12 +87,12 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toContain("I'm flagging this for review");
+    expect(decision.message.message).toContain("I'm flagging this for human safety check");
     expect(decision.message.message).toContain("Excavation at North Tower");
     expect(decision.message.message).toContain("Excavation overlaps utility or electrical exposure");
     expect(decision.message.reason).toContain("Protective system");
     expect(decision.message.reason).toContain("Excavation overlaps utility or electrical exposure");
-    expect(decision.signals[0]?.detail).toContain("Verify protective system review");
+    expect(decision.signals[0]?.detail).toContain("Field-check protective system human safety check");
     expect(
       [
         decision.message.message,
@@ -138,8 +138,8 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-action-word-request_escalation");
     expect(decision.attentionLevel).toBe("high");
-    expect(decision.message.message).toMatch(/escalate/i);
-    expect(decision.message.reason).toContain("request escalation");
+    expect(decision.message.message).toMatch(/raise this to a safety lead/i);
+    expect(decision.message.reason).toContain("request safety-lead handoff");
     expect(decision.actions[0]?.actionKey).toBe("recommend_review");
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
   });
@@ -158,8 +158,8 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-action-word-blocked_authority");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toMatch(/human-review|human review/i);
-    expect(decision.message.spokenText).toContain("Human review is required");
+    expect(decision.message.message).toMatch(/human safety check/i);
+    expect(decision.message.spokenText).toContain("Human safety check is required");
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
   });
 

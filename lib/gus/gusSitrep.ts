@@ -1,4 +1,5 @@
 import type { GusContext } from "@/lib/gus/gusContext";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import type { GusMessage, GusRiskLevel } from "@/lib/gus/gusTypes";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
 
@@ -52,6 +53,16 @@ function messageIdFor(parts: string[]) {
 
 function sentence(parts: string[]) {
   return parts.filter(Boolean).join(" ");
+}
+
+function sanitizeSitrepMessage(message: GusMessage): GusMessage {
+  return {
+    ...message,
+    message: sanitizeGusTriggerLanguage(message.message),
+    spokenText: message.spokenText ? sanitizeGusTriggerLanguage(message.spokenText) : message.spokenText,
+    reason: message.reason ? sanitizeGusTriggerLanguage(message.reason) : message.reason,
+    actionLabel: message.actionLabel ? sanitizeGusTriggerLanguage(message.actionLabel) : message.actionLabel,
+  };
 }
 
 export function isSafePredictSitrepRoute(route: string) {
@@ -136,7 +147,7 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
   };
   const validation = validateGusOutput(output);
 
-  return validation.sanitizedOutput as GusMessage;
+  return sanitizeSitrepMessage(validation.sanitizedOutput as GusMessage);
 }
 
 export function buildGusSteadySitrepMessage(message: GusMessage): GusMessage {
@@ -150,5 +161,5 @@ export function buildGusSteadySitrepMessage(message: GusMessage): GusMessage {
   };
   const validation = validateGusOutput(steadyMessage);
 
-  return validation.sanitizedOutput as GusMessage;
+  return sanitizeSitrepMessage(validation.sanitizedOutput as GusMessage);
 }

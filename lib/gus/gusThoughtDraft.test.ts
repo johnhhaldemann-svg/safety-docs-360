@@ -72,7 +72,7 @@ describe("Gus thought drafting", () => {
     });
 
     expect(result.response.clarifiedThought).toMatch(/citation|regulatory|legal/i);
-    expect(result.response.missingInformation.join(" ")).toMatch(/Verified/i);
+    expect(result.response.missingInformation.join(" ")).toMatch(/field checked/i);
     expect(allOutputText(result.response)).not.toMatch(/\bproves\b|\bcompliant\b/i);
   });
 
@@ -109,6 +109,7 @@ describe("Gus thought drafting", () => {
     expect(allOutputText(result.response)).not.toMatch(
       /\bapproved\b|\bcompliant\b|\bsafe\s+to\s+start\b|\breleased\s+for\s+work\b|\bno\s+review\s+needed\b/i,
     );
+    expect(allOutputText(result.response)).not.toMatch(/\breview\b|\bverify\b|\bconfirm\b|\baction\b/i);
   });
 
   it("validates thought draft request payloads", () => {

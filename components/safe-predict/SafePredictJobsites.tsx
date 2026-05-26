@@ -62,6 +62,7 @@ import {
   type SafePredictJobsiteRecord,
   type SafePredictJobsiteStatus,
   type SafePredictObservationRecord,
+  type SafePredictReportRecord,
 } from "@/lib/safePredictData";
 import { SAFE_PREDICT_RISK_INDEX_HELPER, type SafePredictRiskLevel } from "@/lib/safePredictMockData";
 import { permitReadinessLabel as permitFormReadinessLabel } from "@/lib/safePredictPermitForms";
@@ -259,6 +260,26 @@ type JobsiteActivityItem = {
   tone: JobsiteAttentionTone;
 };
 
+type SiteFilingHeatMapLaneKey = SafePredictRiskLevel | "reports";
+
+type SiteFilingHeatMapItem = {
+  id: string;
+  title: string;
+  source: "observation" | "report";
+  lane: SiteFilingHeatMapLaneKey;
+  status: string;
+  filedAt: string;
+  detail: string;
+  riskLevel?: SafePredictRiskLevel;
+  audience?: SafePredictReportRecord["audience"];
+};
+
+type SiteFilingHeatMapLane = {
+  key: SiteFilingHeatMapLaneKey;
+  label: string;
+  items: SiteFilingHeatMapItem[];
+};
+
 type JobsiteCommandSummary = {
   site: SafePredictJobsiteRecord;
   aiRiskSummary: string;
@@ -346,6 +367,64 @@ function riskSort(level: SafePredictRiskLevel) {
 
 function riskText(level: SafePredictRiskLevel) {
   return level === "critical" ? "Critical" : level === "high" ? "High" : level === "medium" ? "Medium" : "Low";
+}
+
+function filingLaneLabel(level: SiteFilingHeatMapLaneKey) {
+  if (level === "critical") return "Critical";
+  if (level === "high") return "High";
+  if (level === "medium") return "Moderate";
+  if (level === "low") return "Low";
+  return "Reports";
+}
+
+function filingOpenSortValue(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("open")) return 4;
+  if (normalized.includes("ready")) return 3;
+  if (normalized.includes("converted") || normalized.includes("scheduled")) return 2;
+  if (normalized.includes("draft")) return 1;
+  return 0;
+}
+
+function buildSiteFilingHeatMapLanes(
+  observations: SafePredictObservationRecord[],
+  reports: SafePredictReportRecord[]
+): SiteFilingHeatMapLane[] {
+  const laneOrder: SiteFilingHeatMapLaneKey[] = ["critical", "high", "medium", "low", "reports"];
+  const items: SiteFilingHeatMapItem[] = [
+    ...observations.map((observation) => ({
+      id: observation.id,
+      title: observation.title,
+      source: "observation" as const,
+      lane: observation.riskLevel,
+      status: observation.status,
+      filedAt: observation.submittedAt,
+      detail: observation.detail,
+      riskLevel: observation.riskLevel,
+    })),
+    ...reports.map((report) => ({
+      id: report.id,
+      title: report.title,
+      source: "report" as const,
+      lane: "reports" as const,
+      status: report.status,
+      filedAt: report.updatedAt,
+      detail: report.audience,
+      audience: report.audience,
+    })),
+  ].sort((left, right) => {
+    const laneDelta = laneOrder.indexOf(left.lane) - laneOrder.indexOf(right.lane);
+    if (laneDelta !== 0) return laneDelta;
+    const statusDelta = filingOpenSortValue(right.status) - filingOpenSortValue(left.status);
+    if (statusDelta !== 0) return statusDelta;
+    return left.title.localeCompare(right.title);
+  });
+
+  return laneOrder.map((key) => ({
+    key,
+    label: filingLaneLabel(key),
+    items: items.filter((item) => item.lane === key),
+  }));
 }
 
 function attentionToneClass(tone: JobsiteAttentionTone) {
@@ -1353,6 +1432,135 @@ function LiveJobsiteRiskList({
           </span>
         </Link>
       ))}
+    </div>
+  );
+}
+
+function siteFilingLaneClass(key: SiteFilingHeatMapLaneKey) {
+  if (key === "critical") return "border-red-200 bg-red-50/80 text-red-700";
+  if (key === "high") return "border-orange-200 bg-orange-50/80 text-orange-700";
+  if (key === "medium") return "border-amber-200 bg-amber-50/80 text-amber-800";
+  if (key === "low") return "border-emerald-200 bg-emerald-50/80 text-emerald-800";
+  return "border-blue-200 bg-blue-50/80 text-blue-700";
+}
+
+function siteFilingItemClass(key: SiteFilingHeatMapLaneKey) {
+  if (key === "critical") return "border-l-red-500 hover:border-red-300 hover:bg-red-50/50 focus-visible:ring-red-400";
+  if (key === "high") return "border-l-orange-500 hover:border-orange-300 hover:bg-orange-50/50 focus-visible:ring-orange-400";
+  if (key === "medium") return "border-l-amber-400 hover:border-amber-300 hover:bg-amber-50/50 focus-visible:ring-amber-400";
+  if (key === "low") return "border-l-emerald-500 hover:border-emerald-300 hover:bg-emerald-50/50 focus-visible:ring-emerald-400";
+  return "border-l-blue-500 hover:border-blue-300 hover:bg-blue-50/50 focus-visible:ring-blue-400";
+}
+
+function reportStatusClass(status: SafePredictReportRecord["status"]) {
+  if (status === "Ready") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "Scheduled") return "border-indigo-200 bg-indigo-50 text-indigo-700";
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function SiteFilingHeatMap({
+  observations,
+  reports,
+  onOpenObservations,
+  onOpenReports,
+}: {
+  observations: SafePredictObservationRecord[];
+  reports: SafePredictReportRecord[];
+  onOpenObservations: () => void;
+  onOpenReports: () => void;
+}) {
+  const lanes = buildSiteFilingHeatMapLanes(observations, reports);
+  const severityLanes = lanes.filter((lane) => lane.key !== "reports");
+  const reportLane = lanes.find((lane) => lane.key === "reports");
+  const totalFilings = lanes.reduce((total, lane) => total + lane.items.length, 0);
+
+  if (totalFilings === 0) {
+    return (
+      <EmptyTabPanel
+        title="No site filings yet"
+        detail="Filed observations and reports will populate this heat map after field activity is recorded for this site."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="site-filing-heat-map">
+      <div className="overflow-x-auto pb-1">
+        <div className="grid min-w-[720px] grid-cols-4 gap-3">
+          {severityLanes.map((lane) => (
+            <section key={lane.key} data-testid={`site-filing-lane-${lane.key}`} className={cx("rounded-lg border p-3", siteFilingLaneClass(lane.key))}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-wide">{lane.label}</p>
+                <span className="rounded-full bg-white/80 px-2 py-1 text-xs font-black shadow-sm">{lane.items.length}</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {lane.items.length > 0 ? (
+                  lane.items.slice(0, 4).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={onOpenObservations}
+                      className={cx(
+                        "w-full rounded-lg border border-l-4 border-slate-200 bg-white p-3 text-left text-slate-800 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                        siteFilingItemClass(lane.key)
+                      )}
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className="block line-clamp-2 text-sm font-black leading-5 text-slate-950">{formatTitleCase(item.title) || item.title}</span>
+                          <span className="mt-1 block text-xs font-semibold text-slate-500">Observation | {item.status}</span>
+                        </span>
+                        {item.riskLevel ? <RiskBadge level={item.riskLevel} /> : null}
+                      </span>
+                      <span className="mt-2 block text-xs font-semibold leading-5 text-slate-600">{item.filedAt}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="rounded-lg border border-dashed border-white/80 bg-white/60 px-3 py-5 text-center text-xs font-bold">
+                    No {lane.label.toLowerCase()} filings
+                  </p>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+
+      {reportLane ? (
+        <section data-testid="site-filing-lane-reports" className={cx("rounded-lg border p-3", siteFilingLaneClass("reports"))}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-black uppercase tracking-wide">Reports</p>
+            <span className="rounded-full bg-white/80 px-2 py-1 text-xs font-black shadow-sm">{reportLane.items.length}</span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {reportLane.items.length > 0 ? (
+              reportLane.items.slice(0, 4).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={onOpenReports}
+                  className={cx(
+                    "rounded-lg border border-l-4 border-slate-200 bg-white p-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                    siteFilingItemClass("reports")
+                  )}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block line-clamp-2 text-sm font-black leading-5 text-slate-950">{formatTitleCase(item.title) || item.title}</span>
+                      <span className="mt-1 block text-xs font-semibold text-slate-500">{item.audience ?? "Report"} | {item.filedAt}</span>
+                    </span>
+                    <span className={cx("shrink-0 rounded-full border px-2.5 py-1 text-xs font-black", reportStatusClass(item.status as SafePredictReportRecord["status"]))}>{item.status}</span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="rounded-lg border border-dashed border-blue-100 bg-white/60 px-3 py-4 text-center text-xs font-bold text-blue-700 sm:col-span-2">
+                No filed reports for this site
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -3439,17 +3647,14 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
             </Card>
             <div className="space-y-5">
               <Card className="p-5">
-              <SectionTitle title="Risk Map" />
+              <SectionTitle title="Site Filing Heat Map" />
               <div className="mt-4">
-                {mode === "live" ? (
-                  <LiveJobsiteRiskList
-                    jobsites={[site]}
-                    emptyTitle="No Live Risk Zones"
-                    emptyDetail="This jobsite will show risk zones after field activity is recorded."
-                  />
-                ) : (
-                  <RiskHeatMap variant={site.id === "plant-1" || site.id === "warehouse-a" ? "mitigation" : "dashboard"} />
-                )}
+                <SiteFilingHeatMap
+                  observations={displayedSiteObservations}
+                  reports={siteReports}
+                  onOpenObservations={() => setActiveTab("Incidents & Observations")}
+                  onOpenReports={() => setActiveTab("Documents & Reports")}
+                />
               </div>
               </Card>
               <Card className="p-5">

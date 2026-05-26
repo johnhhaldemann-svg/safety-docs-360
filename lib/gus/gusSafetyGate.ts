@@ -16,7 +16,23 @@ const DRAFT_ONLY_STATUS_MAP: Record<string, GusPlanStatus> = {
 };
 
 const GUS_TRIGGER_LANGUAGE_PATTERNS = [
+  { pattern: /\bHuman\s+reviewer(s)?\b/g, replacement: (_match: string, plural?: string) => `Safety lead${plural ? "s" : ""}` },
+  { pattern: /\bHuman\s+review\b/g, replacement: "Human safety check" },
+  { pattern: /\bReview\s+risk\b/g, replacement: "Risk safety check" },
+  { pattern: /\bReview\s+critical\s+controls\b/g, replacement: "Critical controls safety check" },
+  { pattern: /\bPermit\s+review\b/g, replacement: "Permit safety check" },
+  { pattern: /\bVerify\b/g, replacement: "Field-check" },
+  { pattern: /\bConfirm\b/g, replacement: "Make sure" },
+  { pattern: /\bPause\b/g, replacement: "Do not continue" },
+  { pattern: /\bhuman\s+review\b/gi, replacement: "human safety check" },
+  { pattern: /\bhuman\s+reviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
+  { pattern: /\breview\s+risk\b/gi, replacement: "risk safety check" },
+  { pattern: /\breview\s+critical\s+controls\b/gi, replacement: "critical controls safety check" },
+  { pattern: /\bpermit\s+review\b/gi, replacement: "permit safety check" },
   { pattern: /\baction\s+words?\b/gi, replacement: "safety cue" },
+  { pattern: /\bhigh-priority\s+actions?\b/gi, replacement: "high-priority safety items" },
+  { pattern: /\bopen\s+actions?\b/gi, replacement: "open safety items" },
+  { pattern: /\bcorrective\s+actions?\b/gi, replacement: "corrective safety items" },
   { pattern: /\bnext\s+actions?\b/gi, replacement: "next safe steps" },
   { pattern: /\baction(s)?\b/gi, replacement: (_match: string, plural?: string) => `safe step${plural ? "s" : ""}` },
   { pattern: /\breviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
@@ -80,7 +96,15 @@ export function sanitizeGusTriggerLanguage(message: string): string {
   return GUS_TRIGGER_LANGUAGE_PATTERNS.reduce(
     (nextMessage, rule) => nextMessage.replace(rule.pattern, rule.replacement),
     message
-  ).replace(/\s+/g, " ").trim();
+  )
+    .replace(/\bhuman\s+review\b/gi, "human safety check")
+    .replace(/\bno\s+human\s+safety\s+check\s+needed\b/gi, "human safety check is required")
+    .replace(/\breview\b/gi, "human safety check")
+    .replace(/\bverify\b/gi, "field-check")
+    .replace(/\bconfirm\b/gi, "make sure")
+    .replace(/\baction(s)?\b/gi, (_match, plural?: string) => `safe step${plural ? "s" : ""}`)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function enforceDraftOnlyStatus(status: string): GusPlanStatus {

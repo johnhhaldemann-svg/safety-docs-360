@@ -34,7 +34,7 @@ describe("Gus photo review", () => {
     expect(parsed?.humanReviewRequired).toBe(true);
     expect(parsed?.confidence).toBe(1);
     expect(parsed?.answer).not.toMatch(/approved|safe to start/i);
-    expect(parsed?.nextActions.join(" ")).toMatch(/immediate human safety review/i);
+    expect(parsed?.nextActions.join(" ")).toMatch(/immediate human safety check/i);
   });
 
   it("sends jobsite photos to the Responses API as input_image with high detail", async () => {

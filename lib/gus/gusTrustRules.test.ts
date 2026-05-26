@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requireHumanReview, sanitizeGusMessage } from "@/lib/gus/gusSafetyGate";
+import { requireHumanReview, sanitizeGusMessage, sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import { isForbiddenGusAction } from "@/lib/gus/gusTrustRules";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
 
@@ -21,6 +21,23 @@ describe("Gus trust and safety guardrails", () => {
     expect(message).not.toMatch(/\breleased for work\b/i);
     expect(message).not.toMatch(/\bno review needed\b/i);
     expect(message).toContain("human review is required");
+  });
+
+  it("rewrites Gus-facing trigger vocabulary without weakening the safety meaning", () => {
+    const message = sanitizeGusTriggerLanguage(
+      "Action words: Review, verify, confirm, inspect, assign, resolve, dismiss, ignore, pause, stop, hold, create, sync, and brief the next actions.",
+    );
+
+    expect(message).toContain("safety cue");
+    expect(message).toContain("human safety check");
+    expect(message).toContain("field-check");
+    expect(message).toContain("make sure");
+    expect(message).toContain("name an owner");
+    expect(message).toContain("do not continue");
+    expect(message).toContain("next safe steps");
+    expect(message).not.toMatch(
+      /\baction words?\b|\breview\b|\bverify\b|\bconfirm\b|\binspect\b|\bassign\b|\bresolve\b|\bdismiss\b|\bignore\b|\bpause\b|\bstop\b|\bhold\b|\bcreate\b|\bsync\b/i,
+    );
   });
 
   it("sanitizes output and records validation findings", () => {

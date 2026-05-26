@@ -166,16 +166,28 @@ function normalizePhotoReview(value: unknown, fallback: GusPhotoReviewOutput): G
   return {
     answer: sanitizeGusTriggerLanguage(cleanText(record.answer, 900) || fallback.answer),
     riskLevel,
-    whatLooksRight: stringArray(record.whatLooksRight, 8),
-    concerns: stringArray(record.concerns, 10),
+    whatLooksRight: stringArray(record.whatLooksRight, 8).length
+      ? stringArray(record.whatLooksRight, 8)
+      : fallback.whatLooksRight.map(sanitizeGusTriggerLanguage),
+    concerns: stringArray(record.concerns, 10).length
+      ? stringArray(record.concerns, 10)
+      : fallback.concerns.map(sanitizeGusTriggerLanguage),
     criticalFlags,
-    missingInformation: stringArray(record.missingInformation, 10),
-    recommendedControls: stringArray(record.recommendedControls, 12),
+    missingInformation: stringArray(record.missingInformation, 10).length
+      ? stringArray(record.missingInformation, 10)
+      : fallback.missingInformation.map(sanitizeGusTriggerLanguage),
+    recommendedControls: stringArray(record.recommendedControls, 12).length
+      ? stringArray(record.recommendedControls, 12)
+      : fallback.recommendedControls.map(sanitizeGusTriggerLanguage),
     nextActions:
       riskLevel === "critical" && nextActions.length === 0
         ? ["Do not continue until immediate human safety check is complete."]
-        : nextActions,
-    limitations: stringArray(record.limitations, 8),
+        : nextActions.length > 0
+          ? nextActions
+          : fallback.nextActions.map(sanitizeGusTriggerLanguage),
+    limitations: stringArray(record.limitations, 8).length
+      ? stringArray(record.limitations, 8)
+      : fallback.limitations.map(sanitizeGusTriggerLanguage),
     confidence: normalizeConfidence(record.confidence),
     draftOnly: true,
     humanReviewRequired: true,
@@ -191,7 +203,17 @@ function enforcePhotoReviewSafety(output: GusPhotoReviewOutput) {
   const normalized = normalizePhotoReview(validation.sanitizedOutput, output);
 
   return {
-    output: normalized,
+    output: {
+      ...normalized,
+      answer: sanitizeGusTriggerLanguage(normalized.answer),
+      whatLooksRight: normalized.whatLooksRight.map(sanitizeGusTriggerLanguage),
+      concerns: normalized.concerns.map(sanitizeGusTriggerLanguage),
+      criticalFlags: normalized.criticalFlags.map(sanitizeGusTriggerLanguage),
+      missingInformation: normalized.missingInformation.map(sanitizeGusTriggerLanguage),
+      recommendedControls: normalized.recommendedControls.map(sanitizeGusTriggerLanguage),
+      nextActions: normalized.nextActions.map(sanitizeGusTriggerLanguage),
+      limitations: normalized.limitations.map(sanitizeGusTriggerLanguage),
+    },
     validationFindings: validation.findings,
   };
 }

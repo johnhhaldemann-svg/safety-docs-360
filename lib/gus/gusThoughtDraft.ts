@@ -204,7 +204,7 @@ function normalizeResponse(value: unknown, fallback: GusThoughtDraftResponse): G
   const draftText = cleanText(record.draftText, 1_200) || fallback.draftText;
   const talkingPoints = stringArray(record.talkingPoints, 6).length
     ? stringArray(record.talkingPoints, 6)
-    : fallback.talkingPoints;
+    : fallback.talkingPoints.map(sanitizeGusTriggerLanguage);
 
   return {
     clarifiedThought,
@@ -212,17 +212,19 @@ function normalizeResponse(value: unknown, fallback: GusThoughtDraftResponse): G
     talkingPoints,
     followUpQuestions: stringArray(record.followUpQuestions, 6).length
       ? stringArray(record.followUpQuestions, 6)
-      : fallback.followUpQuestions,
+      : fallback.followUpQuestions.map(sanitizeGusTriggerLanguage),
     missingInformation: stringArray(record.missingInformation, 10).length
       ? stringArray(record.missingInformation, 10)
-      : fallback.missingInformation,
-    riskFlags: stringArray(record.riskFlags, 10).length ? stringArray(record.riskFlags, 10) : fallback.riskFlags,
+      : fallback.missingInformation.map(sanitizeGusTriggerLanguage),
+    riskFlags: stringArray(record.riskFlags, 10).length
+      ? stringArray(record.riskFlags, 10)
+      : fallback.riskFlags.map(sanitizeGusTriggerLanguage),
     recommendedControls: stringArray(record.recommendedControls, 12).length
       ? stringArray(record.recommendedControls, 12)
-      : fallback.recommendedControls,
+      : fallback.recommendedControls.map(sanitizeGusTriggerLanguage),
     suggestedActions: stringArray(record.suggestedActions, 6).length
       ? stringArray(record.suggestedActions, 6)
-      : fallback.suggestedActions,
+      : fallback.suggestedActions.map(sanitizeGusTriggerLanguage),
     draftOnly: true,
     humanReviewRequired: true,
   };
@@ -234,9 +236,20 @@ function enforceThoughtDraftSafety(output: GusThoughtDraftResponse) {
     draftOnly: true,
     humanReviewRequired: true,
   });
+  const response = normalizeResponse(validation.sanitizedOutput, output);
 
   return {
-    response: normalizeResponse(validation.sanitizedOutput, output),
+    response: {
+      ...response,
+      clarifiedThought: sanitizeGusTriggerLanguage(response.clarifiedThought),
+      draftText: sanitizeGusTriggerLanguage(response.draftText),
+      talkingPoints: response.talkingPoints.map(sanitizeGusTriggerLanguage),
+      followUpQuestions: response.followUpQuestions.map(sanitizeGusTriggerLanguage),
+      missingInformation: response.missingInformation.map(sanitizeGusTriggerLanguage),
+      riskFlags: response.riskFlags.map(sanitizeGusTriggerLanguage),
+      recommendedControls: response.recommendedControls.map(sanitizeGusTriggerLanguage),
+      suggestedActions: response.suggestedActions.map(sanitizeGusTriggerLanguage),
+    },
     validationFindings: validation.findings,
   };
 }

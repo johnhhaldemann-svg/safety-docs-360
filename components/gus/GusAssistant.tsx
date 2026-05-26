@@ -163,7 +163,7 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
               Gus Smart AI Safety Bot
             </p>
             <p className="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">
-              {decision.kind === "warning" ? "Review needed. Human review required." : "Draft guidance only. Human review required."}
+              {decision.kind === "warning" ? "Safety check needed. Human safety check required." : "Draft guidance only. Human safety check required."}
             </p>
           </div>
           <button

@@ -70,11 +70,11 @@ describe("Gus coach loop", () => {
     const directive = buildGusCoachDirective(baseDecision, baseContext);
 
     expect(directive.priority).toBe("critical");
-    expect(directive.title).toBe("Review risk now");
-    expect(directive.instruction).toContain("human safety review");
+    expect(directive.title).toBe("Risk safety check now");
+    expect(directive.instruction).toContain("human safety check");
     expect(directive.whyItMatters).toContain("Drop Hazard 3rd Floor");
     expect(directive.humanReviewRequired).toBe(true);
-    expect(directive.followUps.some((item) => item.prompt.includes("human reviewer"))).toBe(true);
+    expect(directive.followUps.some((item) => item.prompt.includes("safety lead"))).toBe(true);
   });
 
   it("creates permit and training follow-ups when context includes gaps", () => {
@@ -89,7 +89,7 @@ describe("Gus coach loop", () => {
       baseContext,
     );
 
-    expect(directive.title).toBe("Permit review comes first");
+    expect(directive.title).toBe("Permit safety check comes first");
     expect(directive.followUps.map((item) => item.followUpId)).toContain("draft-permit-review");
     expect(directive.followUps.map((item) => item.followUpId)).toContain("training-readiness");
   });
@@ -103,7 +103,9 @@ describe("Gus coach loop", () => {
       ...directive.followUps.map((item) => item.prompt),
     ].join(" ");
 
-    expect(combined).not.toMatch(/approved|compliant|safe to start|released for work|I am human|I'm human/i);
+    expect(combined).not.toMatch(
+      /approved|compliant|safe to start|released for work|I am human|I'm human|\breview\b|\bverify\b|\bconfirm\b|\baction\b/i,
+    );
   });
 
   it("uses direct coach voice for Safety AI review directives", () => {
@@ -116,9 +118,9 @@ describe("Gus coach loop", () => {
       aiEngineReviewTriggers: ["Energized electrical or LOTO"],
     });
 
-    expect(directive.title).toBe("Review critical controls now");
+    expect(directive.title).toBe("Critical controls safety check now");
     expect(directive.title).not.toMatch(/Gus says|Gus recommends/i);
-    expect(directive.instruction).toContain("verify critical controls now");
+    expect(directive.instruction).toContain("field-check critical controls now");
     expect(directive.whyItMatters).toContain("Fall exposure");
   });
 

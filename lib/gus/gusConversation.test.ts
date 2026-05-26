@@ -37,7 +37,7 @@ describe("Gus conversation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.blockedByRules).toBe(true);
     expect(result.response.answer).toContain("I cannot approve work");
-    expect(result.response.answer).toContain("human review");
+    expect(result.response.answer).toContain("human safety check");
   });
 
   it("handles OSHA and legal prompts conservatively", async () => {
@@ -48,7 +48,7 @@ describe("Gus conversation", () => {
 
     expect(result.response.answer).not.toMatch(/\bcompliant\b/i);
     expect(result.response.answer).toMatch(/cannot give legal advice|should not invent OSHA/i);
-    expect(result.response.missingInformation.join(" ")).toMatch(/Verified/i);
+    expect(result.response.missingInformation.join(" ")).toMatch(/field checked/i);
   });
 
   it("keeps model output warm but safety-focused", async () => {
@@ -84,12 +84,13 @@ describe("Gus conversation", () => {
       context: { currentPage: "Permits", route: "/permits" },
     });
 
-    expect(result.response.answer).toContain("You are right to pause");
+    expect(result.response.answer).toContain("You are right to do not continue");
     expect(result.response.answer).toContain("draft");
+    expect(result.response.answer).not.toMatch(/\bpause\b|\breview\b|\bconfirm\b/i);
     expect(result.response.humanReviewRequired).toBe(true);
   });
 
-  it("preserves structured response arrays for the Gus UI", async () => {
+  it("preserves structured response arrays for the Gus UI without Gus self-triggering", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubGlobal(
       "fetch",
@@ -118,14 +119,15 @@ describe("Gus conversation", () => {
     );
 
     const result = await runGusConversation({
-      message: "What should I verify next?",
+      message: "What should I look at next?",
       context: { currentPage: "SafePredict", route: "/safe-predict", riskLevel: "high" },
     });
 
     expect(result.response.riskFlags).toContain("Unverified fall exposure");
     expect(result.response.missingInformation).toContain("Exact work location");
-    expect(result.response.recommendedControls).toContain("Verify guardrails or tie-off");
-    expect(result.response.suggestedActions).toContain("Ask the supervisor to verify controls");
+    expect(result.response.recommendedControls).toContain("Field-check guardrails or tie-off");
+    expect(result.response.suggestedActions).toContain("Ask the supervisor to field-check controls");
+    expect(result.actionDecisionTriggers).toEqual([]);
   });
 
   it("safety preference memory cannot override safety rules", async () => {
@@ -141,7 +143,7 @@ describe("Gus conversation", () => {
 
     expect(result.blockedByRules).toBe(true);
     expect(result.response.answer).toContain("cannot approve");
-    expect(result.response.riskFlags).toContain("Human review remains required before work starts.");
+    expect(result.response.riskFlags).toContain("Human safety check remains required before work starts.");
   });
 
   it("infers only safety-relevant preferences from user wording", () => {

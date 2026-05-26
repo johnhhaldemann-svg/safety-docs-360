@@ -110,9 +110,12 @@ function stringArray(value: unknown, maxItems: number, maxLength = 180) {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => cleanText(item, maxLength))
-    .map(sanitizeGusTriggerLanguage)
     .filter(Boolean)
     .slice(0, maxItems);
+}
+
+function gusTextArray(value: unknown, maxItems: number, maxLength = 180) {
+  return stringArray(value, maxItems, maxLength).map(sanitizeGusTriggerLanguage).filter(Boolean);
 }
 
 function defaultPreferences(): GusSafetyPreferenceMemory {
@@ -264,16 +267,18 @@ function normalizeResponse(value: unknown, fallback: GusConversationResponse): G
   return {
     answer: sanitizeGusTriggerLanguage(cleanText(record.answer, 900) || fallback.answer),
     tone: "calm_mentor",
-    suggestedActions: stringArray(record.suggestedActions, 6).length
-      ? stringArray(record.suggestedActions, 6)
-      : fallback.suggestedActions,
-    missingInformation: stringArray(record.missingInformation, 10).length
-      ? stringArray(record.missingInformation, 10)
-      : fallback.missingInformation,
-    riskFlags: stringArray(record.riskFlags, 10).length ? stringArray(record.riskFlags, 10) : fallback.riskFlags,
-    recommendedControls: stringArray(record.recommendedControls, 12).length
-      ? stringArray(record.recommendedControls, 12)
-      : fallback.recommendedControls,
+    suggestedActions: gusTextArray(record.suggestedActions, 6).length
+      ? gusTextArray(record.suggestedActions, 6)
+      : fallback.suggestedActions.map(sanitizeGusTriggerLanguage),
+    missingInformation: gusTextArray(record.missingInformation, 10).length
+      ? gusTextArray(record.missingInformation, 10)
+      : fallback.missingInformation.map(sanitizeGusTriggerLanguage),
+    riskFlags: gusTextArray(record.riskFlags, 10).length
+      ? gusTextArray(record.riskFlags, 10)
+      : fallback.riskFlags.map(sanitizeGusTriggerLanguage),
+    recommendedControls: gusTextArray(record.recommendedControls, 12).length
+      ? gusTextArray(record.recommendedControls, 12)
+      : fallback.recommendedControls.map(sanitizeGusTriggerLanguage),
     safetyPreferences: normalizePreferences(record.safetyPreferences, fallback.safetyPreferences),
     draftOnly: true,
     humanReviewRequired: true,
@@ -286,9 +291,17 @@ function enforceConversationSafety(output: GusConversationResponse) {
     draftOnly: true,
     humanReviewRequired: true,
   });
+  const response = normalizeResponse(validation.sanitizedOutput, output);
 
   return {
-    response: normalizeResponse(validation.sanitizedOutput, output),
+    response: {
+      ...response,
+      answer: sanitizeGusTriggerLanguage(response.answer),
+      suggestedActions: response.suggestedActions.map(sanitizeGusTriggerLanguage),
+      missingInformation: response.missingInformation.map(sanitizeGusTriggerLanguage),
+      riskFlags: response.riskFlags.map(sanitizeGusTriggerLanguage),
+      recommendedControls: response.recommendedControls.map(sanitizeGusTriggerLanguage),
+    },
     validationFindings: validation.findings,
   };
 }

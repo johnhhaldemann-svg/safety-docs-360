@@ -48,10 +48,10 @@ describe("runGusAiExplanation", () => {
     expect(result.blockedByRules).toBe(true);
     expect(result.meta).toBeNull();
     expect(result.output.answer).toContain("I cannot approve work");
-    expect(result.output.answer).toContain("human review");
+    expect(result.output.answer).toContain("human safety check");
     expect(result.output.draftOnly).toBe(true);
     expect(result.output.humanReviewRequired).toBe(true);
-    expect(result.output.riskFlags).toContain("Human review remains required before work starts.");
+    expect(result.output.riskFlags).toContain("Human safety check remains required before work starts.");
   });
 
   it("passes model output through Gus safety validation before returning it", async () => {

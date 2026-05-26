@@ -56,4 +56,31 @@ describe("SafePredictJobsiteDetail", () => {
     expect(html).toContain("Edit");
     expect(html).not.toContain("Renew");
   });
+
+  it("shows a site filing heat map ordered by severity", () => {
+    const html = renderToStaticMarkup(<SafePredictJobsiteDetail jobsiteId="riverside" />);
+
+    expect(html).toContain("Site Filing Heat Map");
+    expect(html).not.toContain("Risk Map");
+
+    const criticalLane = html.indexOf('data-testid="site-filing-lane-critical"');
+    const highLane = html.indexOf('data-testid="site-filing-lane-high"');
+    const moderateLane = html.indexOf('data-testid="site-filing-lane-medium"');
+    const lowLane = html.indexOf('data-testid="site-filing-lane-low"');
+
+    expect(criticalLane).toBeGreaterThan(-1);
+    expect(highLane).toBeGreaterThan(criticalLane);
+    expect(moderateLane).toBeGreaterThan(highLane);
+    expect(lowLane).toBeGreaterThan(moderateLane);
+    expect(html).toContain("Moderate");
+  });
+
+  it("includes filed observations and reports in the heat map", () => {
+    const html = renderToStaticMarkup(<SafePredictJobsiteDetail jobsiteId="riverside" />);
+
+    expect(html).toContain("Unprotected Edge Noted During Decking Work");
+    expect(html).toContain("Observation | Open");
+    expect(html).toContain('data-testid="site-filing-lane-reports"');
+    expect(html).toContain("Riverside Commercial Tower Weekly Risk Summary");
+  });
 });

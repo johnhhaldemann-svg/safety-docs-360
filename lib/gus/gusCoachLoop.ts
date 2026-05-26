@@ -1,4 +1,5 @@
 import type { GusContext } from "@/lib/gus/gusContext";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import { isForbiddenGusAction } from "@/lib/gus/gusTrustRules";
 import { validateGusOutput } from "@/lib/gus/gusValidation";
 import type {
@@ -77,7 +78,26 @@ function followUpsFor(decision: GusDecision, context: GusContext): GusCoachFollo
     actionLabel: "Next 3 steps",
   });
 
-  return base.slice(0, 3);
+  return base.slice(0, 3).map((item) => ({
+    ...item,
+    prompt: sanitizeGusTriggerLanguage(item.prompt),
+    actionLabel: sanitizeGusTriggerLanguage(item.actionLabel),
+  }));
+}
+
+function sanitizeDirective(directive: GusCoachDirective): GusCoachDirective {
+  return {
+    ...directive,
+    title: sanitizeGusTriggerLanguage(directive.title),
+    instruction: sanitizeGusTriggerLanguage(directive.instruction),
+    whyItMatters: sanitizeGusTriggerLanguage(directive.whyItMatters),
+    recommendedActionLabel: sanitizeGusTriggerLanguage(directive.recommendedActionLabel),
+    followUps: directive.followUps.map((item) => ({
+      ...item,
+      prompt: sanitizeGusTriggerLanguage(item.prompt),
+      actionLabel: sanitizeGusTriggerLanguage(item.actionLabel),
+    })),
+  };
 }
 
 function directiveText(decision: GusDecision, context: GusContext) {
@@ -191,7 +211,7 @@ export function buildGusCoachDirective(decision: GusDecision, context: GusContex
   };
   const validation = validateGusOutput(directive);
 
-  return validation.sanitizedOutput as GusCoachDirective;
+  return sanitizeDirective(validation.sanitizedOutput as GusCoachDirective);
 }
 
 export function updateGusCoachLoopState(

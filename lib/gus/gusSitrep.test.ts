@@ -23,7 +23,7 @@ describe("Gus SITREP", () => {
     expect(buildGusSitrepMessage({ ...severeContext, route: "/dashboard" })).toBeNull();
   });
 
-  it("summarizes severe risk, permit gaps, training gaps, and open actions", () => {
+  it("summarizes severe risk, permit gaps, training gaps, and open safety items", () => {
     const message = buildGusSitrepMessage(severeContext);
 
     expect(message).not.toBeNull();
@@ -32,8 +32,8 @@ describe("Gus SITREP", () => {
     expect(message?.message).toContain("Drop Hazard 3rd Floor");
     expect(message?.message).toContain("Hot Work");
     expect(message?.message).toContain("2 expired trainings");
-    expect(message?.message).toContain("3 high-priority actions");
-    expect(message?.message).toContain("human reviewer");
+    expect(message?.message).toContain("3 high-priority safety items");
+    expect(message?.message).toContain("safety lead");
     expect(message?.shouldSpeak).toBe(true);
     expect(message?.priority).toBe(1);
   });
@@ -42,8 +42,8 @@ describe("Gus SITREP", () => {
     const message = buildGusSitrepMessage(severeContext);
     const combined = `${message?.message ?? ""} ${message?.reason ?? ""} ${message?.spokenText ?? ""}`;
 
-    expect(combined).toContain("Human review required");
-    expect(combined).not.toMatch(/approved|compliant|safe to start|released for work|no review needed/i);
+    expect(combined).toContain("Human safety check required");
+    expect(combined).not.toMatch(/approved|compliant|safe to start|released for work|no review needed|\breview\b|\bverify\b|\baction\b/i);
   });
 
   it("uses a stable message id and can create a non-duplicate steady follow-up", () => {

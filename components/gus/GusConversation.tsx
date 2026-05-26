@@ -121,7 +121,7 @@ function StructuredDetails({ details }: { details: GusStructuredDetails }) {
       <DetailSection title="Risks" items={details.riskFlags} />
       <DetailSection title="Missing info" items={details.missingInformation} />
       <DetailSection title="Controls" items={details.recommendedControls} />
-      <DetailSection title="Next actions" items={details.suggestedActions} />
+      <DetailSection title="Next safe steps" items={details.suggestedActions} />
     </div>
   );
 }
@@ -163,7 +163,7 @@ function ThoughtDraftDetails({
       <DetailSection title="Follow-up questions" items={draft.followUpQuestions} />
       <DetailSection title="Missing info" items={draft.missingInformation} />
       <DetailSection title="Controls" items={draft.recommendedControls} />
-      <DetailSection title="Next actions" items={draft.suggestedActions} />
+      <DetailSection title="Next safe steps" items={draft.suggestedActions} />
     </div>
   );
 }
@@ -173,7 +173,7 @@ function PhotoReviewDetails({ review }: { review: GusPhotoReviewOutput }) {
     <div className={`mt-2 grid gap-2 rounded-xl border p-2.5 ${riskTone(review.riskLevel)}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-current/15 bg-white/70 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-current/70">
-          {review.riskLevel} photo review
+          {review.riskLevel} photo check
         </span>
         <span className="text-[10px] font-black uppercase tracking-[0.1em] text-current/60">
           Draft guidance
@@ -184,7 +184,7 @@ function PhotoReviewDetails({ review }: { review: GusPhotoReviewOutput }) {
       <DetailSection title="Critical flags" items={review.criticalFlags} />
       <DetailSection title="Missing info" items={review.missingInformation} />
       <DetailSection title="Controls" items={review.recommendedControls} />
-      <DetailSection title="Next actions" items={review.nextActions} />
+      <DetailSection title="Next safe steps" items={review.nextActions} />
       <DetailSection title="Limitations" items={review.limitations} />
     </div>
   );
@@ -335,7 +335,7 @@ export function GusConversation({
       setTurns((current) =>
         [
           ...current,
-          makeTurn("assistant", "I shaped that into draft wording. Keep it in draft until human review.", {
+          makeTurn("assistant", "I shaped that into draft wording. Keep it in draft until a human safety check.", {
             thoughtDraft,
           }),
         ].slice(-10),
@@ -387,7 +387,7 @@ export function GusConversation({
   function handlePhotoSelected(file: File | undefined) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setError("Choose a jobsite photo image for Gus to review.");
+      setError("Choose a jobsite photo image for Gus to check.");
       return;
     }
     setError(null);
@@ -404,7 +404,7 @@ export function GusConversation({
     if (!selectedPhoto || loading || reviewingPhoto) return;
 
     const note = draft.replace(/\s+/g, " ").trim();
-    const userTurn = makeTurn("user", note ? `Review photo: ${note}` : `Review photo: ${selectedPhoto.file.name}`, {
+    const userTurn = makeTurn("user", note ? `Check photo: ${note}` : `Check photo: ${selectedPhoto.file.name}`, {
       fileName: selectedPhoto.file.name,
     });
     const nextTurns = [...turns, userTurn].slice(-9);
@@ -528,7 +528,7 @@ export function GusConversation({
         ))}
         {busy ? (
           <p className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-sm font-semibold text-[var(--app-muted)]">
-            {reviewingPhoto ? "Gus is reviewing the photo for visible safety concerns..." : "Gus is thinking through the safe next step..."}
+            {reviewingPhoto ? "Gus is checking the photo for visible safety concerns..." : "Gus is thinking through the safe next step..."}
           </p>
         ) : null}
       </div>
@@ -556,7 +556,7 @@ export function GusConversation({
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-black text-[var(--app-text-strong)]">{selectedPhoto.file.name}</p>
               <p className="text-[11px] font-semibold text-[var(--app-muted)]">
-                Gus will review visible jobsite conditions only.
+                Gus will check visible jobsite conditions only.
               </p>
             </div>
             <button
@@ -575,7 +575,7 @@ export function GusConversation({
             disabled={busy}
             className="mt-2 inline-flex min-h-9 w-full items-center justify-center rounded-lg bg-[var(--app-accent-primary)] px-3 py-1.5 text-xs font-black text-white shadow-[var(--app-shadow-primary-button)] transition hover:bg-[var(--app-accent-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Review photo
+            Check photo
           </button>
         </div>
       ) : null}
@@ -628,7 +628,7 @@ export function GusConversation({
           onClick={() => photoInputRef.current?.click()}
           disabled={busy}
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[var(--app-border)] bg-white text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Upload a photo for Gus to review"
+          aria-label="Upload a photo for Gus to check"
           title="Upload photo"
         >
           <ImagePlus className="h-4 w-4" />

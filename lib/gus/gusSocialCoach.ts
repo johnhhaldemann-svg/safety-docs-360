@@ -1,4 +1,5 @@
 import type { GusContext } from "@/lib/gus/gusContext";
+import { sanitizeGusTriggerLanguage } from "@/lib/gus/gusSafetyGate";
 import type { GusDecision, GusMessage } from "@/lib/gus/gusTypes";
 
 const HUMOR_RATE = 10;
@@ -50,8 +51,8 @@ function withVariantMessage(baseMessage: GusMessage, variant: GusLineVariant, me
   return {
     ...baseMessage,
     messageId: `${baseMessage.messageId}${VARIANT_SEPARATOR}${variant.variantId}`,
-    message,
-    spokenText,
+    message: sanitizeGusTriggerLanguage(message),
+    spokenText: sanitizeGusTriggerLanguage(spokenText),
     shouldSpeak: baseMessage.shouldSpeak !== false,
   };
 }
@@ -246,19 +247,19 @@ export function createGusProactiveConversationLine(decision: GusDecision, contex
   const autonomous = createGusAutonomousMessage(decision, context, seed);
 
   if (decision.attentionLevel === "critical") {
-    return `${autonomous.message} I can help organize what needs review, but a human reviewer has to make the call.`;
+    return sanitizeGusTriggerLanguage(`${autonomous.message} I can help organize what needs a safety check, but a safety lead has to make the call.`);
   }
 
   if (decision.attentionLevel === "high" || decision.kind === "warning") {
-    return `${autonomous.message} ${signals.length > 0 ? `I'm watching ${signals.join(" and ")}.` : ""}`;
+    return sanitizeGusTriggerLanguage(`${autonomous.message} ${signals.length > 0 ? `I'm watching ${signals.join(" and ")}.` : ""}`);
   }
 
   if (decision.kind === "planning_offer") {
-    return "I can help turn this into a draft safe work plan. I'll keep it draft-only and call out what information is still missing for human review.";
+    return sanitizeGusTriggerLanguage("I can help turn this into a draft safe work plan. I'll keep it draft-only and call out what information is still missing for a human safety check.");
   }
 
   if (signals.length > 0) {
-    return `I'm keeping an eye on ${signals.join(" and ")}. If the pattern changes, I'll call out the review step. ${action ? `${action} is the next useful place to look.` : ""}`.trim();
+    return sanitizeGusTriggerLanguage(`I'm keeping an eye on ${signals.join(" and ")}. If the pattern changes, I'll call out the safety step. ${action ? `${action} is the next useful place to look.` : ""}`.trim());
   }
 
   return autonomous.message;

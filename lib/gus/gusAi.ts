@@ -113,7 +113,13 @@ function enforceGusAiSafety(output: GusAiOutput) {
   const sanitized = normalizeGusAiOutput(validation.sanitizedOutput, output);
 
   return {
-    output: sanitized,
+    output: {
+      ...sanitized,
+      answer: sanitizeGusTriggerLanguage(sanitized.answer),
+      missingInformation: sanitized.missingInformation.map(sanitizeGusTriggerLanguage),
+      riskFlags: sanitized.riskFlags.map(sanitizeGusTriggerLanguage),
+      recommendedControls: sanitized.recommendedControls.map(sanitizeGusTriggerLanguage),
+    },
     validationFindings: validation.findings,
   };
 }
