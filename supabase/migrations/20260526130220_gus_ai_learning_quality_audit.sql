@@ -132,6 +132,8 @@ using (
   or (company_id is not null and public.security_can_review_gus_learning(company_id))
 );
 
+drop function if exists public.match_approved_knowledge(uuid, uuid, vector(1536), int);
+
 create or replace function public.match_approved_knowledge (
   p_company_id uuid,
   p_project_id uuid,
