@@ -25,6 +25,11 @@ import type {
   PlatformPerformanceSnapshot,
 } from "@/lib/superadmin/platformPerformanceHealth";
 import type {
+  IntegrationAuditCheck,
+  IntegrationAuditResponse,
+  IntegrationAuditStatus,
+} from "@/lib/superadmin/integrationAuditTypes";
+import type {
   SystemHealthCheck,
   SystemHealthConnection,
   SystemHealthResponse,
@@ -75,6 +80,10 @@ function StatusIcon({ status }: { status: SystemHealthStatus }) {
 
 function formatStatusLabel(s: SystemHealthStatus) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function integrationStatusBadgeClasses(status: IntegrationAuditStatus) {
+  return statusBadgeClasses(status);
 }
 
 function formatBytes(value: number) {
@@ -516,16 +525,149 @@ function issuesPanelItemsFromPayload(data: SystemHealthResponse) {
   return items;
 }
 
+function IntegrationMapCard({ audit }: { audit: IntegrationAuditResponse }) {
+  const statusOrder: Record<IntegrationAuditStatus, number> = {
+    critical: 0,
+    warning: 1,
+    unknown: 2,
+    healthy: 3,
+  };
+  const visibleChecks = [...audit.checks].sort((a, b) => {
+    const rank = statusOrder[a.status] - statusOrder[b.status];
+    return rank === 0 ? a.label.localeCompare(b.label) : rank;
+  });
+
+  return (
+    <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-[var(--app-text-strong)]">Production integration map</h2>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--app-text)]">
+            Read-only evidence across Vercel, Supabase, auth, storage, workflows, scheduled jobs, and Safety AI.
+            Broken or weak links are listed first.
+          </p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3 py-2 text-xs">
+          <p className="font-semibold text-[var(--app-muted)]">Source of truth</p>
+          <p className="font-mono font-bold text-[var(--app-text-strong)]">{audit.sourceOfTruth}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-[var(--app-border)] bg-slate-900 px-4 py-3 text-white">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Supabase ref</p>
+          <p className="mt-1 break-all font-mono text-sm font-bold">{audit.project.supabaseRef ?? "unknown"}</p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">Vercel project</p>
+          <p className="mt-1 break-all font-mono text-sm font-bold text-[var(--app-text-strong)]">
+            {audit.project.vercelProjectName ?? audit.project.vercelProjectId ?? "unknown"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">Local migration</p>
+          <p className="mt-1 font-mono text-sm font-bold text-[var(--app-text-strong)]">
+            {audit.project.latestLocalMigration ?? "unknown"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">Remote migration</p>
+          <p className="mt-1 font-mono text-sm font-bold text-[var(--app-text-strong)]">
+            {audit.project.latestRemoteMigration ?? "unknown"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Connected nodes</p>
+          <div className="mt-3 grid gap-2">
+            {audit.nodes.map((node) => (
+              <div key={node.id} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-[var(--app-text-strong)]">{node.label}</span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${integrationStatusBadgeClasses(node.status)}`}>
+                    <StatusIcon status={node.status} />
+                    {formatStatusLabel(node.status)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-[var(--app-text)]">{node.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[var(--app-border)] bg-white p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">Edges and handoffs</p>
+          <div className="mt-3 grid gap-2">
+            {audit.edges.map((edge) => (
+              <div key={`${edge.from}-${edge.to}`} className="rounded-lg bg-[var(--app-panel-soft)] px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold text-[var(--app-text-strong)]">
+                    {edge.from} {"->"} {edge.to}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${integrationStatusBadgeClasses(edge.status)}`}>
+                    {formatStatusLabel(edge.status)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--app-text)]">{edge.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-amber-200/70 bg-amber-50/40 p-4">
+        <p className="text-sm font-bold text-amber-950">Broken, risky, or unverified first</p>
+        <ul className="mt-3 space-y-2">
+          {visibleChecks.slice(0, 12).map((check: IntegrationAuditCheck) => (
+            <li key={check.id} className="rounded-lg border border-[var(--app-border)] bg-white px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${integrationStatusBadgeClasses(check.status)}`}>
+                  <StatusIcon status={check.status} />
+                  {formatStatusLabel(check.status)}
+                </span>
+                <span className="font-semibold text-[var(--app-text-strong)]">{check.label}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                  {check.category}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-[var(--app-text)]">{check.message}</p>
+              {check.evidence.length > 0 ? (
+                <p className="mt-1 font-mono text-[11px] leading-5 text-[var(--app-muted)]">
+                  {check.evidence.slice(0, 3).join(" | ")}
+                </p>
+              ) : null}
+              {check.recommendedAction ? (
+                <p className="mt-1 text-xs font-medium text-amber-950">Recommended: {check.recommendedAction}</p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="mt-4 text-xs text-[var(--app-muted)]">
+        Audit generated: <strong className="text-[var(--app-text)]">{new Date(audit.generatedAt).toLocaleString()}</strong>
+        {" - "}
+        Healthy {audit.summary.healthy}, warnings {audit.summary.warning}, critical {audit.summary.critical}, unknown {audit.summary.unknown}
+      </p>
+    </section>
+  );
+}
+
 export default function SuperadminSystemHealthPage() {
   const [data, setData] = useState<SystemHealthResponse | null>(null);
+  const [audit, setAudit] = useState<IntegrationAuditResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setAuditError(null);
     setForbidden(false);
     try {
       const res = await fetch("/api/superadmin/system-health", {
@@ -546,9 +688,28 @@ export default function SuperadminSystemHealthPage() {
       }
       const json = (await res.json()) as SystemHealthResponse;
       setData(json);
+
+      const auditRes = await fetch("/api/superadmin/integration-audit", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (auditRes.status === 403) {
+        setForbidden(true);
+        setAudit(null);
+        return;
+      }
+      if (!auditRes.ok) {
+        const body = await auditRes.json().catch(() => ({}));
+        setAuditError(typeof body.error === "string" ? body.error : `Integration audit failed (${auditRes.status})`);
+        setAudit(null);
+        return;
+      }
+      setAudit((await auditRes.json()) as IntegrationAuditResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load health data.");
       setData(null);
+      setAudit(null);
     } finally {
       setLoading(false);
     }
@@ -620,6 +781,11 @@ export default function SuperadminSystemHealthPage() {
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div>
       ) : null}
+      {auditError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Integration audit did not complete: {auditError}
+        </div>
+      ) : null}
 
       {loading && !data ? (
         <div className="flex items-center justify-center gap-2 py-16 text-[var(--app-muted)]">
@@ -639,6 +805,8 @@ export default function SuperadminSystemHealthPage() {
               </div>
             </div>
           ) : null}
+
+          {audit ? <IntegrationMapCard audit={audit} /> : null}
 
           <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
             <h2 className="text-lg font-bold text-[var(--app-text-strong)]">Infrastructure and core routes</h2>

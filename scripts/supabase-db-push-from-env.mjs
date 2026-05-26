@@ -1,8 +1,11 @@
 /**
- * Runs `supabase db push` using DATABASE_URL or DIRECT_URL from .env.local / .env.
+ * Runs `supabase db push` using SUPABASE_DB_PUSH_URL, DATABASE_URL, or DIRECT_URL
+ * from .env.local / .env.
  * Dashboard: Project Settings → Database → Connect → Session pooler (IPv4-friendly) → URI.
  *
- * Usage: npm run db:push:env
+ * Usage:
+ *   npm run db:push:env
+ *   npm run db:push:env -- --dry-run
  *
  * Optional: SUPABASE_DB_PUSH_INCLUDE_ALL=1 adds `--include-all` when the CLI reports
  * out-of-order local migrations (use only after reviewing the listed files).
@@ -40,7 +43,7 @@ function loadEnvFile(name) {
 loadEnvFile(".env.local");
 loadEnvFile(".env");
 
-const dbUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
+const dbUrl = process.env.SUPABASE_DB_PUSH_URL || process.env.DATABASE_URL || process.env.DIRECT_URL;
 if (!dbUrl) {
   console.error(
     "Missing DATABASE_URL (or DIRECT_URL) in .env.local.\n" +
@@ -68,8 +71,16 @@ function supabaseCliPath() {
 const cli = supabaseCliPath();
 /** Set SUPABASE_DB_PUSH_INCLUDE_ALL=1 when the CLI asks for `--include-all` (out-of-order local files). */
 const includeAll = process.env.SUPABASE_DB_PUSH_INCLUDE_ALL === "1";
+const allowedPassthroughArgs = new Set(["--dry-run"]);
+const passthroughArgs = process.argv.slice(2);
+const unsupportedArg = passthroughArgs.find((arg) => !allowedPassthroughArgs.has(arg));
+if (unsupportedArg) {
+  console.error(`Unsupported db push argument: ${unsupportedArg}`);
+  process.exit(1);
+}
 const pushArgs = ["db", "push", "--yes"];
 if (includeAll) pushArgs.push("--include-all");
+pushArgs.push(...passthroughArgs);
 pushArgs.push("--db-url", dbUrl);
 
 const args =

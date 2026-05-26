@@ -53,6 +53,7 @@
     "db:scaffold-url": "node scripts/scaffold-database-url.mjs",
     "db:try-pooler": "node scripts/try-supabase-pooler-push.mjs",
     "vercel:check": "node scripts/check-vercel-project-config.mjs",
+    "audit:prod-integrations": "node scripts/audit-production-integrations.mjs",
     "vercel:prod": "npm run vercel:check && npm run db:check-sync && npx --yes vercel@latest deploy --prod",
     "vercel:preview": "npm run vercel:check && npm run db:check-sync && npx --yes vercel@latest deploy",
     "vercel:env:push-service-role": "node scripts/push-supabase-service-role-to-vercel.mjs",

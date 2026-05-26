@@ -1,5 +1,5 @@
 /**
- * Fails when the newest local Supabase migration is not present in the target database.
+ * Fails when local Supabase migrations are not present in the target database.
  *
  * Safe by design: this script only reads local migration files and runs
  * `supabase migration list`. It never applies SQL.
@@ -11,6 +11,7 @@
  * Optional env:
  *   SUPABASE_MIGRATION_CHECK_DB_URL=<postgres-url>    Read remote history by DB URL.
  *   SUPABASE_REMOTE_MIGRATION_VERSION=20260522135305 Compare against a known latest remote version.
+ *     This legacy override can only prove the latest version, not full history.
  */
 
 import { spawnSync } from "node:child_process";
@@ -127,7 +128,10 @@ function parsePrettyRemoteVersions(text) {
 
 function listRemoteMigrations() {
   if (process.env.SUPABASE_REMOTE_MIGRATION_VERSION) {
-    return new Set([process.env.SUPABASE_REMOTE_MIGRATION_VERSION.trim()]);
+    return {
+      versions: new Set([process.env.SUPABASE_REMOTE_MIGRATION_VERSION.trim()]),
+      isCompleteHistory: false,
+    };
   }
 
   const cli = supabaseCliPath();
@@ -167,7 +171,7 @@ function listRemoteMigrations() {
   try {
     const parsed = JSON.parse(result.stdout);
     const versions = flattenRemoteVersionsFromJson(parsed);
-    if (versions.size > 0) return versions;
+    if (versions.size > 0) return { versions, isCompleteHistory: true };
   } catch {
     // Fall back to pretty/table parsing below.
   }
@@ -176,7 +180,7 @@ function listRemoteMigrations() {
   if (versions.size === 0) {
     throw new Error(`Could not parse remote migration list output:\n${output}`);
   }
-  return versions;
+  return { versions, isCompleteHistory: true };
 }
 
 loadEnvFile(".env.local");
@@ -191,12 +195,30 @@ try {
     process.exit(0);
   }
 
-  const remoteVersions = listRemoteMigrations();
+  const { versions: remoteVersions, isCompleteHistory } = listRemoteMigrations();
   const sortedRemote = [...remoteVersions].sort();
   const latestRemote = sortedRemote.at(-1) ?? "none";
   console.log(`Latest remote migration: ${latestRemote}`);
 
-  if (!remoteVersions.has(latestLocal.version)) {
+  if (isCompleteHistory) {
+    const missingLocal = local.filter((migration) => !remoteVersions.has(migration.version));
+    if (missingLocal.length > 0) {
+      const preview = missingLocal
+        .slice(0, 12)
+        .map((migration) => `- ${migration.version} (${migration.name})`)
+        .join("\n");
+      const remaining = missingLocal.length > 12 ? `\n...and ${missingLocal.length - 12} more.` : "";
+      console.error(
+        [
+          "Supabase migration drift detected.",
+          `Remote is missing ${missingLocal.length} local migration(s):`,
+          `${preview}${remaining}`,
+          "Run `npm run db:push` or `npm run db:push:env` against the intended staging/production project before deploying Vercel.",
+        ].join("\n")
+      );
+      process.exit(1);
+    }
+  } else if (!remoteVersions.has(latestLocal.version)) {
     console.error(
       [
         "Supabase migration drift detected.",
@@ -205,6 +227,10 @@ try {
       ].join("\n")
     );
     process.exit(1);
+  } else {
+    console.warn(
+      "SUPABASE_REMOTE_MIGRATION_VERSION only verifies the latest local migration; use a DB URL or linked project to verify full history."
+    );
   }
 
   console.log("Supabase migration history is in sync with local migrations.");
