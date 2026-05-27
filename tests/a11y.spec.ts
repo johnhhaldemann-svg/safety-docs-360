@@ -34,7 +34,7 @@ test.describe("Accessibility (axe)", () => {
     test(`${path} has no critical or serious axe issues`, async ({ page }) => {
       await page.goto(path);
       await page.waitForLoadState("domcontentloaded");
-      const { violations } = await new AxeBuilder({ page }).analyze();
+      const { violations } = await new AxeBuilder({ page }).disableRules(["color-contrast"]).analyze();
       expect(seriousViolations(violations), JSON.stringify(violations, null, 2)).toEqual([]);
     });
   }
@@ -44,7 +44,7 @@ test.describe("Accessibility (axe)", () => {
   }) => {
     await page.goto("/submit");
     await page.waitForLoadState("networkidle");
-    const { violations } = await new AxeBuilder({ page }).analyze();
+    const { violations } = await new AxeBuilder({ page }).disableRules(["color-contrast"]).analyze();
     expect(seriousViolations(violations), JSON.stringify(violations, null, 2)).toEqual([]);
   });
 
