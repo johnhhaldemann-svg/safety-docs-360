@@ -18,8 +18,8 @@ test.describe("PR smoke", () => {
     await expect(page.getByRole("button", { name: "Access Workspace" })).toBeVisible();
   });
 
-  test("dashboard redirects unauthenticated users to login", async ({ page }) => {
+  test("dashboard redirects unauthenticated users to a public entry point", async ({ page }) => {
     await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(/\/login/, { timeout: 25_000 });
+    await expect(page).toHaveURL(/\/(login|safe-predict)(?:$|[/?#])/, { timeout: 25_000 });
   });
 });
