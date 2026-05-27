@@ -22,18 +22,21 @@ type GusTriggerLanguageRule = {
 
 const GUS_TRIGGER_LANGUAGE_PATTERNS: GusTriggerLanguageRule[] = [
   { pattern: /\bHuman\s+reviewer(s)?\b/g, replacement: (_match: string, plural?: string) => `Safety lead${plural ? "s" : ""}` },
-  { pattern: /\bHuman\s+review\b/g, replacement: "Human safety check" },
-  { pattern: /\bReview\s+risk\b/g, replacement: "Risk safety check" },
-  { pattern: /\bReview\s+critical\s+controls\b/g, replacement: "Critical controls safety check" },
-  { pattern: /\bPermit\s+review\b/g, replacement: "Permit safety check" },
+  { pattern: /\bHuman\s+review\b/g, replacement: "Safety lead check" },
+  { pattern: /\bReview\s+risk\b/g, replacement: "Walk risk drivers" },
+  { pattern: /\bReview\s+critical\s+controls\b/g, replacement: "Walk critical controls" },
+  { pattern: /\bPermit\s+review\b/g, replacement: "Permit check" },
   { pattern: /\bVerify\b/g, replacement: "Field-check" },
   { pattern: /\bConfirm\b/g, replacement: "Make sure" },
   { pattern: /\bPause\b/g, replacement: "Do not continue" },
-  { pattern: /\bhuman\s+review\b/gi, replacement: "human safety check" },
+  { pattern: /\bhuman\s+review\b/gi, replacement: "safety lead check" },
   { pattern: /\bhuman\s+reviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
-  { pattern: /\breview\s+risk\b/gi, replacement: "risk safety check" },
-  { pattern: /\breview\s+critical\s+controls\b/gi, replacement: "critical controls safety check" },
-  { pattern: /\bpermit\s+review\b/gi, replacement: "permit safety check" },
+  { pattern: /\bhuman\s+safety\s+check\b/gi, replacement: "safety lead check" },
+  { pattern: /\bhuman\s+safety\s+review\b/gi, replacement: "safety lead check" },
+  { pattern: /\bhuman\s+safety\s+reviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
+  { pattern: /\breview\s+risk\b/gi, replacement: "walk risk drivers" },
+  { pattern: /\breview\s+critical\s+controls\b/gi, replacement: "walk critical controls" },
+  { pattern: /\bpermit\s+review\b/gi, replacement: "permit check" },
   { pattern: /\baction\s+words?\b/gi, replacement: "safety cue" },
   { pattern: /\bhigh-priority\s+actions?\b/gi, replacement: "high-priority safety items" },
   { pattern: /\bopen\s+actions?\b/gi, replacement: "open safety items" },
@@ -43,7 +46,7 @@ const GUS_TRIGGER_LANGUAGE_PATTERNS: GusTriggerLanguageRule[] = [
   { pattern: /\breviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
   { pattern: /\breviewed\b/gi, replacement: "checked by a person" },
   { pattern: /\breviewing\b/gi, replacement: "checking" },
-  { pattern: /\breview\b/gi, replacement: "human safety check" },
+  { pattern: /\breview\b/gi, replacement: "check" },
   { pattern: /\bverified\b/gi, replacement: "field checked" },
   { pattern: /\bverifying\b/gi, replacement: "field checking" },
   { pattern: /\bverification\b/gi, replacement: "field check" },
@@ -105,9 +108,11 @@ export function sanitizeGusTriggerLanguage(message: string): string {
         : nextMessage.replace(rule.pattern, rule.replacement),
     message
   )
-    .replace(/\bhuman\s+review\b/gi, "human safety check")
-    .replace(/\bno\s+human\s+safety\s+check\s+needed\b/gi, "human safety check is required")
-    .replace(/\breview\b/gi, "human safety check")
+    .replace(/\bhuman\s+review\b/gi, "safety lead check")
+    .replace(/\bhuman\s+safety\s+check\b/gi, "safety lead check")
+    .replace(/\bmake\s+sure\s+the\s+owner\b/gi, "make sure the owner is clear")
+    .replace(/\bno\s+safety\s+lead\s+check\s+needed\b/gi, "safety lead check still needed")
+    .replace(/\bno\s+human\s+safety\s+check\s+needed\b/gi, "safety lead check still needed")
     .replace(/\bverify\b/gi, "field-check")
     .replace(/\bconfirm\b/gi, "make sure")
     .replace(/\baction(s)?\b/gi, (_match, plural?: string) => `safe step${plural ? "s" : ""}`)

@@ -61,19 +61,19 @@ const criticalVariants: readonly GusLineVariant[] = [
   {
     variantId: "critical-review",
     message: ({ actionLabel, baseMessage }) =>
-      `I'm flagging this for review: ${baseMessage.message} The next step is immediate human safety review${actionLabel ? ` and ${actionLabel.toLowerCase()}` : ""}.`,
-    spokenPrefix: "I'm flagging this for review.",
+      `I'm flagging this for a safety lead check: ${baseMessage.message} The next step is to walk the controls now${actionLabel ? ` and ${actionLabel.toLowerCase()}` : ""}.`,
+    spokenPrefix: "I'm flagging this for a safety lead check.",
   },
   {
     variantId: "critical-pause",
     message: ({ baseMessage }) =>
-      `This needs human safety review before work moves forward: ${baseMessage.message} Pause for the right reviewer to verify the controls.`,
-    spokenPrefix: "This needs human safety review.",
+      `This needs the safety lead before work moves forward: ${baseMessage.message} Do not continue until the right person walks the controls.`,
+    spokenPrefix: "This needs the safety lead.",
   },
   {
     variantId: "critical-controls",
     message: ({ baseMessage }) =>
-      `Here's what needs attention: ${baseMessage.message} I can help organize the review items, but a human reviewer has to make the call.`,
+      `Here's what needs attention: ${baseMessage.message} I can help organize the field questions, but the safety lead has to make the call.`,
     spokenPrefix: "Here's what needs attention.",
   },
 ];
@@ -82,20 +82,20 @@ const warningVariants: readonly GusLineVariant[] = [
   {
     variantId: "warning-heads-up",
     message: ({ baseMessage }) =>
-      `Heads up: ${baseMessage.message} I recommend reviewing this before the work plan moves forward.`,
+      `Heads up: ${baseMessage.message} I recommend a quick safety lead check before the work plan moves forward.`,
     spokenPrefix: "Heads up.",
   },
   {
     variantId: "warning-pattern",
     message: ({ baseMessage }) =>
-      `I'm seeing a pattern worth checking: ${baseMessage.message} A short review now can prevent a longer problem later.`,
+      `I'm seeing a pattern worth checking: ${baseMessage.message} A short field check now can prevent a longer problem later.`,
     spokenPrefix: "I'm seeing a pattern worth checking.",
   },
   {
     variantId: "warning-next-step",
     message: ({ actionLabel, baseMessage }) =>
-      `Let's review this before work moves forward: ${baseMessage.message} ${actionLabel ? `${actionLabel} is the practical next step.` : "The practical next step is human review."}`,
-    spokenPrefix: "Let's review this.",
+      `Let's walk this before work moves forward: ${baseMessage.message} ${actionLabel ? `${actionLabel} is the practical next step.` : "The practical next step is a safety lead check."}`,
+    spokenPrefix: "Let's walk this.",
   },
 ];
 
@@ -103,7 +103,7 @@ const planningVariants: readonly GusLineVariant[] = [
   {
     variantId: "planning-check",
     message: ({ baseMessage }) =>
-      `Quick planning check-in: ${baseMessage.message} I can help draft the next review notes, but the final call stays with the right human reviewer.`,
+      `Quick planning check-in: ${baseMessage.message} I can help draft the field notes, but the final call stays with the safety lead.`,
     spokenPrefix: "Quick planning check-in.",
   },
   {
@@ -115,7 +115,7 @@ const planningVariants: readonly GusLineVariant[] = [
   {
     variantId: "planning-questions",
     message: ({ baseMessage }) =>
-      `Good moment for planning discipline: ${baseMessage.message} I can help ask the questions a reviewer will want answered.`,
+      `Good moment for planning discipline: ${baseMessage.message} I can help ask the questions a safety lead will want answered.`,
     spokenPrefix: "Good moment for planning discipline.",
   },
 ];
@@ -130,7 +130,7 @@ const socialVariants: readonly GusLineVariant[] = [
   {
     variantId: "social-read",
     message: ({ baseMessage, pageName }) =>
-      `I'm checking ${pageName}: ${baseMessage.message} If the data shifts, I'll call out the review step.`,
+      `I'm checking ${pageName}: ${baseMessage.message} If the data shifts, I'll call out the next safe step.`,
     spokenPrefix: "I'm checking this page.",
   },
   {
@@ -142,7 +142,7 @@ const socialVariants: readonly GusLineVariant[] = [
   {
     variantId: "social-practical",
     message: ({ actionLabel, baseMessage }) =>
-      `Practical safety thought: ${baseMessage.message} ${actionLabel ? `${actionLabel} looks like the useful place to start.` : "I can help sort the next review step."}`,
+      `Practical safety thought: ${baseMessage.message} ${actionLabel ? `${actionLabel} looks like the useful place to start.` : "I can help sort the next safe step."}`,
     spokenPrefix: "Practical safety thought.",
   },
 ];
@@ -163,8 +163,8 @@ const humorVariants: readonly GusLineVariant[] = [
   {
     variantId: "humor-future",
     message: ({ baseMessage }) =>
-      `Small grin, serious review: future-you likes it when present-you checks the safety details. ${baseMessage.message}`,
-    spokenPrefix: "Small grin, serious review.",
+      `Small grin, serious point: future-you likes it when present-you checks the safety details. ${baseMessage.message}`,
+    spokenPrefix: "Small grin, serious point.",
   },
 ];
 
@@ -255,7 +255,7 @@ export function createGusProactiveConversationLine(decision: GusDecision, contex
   }
 
   if (decision.kind === "planning_offer") {
-    return sanitizeGusTriggerLanguage("I can help turn this into a draft safe work plan. I'll keep it draft-only and call out what information is still missing for a human safety check.");
+    return sanitizeGusTriggerLanguage("I can help turn this into a draft safe work plan. I'll keep it draft-only and call out what information is still missing for the safety lead check.");
   }
 
   if (signals.length > 0) {

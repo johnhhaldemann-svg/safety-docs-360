@@ -276,10 +276,10 @@ function buildCandidates(request: GusMessageRequest, memory: LoadedGusMemory): C
         messageId: "gus-incomplete-jsa-review",
         category: "planning",
         priority: 3,
-        message: `The JSA draft is missing ${joinList(incompleteJsaFields, "required fields")}. Keep it draft-only until review.`,
-        spokenText: "The JSA draft is missing information. Keep it draft-only until review.",
+        message: `The JSA draft is missing ${joinList(incompleteJsaFields, "required fields")}. Keep it draft-only until the safety lead check.`,
+        spokenText: "The JSA draft is missing information. Keep it draft-only until the safety lead check.",
         shouldSpeak: false,
-        reason: "Gus can identify missing fields, but a human reviewer must check the plan before work starts.",
+        reason: "Gus can identify missing fields, but the safety lead checks the plan before work starts.",
         confidence: 0.76,
         ...action("Review JSAs", "/jsa", "guide_to_jsa"),
       },
@@ -293,8 +293,8 @@ function buildCandidates(request: GusMessageRequest, memory: LoadedGusMemory): C
         messageId: "gus-weather-risk-review",
         category: "risk_alert",
         priority: ctx.weatherRiskLevel === "severe" ? 1 : 2,
-        message: "Weather risk is elevated. Review the work plan, stop-work triggers, and communication controls.",
-        spokenText: "Weather risk is elevated. Review stop-work triggers and communication controls.",
+        message: "Weather risk is elevated. Walk the work plan, do-not-continue triggers, and communication controls.",
+        spokenText: "Weather risk is elevated. Walk do-not-continue triggers and communication controls.",
         shouldSpeak: false,
         reason: "Weather changes can affect access, lifting, excavation, heat stress, and other field controls.",
         confidence: ctx.weatherRiskLevel === "severe" ? 0.86 : 0.72,
@@ -311,8 +311,8 @@ function buildCandidates(request: GusMessageRequest, memory: LoadedGusMemory): C
         messageId: `gus-pattern-${topPattern.key}`,
         category: "learning",
         priority: 3,
-        message: `${topPattern.label} is showing here. Consider adding a focused review to the pre-task discussion.`,
-        spokenText: `${topPattern.label} is showing here. Consider a focused pre-task review.`,
+        message: `${topPattern.label} is showing here. Consider adding a focused safety lead question to the pre-task discussion.`,
+        spokenText: `${topPattern.label} is showing here. Consider a focused pre-task question.`,
         shouldSpeak: false,
         reason: topPattern.reason,
         confidence: Math.min(0.84, 0.62 + topPattern.priorityBoost),
@@ -329,8 +329,8 @@ function buildCandidates(request: GusMessageRequest, memory: LoadedGusMemory): C
       priority: 4,
       message: ctx.scheduleUploadedToday
         ? "Schedule uploaded today. Look for tasks that now need permits, JSAs, briefings, or training checks."
-        : "Quick safety check: confirm the task, hazards, controls, and reviewer before work starts.",
-      spokenText: "Quick safety check. Confirm the task, hazards, controls, and reviewer before work starts.",
+        : "Quick safety check: make sure the task, hazards, controls, and safety lead are clear before work starts.",
+      spokenText: "Quick safety check. Make sure the task, hazards, controls, and safety lead are clear before work starts.",
       shouldSpeak: false,
       reason: "Gus is using structured context only and will not approve work or submit records.",
       confidence: 0.62,
@@ -395,4 +395,3 @@ export function selectGusMessage(request: GusMessageRequest): GusMessageSelectio
     },
   };
 }
-

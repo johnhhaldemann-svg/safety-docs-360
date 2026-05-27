@@ -29,7 +29,8 @@ describe("Gus trust and safety guardrails", () => {
     );
 
     expect(message).toContain("safety cue");
-    expect(message).toContain("human safety check");
+    expect(message).toContain("check");
+    expect(message).not.toContain("human safety check critical controls");
     expect(message).toContain("field-check");
     expect(message).toContain("make sure");
     expect(message).toContain("name an owner");
@@ -55,6 +56,14 @@ describe("Gus trust and safety guardrails", () => {
       actionKey: "recommend_review",
     });
     expect(result.sanitizedOutput.message).toContain("human review is required");
+  });
+
+  it("uses safety lead language for Gus-facing review wording", () => {
+    expect(sanitizeGusTriggerLanguage("Human review before work starts.")).toBe("Safety lead check before work starts.");
+    expect(sanitizeGusTriggerLanguage("Ask the human reviewer to review critical controls.")).toBe(
+      "Ask the safety lead to walk critical controls.",
+    );
+    expect(sanitizeGusTriggerLanguage("Review risk and confirm the owner.")).toBe("Walk risk drivers and make sure the owner is clear.");
   });
 
   it("forces human review and draft-only status on plans", () => {

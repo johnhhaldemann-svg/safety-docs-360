@@ -81,12 +81,23 @@ export type GusCoachFollowUp = {
   actionLabel: string;
 };
 
+export type GusTeachingMethod = "field_coach";
+
+export type GusTeachingMoment = {
+  notice: string;
+  why: string;
+  fieldQuestion: string;
+  nextStep: string;
+};
+
 export type GusCoachDirective = {
   directiveId: string;
   priority: GusCoachPriority;
   title: string;
   instruction: string;
   whyItMatters: string;
+  teachingMethod: GusTeachingMethod;
+  teachingMoment: GusTeachingMoment;
   recommendedActionLabel: string;
   recommendedActionHref?: string;
   recommendedActionKey: string;

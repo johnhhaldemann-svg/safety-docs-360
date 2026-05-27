@@ -82,7 +82,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
           </span>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">Draft only</p>
-            <p className="mt-1 text-xs leading-4 text-slate-600">Plans and notices always require a human safety check.</p>
+            <p className="mt-1 text-xs leading-4 text-slate-600">Plans and notices stay draft-only until the safety lead check.</p>
           </div>
         </div>
         <div className="flex gap-3">

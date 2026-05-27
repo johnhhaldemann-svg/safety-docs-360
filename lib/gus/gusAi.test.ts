@@ -48,10 +48,10 @@ describe("runGusAiExplanation", () => {
     expect(result.blockedByRules).toBe(true);
     expect(result.meta).toBeNull();
     expect(result.output.answer).toContain("I cannot approve work");
-    expect(result.output.answer).toContain("human safety check");
+    expect(result.output.answer).toContain("safety lead check");
     expect(result.output.draftOnly).toBe(true);
     expect(result.output.humanReviewRequired).toBe(true);
-    expect(result.output.riskFlags).toContain("Human safety check remains required before work starts.");
+    expect(result.output.riskFlags).toContain("Safety lead check remains needed before work starts.");
   });
 
   it("passes model output through Gus safety validation before returning it", async () => {
@@ -127,6 +127,8 @@ describe("runGusAiExplanation", () => {
     };
 
     expect(body.input).toContain(GUS_AI_SYSTEM_PROMPT);
+    expect(body.input).toContain("Field Coach");
+    expect(body.input).toContain("safety lead check");
     expect(body.text.format.type).toBe("json_schema");
     expect(body.text.format.name).toBe("gus_ai_explanation");
     expect(body.text.format.strict).toBe(true);

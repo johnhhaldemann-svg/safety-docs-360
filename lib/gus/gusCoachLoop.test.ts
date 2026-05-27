@@ -23,8 +23,8 @@ const baseDecision: GusDecision = {
     messageId: "message-1",
     category: "warning",
     priority: 1,
-    message: "Severe risk is showing. Human review is required.",
-    reason: "Top drivers need review.",
+    message: "Severe risk is showing. Safety lead check is needed.",
+    reason: "Top drivers need a field check.",
     actionLabel: "Review risk",
     actionHref: "/safe-predict/predictive-risk",
     actionKey: "guide_to_risk",
@@ -48,7 +48,7 @@ const criticalSafetyAiAssessment: SafetyAiAssessment = {
     missingInformation: [],
     recommendedAction: "Pause and verify critical controls.",
     humanApprovalRequired: true,
-    humanApprovalReason: "Critical-risk work needs human review.",
+    humanApprovalReason: "Critical-risk work needs safety lead check.",
     driverSummary: ["Critical controls need verification."],
   },
   topDrivers: [],
@@ -57,7 +57,7 @@ const criticalSafetyAiAssessment: SafetyAiAssessment = {
   escalationRequired: true,
   stopWorkReviewRecommended: true,
   humanApprovalRequired: true,
-  humanApprovalReason: "Critical-risk work needs human review.",
+  humanApprovalReason: "Critical-risk work needs safety lead check.",
   explanation: "Critical controls need verification.",
   missingData: [],
   criticalControlGaps: ["Fall exposure"],
@@ -70,9 +70,14 @@ describe("Gus coach loop", () => {
     const directive = buildGusCoachDirective(baseDecision, baseContext);
 
     expect(directive.priority).toBe("critical");
-    expect(directive.title).toBe("Risk safety check now");
-    expect(directive.instruction).toContain("human safety check");
+    expect(directive.title).toBe("Walk risk drivers now");
+    expect(directive.instruction).toContain("safety lead");
     expect(directive.whyItMatters).toContain("Drop Hazard 3rd Floor");
+    expect(directive.teachingMethod).toBe("field_coach");
+    expect(directive.teachingMoment.notice).toContain("risk drivers");
+    expect(directive.teachingMoment.why).toContain("field walk");
+    expect(directive.teachingMoment.fieldQuestion).toContain("site");
+    expect(directive.teachingMoment.nextStep).toContain("safety lead");
     expect(directive.humanReviewRequired).toBe(true);
     expect(directive.followUps.some((item) => item.prompt.includes("safety lead"))).toBe(true);
   });
@@ -89,7 +94,7 @@ describe("Gus coach loop", () => {
       baseContext,
     );
 
-    expect(directive.title).toBe("Permit safety check comes first");
+    expect(directive.title).toBe("Permit check comes first");
     expect(directive.followUps.map((item) => item.followUpId)).toContain("draft-permit-review");
     expect(directive.followUps.map((item) => item.followUpId)).toContain("training-readiness");
   });
@@ -100,11 +105,15 @@ describe("Gus coach loop", () => {
       directive.title,
       directive.instruction,
       directive.whyItMatters,
+      directive.teachingMoment.notice,
+      directive.teachingMoment.why,
+      directive.teachingMoment.fieldQuestion,
+      directive.teachingMoment.nextStep,
       ...directive.followUps.map((item) => item.prompt),
     ].join(" ");
 
     expect(combined).not.toMatch(
-      /approved|compliant|safe to start|released for work|I am human|I'm human|\breview\b|\bverify\b|\bconfirm\b|\baction\b/i,
+      /approved|compliant|safe to start|released for work|I am human|I'm human|\bhuman safety check\b|\bverify\b|\bconfirm\b|\baction\b/i,
     );
   });
 
@@ -118,10 +127,11 @@ describe("Gus coach loop", () => {
       aiEngineReviewTriggers: ["Energized electrical or LOTO"],
     });
 
-    expect(directive.title).toBe("Critical controls safety check now");
+    expect(directive.title).toBe("Walk critical controls now");
     expect(directive.title).not.toMatch(/Gus says|Gus recommends/i);
-    expect(directive.instruction).toContain("field-check critical controls now");
+    expect(directive.instruction).toContain("safety lead walks the critical controls now");
     expect(directive.whyItMatters).toContain("Fall exposure");
+    expect(directive.teachingMoment.fieldQuestion).toContain("walking the controls");
   });
 
   it("tracks unresolved coach items without duplicating the active directive", () => {

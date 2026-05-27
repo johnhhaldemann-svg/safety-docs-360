@@ -58,7 +58,7 @@ function safeAnswer(value: unknown) {
   const text =
     typeof value === "string"
       ? value.replace(/\s+/g, " ").trim()
-      : "I can help draft and explain safety planning items, but this needs human review before work starts.";
+      : "I can help draft and explain safety planning items, then tee them up for the safety lead check before work starts.";
 
   return sanitizeGusTriggerLanguage(text.slice(0, 900));
 }
@@ -74,16 +74,16 @@ export function buildGusAiRuleRedirect(userRequest: string): GusAiOutput {
 
   return {
     answer: asksForLegal
-      ? "I cannot give legal advice. I can help draft safety planning questions and flag items for supervisor, competent person, qualified person, or safety representative review."
-      : "I cannot approve work, release work, submit records, or remove human review. I can help draft recommendations and list what a human reviewer should verify before work starts.",
+      ? "I cannot give legal advice. I can help draft safety planning questions and flag items for a supervisor, competent person, qualified person, or safety representative to check."
+      : "I cannot approve work, release work, submit records, or remove the safety lead check. I can help draft recommendations and list what the safety lead should field-check before work starts.",
     missingInformation: asksForCitation
       ? ["Verified platform rule, company rule, or approved regulatory reference for the requested citation."]
       : [],
-    riskFlags: ["Human review remains required before work starts."],
+    riskFlags: ["Safety lead check remains needed before work starts."],
     recommendedControls: [
       "Keep the item in draft status.",
-      "Route the plan or record to the required human reviewer.",
-      "Verify missing safety-critical details before work begins.",
+      "Route the plan or record to the safety lead.",
+      "Field-check missing safety-critical details before work begins.",
     ],
     draftOnly: true,
     humanReviewRequired: true,
@@ -138,10 +138,10 @@ export async function runGusAiExplanation(input: GusAiPromptInput): Promise<GusA
 
   const fallback: GusAiOutput = {
     answer:
-      "I can help with a draft explanation, but the available context is limited. A human reviewer must verify the plan before work starts.",
-    missingInformation: ["Relevant task details, hazards, controls, and required reviewer confirmation."],
+      "I can help with a draft explanation, but the available context is limited. The safety lead still needs to field-check the plan before work starts.",
+    missingInformation: ["Relevant task details, hazards, controls, and safety lead check."],
     riskFlags: [],
-    recommendedControls: ["Gather missing task details and route the draft for human review."],
+    recommendedControls: ["Gather missing task details and route the draft to the safety lead."],
     draftOnly: true,
     humanReviewRequired: true,
   };

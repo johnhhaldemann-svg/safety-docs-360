@@ -37,7 +37,7 @@ describe("Gus conversation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.blockedByRules).toBe(true);
     expect(result.response.answer).toContain("I cannot approve work");
-    expect(result.response.answer).toContain("human safety check");
+    expect(result.response.answer).toContain("safety lead check");
   });
 
   it("handles OSHA and legal prompts conservatively", async () => {
@@ -86,7 +86,8 @@ describe("Gus conversation", () => {
 
     expect(result.response.answer).toContain("You are right to do not continue");
     expect(result.response.answer).toContain("draft");
-    expect(result.response.answer).not.toMatch(/\bpause\b|\breview\b|\bconfirm\b/i);
+    expect(result.response.answer).not.toMatch(/\bpause\b|\bconfirm\b/i);
+    expect(result.response.answer).not.toMatch(/human safety check/i);
     expect(result.response.humanReviewRequired).toBe(true);
   });
 
@@ -143,7 +144,7 @@ describe("Gus conversation", () => {
 
     expect(result.blockedByRules).toBe(true);
     expect(result.response.answer).toContain("cannot approve");
-    expect(result.response.riskFlags).toContain("Human safety check remains required before work starts.");
+    expect(result.response.riskFlags).toContain("Safety lead check remains needed before work starts.");
   });
 
   it("infers only safety-relevant preferences from user wording", () => {

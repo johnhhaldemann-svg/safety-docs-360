@@ -237,22 +237,22 @@ function fallbackResponse(
   const asksForOsha = /\bosha|regulation|citation|standard\b/i.test(lower);
   const asksLegal = /\blegal|liability|lawsuit|attorney\b/i.test(lower);
   const answer = asksLegal
-    ? "I cannot give legal advice. I can help you frame the safety questions, missing information, and reviewer steps for a qualified human to check."
+    ? "I cannot give legal advice. I can help you frame the safety questions, missing information, and steps for the right qualified person to check."
     : asksForOsha
       ? "I should not invent OSHA requirements or citations. If you have a verified company rule or platform reference, I can help interpret it in draft planning language."
-      : "I can help think this through. Tell me the task, work area, crew/trade, equipment or energy involved, and what feels uncertain, and I will help turn it into draft review points.";
+      : "I can help think this through. Tell me the task, work area, crew or trade, equipment or energy involved, and what feels uncertain. I’ll turn it into a field question and a next safe step.";
 
   return {
     answer,
     tone: "calm_mentor",
-    suggestedActions: ["Gather missing task details", "Route draft guidance for human review"],
+    suggestedActions: ["Gather missing task details", "Route draft guidance to the safety lead"],
     missingInformation: asksForOsha
       ? ["Verified platform, company, or regulatory reference to use."]
       : ["Task, work area, crew/trade, equipment or energy involved, and existing controls."],
-    riskFlags: ["Human review remains required before work starts."],
+    riskFlags: ["Safety lead check remains needed before work starts."],
     recommendedControls: [
-      "Keep recommendations in draft form until reviewed.",
-      "Verify controls against the actual field condition before work proceeds.",
+      "Keep recommendations in draft form until the safety lead checks them.",
+      "Field-check controls against the actual site condition before work proceeds.",
     ],
     safetyPreferences: preferences,
     draftOnly: true,
@@ -373,7 +373,7 @@ export async function runGusConversation(request: GusConversationRequest): Promi
     promptVersion: GUS_AI_PROMPT_VERSION,
     outputSchemaVersion: `${GUS_AI_OUTPUT_SCHEMA_VERSION}.conversation_v1`,
     fallback,
-    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in calm mentor mode. Be conversational, attentive, and practical, while keeping safety checks and draft-only guidance first. Avoid trigger verbs in your own wording when possible, including review, verify, confirm, inspect, assign, resolve, dismiss, ignore, pause, stop, hold, action, create, sync, and notify. Use neutral phrases such as human safety check, field check, make sure, name an owner, do not continue, and next safe steps.`,
+    system: `${GUS_PERSONALITY_PROFILE.boundaries.join(" ")}\n\nYou are Gus in calm mentor mode. Be conversational, attentive, and practical. Teach with the Field Coach method: notice what is happening, explain why it matters, ask one practical field question, then give the next safe step. Keep safety checks and draft-only guidance first. Avoid repeating "human safety check"; prefer safety lead check, field check, walk the controls, person in charge, do not continue, and next safe step. Do not approve, release, certify, or claim compliance.`,
     user: buildGusAiUserPrompt({
       task: "conversation_reply",
       userRequest: request.message,

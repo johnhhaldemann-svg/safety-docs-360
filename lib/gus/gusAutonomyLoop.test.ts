@@ -35,6 +35,13 @@ const directive: GusCoachDirective = {
   title: "Review risk now",
   instruction: "Review the critical risk items before work moves forward.",
   whyItMatters: "Severe risk can expose crews to serious injury if controls are not verified.",
+  teachingMethod: "field_coach",
+  teachingMoment: {
+    notice: "Critical risk is showing.",
+    why: "Severe risk can expose crews to serious injury.",
+    fieldQuestion: "What changed on site?",
+    nextStep: "Bring in the safety lead before work continues.",
+  },
   recommendedActionLabel: "Review risk",
   recommendedActionHref: "/safe-predict/predictive-risk",
   recommendedActionKey: "guide_to_risk",

@@ -123,24 +123,24 @@ function topActionDecisionTrigger(context: GusContext) {
 
 function actionDecisionTriggerMessage(trigger: AiActionDecisionTrigger) {
   if (trigger.blocked) {
-    return "I can turn that into a human safety check, but I cannot grant authorization or make final compliance decisions.";
+    return "I can help frame this for a safety lead check, but I cannot grant authorization or make final compliance decisions.";
   }
   if (trigger.intent === "request_escalation") return "I can help raise this to a safety lead and keep the recommendation advisory.";
-  if (trigger.intent === "stop_work_review") return "This safety cue points to immediate human safety check and possible do-not-continue evaluation.";
+  if (trigger.intent === "stop_work_review") return "This safety cue needs a safety lead check now and a possible do-not-continue call.";
   if (trigger.intent === "pause_or_hold_work") return "This safety cue points to not continuing the affected work until a responsible person field-checks it.";
   if (trigger.intent === "request_field_verification") return "This safety cue points to a field check before work proceeds.";
-  if (trigger.intent === "request_assignment") return "I can draft the owner path, with a safety check still required for safety-critical work.";
+  if (trigger.intent === "request_assignment") return "I can draft the owner path, with a safety lead check still needed for safety-critical work.";
   if (trigger.intent === "request_resolution") return "Closeout needs documented field check before the workflow is updated.";
-  if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "A set-aside or suppression choice needs a human reason and cannot hide critical risk.";
+  if (trigger.intent === "request_dismissal" || trigger.intent === "suppress_or_ignore") return "A set-aside choice needs a clear reason and cannot hide critical risk.";
   return trigger.recommendedSafeAction;
 }
 
 function aiEngineNextStep(context: GusContext) {
   const reasoningAction = context.aiEngineNextBestActions?.[0];
   if (reasoningAction?.humanReviewRequired) return `Field check first: ${reasoningAction.detail}`;
-  if (context.aiEngineActionTimeframe === "immediate") return "Do not continue until a human safety check happens now.";
+  if (context.aiEngineActionTimeframe === "immediate") return "Do not continue until the safety lead walks the controls now.";
   if (context.aiEngineActionTimeframe === "before_work_continues") return "Field-check controls before work moves forward.";
-  if (context.aiEngineActionTimeframe === "same_shift") return "Run a human safety check during the current shift.";
+  if (context.aiEngineActionTimeframe === "same_shift") return "Run the safety lead check during the current shift.";
   return "Keep this in the routine safety check.";
 }
 
@@ -185,7 +185,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         priority: isCritical ? 1 : 3,
         message: actionDecisionTriggerMessage(actionDecisionTrigger),
         spokenText: actionDecisionTrigger.blocked
-          ? "Human review is required. I cannot grant authorization."
+          ? "A safety lead check is needed. I cannot grant authorization."
           : actionDecisionTrigger.recommendedSafeAction,
         reason: `Safety cue "${actionDecisionTrigger.actionWord}" was mapped to ${actionDecisionTrigger.intent.replace(/_/g, " ")}. ${actionDecisionTrigger.recommendedSafeAction}`,
         shouldSpeak: isCritical,
@@ -245,9 +245,9 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-ai-engine-review",
         category: "risk_alert",
         priority: context.safetyAiAssessment.level === "critical" ? 1 : 2,
-        message: `I'm flagging this for review.${work}${conflictNote}${fieldEvidenceNote} ${nextStep}`,
-        spokenText: `I'm flagging this for review. ${nextStep}`,
-        reason: `Review basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or review triggers")}.${evidenceNote}${unifiedNote}${domainNote}${uncertaintyNote} Human review required.`,
+        message: `I'm seeing a field pattern worth slowing down for.${work}${conflictNote}${fieldEvidenceNote} ${nextStep}`,
+        spokenText: `I'm seeing a field pattern worth slowing down for. ${nextStep}`,
+        reason: `Safety lead check basis: ${compactList([...conflicts, ...gaps, ...triggers], "critical controls or field triggers")}.${evidenceNote}${unifiedNote}${domainNote}${uncertaintyNote}`,
         shouldSpeak: context.safetyAiAssessment.level === "critical",
         actionLabel: "Review safety risk",
         actionHref: routeHref(route, "/risk"),
@@ -279,8 +279,8 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         messageId: "gus-smart-severe-risk",
         category: "warning",
         priority: 1,
-        message: "Severe risk is showing. Pause and get human safety review before work proceeds.",
-        spokenText: "Severe risk is showing. Get human safety review before work proceeds.",
+        message: "Severe risk is showing. Do not continue until the safety lead walks the controls.",
+        spokenText: "Severe risk is showing. Bring in the safety lead before work proceeds.",
         reason: `Top drivers: ${compactList(context.riskDrivers, "severe predictive risk signals")}. Gus cannot release work.`,
         shouldSpeak: true,
         actionLabel: "Review risk",
@@ -316,7 +316,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         priority: 2,
         message: `Permit review may be needed before this work continues: ${compactList(permits, "permit details")}.`,
         spokenText: "Permit review may be needed before this work continues.",
-        reason: "Gus can point to the permit workspace, but a human reviewer must verify requirements.",
+        reason: "Gus can point to the permit workspace, but the safety lead has to make the field call.",
         shouldSpeak: true,
         actionLabel: "Review permits",
         actionHref: route.startsWith("/safe-predict") ? "/safe-predict/permits" : "/permits",
@@ -416,7 +416,7 @@ export function decideGusBehavior(input: GusBrainInput): GusDecision {
         category: "planning",
         priority: 2,
         message: `JSA draft details are missing: ${compactList(context.incompleteJsaFields, "required planning fields")}.`,
-        reason: "Gus can help draft missing planning notes, but a supervisor or required reviewer must check the final draft.",
+        reason: "Gus can help draft missing planning notes, but a supervisor or safety lead checks the final draft.",
         actionLabel: "Review JSAs",
         actionHref: "/jsa",
         actionKey: "guide_to_jsa",

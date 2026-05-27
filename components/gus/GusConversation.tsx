@@ -335,7 +335,7 @@ export function GusConversation({
       setTurns((current) =>
         [
           ...current,
-          makeTurn("assistant", "I shaped that into draft wording. Keep it in draft until a human safety check.", {
+          makeTurn("assistant", "I shaped that into draft wording. Keep it in draft until the safety lead check.", {
             thoughtDraft,
           }),
         ].slice(-10),

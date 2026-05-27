@@ -18,6 +18,15 @@ function priorityTone(priority: GusCoachDirective["priority"]) {
   return "border-emerald-200 bg-emerald-50 text-emerald-950";
 }
 
+function TeachingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-t border-current/10 pt-2">
+      <p className="text-[10px] font-black uppercase tracking-[0.11em] text-current/60">{label}</p>
+      <p className="mt-1 text-sm leading-5 text-current">{value}</p>
+    </div>
+  );
+}
+
 export function GusCoachNextStep({ directive, unresolvedCount, onFollowUp, onPlan }: GusCoachNextStepProps) {
   const actionButton = directive.recommendedActionHref ? (
     <Link
@@ -29,7 +38,7 @@ export function GusCoachNextStep({ directive, unresolvedCount, onFollowUp, onPla
   ) : (
     <button
       type="button"
-      onClick={directive.recommendedActionKey === "open_planning_mode" ? onPlan : () => onFollowUp("Help me work through this next review step.")}
+      onClick={directive.recommendedActionKey === "open_planning_mode" ? onPlan : () => onFollowUp("Help me work through this next safety lead step.")}
       className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-black text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)]"
     >
       {directive.recommendedActionLabel}
@@ -37,7 +46,7 @@ export function GusCoachNextStep({ directive, unresolvedCount, onFollowUp, onPla
   );
 
   return (
-    <section className={`rounded-xl border p-3 ${priorityTone(directive.priority)}`} aria-label="Gus coach next step">
+    <section className={`rounded-xl border p-3 ${priorityTone(directive.priority)}`} aria-label="Gus field coaching">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/85 shadow-sm">
           {directive.priority === "critical" || directive.priority === "high" ? (
@@ -49,7 +58,7 @@ export function GusCoachNextStep({ directive, unresolvedCount, onFollowUp, onPla
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-current/70">
-              Coach next step
+              Gus field coaching
             </p>
             {unresolvedCount > 0 ? (
               <span className="rounded-full border border-current/15 bg-white/72 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-current/70">
@@ -58,11 +67,14 @@ export function GusCoachNextStep({ directive, unresolvedCount, onFollowUp, onPla
             ) : null}
           </div>
           <h3 className="mt-1 text-sm font-black leading-5 text-current">{directive.title}</h3>
-          <p className="mt-1 text-sm leading-5 text-current">{directive.instruction}</p>
-          <p className="mt-2 rounded-lg border border-current/10 bg-white/70 px-3 py-2 text-xs leading-5 text-current/75">
-            {directive.whyItMatters}
-          </p>
         </div>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <TeachingRow label="What I'm seeing" value={directive.teachingMoment.notice} />
+        <TeachingRow label="Why it matters" value={directive.teachingMoment.why} />
+        <TeachingRow label="Question to ask on site" value={directive.teachingMoment.fieldQuestion} />
+        <TeachingRow label="Next safe step" value={directive.teachingMoment.nextStep} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">

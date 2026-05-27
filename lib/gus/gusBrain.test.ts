@@ -87,12 +87,12 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-ai-engine-review-decision");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toContain("I'm flagging this for human safety check");
+    expect(decision.message.message).toContain("I'm seeing a field pattern worth slowing down for");
     expect(decision.message.message).toContain("Excavation at North Tower");
     expect(decision.message.message).toContain("Excavation overlaps utility or electrical exposure");
     expect(decision.message.reason).toContain("Protective system");
     expect(decision.message.reason).toContain("Excavation overlaps utility or electrical exposure");
-    expect(decision.signals[0]?.detail).toContain("Field-check protective system human safety check");
+    expect(decision.signals[0]?.detail).toContain("Field-check protective system check");
     expect(
       [
         decision.message.message,
@@ -144,7 +144,7 @@ describe("decideGusBehavior", () => {
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
   });
 
-  it("blocks authorization action words and routes to human review", () => {
+  it("blocks authorization action words and routes to safety lead check", () => {
     const decision = decideGusBehavior({
       context: context({
         aiEngineActionDecisionTriggers: buildAiActionDecisionTriggers({
@@ -158,8 +158,9 @@ describe("decideGusBehavior", () => {
 
     expect(decision.decisionId).toBe("gus-action-word-blocked_authority");
     expect(decision.attentionLevel).toBe("critical");
-    expect(decision.message.message).toMatch(/human safety check/i);
-    expect(decision.message.spokenText).toContain("Human safety check is required");
+    expect(decision.message.message).toMatch(/safety lead check/i);
+    expect(decision.message.spokenText).toContain("safety lead check is needed");
+    expect(decision.message.message).not.toMatch(/human safety check/i);
     expect(decision.message.message).not.toMatch(/\bapproved\b|\bcompliant\b|\bsafe to start\b|\breleased for work\b/i);
   });
 
