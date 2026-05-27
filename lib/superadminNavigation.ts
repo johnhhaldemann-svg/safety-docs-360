@@ -38,6 +38,15 @@ export const superadminToolGroups: SuperadminNavSection[] = [
     audience: "admin",
     items: [
       {
+        href: "/superadmin/health",
+        label: "Health Command Center",
+        short: "HC",
+        description: "Review connected health score, event ledger, owners, changes, and source-linked tickets.",
+        keywords: ["health", "command", "score", "events", "owners", "changes", "tickets"],
+        primaryActionLabel: "Open health",
+        audience: "admin",
+      },
+      {
         href: "/superadmin/owner-validation",
         label: "Owner Validation Console",
         short: "OV",
@@ -216,6 +225,7 @@ export const superadminToolGroups: SuperadminNavSection[] = [
 ];
 
 export const superadminMostUsedHrefs = [
+  "/superadmin/health",
   "/superadmin/system-health",
   "/superadmin/help-tickets",
   "/superadmin/cyber-security",
