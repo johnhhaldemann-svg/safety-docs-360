@@ -31,7 +31,6 @@ const GUS_TRIGGER_LANGUAGE_PATTERNS: GusTriggerLanguageRule[] = [
   { pattern: /\bPause\b/g, replacement: "Do not continue" },
   { pattern: /\bhuman\s+review\b/gi, replacement: "safety lead check" },
   { pattern: /\bhuman\s+reviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
-  { pattern: /\bhuman\s+safety\s+check\b/gi, replacement: "safety lead check" },
   { pattern: /\bhuman\s+safety\s+review\b/gi, replacement: "safety lead check" },
   { pattern: /\bhuman\s+safety\s+reviewer(s)?\b/gi, replacement: (_match: string, plural?: string) => `safety lead${plural ? "s" : ""}` },
   { pattern: /\breview\s+risk\b/gi, replacement: "walk risk drivers" },
@@ -109,7 +108,6 @@ export function sanitizeGusTriggerLanguage(message: string): string {
     message
   )
     .replace(/\bhuman\s+review\b/gi, "safety lead check")
-    .replace(/\bhuman\s+safety\s+check\b/gi, "safety lead check")
     .replace(/\bmake\s+sure\s+the\s+owner\b/gi, "make sure the owner is clear")
     .replace(/\bno\s+safety\s+lead\s+check\s+needed\b/gi, "safety lead check still needed")
     .replace(/\bno\s+human\s+safety\s+check\s+needed\b/gi, "safety lead check still needed")

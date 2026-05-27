@@ -115,7 +115,7 @@ export function buildGusSitrepMessage(context: GusContext): GusMessage | null {
   const reason = sentence([
     context.aiEngineLinked ? "Based on SafePredict live context and current safety assessment." : "Based on SafePredict live context.",
     drivers.length > 0 ? `Drivers: ${drivers.join(", ")}.` : "",
-    "Draft guidance only. Human review required.",
+    "Draft guidance only. Human safety check required.",
   ]);
   const messageId = messageIdFor([
     context.route,

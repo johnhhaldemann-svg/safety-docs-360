@@ -96,10 +96,14 @@ function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsite
 export function SafePredictGusBridge() {
   const { dataset, selectedJobsiteId } = useSafePredictData();
   const pathname = usePathname();
+  const route = pathname || "/safe-predict";
+  const gusOwnedTrainingRoute = route.startsWith("/safe-predict/gus-coaching");
   const liveContext = useMemo(
-    () => buildSafePredictGusContext(dataset, selectedJobsiteId, pathname || "/safe-predict"),
-    [dataset, pathname, selectedJobsiteId],
+    () => buildSafePredictGusContext(dataset, selectedJobsiteId, route),
+    [dataset, route, selectedJobsiteId],
   );
+
+  if (gusOwnedTrainingRoute) return null;
 
   return (
     <GusAssistant

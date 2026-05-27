@@ -10,6 +10,7 @@ import {
   FileCheck2,
   FileText,
   Gauge,
+  History,
   LockKeyhole,
   Search,
   Settings2,
@@ -61,6 +62,12 @@ function ToolIcon({ href }: { href: string }) {
   }
   if (href.includes("system-health")) {
     return <Activity className={className} strokeWidth={strokeWidth} aria-hidden />;
+  }
+  if (href.includes("owner-validation")) {
+    return <ClipboardCheck className={className} strokeWidth={strokeWidth} aria-hidden />;
+  }
+  if (href.includes("what-changed")) {
+    return <History className={className} strokeWidth={strokeWidth} aria-hidden />;
   }
   if (href.includes("cyber-security")) {
     return <LockKeyhole className={className} strokeWidth={strokeWidth} aria-hidden />;

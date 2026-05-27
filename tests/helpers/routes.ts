@@ -26,6 +26,7 @@ export const PUBLIC_ROUTES = [
   "/safe-predict/corrective-actions",
   "/safe-predict/csep",
   "/safe-predict/documents",
+  "/safe-predict/gus-coaching",
   "/safe-predict/hazards",
   "/safe-predict/incidents",
   "/safe-predict/inspections",
@@ -103,6 +104,7 @@ export const AUTH_APP_STATIC_ROUTES = [
   "/superadmin/csep-completeness-review",
   "/superadmin/help-tickets",
   "/superadmin/injury-forecast-lab",
+  "/superadmin/owner-validation/report",
 ] as const;
 
 const id = E2E_PLACEHOLDER_UUID;

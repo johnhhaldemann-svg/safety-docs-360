@@ -38,6 +38,24 @@ export const superadminToolGroups: SuperadminNavSection[] = [
     audience: "admin",
     items: [
       {
+        href: "/superadmin/owner-validation",
+        label: "Owner Validation Console",
+        short: "OV",
+        description: "See module status, sandbox readiness, owner review needs, and customer-ready signals.",
+        keywords: ["owner", "validation", "customer-ready", "sandbox", "qa", "review", "proof"],
+        primaryActionLabel: "Open console",
+        audience: "admin",
+      },
+      {
+        href: "/superadmin/what-changed",
+        label: "What Changed?",
+        short: "WC",
+        description: "Review plain-English platform changes, owner review needs, affected pages, and customer-ready status.",
+        keywords: ["changes", "release", "log", "owner", "review", "customer-ready", "deployment"],
+        primaryActionLabel: "Review changes",
+        audience: "admin",
+      },
+      {
         href: "/superadmin/system-health",
         label: "System Health",
         short: "SH",
@@ -87,6 +105,15 @@ export const superadminToolGroups: SuperadminNavSection[] = [
         description: "Inspect AI calls, feedback, evaluations, and operating recommendations.",
         keywords: ["ai", "engine", "llm", "feedback", "evals", "calls", "recommendations"],
         primaryActionLabel: "Open AI operations",
+        audience: "admin",
+      },
+      {
+        href: "/superadmin/ai-improvements",
+        label: "AI Improvements",
+        short: "AP",
+        description: "Review AI-assisted improvement requests, pull requests, risk, test evidence, and Super Admin approvals.",
+        keywords: ["ai", "improvements", "approval", "codex", "pull request", "risk", "superadmin"],
+        primaryActionLabel: "Review approvals",
         audience: "admin",
       },
       {

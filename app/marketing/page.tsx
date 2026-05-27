@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,7 +10,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 
-const publicSiteName = "SafePredictConstrution";
+const publicSiteName = "SafePredict Construction";
 const riskEngineName = "SafePredict";
 
 const outcomes = [
@@ -55,29 +54,44 @@ const audiences = [
 ];
 
 const riskBands = [
-  ["Low", "Routine controls are current."],
-  ["Moderate", "Watch repeated signals and open tasks."],
-  ["High", "Escalate drivers and assign action owners."],
-  ["Critical", "Review immediately and consider stop-work evaluation."],
+  {
+    band: "Low",
+    body: "Routine controls are current.",
+    className: "border-emerald-300/45 bg-emerald-400/10 text-emerald-100",
+  },
+  {
+    band: "Moderate",
+    body: "Watch repeated signals and open tasks.",
+    className: "border-amber-300/45 bg-amber-300/10 text-amber-100",
+  },
+  {
+    band: "High",
+    body: "Escalate drivers and assign action owners.",
+    className: "border-orange-300/45 bg-orange-300/10 text-orange-100",
+  },
+  {
+    band: "Critical",
+    body: "Review immediately and consider stop-work evaluation.",
+    className: "border-red-300/45 bg-red-400/10 text-red-100",
+  },
+];
+
+const heroDrivers = [
+  ["Critical", "Open excavation permit without utility confirmation", "Immediate review"],
+  ["High", "Two crews missing task-specific fall protection signoff", "Assign owner"],
+  ["Moderate", "Training renewal due in 14 days", "Schedule"],
 ];
 
 export default function MarketingPage() {
   return (
     <main id="main-content" className="min-h-screen bg-[#f6f9fc] text-[#102033]">
       <section className="relative isolate overflow-hidden bg-[#071827] text-white">
-        <Image
-          src="/login-hero.svg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="absolute inset-0 -z-20 object-cover object-center opacity-45"
-        />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,_rgba(7,24,39,0.97)_0%,_rgba(7,24,39,0.86)_44%,_rgba(7,24,39,0.38)_100%)]" />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(135deg,_#06131f_0%,_#0c2630_49%,_#123719_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 -z-10 h-28 bg-[linear-gradient(180deg,_transparent,_rgba(246,249,252,0.1))]" />
 
-        <header className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-5 py-5 sm:px-8">
-          <BrandLogo className="h-16 w-60 max-w-[68vw] border-white/20 bg-white/95 shadow-none" imageClassName="p-0" />
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-white/82 md:flex">
+        <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+          <BrandLogo className="h-14 w-52 max-w-[56vw] border-white/20 bg-white/96 shadow-none" imageClassName="p-0" />
+          <nav className="hidden items-center gap-6 text-sm font-semibold text-white/82 md:flex">
             <a href="#outcomes" className="hover:text-white">
               Outcomes
             </a>
@@ -96,12 +110,15 @@ export default function MarketingPage() {
           </Link>
         </header>
 
-        <div className="mx-auto grid min-h-[76vh] max-w-7xl content-center px-5 pb-16 pt-12 sm:px-8 lg:min-h-[82vh] lg:grid-cols-[0.72fr_0.28fr]">
-          <div className="max-w-4xl">
-            <h1 className="font-app-display text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 pb-16 pt-10 sm:px-8 lg:min-h-[620px] lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:pb-20 lg:pt-14">
+          <div className="max-w-3xl">
+            <p className="inline-flex rounded-lg border border-emerald-300/28 bg-emerald-300/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-100">
+              Risk-first safety workspace
+            </p>
+            <h1 className="mt-6 font-app-display text-4xl font-black leading-[1.02] tracking-normal text-white sm:text-6xl lg:text-7xl">
               {publicSiteName}
             </h1>
-            <p className="mt-7 max-w-2xl text-xl font-semibold leading-8 text-white sm:text-2xl sm:leading-9">
+            <p className="mt-6 max-w-2xl text-xl font-semibold leading-8 text-white sm:text-2xl sm:leading-9">
               A safety management workspace for construction teams that need risk, compliance, and field work in one place.
             </p>
             <p className="mt-5 max-w-2xl text-base leading-8 text-white/80 sm:text-lg">
@@ -121,6 +138,56 @@ export default function MarketingPage() {
               >
                 Request Company Workspace
               </Link>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="rounded-lg border border-white/16 bg-white/[0.08] p-4 shadow-[0_26px_70px_rgba(0,0,0,0.28)] backdrop-blur">
+              <div className="rounded-lg border border-white/12 bg-[#f8fbff] p-5 text-[#102033]">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#d8e2ef] pb-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#53657a]">Today&apos;s safety posture</p>
+                    <h2 className="mt-2 font-app-display text-3xl font-black">North Yard Expansion</h2>
+                  </div>
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-right">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-red-700">Risk</p>
+                    <p className="font-app-display text-3xl font-black text-red-700">87</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["Open actions", "14"],
+                    ["Critical", "1"],
+                    ["High", "5"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg border border-[#d8e2ef] bg-white p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b]">{label}</p>
+                      <p className="mt-2 font-app-display text-2xl font-black">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {heroDrivers.map(([band, driver, action]) => (
+                    <div key={driver} className="grid gap-3 rounded-lg border border-[#d8e2ef] bg-white p-4 sm:grid-cols-[6.5rem_1fr_auto] sm:items-center">
+                      <span
+                        className={`w-fit rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] ${
+                          band === "Critical"
+                            ? "bg-red-100 text-red-700"
+                            : band === "High"
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {band}
+                      </span>
+                      <p className="text-sm font-semibold leading-6 text-[#243b55]">{driver}</p>
+                      <p className="text-sm font-black text-[#1f6feb]">{action}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -200,10 +267,10 @@ export default function MarketingPage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {riskBands.map(([band, body]) => (
-              <article key={band} className="rounded-lg border border-white/14 bg-white/[0.06] p-5">
-                <p className="text-lg font-black text-white">{band}</p>
-                <p className="mt-2 text-sm leading-6 text-white/72">{body}</p>
+            {riskBands.map((risk) => (
+              <article key={risk.band} className={`rounded-lg border p-5 ${risk.className}`}>
+                <p className="text-lg font-black text-white">{risk.band}</p>
+                <p className="mt-2 text-sm leading-6 text-white/72">{risk.body}</p>
               </article>
             ))}
           </div>
