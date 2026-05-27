@@ -128,10 +128,14 @@ export function classifyAiCallError(input: {
   fallbackReason?: string | null;
   errorMessage?: string | null;
 }): AiCallErrorType | null {
-  const message = (input.errorMessage ?? "").toLowerCase();
+  const message = normalizeProviderErrorText(input.errorMessage).toLowerCase();
   const status = input.httpStatus ?? null;
 
-  if (message.includes("model_not_found") || message.includes("does not have access to model")) {
+  if (
+    message.includes("model_not_found") ||
+    message.includes("does not have access to model") ||
+    (status === 403 && message.includes("model") && message.includes("access"))
+  ) {
     return "provider_model_access";
   }
   if (status === 401 || status === 403 || message.includes("invalid api key")) {
@@ -147,6 +151,28 @@ export function classifyAiCallError(input: {
   if (input.fallbackReason === "exception") return "network_error";
   if (input.fallbackReason || status != null || message) return "unknown";
   return null;
+}
+
+function normalizeProviderErrorText(errorMessage?: string | null): string {
+  const raw = errorMessage ?? "";
+  if (!raw.trim()) return raw;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return raw;
+    const record = parsed as Record<string, unknown>;
+    const error = record.error && typeof record.error === "object" ? (record.error as Record<string, unknown>) : record;
+    return [
+      raw,
+      error.message,
+      error.type,
+      error.param,
+      error.code,
+    ]
+      .filter((part): part is string => typeof part === "string")
+      .join(" ");
+  } catch {
+    return raw;
+  }
 }
 
 /** Read OpenAI Responses API `usage` payload defensively. */

@@ -17,7 +17,7 @@ import type {
 } from "@/lib/gus/gusTypes";
 import type { GusContext } from "@/lib/gus/gusContext";
 
-const GUS_PHOTO_REVIEW_FALLBACK_MODEL = "gpt-4.1-mini";
+const GUS_PHOTO_REVIEW_FALLBACK_MODEL = "gpt-4o-mini";
 
 export type GusPhotoReviewRequest = {
   dataUrl: string;
@@ -264,6 +264,7 @@ export async function runGusPhotoReview(request: GusPhotoReviewRequest): Promise
 
   const response = await requestAiResponsesText({
     model,
+    accessFallbackModel: GUS_PHOTO_REVIEW_FALLBACK_MODEL,
     surface: "gus.photo-review",
     maxAttempts: 2,
     promptVersion: GUS_AI_PROMPT_VERSION,

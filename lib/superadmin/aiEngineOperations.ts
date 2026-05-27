@@ -504,10 +504,49 @@ function incrementGroup(
     groups[groupKey] ??
     (groups[groupKey] = { key: groupKey, calls: 0, fallbacks: 0, failures: 0, tokens: 0, latencies: [] });
   existing.calls += 1;
-  if (row.fallback_used || row.status === "fallback") existing.fallbacks += 1;
-  if (row.status === "http_error" || row.status === "exception") existing.failures += 1;
+  if (isAiFallback(row)) existing.fallbacks += 1;
+  if (isAiFailure(row)) existing.failures += 1;
   existing.tokens += row.total_tokens ?? 0;
   if (row.latency_ms != null) existing.latencies?.push(row.latency_ms);
+}
+
+function isAiFallback(row: Pick<AiEngineCallRow, "fallback_used" | "status">): boolean {
+  return Boolean(row.fallback_used) || row.status === "fallback";
+}
+
+function isAiFailure(row: Pick<AiEngineCallRow, "status">): boolean {
+  return row.status === "http_error" || row.status === "exception";
+}
+
+function createdAtMs(row: AiEngineCallRow): number {
+  const time = new Date(row.created_at).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function finalLogicalRowForTrace(rows: AiEngineCallRow[]): AiEngineCallRow {
+  const sorted = [...rows].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+  const row = sorted.find((item) => !isAiFailure(item)) ?? sorted[0];
+  if (!row) throw new Error("Cannot summarize an empty AI call trace.");
+  return row;
+}
+
+function collapseRowsToFinalLogicalCalls(rows: AiEngineCallRow[]): AiEngineCallRow[] {
+  const byTrace = new Map<string, AiEngineCallRow[]>();
+  const untraced: AiEngineCallRow[] = [];
+
+  for (const row of rows) {
+    if (!row.trace_id) {
+      untraced.push(row);
+      continue;
+    }
+    const group = byTrace.get(row.trace_id) ?? [];
+    group.push(row);
+    byTrace.set(row.trace_id, group);
+  }
+
+  return [...untraced, ...Array.from(byTrace.values()).map(finalLogicalRowForTrace)].sort(
+    (a, b) => createdAtMs(b) - createdAtMs(a)
+  );
 }
 
 function percentile(sortedValues: number[], p: number): number | null {
@@ -675,10 +714,12 @@ export async function getAiEngineMetrics(
 ) {
   const since = toSinceIso(filters.since);
   const calls = await getAiEngineCalls(client, { ...filters, since, limit: filters.limit ?? MAX_LIMIT });
-  const rows = calls.rows.filter((row) => surfaceMatches(row.surface, filters.surface));
+  const rows = collapseRowsToFinalLogicalCalls(
+    calls.rows.filter((row) => surfaceMatches(row.surface, filters.surface))
+  );
   const totalCalls = rows.length;
-  const fallbackCalls = rows.filter((row) => row.fallback_used || row.status === "fallback").length;
-  const failedCalls = rows.filter((row) => row.status === "http_error" || row.status === "exception").length;
+  const fallbackCalls = rows.filter(isAiFallback).length;
+  const failedCalls = rows.filter(isAiFailure).length;
   const totalTokens = rows.reduce((sum, row) => sum + (row.total_tokens ?? 0), 0);
   const latencies = rows
     .map((row) => row.latency_ms)
@@ -723,7 +764,7 @@ export async function getAiEngineMetrics(
     byModel: sortedGroups(byModel),
     byProvider: sortedGroups(byProvider),
     recentFailures: rows
-      .filter((row) => row.status === "http_error" || row.status === "exception")
+      .filter(isAiFailure)
       .slice(0, 10),
   };
 }
