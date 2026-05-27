@@ -3,6 +3,10 @@ import { requestAiResponsesText } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { COMPANY_AI_ASSIST_DISCLAIMER, buildSurfaceSystemPrompt } from "@/lib/companyMemory/assist";
+import {
+  matchHighRiskPermits,
+  resolveHighRiskPermitDefinition,
+} from "@/lib/highRiskPermitBooklet";
 
 export type PermitCopilotActivityContext = {
   id: string;
@@ -126,38 +130,38 @@ function titleFromActivity(activity: PermitCopilotActivityContext | null) {
   return `${activity.activity_name.trim()} permit`;
 }
 
-function inferPermitType(activity: PermitCopilotActivityContext | null, currentDraft: PermitCopilotDraftContext) {
-  const seed = [
+function inferPermitDefinition(activity: PermitCopilotActivityContext | null, currentDraft: PermitCopilotDraftContext) {
+  const explicit = [
     currentDraft.permitType,
     activity?.permit_type,
-    activity?.activity_name,
-    activity?.trade,
-    activity?.area,
-    activity?.hazard_category,
-    activity?.hazard_description,
-    activity?.mitigation,
-  ]
-    .map((value) => String(value ?? "").toLowerCase())
-    .join(" ");
-  if (seed.match(/hot\s*work|weld|torch|grind|cut/i)) return "hot_work";
-  if (seed.match(/confined\s*space|tank|manhole|vault|entry/i)) return "confined_space";
-  if (seed.match(/electrical|energized|lockout|tagout|loto|panel|switchgear|temporary power/i)) return "electrical";
-  if (seed.match(/excavat|trench|dig|shoring|sloping/i)) return "excavation";
-  if (seed.match(/fall|height|roof|ladder|scaffold|mewp|aerial lift/i)) return "work_at_heights";
-  if (seed.match(/lockout\s*tagout|lockout|tagout|zero energy/i)) return "lockout_tagout";
-  return resolveChoice(activity?.permit_type || currentDraft.permitType || "operations") || "operations";
+  ].filter((value) => Boolean(value && resolveHighRiskPermitDefinition(value)));
+  const result = matchHighRiskPermits({
+    explicitTriggers: explicit.length > 0 ? explicit : undefined,
+    title: activity?.activity_name,
+    trade: activity?.trade,
+    workArea: activity?.area,
+    notes: joinWords(activity?.hazard_category, activity?.hazard_description, activity?.mitigation),
+  });
+  return result.matches[0]?.definition ?? null;
 }
 
 function inferSeverity(activity: PermitCopilotActivityContext | null, permitType: string) {
   const risk = String(activity?.planned_risk_level ?? "").trim().toLowerCase();
   if (risk === "critical") return "critical";
   if (risk === "high") return "high";
+  const definition = resolveHighRiskPermitDefinition(permitType);
+  if (definition && ["CSE-002", "EXC-003", "LFT-007", "ELE-008"].includes(definition.code)) return "critical";
+  if (definition) return "high";
   if (permitType === "confined_space" || permitType === "electrical" || permitType === "hot_work") return "high";
   if (permitType === "excavation" || permitType === "work_at_heights" || permitType === "lockout_tagout") return "medium";
   return "medium";
 }
 
 function inferCategory(permitType: string, activity: PermitCopilotActivityContext | null) {
+  const definition = resolveHighRiskPermitDefinition(permitType);
+  if (definition?.code === "ELE-008" || definition?.code === "LOTO-009") return "maintenance";
+  if (definition?.code === "EXC-003" || definition?.code === "GDU-004" || definition?.code === "WAH-005" || definition?.code === "MEWP-010" || definition?.code === "GRV-006" || definition?.code === "LFT-007") return "operations";
+  if (definition) return "safety";
   if (activity?.hazard_category) {
     const hazard = activity.hazard_category.toLowerCase();
     if (hazard.includes("electrical")) return "maintenance";
@@ -178,62 +182,11 @@ function inferEscalationLevel(severity: string, activity: PermitCopilotActivityC
 }
 
 function inferStopWorkStatus(severity: string, permitType: string) {
+  const definition = resolveHighRiskPermitDefinition(permitType);
   if (severity === "critical") return "stop_work_requested";
+  if (severity === "high" && (definition?.code === "CSE-002" || definition?.code === "ELE-008")) return "stop_work_requested";
   if (severity === "high" && (permitType === "confined_space" || permitType === "electrical")) return "stop_work_requested";
   return "normal";
-}
-
-function controlSuggestions(permitType: string) {
-  switch (permitType) {
-    case "hot_work":
-      return [
-        "Issue the hot work permit before starting.",
-        "Remove combustible materials from the area.",
-        "Keep charged extinguishers and a fire watch within reach.",
-        "Control sparks and verify post-work fire watch.",
-      ];
-    case "confined_space":
-      return [
-        "Verify atmospheric testing before entry.",
-        "Assign a trained attendant at the entry point.",
-        "Confirm rescue equipment and retrieval plan.",
-        "Ventilate the space as required by the entry plan.",
-      ];
-    case "electrical":
-      return [
-        "De-energize circuits before work when possible.",
-        "Verify absence of voltage and apply lockout/tagout.",
-        "Barricade the work zone and use qualified workers.",
-        "Control temporary power and tool inspection requirements.",
-      ];
-    case "excavation":
-      return [
-        "Locate utilities before digging.",
-        "Inspect the excavation daily and after rain or changes.",
-        "Use sloping, shielding, or shoring as required.",
-        "Maintain safe access and egress.",
-      ];
-    case "work_at_heights":
-      return [
-        "Verify tie-off, anchor points, or guardrails before access.",
-        "Inspect ladders, scaffolds, or lifts before use.",
-        "Keep tools and materials controlled to prevent drops.",
-        "Plan rescue and access around the elevated work zone.",
-      ];
-    case "lockout_tagout":
-      return [
-        "Identify all energy sources before servicing.",
-        "Apply lockout/tagout devices and verify zero energy.",
-        "Release stored energy before work begins.",
-        "Restrict work to authorized employees only.",
-      ];
-    default:
-      return [
-        "Confirm the jobsite and work zone before issuing the permit.",
-        "Review the JSA controls with the crew before work starts.",
-        "Document any escalation or stop-work triggers clearly.",
-      ];
-  }
 }
 
 function missingInfoSuggestions(draft: PermitCopilotDraftContext, activity: PermitCopilotActivityContext | null) {
@@ -249,25 +202,30 @@ function missingInfoSuggestions(draft: PermitCopilotDraftContext, activity: Perm
 function buildFallbackSuggestion(input: PermitCopilotInput): PermitCopilotSuggestion {
   const activity = input.selectedActivity;
   const current = input.currentDraft;
-  const permitType = inferPermitType(activity, current);
+  const permitDefinition = inferPermitDefinition(activity, current);
+  const permitType = permitDefinition?.name ?? "no_high_risk_permit_matched";
   const severity = inferSeverity(activity, permitType);
   const category = inferCategory(permitType, activity);
-  const escalationLevel = inferEscalationLevel(severity, activity);
-  const stopWorkStatus = inferStopWorkStatus(severity, permitType);
+  const escalationLevel = permitDefinition ? inferEscalationLevel(severity, activity) : "none";
+  const stopWorkStatus = permitDefinition ? inferStopWorkStatus(severity, permitType) : "normal";
   const title = current.title.trim() || titleFromActivity(activity);
   const escalationReason =
     current.escalationReason.trim() ||
-    joinWords(
-      activity?.activity_name,
-      activity?.trade ? `(${activity.trade})` : null,
-      activity?.area ? `in ${activity.area}` : null,
-      "needs permit-level oversight."
-    );
+    (permitDefinition
+      ? joinWords(
+          activity?.activity_name,
+          activity?.trade ? `(${activity.trade})` : null,
+          activity?.area ? `in ${activity.area}` : null,
+          `matched ${permitDefinition.code} permit-level oversight.`
+        )
+      : "No high-risk work permit booklet trigger matched this task.");
   const stopWorkReason =
     current.stopWorkReason.trim() ||
     (stopWorkStatus === "stop_work_requested"
       ? "Pause work until the permit is approved and the controls are verified."
-      : "Keep work under supervision and stop if the field conditions change.");
+      : permitDefinition
+        ? "Keep work under supervision and stop if the field conditions change."
+        : "Use normal supervisor review and stop if field conditions reveal high-risk work.");
 
   return {
     title,
@@ -279,15 +237,28 @@ function buildFallbackSuggestion(input: PermitCopilotInput): PermitCopilotSugges
     stopWorkStatus,
     stopWorkReason,
     rationale:
-      "This draft is derived from the linked JSA step so the permit stays tied to the actual task, location, and risk level.",
-    controls: controlSuggestions(permitType),
-    missingInfo: missingInfoSuggestions(current, activity),
+      permitDefinition
+        ? `Matched ${permitDefinition.code}: ${permitDefinition.trigger}`
+        : "No high-risk permit booklet trigger matched the linked task. Do not create a permit unless a qualified reviewer confirms high-risk permit-controlled work.",
+    controls: permitDefinition
+      ? permitDefinition.checklistItems.slice(0, 6)
+      : ["Confirm the task scope with the supervisor before creating a permit.", "Document any missing high-risk trigger information."],
+    missingInfo: permitDefinition
+      ? missingInfoSuggestions(current, activity)
+      : [
+          "Have a supervisor confirm whether the work includes hot work, confined space, excavation, ground disturbance, work at height, overhead work, critical lift, energized electrical, LOTO, MEWP, silica, chemical/line break, weather threshold, or demolition exposure.",
+        ],
   };
 }
 
 function sanitizeSuggestion(parsed: Partial<PermitCopilotSuggestion>, fallback: PermitCopilotSuggestion): PermitCopilotSuggestion {
   const title = String(parsed.title ?? "").trim() || fallback.title;
-  const permitType = resolveChoice(parsed.permitType || fallback.permitType) || fallback.permitType;
+  const parsedPermitDefinition = resolveHighRiskPermitDefinition(parsed.permitType);
+  const fallbackPermitDefinition = resolveHighRiskPermitDefinition(fallback.permitType);
+  const permitType =
+    parsedPermitDefinition?.name ||
+    fallbackPermitDefinition?.name ||
+    (fallback.permitType === "no_high_risk_permit_matched" ? fallback.permitType : resolveChoice(parsed.permitType || fallback.permitType) || fallback.permitType);
   const severity = resolveChoice(parsed.severity || fallback.severity) || fallback.severity;
   const category = resolveChoice(parsed.category || fallback.category) || fallback.category;
   const escalationLevel =
@@ -382,6 +353,7 @@ export async function runPermitCopilotAssist(
     buildSurfaceSystemPrompt("permits"),
     "Return strict JSON that matches the schema below.",
     "Suggest permit-ready field values, not a long essay.",
+    "Only recommend a permit when it matches the high-risk work permit booklet fallback draft. If no booklet permit matched, keep permitType as no_high_risk_permit_matched.",
     "Do not invent due dates or owners. If those are missing, put them in missingInfo.",
     COMPANY_AI_ASSIST_DISCLAIMER,
   ].join("\n\n");

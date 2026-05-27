@@ -17,7 +17,8 @@ describe("schedule hazard prediction", () => {
     expect(prediction.riskLevel).toBe("critical");
     expect(prediction.isHighRisk).toBe(true);
     expect(prediction.hazardCategories).toEqual(expect.arrayContaining(["steel_erection", "fall_protection", "crane_rigging"]));
-    expect(prediction.permitTriggers).toEqual(expect.arrayContaining(["lift_plan", "elevated_work_notice"]));
+    expect(prediction.permitTriggers).toEqual(expect.arrayContaining(["WAH-005"]));
+    expect(prediction.permitTriggers).not.toContain("lift_plan");
     expect(prediction.requiredControls).toEqual(expect.arrayContaining(["fall protection and rescue plan", "crew coordination briefing"]));
   });
 
@@ -30,7 +31,7 @@ describe("schedule hazard prediction", () => {
 
     expect(prediction.riskLevel).toBe("high");
     expect(prediction.hazardCategories).toContain("hot_work");
-    expect(prediction.permitTriggers).toContain("hot_work_permit");
+    expect(prediction.permitTriggers).toContain("HWP-001");
     expect(prediction.requiredControls).toContain("fire watch");
   });
 
@@ -58,5 +59,18 @@ describe("schedule hazard prediction", () => {
     expect(merged.hazardCategories).toEqual(expect.arrayContaining(["electrical", "arc_flash"]));
     expect(merged.requiredControls).toEqual(expect.arrayContaining(["verified isolation", "energized work authorization"]));
     expect(merged.rationale).toBe("AI rationale");
+  });
+
+  it("does not create permit triggers from broad equipment or traffic signals", () => {
+    const prediction = buildRuleBasedScheduleHazardPrediction({
+      trade: "General trades",
+      taskType: "Material delivery and forklift traffic coordination",
+      workArea: "Laydown yard",
+      crewSize: 10,
+    });
+
+    expect(prediction.riskLevel).toBe("high");
+    expect(prediction.permitTriggers).toEqual([]);
+    expect(prediction.requiredControls).toEqual(expect.arrayContaining(["spotter or traffic control", "crew coordination briefing"]));
   });
 });

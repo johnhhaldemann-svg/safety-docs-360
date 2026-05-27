@@ -48,6 +48,7 @@
     "db:staging:scaffold-url": "node scripts/scaffold-staging-database-url.mjs",
     "db:staging:bootstrap": "node scripts/bootstrap-supabase-staging.mjs",
     "db:staging:verify": "node scripts/verify-supabase-staging.mjs",
+    "db:data-readiness": "node scripts/audit-supabase-data-readiness.mjs",
     "db:push": "supabase db push --yes",
     "db:push:env": "node scripts/supabase-db-push-from-env.mjs",
     "db:scaffold-url": "node scripts/scaffold-database-url.mjs",

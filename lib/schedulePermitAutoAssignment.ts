@@ -1,5 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildRuleBasedScheduleHazardPrediction } from "@/lib/scheduleHazardPrediction";
+import {
+  buildPermitBookletMetadata,
+  matchHighRiskPermits,
+  resolveHighRiskPermitDefinition,
+  type HighRiskPermitMatch,
+} from "@/lib/highRiskPermitBooklet";
+import {
+  SAFE_PREDICT_PERMIT_FORM_METADATA_KEY,
+  normalizePermitForm,
+  preparePermitFormForSave,
+} from "@/lib/safePredictPermitForms";
 
 export type SchedulePermitAssignmentScope = "daily" | "weekly";
 
@@ -33,6 +43,7 @@ export type SchedulePermitTaskSummary = {
   workStartDate: string;
   workEndDate: string;
   permitTriggers: string[];
+  unmappedPermitTriggers: string[];
   ownerUserId: string | null;
   ownerLabel: string;
   assignmentRationale: string;
@@ -61,6 +72,12 @@ type ScheduleItemRow = {
   permit_triggers: string[] | null;
   required_controls: string[] | null;
   notes: string | null;
+};
+
+type ScheduleItemWithPermitMatches = ScheduleItemRow & {
+  permitMatches: HighRiskPermitMatch[];
+  permitTriggers: string[];
+  unmappedPermitTriggers: string[];
 };
 
 type JobsiteRow = {
@@ -152,12 +169,6 @@ function isActiveStatus(value: unknown) {
   return !status || status === "active" || status === "approved";
 }
 
-function labelizePermit(code: string) {
-  return clean(code)
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 function cleanList(values: unknown, limit = 16) {
   const raw = Array.isArray(values) ? values : String(values ?? "").split(",");
   const seen = new Set<string>();
@@ -196,19 +207,18 @@ function severityForItem(item: ScheduleItemRow) {
   return item.is_high_risk ? "high" : "medium";
 }
 
-function permitTriggersForItem(item: ScheduleItemRow) {
+function permitMatchResultForItem(item: ScheduleItemRow) {
   const explicit = cleanList(item.permit_triggers);
-  const prediction = buildRuleBasedScheduleHazardPrediction({
+  return matchHighRiskPermits({
+    explicitTriggers: explicit,
     title: item.title,
     trade: item.trade,
     taskType: item.title,
     workArea: item.work_area,
-    crewSize: item.crew_size,
-    shiftStartTime: item.shift_start_time,
-    shiftEndTime: item.shift_end_time,
     notes: item.notes,
+    hazardCategories: item.hazard_categories,
+    requiredControls: item.required_controls,
   });
-  return cleanList([...explicit, ...prediction.permitTriggers]);
 }
 
 function existingPermitKey(row: ExistingPermitRow) {
@@ -401,10 +411,18 @@ export async function autoAssignSchedulePermits(params: {
     return { success: false, status: 500, error: scheduleResult.error.message || "Failed to load schedule items." };
   }
 
-  const scheduleItems = ((scheduleResult.data ?? []) as ScheduleItemRow[])
+  const scheduleItems: ScheduleItemWithPermitMatches[] = ((scheduleResult.data ?? []) as ScheduleItemRow[])
     .filter((item) => isPlannedOrActive(item) && itemOverlapsWindow(item, startDate, endDate))
-    .map((item) => ({ ...item, permitTriggers: permitTriggersForItem(item) }))
-    .filter((item) => item.permitTriggers.length > 0);
+    .map((item) => {
+      const result = permitMatchResultForItem(item);
+      return {
+        ...item,
+        permitMatches: result.matches,
+        permitTriggers: result.matches.map((match) => match.definition.code),
+        unmappedPermitTriggers: result.unmappedTriggers,
+      };
+    })
+    .filter((item) => item.permitMatches.length > 0 || item.unmappedPermitTriggers.length > 0);
 
   const scheduleItemIds = scheduleItems.map((item) => item.id);
   const existingPermitKeys = new Set<string>();
@@ -420,7 +438,14 @@ export async function autoAssignSchedulePermits(params: {
     }
     for (const permit of (existingResult.data ?? []) as ExistingPermitRow[]) {
       const status = normalizeStatus(permit.status);
-      if (status === "draft" || status === "active") existingPermitKeys.add(existingPermitKey(permit));
+      if (status === "draft" || status === "active") {
+        existingPermitKeys.add(existingPermitKey(permit));
+        const definition = resolveHighRiskPermitDefinition(permit.permit_type);
+        if (definition) {
+          existingPermitKeys.add(`${permit.schedule_item_id ?? permit.source_id ?? ""}:${normalizeKey(definition.name)}`);
+          existingPermitKeys.add(`${permit.schedule_item_id ?? permit.source_id ?? ""}:${normalizeKey(definition.code)}`);
+        }
+      }
     }
   }
 
@@ -441,19 +466,40 @@ export async function autoAssignSchedulePermits(params: {
   for (const item of scheduleItems) {
     let createdCount = 0;
     let skippedCount = 0;
-    for (const permitCode of item.permitTriggers) {
-      const permitType = labelizePermit(permitCode);
+    for (const trigger of item.unmappedPermitTriggers) {
+      skippedCount += 1;
+      skippedPermits.push({
+        scheduleItemId: item.id,
+        permitType: "Unmapped permit trigger",
+        permitCode: normalizeKey(trigger),
+        permitId: null,
+        title: `${clean(item.title) || "Scheduled work"} - ${trigger}`,
+        ownerUserId: owner.ownerUserId,
+        ownerLabel: owner.ownerLabel,
+        rationale: "No high-risk permit booklet rule matched this trigger.",
+        status: "skipped",
+        skipReason: "Unknown permit trigger ignored; no draft permit was created.",
+      });
+    }
+
+    for (const match of item.permitMatches) {
+      const definition = match.definition;
+      const permitType = definition.name;
+      const permitCode = definition.code;
       const duplicateKey = `${item.id}:${normalizeKey(permitType)}`;
       const title = `${clean(item.title) || "Scheduled work"} - ${permitType}`;
+      const assignmentRationale = `${owner.rationale} Matched ${definition.code}: ${definition.trigger}`;
+      const permitBookletMetadata = buildPermitBookletMetadata(definition);
+      const permitForm = preparePermitFormForSave(normalizePermitForm(null, permitType));
       const summaryBase = {
         scheduleItemId: item.id,
         permitType,
-        permitCode: normalizeKey(permitCode),
+        permitCode,
         permitId: null,
         title,
         ownerUserId: owner.ownerUserId,
         ownerLabel: owner.ownerLabel,
-        rationale: owner.rationale,
+        rationale: assignmentRationale,
       };
 
       if (existingPermitKeys.has(duplicateKey)) {
@@ -491,12 +537,14 @@ export async function autoAssignSchedulePermits(params: {
           source_id: item.id,
           auto_assigned: true,
           auto_assignment_scope: params.scope,
-          assignment_rationale: owner.rationale,
+          assignment_rationale: assignmentRationale,
           source_metadata: {
             scheduleItemId: item.id,
             scheduleTitle: item.title,
-            permitCode: normalizeKey(permitCode),
-            originalPermitTrigger: permitCode,
+            permitCode,
+            originalPermitTriggers: match.evidence,
+            permitBooklet: permitBookletMetadata,
+            [SAFE_PREDICT_PERMIT_FORM_METADATA_KEY]: permitForm,
             ownerLabel: owner.ownerLabel,
             workStartDate: item.work_start_date,
             workEndDate: item.work_end_date ?? item.work_start_date,
@@ -530,10 +578,11 @@ export async function autoAssignSchedulePermits(params: {
         event_payload: {
           scheduleItemId: item.id,
           permitType,
-          permitCode: normalizeKey(permitCode),
+          permitCode,
           scope: params.scope,
           ownerUserId: owner.ownerUserId,
           ownerLabel: owner.ownerLabel,
+          permitBooklet: permitBookletMetadata,
         },
         created_by: params.actorUserId ?? null,
       });
@@ -545,6 +594,7 @@ export async function autoAssignSchedulePermits(params: {
       workStartDate: item.work_start_date ?? startDate,
       workEndDate: item.work_end_date ?? item.work_start_date ?? startDate,
       permitTriggers: item.permitTriggers,
+      unmappedPermitTriggers: item.unmappedPermitTriggers,
       ownerUserId: owner.ownerUserId,
       ownerLabel: owner.ownerLabel,
       assignmentRationale: owner.rationale,

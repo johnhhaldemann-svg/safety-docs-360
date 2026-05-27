@@ -73,8 +73,9 @@ export function validateDbUrl(label, dbUrl) {
   if (!dbUrl) {
     throw new Error(`Missing ${label}. Set it in the environment or .env.staging.local.`);
   }
-  if (dbUrl.includes("REPLACE_WITH_DATABASE_PASSWORD")) {
-    throw new Error(`${label} still contains REPLACE_WITH_DATABASE_PASSWORD.`);
+  const placeholder = dbUrl.match(/REPLACE_WITH_[A-Z0-9_]*PASSWORD/i)?.[0];
+  if (placeholder) {
+    throw new Error(`${label} still contains ${placeholder}.`);
   }
   if (!/^postgres(ql)?:\/\//i.test(dbUrl)) {
     throw new Error(`${label} must be a Postgres connection string.`);

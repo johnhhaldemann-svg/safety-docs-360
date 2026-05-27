@@ -116,7 +116,7 @@ describe("autoAssignSchedulePermits", () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.createdPermits).toHaveLength(1);
-    expect(result.createdPermits[0]).toMatchObject({ ownerUserId: "pm-1", permitType: "Hot Work Permit" });
+    expect(result.createdPermits[0]).toMatchObject({ ownerUserId: "pm-1", permitType: "Hot Work Permit Checklist", permitCode: "HWP-001" });
     expect(permitInsert.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "draft",
@@ -124,6 +124,16 @@ describe("autoAssignSchedulePermits", () => {
         schedule_item_id: "schedule-1",
         auto_assigned: true,
         auto_assignment_scope: "weekly",
+        assignment_rationale: expect.stringContaining("Matched HWP-001"),
+        source_metadata: expect.objectContaining({
+          permitCode: "HWP-001",
+          permitBooklet: expect.objectContaining({ permitCode: "HWP-001" }),
+          permit_form_v1: expect.objectContaining({
+            checklistItems: expect.arrayContaining([
+              expect.objectContaining({ label: expect.stringContaining("Fire watch") }),
+            ]),
+          }),
+        }),
       })
     );
   });
@@ -179,5 +189,72 @@ describe("autoAssignSchedulePermits", () => {
     expect(result.createdPermits[0].status).toBe("would_create");
     expect(result.unassignedPermits).toHaveLength(1);
     expect(client.from).not.toHaveBeenCalledWith("company_risk_events");
+  });
+
+  it("skips unmapped explicit triggers instead of creating generic permits", async () => {
+    const client = clientWithBuilders([
+      queryBuilder({ data: jobsite, error: null }),
+      queryBuilder({
+        data: [{ ...hotWorkSchedule, permit_triggers: ["traffic_control_plan"], title: "Traffic delivery coordination" }],
+        error: null,
+      }),
+      queryBuilder({ data: [], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", role: "project_manager" }], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", role: "project_manager", account_status: "active" }], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", full_name: "Grace Monroe", preferred_name: null, job_title: "Superintendent" }], error: null }),
+    ]);
+
+    const result = await autoAssignSchedulePermits({
+      supabase: client as never,
+      companyId: "company-1",
+      jobsiteId: "jobsite-1",
+      scope: "daily",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.createdPermits).toHaveLength(0);
+    expect(result.skippedPermits).toEqual([
+      expect.objectContaining({
+        permitType: "Unmapped permit trigger",
+        permitCode: "traffic_control_plan",
+        skipReason: "Unknown permit trigger ignored; no draft permit was created.",
+      }),
+    ]);
+    expect(result.tasks[0].unmappedPermitTriggers).toEqual(["traffic_control_plan"]);
+    expect(client.from).not.toHaveBeenCalledWith("company_risk_events");
+  });
+
+  it("creates one draft per matched booklet permit for multi-permit work", async () => {
+    const firstInsert = queryBuilder({ data: { id: "permit-hot" }, error: null });
+    const secondInsert = queryBuilder({ data: { id: "permit-height" }, error: null });
+    const client = clientWithBuilders([
+      queryBuilder({ data: jobsite, error: null }),
+      queryBuilder({
+        data: [{ ...hotWorkSchedule, permit_triggers: ["HWP-001", "WAH-005"], title: "Roof torch work" }],
+        error: null,
+      }),
+      queryBuilder({ data: [], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", role: "project_manager" }], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", role: "project_manager", account_status: "active" }], error: null }),
+      queryBuilder({ data: [{ user_id: "pm-1", full_name: "Grace Monroe", preferred_name: null, job_title: "Superintendent" }], error: null }),
+      firstInsert,
+      queryBuilder({ data: null, error: null }),
+      secondInsert,
+      queryBuilder({ data: null, error: null }),
+    ]);
+
+    const result = await autoAssignSchedulePermits({
+      supabase: client as never,
+      companyId: "company-1",
+      jobsiteId: "jobsite-1",
+      scope: "weekly",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.createdPermits.map((permit) => permit.permitCode)).toEqual(["HWP-001", "WAH-005"]);
+    expect(firstInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ permit_type: "Hot Work Permit Checklist" }));
+    expect(secondInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ permit_type: "Work at Height Permit Checklist" }));
   });
 });

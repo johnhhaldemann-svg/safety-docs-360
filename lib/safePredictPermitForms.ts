@@ -1,3 +1,8 @@
+import {
+  buildPermitBookletMetadata,
+  resolveHighRiskPermitDefinition,
+} from "@/lib/highRiskPermitBooklet";
+
 export type SafePredictPermitChecklistItem = {
   id: string;
   label: string;
@@ -12,6 +17,12 @@ export type SafePredictPermitAcknowledgement = {
 };
 
 export type SafePredictPermitForm = {
+  permitCode?: string;
+  permitName?: string;
+  triggerReason?: string;
+  requiredReviewer?: string;
+  stopWorkRule?: string;
+  referenceBasis?: string;
   checklistItems: SafePredictPermitChecklistItem[];
   acknowledgement: SafePredictPermitAcknowledgement;
   notes?: string;
@@ -67,6 +78,11 @@ const PERMIT_CHECKLISTS: Record<string, string[]> = {
     "Permit scope, location, and responsible owner reviewed.",
     "Required controls are in place before work begins.",
     "Crew acknowledgment and closeout expectations confirmed.",
+    "Permit validity window and work area boundaries confirmed.",
+    "Reviewer/approver identified before work starts.",
+    "Evidence requirements reviewed and attached where applicable.",
+    "Stop-work triggers reviewed with the crew.",
+    "Closeout signer and final inspection expectation confirmed.",
   ],
 };
 
@@ -75,6 +91,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function permitChecklistKey(permitType: string) {
+  const definition = resolveHighRiskPermitDefinition(permitType);
+  if (definition) return definition.code.toLowerCase();
   const normalized = permitType.toLowerCase();
   if (normalized.includes("hot") || normalized.includes("weld") || normalized.includes("burn")) return "hot_work";
   if (normalized.includes("loto") || normalized.includes("lockout") || normalized.includes("tagout")) return "loto";
@@ -88,10 +106,11 @@ export function permitChecklistKey(permitType: string) {
 }
 
 export function defaultPermitChecklistItems(permitType: string): SafePredictPermitChecklistItem[] {
+  const definition = resolveHighRiskPermitDefinition(permitType);
   const key = permitChecklistKey(permitType);
-  const labels = PERMIT_CHECKLISTS[key] ?? PERMIT_CHECKLISTS.generic;
+  const labels = definition?.checklistItems ?? PERMIT_CHECKLISTS[key] ?? PERMIT_CHECKLISTS.generic;
   return labels.map((label, index) => ({
-    id: `${key}-${index + 1}`,
+    id: definition ? `${definition.code.replace(/-/g, "")}-${String(index + 1).padStart(2, "0")}` : `${key}-${index + 1}`,
     label,
     checked: false,
   }));
@@ -118,7 +137,32 @@ export function normalizePermitForm(value: unknown, permitType: string): SafePre
   const form = isRecord(value) ? value : {};
   const acknowledgement = isRecord(form.acknowledgement) ? form.acknowledgement : {};
   const acknowledged = Boolean(acknowledgement.acknowledged);
+  const definition = resolveHighRiskPermitDefinition(permitType);
   return {
+    permitCode:
+      typeof form.permitCode === "string" && form.permitCode.trim()
+        ? form.permitCode.trim()
+        : definition?.code,
+    permitName:
+      typeof form.permitName === "string" && form.permitName.trim()
+        ? form.permitName.trim()
+        : definition?.name,
+    triggerReason:
+      typeof form.triggerReason === "string" && form.triggerReason.trim()
+        ? form.triggerReason.trim()
+        : definition?.trigger,
+    requiredReviewer:
+      typeof form.requiredReviewer === "string" && form.requiredReviewer.trim()
+        ? form.requiredReviewer.trim()
+        : definition?.requiredReviewer,
+    stopWorkRule:
+      typeof form.stopWorkRule === "string" && form.stopWorkRule.trim()
+        ? form.stopWorkRule.trim()
+        : definition?.stopWorkRule,
+    referenceBasis:
+      typeof form.referenceBasis === "string" && form.referenceBasis.trim()
+        ? form.referenceBasis.trim()
+        : definition?.referenceBasis,
     checklistItems: normalizeChecklistItems(form.checklistItems, permitType),
     acknowledgement: {
       acknowledged,
@@ -155,7 +199,15 @@ export function permitReadinessLabel(form: SafePredictPermitForm): "Ready" | "Ne
 
 export function preparePermitFormForSave(form: SafePredictPermitForm, now = new Date()) {
   const acknowledged = form.acknowledgement.acknowledged && form.acknowledgement.name.trim().length > 0;
+  const definition = resolveHighRiskPermitDefinition(form.permitCode ?? form.permitName ?? "");
+  const bookletMetadata = definition ? buildPermitBookletMetadata(definition) : null;
   return {
+    ...(form.permitCode || bookletMetadata ? { permitCode: form.permitCode ?? bookletMetadata?.permitCode } : {}),
+    ...(form.permitName || bookletMetadata ? { permitName: form.permitName ?? bookletMetadata?.permitName } : {}),
+    ...(form.triggerReason || bookletMetadata ? { triggerReason: form.triggerReason ?? bookletMetadata?.trigger } : {}),
+    ...(form.requiredReviewer || bookletMetadata ? { requiredReviewer: form.requiredReviewer ?? bookletMetadata?.requiredReviewer } : {}),
+    ...(form.stopWorkRule || bookletMetadata ? { stopWorkRule: form.stopWorkRule ?? bookletMetadata?.stopWorkRule } : {}),
+    ...(form.referenceBasis || bookletMetadata ? { referenceBasis: form.referenceBasis ?? bookletMetadata?.referenceBasis } : {}),
     checklistItems: form.checklistItems.map((item) => ({
       id: item.id,
       label: item.label,

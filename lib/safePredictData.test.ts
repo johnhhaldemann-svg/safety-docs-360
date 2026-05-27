@@ -472,8 +472,12 @@ describe("safePredictData", () => {
   });
 
   it("builds type-specific permit checklist defaults", () => {
-    expect(defaultPermitChecklistItems("Hot Work Permit").map((item) => item.label).join(" ")).toContain("Fire watch");
-    expect(defaultPermitChecklistItems("LOTO Permit").map((item) => item.label).join(" ")).toContain("Energy sources");
+    const hotWork = defaultPermitChecklistItems("Hot Work Permit");
+    expect(hotWork).toHaveLength(8);
+    expect(hotWork.map((item) => item.label).join(" ")).toContain("Fire watch");
+    expect(defaultPermitChecklistItems("LOTO Permit")).toHaveLength(8);
+    expect(defaultPermitChecklistItems("LOTO Permit").map((item) => item.label).join(" ")).toContain("energy sources");
+    expect(defaultPermitChecklistItems("Lift Plan")).toHaveLength(8);
     expect(defaultPermitChecklistItems("Lift Plan").map((item) => item.label).join(" ")).toContain("Lift plan");
   });
 

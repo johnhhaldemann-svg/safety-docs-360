@@ -72,8 +72,12 @@ describe("Gus draft record builder", () => {
     if (!("permitType" in result.content)) {
       throw new Error("Expected draft permit checklist content.");
     }
-    expect(result.content.permitType).toBe("Hot work");
-    expect(result.content.requiredReviewItems).toContain("Hot work permit review may be required");
+    expect(result.content.permitType).toBe("Hot Work Permit Checklist");
+    expect(result.content.triggerReason).toContain("HWP-001");
+    expect(result.content.requiredReviewItems).toContain("Fire watch assigned, briefed, and duration confirmed.");
+    expect(result.content.requiredSignaturesReviewers).toContain(
+      "Hot work approver or safety/site supervisor; fire watch assigned before activation.",
+    );
     expect(result.content.requiredSignaturesReviewers).toContain("Supervisor review required");
   });
 

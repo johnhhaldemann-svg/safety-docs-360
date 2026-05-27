@@ -210,7 +210,7 @@ describe("/api/company/jobsites/[jobsiteId]/schedule/predict", () => {
 
     expect(response.status).toBe(200);
     expect(body.source).toBe("rules_fallback");
-    expect(body.permitTriggers).toContain("hot_work_permit");
+    expect(body.permitTriggers).toContain("HWP-001");
     expect(cacheUpsert.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "fallback",

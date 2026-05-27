@@ -78,7 +78,6 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
     voiceEnabled,
     feedback,
     openAssistant,
-    minimizeAssistant,
     dismissAssistant,
     disableForToday,
     recordFeedback,
@@ -171,10 +170,10 @@ export function GusAssistant({ currentPage, route, companyId, jobsiteId, userId,
           </div>
           <button
             type="button"
-            onClick={minimizeAssistant}
+            onClick={dismissAssistant}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--app-border)] bg-white/86 text-[var(--app-muted)] transition hover:bg-white hover:text-[var(--app-text-strong)]"
-            aria-label="Minimize Gus"
-            title="Minimize"
+            aria-label="Close Gus"
+            title="Close Gus"
           >
             <X className="h-4 w-4" />
           </button>

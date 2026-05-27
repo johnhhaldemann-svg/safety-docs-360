@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
+import { highRiskPermitCodesForPrediction } from "@/lib/highRiskPermitBooklet";
 
 export const runtime = "nodejs";
 
@@ -196,15 +197,7 @@ function inferHazardCategories(text: string) {
 }
 
 function inferPermitTriggers(text: string) {
-  const value = text.toLowerCase();
-  const out: string[] = [];
-  if (/hot work|weld|cutting|burn/.test(value)) out.push("hot_work_permit");
-  if (/confined/.test(value)) out.push("confined_space_permit");
-  if (/excavat|trench/.test(value)) out.push("excavation_permit");
-  if (/electrical|loto|lockout|energized/.test(value)) out.push("energized_electrical_or_loto");
-  if (/crane|rigging|critical lift|lift plan/.test(value)) out.push("lift_plan");
-  if (/fall|height|roof|edge|aerial/.test(value)) out.push("elevated_work_notice");
-  return [...new Set(out)];
+  return highRiskPermitCodesForPrediction({ title: text });
 }
 
 function canManageSchedule(role: string) {
@@ -325,7 +318,7 @@ export async function GET(
           riskLevel: "critical",
           isHighRisk: true,
           hazardCategories: ["fall_protection", "crane_rigging"],
-          permitTriggers: ["lift_plan", "elevated_work_notice"],
+          permitTriggers: ["LFT-007", "WAH-005"],
           requiredControls: ["controlled access zone", "supervisor verification"],
           notes: "Confirm deck openings and controlled access before turnover.",
           readOnly: false,
@@ -347,7 +340,7 @@ export async function GET(
           riskLevel: "high",
           isHighRisk: true,
           hazardCategories: ["hot_work"],
-          permitTriggers: ["hot_work_permit"],
+          permitTriggers: ["HWP-001"],
           requiredControls: [],
           notes: "Imported from Microsoft Project.",
           readOnly: true,

@@ -36,6 +36,14 @@ function writeStoredSettings(settings: GusNotificationSettings) {
   }
 }
 
+export function getGusNotificationSettingsErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : "";
+  if (/invalid auth token|jwt|unauthorized|not authenticated|auth/i.test(message)) {
+    return "Sign in again to sync Gus notification preferences. Local preferences are still saved on this browser.";
+  }
+  return message || fallback;
+}
+
 export function useGusNotificationSettings() {
   const [settings, setSettings] = useState<GusNotificationSettings>(readStoredSettings);
   const [loading, setLoading] = useState(false);
@@ -71,7 +79,7 @@ export function useGusNotificationSettings() {
         writeStoredSettings(next);
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Gus notification settings could not be loaded.");
+          setError(getGusNotificationSettingsErrorMessage(err, "Gus notification settings could not be loaded."));
         }
       } finally {
         if (active) setLoading(false);
@@ -114,7 +122,7 @@ export function useGusNotificationSettings() {
       writeStoredSettings(saved);
       return saved;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gus notification settings could not be saved.");
+      setError(getGusNotificationSettingsErrorMessage(err, "Gus notification settings could not be saved."));
       throw err;
     }
   }, [settings]);

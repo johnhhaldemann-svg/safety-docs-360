@@ -1,3 +1,5 @@
+import { highRiskPermitCodesForPrediction } from "@/lib/highRiskPermitBooklet";
+
 export type SchedulePredictionRiskLevel = "low" | "medium" | "high" | "critical";
 
 export type ScheduleHazardPredictionInput = {
@@ -52,7 +54,7 @@ const RULES: readonly Rule[] = [
     id: "work_at_height",
     riskLevel: "critical",
     labels: ["work at height", "fall exposure"],
-    patterns: [/fall|height|roof|edge|deck|aerial|lift|scaffold|ladder|mezzanine/i],
+    patterns: [/fall|height|roof|edge|deck|aerial\s*lift|scaffold|ladder|mezzanine/i],
     hazards: ["fall_protection", "dropped_objects"],
     permits: ["elevated_work_notice"],
     controls: ["guardrails or approved PFAS", "fall rescue plan", "controlled access below", "pre-use access inspection"],
@@ -214,7 +216,6 @@ export function buildRuleBasedScheduleHazardPrediction(input: ScheduleHazardPred
   let riskLevel: SchedulePredictionRiskLevel = matches.length > 0 ? "medium" : "low";
   let confidence = matches.length > 0 ? 0.62 : 0.48;
   const hazards: string[] = [];
-  const permits: string[] = [];
   const controls: string[] = [];
   const rationale: string[] = [];
   const signals: string[] = [];
@@ -223,7 +224,6 @@ export function buildRuleBasedScheduleHazardPrediction(input: ScheduleHazardPred
     riskLevel = maxRisk(riskLevel, rule.riskLevel);
     confidence = Math.max(confidence, rule.confidence);
     hazards.push(...rule.hazards);
-    permits.push(...rule.permits);
     controls.push(...rule.controls);
     rationale.push(rule.rationale);
     signals.push(...rule.labels);
@@ -246,7 +246,15 @@ export function buildRuleBasedScheduleHazardPrediction(input: ScheduleHazardPred
   }
 
   const finalHazards = cleanList(hazards);
-  const finalPermits = cleanList(permits);
+  const finalPermits = cleanList(
+    highRiskPermitCodesForPrediction({
+      title: input.title,
+      trade: input.trade,
+      taskType: input.taskType,
+      workArea: input.workArea,
+      notes: input.notes,
+    })
+  );
   const finalControls = cleanList(controls.length ? controls : ["pre-task brief", "supervisor verification"]);
   const finalRationale = cleanList(rationale, 4).join(" ") || "No high-risk dropdown pattern matched yet; keep a supervisor review before release.";
 

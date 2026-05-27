@@ -22,13 +22,13 @@ const preferenceRows: Array<{
   {
     key: "inAppEnabled",
     label: "Gus notification center records",
-    detail: "Save Gus safety review notes in the app notification center.",
+    detail: "Save Gus field coaching notes in the app notification center.",
     icon: Bell,
   },
   {
     key: "emailEnabled",
     label: "Email me Gus safety notes",
-    detail: "Show the email option for confirmed Gus safety review notes.",
+    detail: "Show the email option for confirmed Gus field coaching notes.",
     icon: MailCheck,
   },
   {
@@ -63,7 +63,7 @@ export function GusNotificationPreferencesCard() {
   return (
     <SectionCard
       title="Gus notification preferences"
-      description="Choose when Gus can interrupt, record review notes, email confirmed notes, or speak."
+      description="Choose when Gus can interrupt, save coaching notes, email confirmed notes, or speak."
       aside={<StatusBadge label={loading ? "Loading" : "Saved"} tone={error ? "warning" : "success"} />}
     >
       {error ? <InlineMessage tone="warning">{error}</InlineMessage> : null}
@@ -94,7 +94,7 @@ export function GusNotificationPreferencesCard() {
         })}
       </div>
       <p className="text-xs leading-5 text-[var(--app-muted)]">
-        Critical safety warnings can still appear in-app for human review.
+        Critical safety warnings can still appear in-app for a safety lead check.
       </p>
     </SectionCard>
   );
