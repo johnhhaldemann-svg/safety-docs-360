@@ -129,15 +129,15 @@ export default function CustomerBillingPage() {
 
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Balance due</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Balance due</div>
           <div className="mt-2 text-2xl font-black text-white">{formatMoney(totalBalanceDue, "usd")}</div>
         </div>
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Overdue</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Overdue</div>
           <div className="mt-2 text-2xl font-black text-amber-200">{overdueInvoices.length}</div>
         </div>
         <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-5">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Invoices</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Invoices</div>
           <div className="mt-2 text-2xl font-black text-white">{invoices.length}</div>
         </div>
       </section>
