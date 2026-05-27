@@ -410,7 +410,7 @@ export default function CompanyOnboardingPage() {
                 <input className={inputClassName} placeholder="Trade specialty" value={employeeForm.trade_specialty} onChange={(e) => setEmployeeForm({ ...employeeForm, trade_specialty: e.target.value })} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <select className={appNativeSelectClassName} value={employeeForm.readiness_status} onChange={(e) => setEmployeeForm({ ...employeeForm, readiness_status: e.target.value })}>
+                <select aria-label="Employee readiness status" className={appNativeSelectClassName} value={employeeForm.readiness_status} onChange={(e) => setEmployeeForm({ ...employeeForm, readiness_status: e.target.value })}>
                   <option value="ready">Ready</option>
                   <option value="travel_ready">Travel ready</option>
                   <option value="limited">Limited</option>
@@ -418,7 +418,7 @@ export default function CompanyOnboardingPage() {
                   <option value="onboarding">Onboarding</option>
                 </select>
                 <input className={inputClassName} placeholder="Years exp." value={employeeForm.years_experience} onChange={(e) => setEmployeeForm({ ...employeeForm, years_experience: e.target.value })} />
-                <select className={appNativeSelectClassName} value={employeeForm.status} onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value })}>
+                <select aria-label="Employee status" className={appNativeSelectClassName} value={employeeForm.status} onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value })}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="archived">Archived</option>
@@ -446,7 +446,7 @@ export default function CompanyOnboardingPage() {
                 <input className={inputClassName} placeholder="Safety lead" value={jobsiteForm.safety_lead} onChange={(e) => setJobsiteForm({ ...jobsiteForm, safety_lead: e.target.value })} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <select className={appNativeSelectClassName} value={jobsiteForm.status} onChange={(e) => setJobsiteForm({ ...jobsiteForm, status: e.target.value })}>
+                <select aria-label="Jobsite status" className={appNativeSelectClassName} value={jobsiteForm.status} onChange={(e) => setJobsiteForm({ ...jobsiteForm, status: e.target.value })}>
                   <option value="planned">Planned</option>
                   <option value="active">Active</option>
                   <option value="completed">Completed</option>
@@ -463,7 +463,7 @@ export default function CompanyOnboardingPage() {
             </div>
           ) : (
             <div className="grid gap-3">
-              <select className={appNativeSelectClassName} value={trainingForm.employee_id} onChange={(e) => setTrainingForm({ ...trainingForm, employee_id: e.target.value })}>
+              <select aria-label="Training employee" className={appNativeSelectClassName} value={trainingForm.employee_id} onChange={(e) => setTrainingForm({ ...trainingForm, employee_id: e.target.value })}>
                 <option value="">Choose tracked employee</option>
                 {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
@@ -471,7 +471,7 @@ export default function CompanyOnboardingPage() {
                   </option>
                 ))}
               </select>
-              <select className={appNativeSelectClassName} value={trainingForm.requirement_id} onChange={(e) => {
+              <select aria-label="Training requirement" className={appNativeSelectClassName} value={trainingForm.requirement_id} onChange={(e) => {
                 const requirement = requirements.find((item) => item.id === e.target.value);
                 setTrainingForm({ ...trainingForm, requirement_id: e.target.value, training_title: trainingForm.training_title || requirement?.title || "" });
               }}>

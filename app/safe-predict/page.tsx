@@ -1355,7 +1355,7 @@ function AtAGlanceBand({
           <Link key={tile.title} href={tile.href} className={cx("group rounded-lg border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm", tile.tone)}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] opacity-80">{tile.title}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.12em]">{tile.title}</p>
                 <p className="mt-2 text-2xl font-black leading-none text-slate-950">{tile.value}</p>
               </div>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-current/20 bg-white/70">

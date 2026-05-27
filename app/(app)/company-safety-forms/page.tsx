@@ -170,6 +170,7 @@ export default function CompanySafetyFormsPage() {
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
           />
           <textarea
+            aria-label="Initial form schema JSON"
             value={schemaJson}
             onChange={(e) => setSchemaJson(e.target.value)}
             rows={12}
@@ -184,6 +185,7 @@ export default function CompanySafetyFormsPage() {
       <SectionCard title="Publish new version" description="Pick a definition and publish the schema below as the next version.">
         <div className="flex max-w-xl flex-col gap-2">
           <select
+            aria-label="Definition to publish"
             value={extendDefId}
             onChange={(e) => setExtendDefId(e.target.value)}
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"

@@ -191,6 +191,7 @@ export default function CompanyInductionsPage() {
                 className="min-w-[12rem] flex-1 rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
               />
               <select
+                aria-label="Program audience"
                 value={newAudience}
                 onChange={(e) => setNewAudience(e.target.value)}
                 className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
@@ -235,6 +236,7 @@ export default function CompanyInductionsPage() {
       <SectionCard title="Requirements" description="Assign a program to all jobsites or one specific jobsite.">
         <div className="flex flex-wrap gap-2">
           <select
+            aria-label="Requirement program"
             value={reqProgramId}
             onChange={(e) => setReqProgramId(e.target.value)}
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
@@ -247,6 +249,7 @@ export default function CompanyInductionsPage() {
             ))}
           </select>
           <select
+            aria-label="Requirement jobsite"
             value={reqJobsiteId}
             onChange={(e) => setReqJobsiteId(e.target.value)}
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"

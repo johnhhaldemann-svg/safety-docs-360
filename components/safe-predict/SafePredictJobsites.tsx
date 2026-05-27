@@ -4356,19 +4356,10 @@ function DailyTodoBoard({
             </div>
             <div className="mt-3 space-y-2">
               {grouped[role].map((todo) => (
-                <article
+                <div
                   key={todo.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onOpenTab(todo.targetTab)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenTab(todo.targetTab);
-                    }
-                  }}
                   className={cx(
-                    "cursor-pointer rounded-lg border border-l-4 border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40",
+                    "rounded-lg border border-l-4 border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40",
                     dailyTodoPriorityClass(todo.priority)
                   )}
                 >
@@ -4378,12 +4369,19 @@ function DailyTodoBoard({
                         <span className={cx("rounded-full border px-2 py-0.5 text-[11px] font-black", dailyTodoStatusClass(todo.status))}>
                           {dailyTodoStatusLabel(todo.status)}
                         </span>
-                        <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">{todo.targetTab}</span>
+                        <span className="text-[11px] font-black uppercase tracking-wide text-slate-600">{todo.targetTab}</span>
                       </div>
                       <p className="mt-2 text-sm font-black leading-5 text-slate-950">{todo.title}</p>
                       <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{todo.detail}</p>
                     </div>
-                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-blue-600" />
+                    <button
+                      type="button"
+                      onClick={() => onOpenTab(todo.targetTab)}
+                      className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-blue-600 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                      aria-label={`Open ${todo.targetTab}`}
+                    >
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </button>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
@@ -4423,7 +4421,7 @@ function DailyTodoBoard({
                       Closed out
                     </button>
                   </div>
-                </article>
+                </div>
               ))}
             </div>
           </div>

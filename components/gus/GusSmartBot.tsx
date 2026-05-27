@@ -187,10 +187,10 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
           aria-label="Open Gus AI Safety Coach from message"
           title="Open Gus AI Safety Coach"
         >
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-current/70">Gus Smart Safety Bot</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-current/85">Gus Smart Safety Bot</p>
           <p className="mt-1 text-sm font-black leading-5">{shortMessage(decision.message.message)}</p>
           {decision.signals.length > 0 ? (
-            <p className="mt-1 text-xs font-semibold leading-4 text-current/70">
+            <p className="mt-1 text-xs font-semibold leading-4 text-current/85">
               Watching {decision.signals.slice(0, 2).map((item) => item.label).join(", ")}
             </p>
           ) : null}
