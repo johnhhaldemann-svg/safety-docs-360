@@ -30,14 +30,14 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["lib/safety-intelligence/**/*.ts"],
+    files: ["lib/safety-intelligence/**/*.ts", "pd251/lib/safety-intelligence/**/*.ts"],
     rules: {
       // Legacy JSON/adapter surfaces; tighten gradually without blocking CI.
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {
-    files: ["app/api/**/*.ts"],
+    files: ["app/api/**/*.ts", "pd251/app/api/**/*.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
     },
@@ -49,7 +49,12 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["lib/superadmin/runSystemHealthScan.ts", "lib/superadmin/platformInfrastructureHealth.ts"],
+    files: [
+      "lib/superadmin/runSystemHealthScan.ts",
+      "lib/superadmin/platformInfrastructureHealth.ts",
+      "pd251/lib/superadmin/runSystemHealthScan.ts",
+      "pd251/lib/superadmin/platformInfrastructureHealth.ts",
+    ],
     rules: {
       // Supabase head-count queries use a fluent builder that is awkward to type precisely.
       "@typescript-eslint/no-explicit-any": "off",

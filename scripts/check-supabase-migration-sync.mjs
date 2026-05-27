@@ -10,6 +10,7 @@
  *
  * Optional env:
  *   SUPABASE_MIGRATION_CHECK_DB_URL=<postgres-url>    Read remote history by DB URL.
+ *   SUPABASE_DB_PUSH_URL=<postgres-url>                Fallback DB URL shared with db:push:env.
  *   SUPABASE_REMOTE_MIGRATION_VERSION=20260522135305 Compare against a known latest remote version.
  *     This legacy override can only prove the latest version, not full history.
  */
@@ -137,6 +138,7 @@ function listRemoteMigrations() {
   const cli = supabaseCliPath();
   const dbUrl =
     process.env.SUPABASE_MIGRATION_CHECK_DB_URL ||
+    process.env.SUPABASE_DB_PUSH_URL ||
     process.env.DATABASE_URL ||
     process.env.DIRECT_URL;
   const migrationArgs = ["migration", "list", "--output", "json"];
