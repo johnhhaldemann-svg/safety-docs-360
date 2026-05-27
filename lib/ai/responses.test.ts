@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { extractResponsesApiOutputText, requestAiResponsesText, runStructuredAiJsonTask } from "@/lib/ai/responses";
+import {
+  extractResponsesApiOutputText,
+  requestAiResponsesText,
+  resetAiModelAccessDenylistForTests,
+  runStructuredAiJsonTask,
+} from "@/lib/ai/responses";
 
 describe("extractResponsesApiOutputText", () => {
   it("reads top-level output_text", () => {
@@ -17,6 +22,7 @@ describe("extractResponsesApiOutputText", () => {
 
 describe("requestAiResponsesText", () => {
   afterEach(() => {
+    resetAiModelAccessDenylistForTests();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
@@ -124,6 +130,102 @@ describe("requestAiResponsesText", () => {
     expect(result.text).toBeNull();
     expect(result.meta.attempts).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes provider model access errors to the configured fallback model", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            error: {
+              message: "Project does not have access to model gpt-4.1-mini",
+              code: "model_not_found",
+            },
+          })
+        ),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ output_text: "fallback ok" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await requestAiResponsesText({
+      model: "gpt-4.1-mini",
+      accessFallbackModel: "gpt-4o-mini",
+      input: "hello",
+      surface: "gus.photo-review",
+      maxAttempts: 3,
+    });
+
+    expect(result.text).toBe("fallback ok");
+    expect(result.meta).toMatchObject({
+      model: "gpt-4o-mini",
+      provider: "openai",
+      fallbackUsed: true,
+      fallbackReason: "provider_model_access",
+      errorType: "provider_model_access",
+      attempts: 2,
+      primaryModel: "gpt-4.1-mini",
+      attemptedModels: ["gpt-4.1-mini", "gpt-4o-mini"],
+    });
+    const firstBody = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as { model: string };
+    const secondBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)) as { model: string };
+    expect(firstBody.model).toBe("gpt-4.1-mini");
+    expect(secondBody.model).toBe("gpt-4o-mini");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips a primary model after the provider denies access in the same process", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            error: {
+              message: "Project does not have access to model gpt-4.1-mini",
+              code: "model_not_found",
+            },
+          })
+        ),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ output_text: "first fallback" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ output_text: "second fallback" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestAiResponsesText({
+      model: "gpt-4.1-mini",
+      accessFallbackModel: "gpt-4o-mini",
+      input: "first",
+      surface: "gus.photo-review",
+    });
+    const second = await requestAiResponsesText({
+      model: "gpt-4.1-mini",
+      accessFallbackModel: "gpt-4o-mini",
+      input: "second",
+      surface: "gus.photo-review",
+    });
+
+    expect(second.text).toBe("second fallback");
+    const thirdBody = JSON.parse(String((fetchMock.mock.calls[2]?.[1] as RequestInit).body)) as { model: string };
+    expect(thirdBody.model).toBe("gpt-4o-mini");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("retries on thrown network errors", async () => {

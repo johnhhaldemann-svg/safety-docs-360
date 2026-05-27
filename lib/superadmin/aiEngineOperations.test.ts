@@ -94,6 +94,61 @@ describe("AI Engine Operations", () => {
     expect(metrics.byModel[0]?.key).toBe("gpt-test");
   });
 
+  it("counts traced fallback success as one final call without inflating failure rate", async () => {
+    const now = Date.now();
+    const client = {
+      from: () =>
+        new Query([
+          {
+            id: 1,
+            created_at: new Date(now).toISOString(),
+            surface: "gus.photo-review",
+            model: "gpt-4o-mini",
+            provider: "openai",
+            trace_id: "trace-photo-review",
+            latency_ms: 500,
+            status: "ok",
+            error_type: "provider_model_access",
+            fallback_used: true,
+            fallback_reason: "provider_model_access",
+            total_tokens: 25,
+          },
+          {
+            id: 2,
+            created_at: new Date(now - 1000).toISOString(),
+            surface: "gus.photo-review",
+            model: "gpt-4.1-mini",
+            provider: "openai",
+            trace_id: "trace-photo-review",
+            latency_ms: 200,
+            status: "http_error",
+            error_type: "provider_model_access",
+            http_status: 403,
+            fallback_used: true,
+            fallback_reason: "http_error",
+            total_tokens: 0,
+          },
+        ]),
+    };
+
+    const metrics = await getAiEngineMetrics(client, { surface: "gus.photo-review" });
+
+    expect(metrics.summary).toMatchObject({
+      totalCalls: 1,
+      fallbackCalls: 1,
+      failedCalls: 0,
+      fallbackRate: 1,
+      failureRate: 0,
+    });
+    expect(metrics.bySurface[0]).toMatchObject({
+      key: "gus.photo-review",
+      calls: 1,
+      fallbacks: 1,
+      failures: 0,
+    });
+    expect(metrics.recentFailures).toHaveLength(0);
+  });
+
   it("keeps AI telemetry and feedback tables unavailable to anon and authenticated roles", () => {
     const root = join(import.meta.dirname, "..", "..");
     const callLogMigration = readFileSync(
@@ -330,6 +385,40 @@ describe("AI Engine Operations", () => {
     expect(result.filters.limit).toBe(50);
     expect(result.rows).toHaveLength(1);
     expect(result.evidenceIds).toEqual(["call:call-1"]);
+  });
+
+  it("keeps successful fallback model-access rows queryable in call diagnostics", async () => {
+    const client = {
+      from: () =>
+        new Query([
+          {
+            id: "call-1",
+            created_at: new Date().toISOString(),
+            surface: "gus.photo-review",
+            status: "ok",
+            error_type: "provider_model_access",
+            trace_id: "trace-1",
+            model: "gpt-4o-mini",
+            provider: "openai",
+            fallback_used: true,
+            fallback_reason: "provider_model_access",
+          },
+        ]),
+    };
+
+    const result = await runAiEngineReadOnlyTool(client, "get_ai_calls", {
+      surface: "gus.photo-review",
+      errorType: "provider_model_access",
+      limit: 500,
+    });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      status: "ok",
+      error_type: "provider_model_access",
+      fallback_used: true,
+      fallback_reason: "provider_model_access",
+    });
   });
 
   it("summarizes visual generation job health without mutating rows", async () => {

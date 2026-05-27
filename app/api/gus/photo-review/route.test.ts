@@ -15,7 +15,7 @@ vi.mock("@/lib/gus/gusPhotoReview", () => ({ runGusPhotoReview: mocks.runGusPhot
 import { POST } from "@/app/api/gus/photo-review/route";
 
 const aiMeta = {
-  model: "gpt-4.1-mini",
+  model: "gpt-4o-mini",
   provider: "openai",
   promptHash: "hash",
   fallbackUsed: false,

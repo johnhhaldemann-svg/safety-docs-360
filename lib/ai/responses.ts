@@ -7,12 +7,14 @@ import {
   type AiCallErrorType,
   type AiCallUsage,
 } from "@/lib/ai/callLog";
+import { serverLog } from "@/lib/serverLog";
 
 export type AiFallbackReason =
   | "no_openai_api_key"
   | "http_error"
   | "exception"
   | "empty_output_text"
+  | "provider_model_access"
   | "invalid_json"
   | null;
 
@@ -34,6 +36,8 @@ export type AiExecutionMeta = {
   cacheHit?: boolean;
   toolCallsUsed?: number;
   evalFixtureId?: string | null;
+  primaryModel?: string | null;
+  attemptedModels?: string[];
 };
 
 export function extractResponsesApiOutputText(json: unknown): string | null {
@@ -66,6 +70,24 @@ export function extractResponsesApiOutputText(json: unknown): string | null {
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 250;
+const modelAccessDenylist = new Set<string>();
+
+function modelAccessDenylistKey(baseUrl: string, model: string): string {
+  return `${resolveAiProvider(model)}|${baseUrl}|${model}`;
+}
+
+function isModelAccessDenied(baseUrl: string, model: string): boolean {
+  return modelAccessDenylist.has(modelAccessDenylistKey(baseUrl, model));
+}
+
+function rememberModelAccessDenied(baseUrl: string, model: string): void {
+  modelAccessDenylist.add(modelAccessDenylistKey(baseUrl, model));
+}
+
+export function resetAiModelAccessDenylistForTests(): void {
+  if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") return;
+  modelAccessDenylist.clear();
+}
 
 function shouldRetry(httpStatus: number): boolean {
   return httpStatus === 408 || httpStatus === 425 || httpStatus === 429 || (httpStatus >= 500 && httpStatus < 600);
@@ -99,6 +121,8 @@ export async function requestAiResponsesText(params: {
   toolCallsUsed?: number | null;
   /** Override retry attempts (default 3). Set to 1 to disable retries. */
   maxAttempts?: number;
+  /** Fallback model to try when the primary model is denied by the provider. */
+  accessFallbackModel?: string | null;
   /** Optional abort signal for caller-specific timeouts. */
   signal?: AbortSignal;
 }): Promise<{
@@ -163,42 +187,191 @@ export async function requestAiResponsesText(params: {
     return { text: null, json: null, meta };
   }
 
-  const model = resolveAiModelId(params.model);
-  const provider = resolveAiProvider(model);
+  const apiBaseUrl = getAiApiBaseUrl();
+  const primaryModel = resolveAiModelId(params.model);
+  const accessFallbackModel = params.accessFallbackModel?.trim()
+    ? resolveAiModelId(params.accessFallbackModel)
+    : null;
   const promptHash = buildAiPromptHash(typeof params.input === "string" ? params.input : JSON.stringify(params.input));
   const maxAttempts = Math.max(1, params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
 
+  const candidateModels =
+    accessFallbackModel && accessFallbackModel !== primaryModel
+      ? [primaryModel, accessFallbackModel]
+      : [primaryModel];
+  const attemptedModels: string[] = [];
+  let accessFallbackUsed = false;
+  let accessFallbackReason: "provider_model_access" | null = null;
   let attempt = 0;
   let lastHttpStatus: number | null = null;
   let lastErrorMessage: string | null = null;
 
-  while (attempt < maxAttempts) {
-    attempt += 1;
-    try {
-      const response = await fetch(`${getAiApiBaseUrl()}/responses`, {
-        method: "POST",
-        signal: params.signal,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          input: params.input,
-          ...(params.body ?? {}),
-        }),
-      });
+  for (const model of candidateModels) {
+    const provider = resolveAiProvider(model);
+    if (model === primaryModel && accessFallbackModel && isModelAccessDenied(apiBaseUrl, model)) {
+      accessFallbackUsed = true;
+      accessFallbackReason = "provider_model_access";
+      continue;
+    }
+    if (model !== primaryModel) {
+      accessFallbackUsed = true;
+      accessFallbackReason = "provider_model_access";
+    }
 
-      lastHttpStatus = response.status;
+    let modelAttempt = 0;
+    while (modelAttempt < maxAttempts) {
+      modelAttempt += 1;
+      attempt += 1;
+      if (!attemptedModels.includes(model)) attemptedModels.push(model);
+      try {
+        const response = await fetch(`${apiBaseUrl}/responses`, {
+          method: "POST",
+          signal: params.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            input: params.input,
+            ...(params.body ?? {}),
+          }),
+        });
 
-      if (!response.ok) {
-        if (attempt < maxAttempts && shouldRetry(response.status)) {
-          await sleep(backoffDelay(attempt, DEFAULT_BACKOFF_MS));
-          continue;
+        lastHttpStatus = response.status;
+
+        if (!response.ok) {
+          if (modelAttempt < maxAttempts && shouldRetry(response.status)) {
+            await sleep(backoffDelay(modelAttempt, DEFAULT_BACKOFF_MS));
+            continue;
+          }
+
+          const errText =
+            typeof response.text === "function" ? await response.text().catch(() => "") : "";
+          const errorType = classifyAiCallError({
+            httpStatus: response.status,
+            fallbackReason: "http_error",
+            errorMessage: errText,
+          });
+
+          if (errorType === "provider_model_access" && accessFallbackModel && model !== accessFallbackModel) {
+            rememberModelAccessDenied(apiBaseUrl, model);
+            accessFallbackUsed = true;
+            accessFallbackReason = "provider_model_access";
+            lastErrorMessage = errText || `http_${response.status}`;
+            serverLog("warn", "ai_model_access_denied", {
+              surface,
+              provider,
+              model,
+              fallbackModel: accessFallbackModel,
+              httpStatus: response.status,
+              traceId,
+            });
+            break;
+          }
+
+          const meta: AiExecutionMeta = {
+            model,
+            provider,
+            promptHash,
+            traceId,
+            promptVersion,
+            outputSchemaVersion,
+            fallbackUsed: true,
+            fallbackReason: "http_error",
+            errorType,
+            attempts: attempt,
+            retryCount: Math.max(0, attempt - 1),
+            latencyMs: Date.now() - startedAt,
+            usage: null,
+            surface,
+            cacheHit,
+            toolCallsUsed,
+            evalFixtureId,
+            primaryModel,
+            attemptedModels,
+          };
+          recordAiCall({
+            surface,
+            model,
+            provider,
+            promptHash,
+            traceId,
+            promptVersion,
+            outputSchemaVersion,
+            latencyMs: meta.latencyMs,
+            status: "http_error",
+            httpStatus: response.status,
+            attempts: attempt,
+            fallbackUsed: true,
+            fallbackReason: "http_error",
+            errorType: meta.errorType,
+            errorMessage: errText.slice(0, 500) || `http_${response.status}`,
+            cacheHit,
+            toolCallsUsed,
+            evalFixtureId,
+          });
+          return { text: null, json: null, meta };
         }
 
-        const errText =
-          typeof response.text === "function" ? await response.text().catch(() => "") : "";
+        const json = (await response.json().catch(() => null)) as unknown;
+        const text = extractResponsesApiOutputText(json);
+        const usage = extractResponsesApiUsage(json);
+        const latencyMs = Date.now() - startedAt;
+        const fallbackUsed = !text || accessFallbackUsed;
+        const fallbackReason = !text ? "empty_output_text" : accessFallbackReason;
+        const errorType = !text ? "empty_output" : accessFallbackReason;
+
+        const meta: AiExecutionMeta = {
+          model,
+          provider,
+          promptHash,
+          traceId,
+          promptVersion,
+          outputSchemaVersion,
+          fallbackUsed,
+          fallbackReason,
+          errorType,
+          attempts: attempt,
+          retryCount: Math.max(0, attempt - 1),
+          latencyMs,
+          usage,
+          surface,
+          cacheHit,
+          toolCallsUsed,
+          evalFixtureId,
+          primaryModel,
+          attemptedModels,
+        };
+        recordAiCall({
+          surface,
+          model,
+          provider,
+          promptHash,
+          traceId,
+          promptVersion,
+          outputSchemaVersion,
+          latencyMs,
+          status: text ? "ok" : "fallback",
+          httpStatus: response.status,
+          attempts: attempt,
+          fallbackUsed,
+          fallbackReason,
+          errorType,
+          usage,
+          errorMessage: !text ? "empty_output_text" : lastErrorMessage?.slice(0, 500) ?? null,
+          cacheHit,
+          toolCallsUsed,
+          evalFixtureId,
+        });
+
+        return { text, json, meta };
+      } catch (error) {
+        lastErrorMessage = error instanceof Error ? error.message : String(error);
+        if (modelAttempt < maxAttempts) {
+          await sleep(backoffDelay(modelAttempt, DEFAULT_BACKOFF_MS));
+          continue;
+        }
         const meta: AiExecutionMeta = {
           model,
           provider,
@@ -207,11 +380,11 @@ export async function requestAiResponsesText(params: {
           promptVersion,
           outputSchemaVersion,
           fallbackUsed: true,
-          fallbackReason: "http_error",
+          fallbackReason: "exception",
           errorType: classifyAiCallError({
-            httpStatus: response.status,
-            fallbackReason: "http_error",
-            errorMessage: errText,
+            httpStatus: lastHttpStatus,
+            fallbackReason: "exception",
+            errorMessage: lastErrorMessage,
           }),
           attempts: attempt,
           retryCount: Math.max(0, attempt - 1),
@@ -221,6 +394,8 @@ export async function requestAiResponsesText(params: {
           cacheHit,
           toolCallsUsed,
           evalFixtureId,
+          primaryModel,
+          attemptedModels,
         };
         recordAiCall({
           surface,
@@ -231,125 +406,26 @@ export async function requestAiResponsesText(params: {
           promptVersion,
           outputSchemaVersion,
           latencyMs: meta.latencyMs,
-          status: "http_error",
-          httpStatus: response.status,
+          status: "exception",
+          httpStatus: lastHttpStatus,
           attempts: attempt,
           fallbackUsed: true,
-          fallbackReason: "http_error",
+          fallbackReason: "exception",
           errorType: meta.errorType,
-          errorMessage: errText.slice(0, 500) || `http_${response.status}`,
+          errorMessage: lastErrorMessage?.slice(0, 240) ?? "unknown_exception",
           cacheHit,
           toolCallsUsed,
           evalFixtureId,
         });
         return { text: null, json: null, meta };
       }
-
-      const json = (await response.json().catch(() => null)) as unknown;
-      const text = extractResponsesApiOutputText(json);
-      const usage = extractResponsesApiUsage(json);
-      const latencyMs = Date.now() - startedAt;
-      const fallbackUsed = !text;
-
-      const meta: AiExecutionMeta = {
-        model,
-        provider,
-        promptHash,
-        traceId,
-        promptVersion,
-        outputSchemaVersion,
-        fallbackUsed,
-        fallbackReason: fallbackUsed ? "empty_output_text" : null,
-        errorType: fallbackUsed ? "empty_output" : null,
-        attempts: attempt,
-        retryCount: Math.max(0, attempt - 1),
-        latencyMs,
-        usage,
-        surface,
-        cacheHit,
-        toolCallsUsed,
-        evalFixtureId,
-      };
-      recordAiCall({
-        surface,
-        model,
-        provider,
-        promptHash,
-        traceId,
-        promptVersion,
-        outputSchemaVersion,
-        latencyMs,
-        status: fallbackUsed ? "fallback" : "ok",
-        httpStatus: response.status,
-        attempts: attempt,
-        fallbackUsed,
-        fallbackReason: fallbackUsed ? "empty_output_text" : null,
-        errorType: meta.errorType,
-        usage,
-        errorMessage: fallbackUsed ? "empty_output_text" : null,
-        cacheHit,
-        toolCallsUsed,
-        evalFixtureId,
-      });
-
-      return { text, json, meta };
-    } catch (error) {
-      lastErrorMessage = error instanceof Error ? error.message : String(error);
-      if (attempt < maxAttempts) {
-        await sleep(backoffDelay(attempt, DEFAULT_BACKOFF_MS));
-        continue;
-      }
-      const meta: AiExecutionMeta = {
-        model,
-        provider,
-        promptHash,
-        traceId,
-        promptVersion,
-        outputSchemaVersion,
-        fallbackUsed: true,
-        fallbackReason: "exception",
-        errorType: classifyAiCallError({
-          httpStatus: lastHttpStatus,
-          fallbackReason: "exception",
-          errorMessage: lastErrorMessage,
-        }),
-        attempts: attempt,
-        retryCount: Math.max(0, attempt - 1),
-        latencyMs: Date.now() - startedAt,
-        usage: null,
-        surface,
-        cacheHit,
-        toolCallsUsed,
-        evalFixtureId,
-      };
-      recordAiCall({
-        surface,
-        model,
-        provider,
-        promptHash,
-        traceId,
-        promptVersion,
-        outputSchemaVersion,
-        latencyMs: meta.latencyMs,
-        status: "exception",
-        httpStatus: lastHttpStatus,
-        attempts: attempt,
-        fallbackUsed: true,
-        fallbackReason: "exception",
-        errorType: meta.errorType,
-        errorMessage: lastErrorMessage?.slice(0, 240) ?? "unknown_exception",
-        cacheHit,
-        toolCallsUsed,
-        evalFixtureId,
-      });
-      return { text: null, json: null, meta };
     }
   }
 
   /** Unreachable; satisfies the type checker. */
   const meta: AiExecutionMeta = {
-    model,
-    provider,
+    model: primaryModel,
+    provider: resolveAiProvider(primaryModel),
     promptHash,
     traceId,
     promptVersion,
@@ -365,6 +441,8 @@ export async function requestAiResponsesText(params: {
     cacheHit,
     toolCallsUsed,
     evalFixtureId,
+    primaryModel,
+    attemptedModels,
   };
   return { text: null, json: null, meta };
 }
@@ -401,6 +479,7 @@ export async function runStructuredAiJsonTask<T>(params: {
     body: params.body,
     surface: params.surface,
     maxAttempts: params.maxAttempts,
+    accessFallbackModel: params.fallbackModel,
     promptVersion: params.promptVersion,
     outputSchemaVersion: params.outputSchemaVersion,
     traceId: params.traceId,
