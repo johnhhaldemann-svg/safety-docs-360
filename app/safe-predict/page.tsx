@@ -1298,7 +1298,7 @@ function AtAGlanceBand({
       icon: <ShieldAlert className="h-5 w-5" />,
       href: "/safe-predict/risk-mitigation#prioritized-risk-queue",
       tone: liveWithoutRiskData
-        ? "border-slate-200 bg-slate-50 text-slate-600"
+        ? "border-slate-200 bg-slate-50 text-slate-700"
         : overallRiskLevel === "critical" || overallRiskLevel === "high"
           ? "border-red-200 bg-red-50 text-red-700"
           : overallRiskLevel === "medium"
@@ -1311,7 +1311,7 @@ function AtAGlanceBand({
       detail: liveWithoutForecast ? "Needs forecast inputs" : "High",
       icon: <TrendingUp className="h-5 w-5" />,
       href: "/safe-predict/predictive-risk#forecast-drivers",
-      tone: liveWithoutForecast ? "border-slate-200 bg-slate-50 text-slate-600" : "border-orange-200 bg-orange-50 text-orange-700",
+      tone: liveWithoutForecast ? "border-slate-200 bg-slate-50 text-slate-700" : "border-orange-200 bg-orange-50 text-orange-700",
     },
     {
       title: "Open actions",
@@ -1319,7 +1319,7 @@ function AtAGlanceBand({
       detail: liveWithoutOpenActions ? "No active queue" : "Needs follow-up",
       icon: <ClipboardCheck className="h-5 w-5" />,
       href: "/safe-predict/corrective-actions",
-      tone: liveWithoutOpenActions ? "border-slate-200 bg-slate-50 text-slate-600" : "border-red-200 bg-red-50 text-red-700",
+      tone: liveWithoutOpenActions ? "border-slate-200 bg-slate-50 text-slate-700" : "border-red-200 bg-red-50 text-red-700",
     },
     {
       title: "Completed inspections",
@@ -1327,7 +1327,7 @@ function AtAGlanceBand({
       detail: liveWithoutCompletedInspections ? "No completed rows" : "This week",
       icon: <ShieldCheck className="h-5 w-5" />,
       href: "/safe-predict/inspections",
-      tone: liveWithoutCompletedInspections ? "border-slate-200 bg-slate-50 text-slate-600" : "border-emerald-200 bg-emerald-50 text-emerald-700",
+      tone: liveWithoutCompletedInspections ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-700",
     },
     {
       title: "Training compliance",
@@ -1335,7 +1335,7 @@ function AtAGlanceBand({
       detail: liveWithoutTrainingData ? "Add workers or training rows" : "Compliant",
       icon: <GraduationCap className="h-5 w-5" />,
       href: "/safe-predict/workforce#training-matrix",
-      tone: liveWithoutTrainingData ? "border-slate-200 bg-slate-50 text-slate-600" : "border-emerald-200 bg-emerald-50 text-emerald-700",
+      tone: liveWithoutTrainingData ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-700",
     },
   ];
 

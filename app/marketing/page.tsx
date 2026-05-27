@@ -302,7 +302,7 @@ export default function MarketingPage() {
               <h2 className="mt-4 font-app-display text-3xl font-black tracking-normal sm:text-4xl">
                 Bring your safety program into one working system.
               </h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-white/88">
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-white">
                 Book a walkthrough, request a company workspace, or open the workspace if your team is already active.
               </p>
             </div>
