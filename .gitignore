@@ -61,6 +61,7 @@ yarn-error.log*
 
 # local Codex worktrees and generated scratch output
 /.codex_worktrees/
+/.codex-temp/
 /.codex-docx-review/
 /.codex-prod-deploy/
 /.codex-reference-render/

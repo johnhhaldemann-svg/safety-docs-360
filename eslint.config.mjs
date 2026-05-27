@@ -69,6 +69,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".codex-deploy-snapshot/**",
+    ".codex-temp/**",
     ".codex_worktrees/**",
     ".codex_tmp/**",
     ".codex-prod-deploy/**",
