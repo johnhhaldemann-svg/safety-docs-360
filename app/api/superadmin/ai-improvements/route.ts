@@ -4,14 +4,13 @@ import {
   listAiImprovementRequests,
 } from "@/lib/superadmin/aiImprovementRequests";
 import {
-  AI_IMPROVEMENT_ROUTE_RUNTIME,
   getAiImprovementClient,
   requestIpAddress,
   requestUserAgent,
   requireAiImprovementSuperadmin,
 } from "./_shared";
 
-export const runtime = AI_IMPROVEMENT_ROUTE_RUNTIME;
+export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const auth = await requireAiImprovementSuperadmin(request);

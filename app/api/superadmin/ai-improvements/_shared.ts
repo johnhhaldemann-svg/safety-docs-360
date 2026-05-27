@@ -3,8 +3,6 @@ import { authorizeRequest, normalizeAppRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import type { AiImprovementSupabaseClient } from "@/lib/superadmin/aiImprovementRequests";
 
-export const AI_IMPROVEMENT_ROUTE_RUNTIME = "nodejs";
-
 export function requestIpAddress(request: Request) {
   return (
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -38,4 +36,3 @@ export async function requireAiImprovementSuperadmin(request: Request) {
 
   return auth;
 }
-

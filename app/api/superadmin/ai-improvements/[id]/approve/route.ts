@@ -7,13 +7,12 @@ import {
   type AiImprovementActor,
 } from "@/lib/superadmin/aiImprovementRequests";
 import {
-  AI_IMPROVEMENT_ROUTE_RUNTIME,
   getAiImprovementClient,
   requestIpAddress,
   requestUserAgent,
 } from "../../_shared";
 
-export const runtime = AI_IMPROVEMENT_ROUTE_RUNTIME;
+export const runtime = "nodejs";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -89,4 +88,3 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: message }, { status });
   }
 }
-

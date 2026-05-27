@@ -4,14 +4,13 @@ import {
   updateAiImprovementRequest,
 } from "@/lib/superadmin/aiImprovementRequests";
 import {
-  AI_IMPROVEMENT_ROUTE_RUNTIME,
   getAiImprovementClient,
   requestIpAddress,
   requestUserAgent,
   requireAiImprovementSuperadmin,
 } from "../_shared";
 
-export const runtime = AI_IMPROVEMENT_ROUTE_RUNTIME;
+export const runtime = "nodejs";
 
 type RouteContext = {
   params: Promise<{ id: string }>;

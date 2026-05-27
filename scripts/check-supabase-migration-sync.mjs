@@ -150,12 +150,21 @@ function listRemoteMigrations() {
       ? migrationArgs
       : ["supabase", ...migrationArgs];
 
-  const result = spawnSync(cli, args, {
+  let result = spawnSync(cli, args, {
     cwd: root,
     env: process.env,
     encoding: "utf8",
     shell: false,
   });
+
+  if (process.platform === "win32" && result.error?.code === "EPERM") {
+    result = spawnSync(cli, args, {
+      cwd: root,
+      env: process.env,
+      encoding: "utf8",
+      shell: true,
+    });
+  }
 
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
   if (result.status !== 0) {
