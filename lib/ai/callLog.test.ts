@@ -56,6 +56,23 @@ describe("classifyAiCallError", () => {
     ).toBe("provider_model_access");
   });
 
+  it("classifies OpenAI JSON model access errors before generic 403 auth errors", () => {
+    expect(
+      classifyAiCallError({
+        httpStatus: 403,
+        fallbackReason: "http_error",
+        errorMessage: JSON.stringify({
+          error: {
+            message: "The project does not have access to this model.",
+            type: "invalid_request_error",
+            param: "model",
+            code: "model_not_found",
+          },
+        }),
+      })
+    ).toBe("provider_model_access");
+  });
+
   it("classifies common provider and output failures", () => {
     expect(classifyAiCallError({ httpStatus: 429, fallbackReason: "http_error" })).toBe("provider_rate_limit");
     expect(classifyAiCallError({ httpStatus: 503, fallbackReason: "http_error" })).toBe("provider_server_error");

@@ -72,11 +72,13 @@ describe("Gus photo review", () => {
     expect(result.output?.criticalFlags.join(" ")).toMatch(/fall exposure/i);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(String(init.body)) as {
+      model: string;
       input: Array<{ content: Array<Record<string, unknown>> }>;
       text: { format: { name: string; strict: boolean } };
     };
     const imagePart = body.input[0]?.content.find((part) => part.type === "input_image");
 
+    expect(body.model).toBe("gpt-4o-mini");
     expect(body.text.format.name).toBe("gus_photo_review");
     expect(body.text.format.strict).toBe(true);
     expect(imagePart).toMatchObject({
