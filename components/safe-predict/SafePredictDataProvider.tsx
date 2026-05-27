@@ -432,6 +432,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           reportsPayload,
           documentsPayload,
           usersPayload,
+          oshaSummaryPayload,
           mePayload,
         ] = await Promise.all([
           fetchJsonWithToken("/api/company/jobsites", token),
@@ -444,6 +445,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
           fetchJsonWithToken("/api/company/reports", token),
           fetchJsonWithToken("/api/workspace/documents", token),
           fetchJsonWithToken("/api/company/users", token),
+          fetchJsonWithToken("/api/company/osha-logs/summary?jobsiteId=all", token),
           fetchJsonWithToken("/api/auth/me", token),
         ]);
         const liveJobsites = extractRows(jobsitesPayload, ["jobsites"]) as SafePredictLiveJobsiteRow[];
@@ -497,6 +499,7 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
             liveDocuments,
             liveUsers,
             liveTrainingMatrix: trainingPayload,
+            liveOshaLogSummary: objectPayloadValue(oshaSummaryPayload, ["summary"]) as SafePredictDataset["oshaLogSummary"] | null,
           }));
         }
       } catch {

@@ -87,6 +87,50 @@ describe("safePredictData", () => {
     });
   });
 
+  it("uses OSHA log summaries as deidentified forecast drivers and confidence signals", () => {
+    const dataset = buildSafePredictDataset({
+      mode: "live",
+      liveCompany: { name: "Test Constructors" },
+      liveJobsites: [{ id: "live-site-1", name: "North Pier Expansion", status: "active" }],
+      liveOshaLogSummary: {
+        imports: 1,
+        cases: 3,
+        recordableCases: 3,
+        missingData: [],
+        topDrivers: [{
+          key: "back|strain|overexertion|material_handling",
+          label: "Back Strain",
+          detail: "3 OSHA-log cases share overexertion / material handling patterns.",
+          nextAction: "Review this pattern today, verify controls with supervisors, and assign prevention actions before similar work continues.",
+          riskLevel: "high",
+          score: 62,
+          count: 3,
+          recordableCount: 3,
+          severeCount: 2,
+          daysAwayTotal: 8,
+          daysRestrictedTotal: 2,
+          bodyPart: "back",
+          injuryType: "strain",
+          exposureEventType: "overexertion",
+          injurySource: "material_handling",
+          latestOccurredOn: "2026-03-04",
+        }],
+      },
+    });
+
+    expect(hasSafePredictForecastInputs(dataset, "live-site-1")).toBe(true);
+    const reasons = forecastReasonsForSite(dataset, "live-site-1", [{ date: "Now", predictedRisk: 70 }]);
+    expect(reasons[0]?.topDrivers[0]).toMatchObject({
+      source: "osha_logs",
+      label: "OSHA repeat pattern: Back Strain",
+      riskLevel: "high",
+    });
+    expect(reasons[0]?.evidence.join(" ")).not.toMatch(/John|Smith|raw/i);
+    const confidence = forecastConfidenceForSite(dataset, "live-site-1");
+    expect(confidence.sourceCount).toBe(1);
+    expect(confidence.signalCount).toBe(3);
+  });
+
   it("normalizes live jobsites without inheriting demo portfolio metadata", () => {
     const dataset = buildSafePredictDataset({
       mode: "live",

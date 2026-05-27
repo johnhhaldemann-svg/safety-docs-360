@@ -26,6 +26,30 @@ vi.mock("@/components/safe-predict/SafePredictDataProvider", async () => {
     liveIncidents: [{ id: "inc-1", jobsite_id: "live-high", title: "Near miss at stair tower", status: "open", severity: "high" }],
     liveInspections: [{ id: "audit-1", jobsite_id: "live-high", title: "Daily walk", status: "failed", failed_items: 2 }],
     liveDocuments: [{ id: "doc-1", jobsite_id: "live-high", title: "North Pier JSA", document_type: "JSA", status: "approved" }],
+    liveOshaLogSummary: {
+      imports: 1,
+      cases: 2,
+      recordableCases: 2,
+      missingData: [],
+      topDrivers: [{
+        key: "back|strain|overexertion|material_handling",
+        label: "Back Strain",
+        detail: "2 OSHA-log cases share overexertion / material handling patterns.",
+        nextAction: "Review the pattern and verify controls.",
+        riskLevel: "high",
+        score: 58,
+        count: 2,
+        recordableCount: 2,
+        severeCount: 2,
+        daysAwayTotal: 4,
+        daysRestrictedTotal: 1,
+        bodyPart: "back",
+        injuryType: "strain",
+        exposureEventType: "overexertion",
+        injurySource: "material_handling",
+        latestOccurredOn: "2026-03-04",
+      }],
+    },
   });
 
   return {
@@ -44,6 +68,8 @@ vi.mock("@/components/safe-predict/SafePredictDataProvider", async () => {
       addDraftIncident: vi.fn(),
       addDraftPermit: vi.fn(),
       addDraftJobsite: vi.fn(),
+      updatePermit: vi.fn(),
+      refreshLiveData: vi.fn(),
     }),
   };
 });
@@ -73,6 +99,8 @@ describe("SafePredictNativeWorkspace analytics", () => {
     const html = renderToStaticMarkup(<SafePredictNativeWorkspace workspace="incidents" />);
 
     expect(html).toContain("Log Incident");
+    expect(html).toContain("Upload OSHA Log");
+    expect(html).toContain("OSHA Log Prevention Signals");
     expect(html).not.toContain('href="/safe-predict/incidents"');
   });
 

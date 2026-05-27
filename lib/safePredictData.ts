@@ -34,6 +34,7 @@ import {
   permitReadinessLabel,
   type SafePredictPermitForm,
 } from "@/lib/safePredictPermitForms";
+import type { OshaLogSummary, OshaRepeatInjuryDriver } from "@/lib/oshaLogs";
 
 export type SafePredictDataMode = "demo" | "live";
 
@@ -221,6 +222,8 @@ export type SafePredictTrainingMatrix = {
   schemaWarning?: string | null;
 };
 
+export type SafePredictOshaLogSummary = OshaLogSummary;
+
 export type SafePredictDataset = {
   mode: SafePredictDataMode;
   company: SafePredictDemoCompany;
@@ -242,6 +245,7 @@ export type SafePredictDataset = {
   documents: SafePredictDocumentRecord[];
   reports: SafePredictReportRecord[];
   trainingMatrix: SafePredictTrainingMatrix;
+  oshaLogSummary: SafePredictOshaLogSummary;
 };
 
 export type SafePredictForecastConfidence = {
@@ -267,7 +271,8 @@ export type SafePredictForecastReasonDriver = {
     | "permits"
     | "hazards"
     | "observations"
-    | "workforce";
+    | "workforce"
+    | "osha_logs";
   nextAction: string;
 };
 
@@ -1203,6 +1208,16 @@ function buildReportRecords(): SafePredictReportRecord[] {
   }));
 }
 
+function emptyOshaLogSummary(): SafePredictOshaLogSummary {
+  return {
+    imports: 0,
+    cases: 0,
+    recordableCases: 0,
+    topDrivers: [],
+    missingData: [],
+  };
+}
+
 export function buildSafePredictDataset({
   mode = "demo",
   liveCompany,
@@ -1217,6 +1232,7 @@ export function buildSafePredictDataset({
   liveDocuments = [],
   liveUsers = [],
   liveTrainingMatrix = null,
+  liveOshaLogSummary = null,
 }: {
   mode?: SafePredictDataMode;
   liveCompany?: SafePredictLiveCompanyInput | null;
@@ -1231,6 +1247,7 @@ export function buildSafePredictDataset({
   liveDocuments?: SafePredictLiveRecordRow[];
   liveUsers?: SafePredictLiveRecordRow[];
   liveTrainingMatrix?: SafePredictLiveRecordRow | null;
+  liveOshaLogSummary?: SafePredictOshaLogSummary | null;
 } = {}): SafePredictDataset {
   if (mode !== "live") {
     const demoJobsites = safePredictDemoJobsites.map(withSiteMetrics);
@@ -1263,6 +1280,7 @@ export function buildSafePredictDataset({
       documents: buildDocumentRecords(),
       reports: buildReportRecords(),
       trainingMatrix: { requirements: [], rows: [], schemaWarning: null },
+      oshaLogSummary: emptyOshaLogSummary(),
     };
   }
 
@@ -1334,6 +1352,7 @@ export function buildSafePredictDataset({
     documents,
     reports,
     trainingMatrix,
+    oshaLogSummary: liveOshaLogSummary ?? emptyOshaLogSummary(),
   };
 }
 
@@ -1423,7 +1442,8 @@ export function hasSafePredictForecastInputs(dataset: SafePredictDataset, siteId
     inScope(dataset.inspections) ||
     inScope(dataset.permits) ||
     inScope(dataset.hazards) ||
-    dataset.employees.some((employee) => siteIds.has(employee.assignedSiteId))
+    dataset.employees.some((employee) => siteIds.has(employee.assignedSiteId)) ||
+    dataset.oshaLogSummary.cases > 0
   );
 }
 
@@ -1445,7 +1465,11 @@ function generatedLiveForecast(dataset: SafePredictDataset, siteId: string) {
     dataset.inspections.filter((row) => siteIds.has(row.siteId) && row.status !== "Completed").length +
     dataset.permits.filter((row) => siteIds.has(row.siteId) && row.status !== "Active").length +
     dataset.hazards.filter((row) => siteIds.has(row.siteId) && row.controlStatus !== "Controlled").length;
-  const pressure = Math.min(10, openActions * 1.2 + unresolvedSignals * 1.4);
+  const oshaRepeatPressure = Math.min(
+    8,
+    dataset.oshaLogSummary.topDrivers.reduce((sum, driver) => sum + (driver.riskLevel === "critical" ? 3 : driver.riskLevel === "high" ? 2 : 1), 0)
+  );
+  const pressure = Math.min(18, Math.min(10, openActions * 1.2 + unresolvedSignals * 1.4) + oshaRepeatPressure);
   const mitigation = Math.min(8, closedActions * 1.5);
   const anchors = [-6, -3, 0, 3, 5, 7, 5, 2, -1, -4];
   const forecastBase = score > 90 ? 90 + (score - 90) * 0.45 : score;
@@ -1604,6 +1628,21 @@ function workforceDriver(employees: SafePredictDemoEmployee[]): SafePredictForec
   };
 }
 
+function driverFromOshaRepeatPattern(driver: OshaRepeatInjuryDriver): SafePredictForecastReasonDriver {
+  const score = Math.min(48, Math.round(driver.score * 0.48) + (driver.riskLevel === "critical" ? 10 : driver.riskLevel === "high" ? 6 : 2));
+  return {
+    id: `osha-${driver.key}`,
+    label: `OSHA repeat pattern: ${driver.label}`,
+    detail: "Deidentified OSHA log history shows a repeat injury pattern that should inform planning and controls.",
+    evidence: `${driver.count} deidentified OSHA-log case${driver.count === 1 ? "" : "s"} share this pattern; ${driver.recordableCount} recordable and ${driver.severeCount} high/critical case${driver.severeCount === 1 ? "" : "s"}.`,
+    count: driver.count,
+    score,
+    riskLevel: driver.riskLevel,
+    source: "osha_logs",
+    nextAction: driver.nextAction,
+  };
+}
+
 function forecastHeadline(score: number, riskLevel: SafePredictRiskLevel, drivers: SafePredictForecastReasonDriver[]) {
   const driverLabel = drivers[0]?.label ?? "limited connected signal data";
   if (riskLevel === "critical") return `${score}/100 critical risk is driven primarily by ${driverLabel}.`;
@@ -1638,12 +1677,13 @@ export function forecastReasonsForSite(
     ...scopedRows(dataset.observations, siteIds)
       .filter((observation) => observation.status !== "Closed" && observation.riskLevel !== "low")
       .map(driverFromObservation),
+    ...dataset.oshaLogSummary.topDrivers.map(driverFromOshaRepeatPattern),
     ...(workforce ? [workforce] : []),
   ].sort((a, b) => b.score - a.score || b.count - a.count || a.label.localeCompare(b.label));
 
   const missingDataNote =
     drivers.length === 0
-      ? "No connected corrective actions, incidents, inspections, permits, hazards, observations, or workforce readiness gaps are available for this forecast point."
+      ? "No connected corrective actions, incidents, inspections, permits, hazards, observations, OSHA log patterns, or workforce readiness gaps are available for this forecast point."
       : undefined;
 
   return points.map((point): SafePredictForecastReason => {
@@ -1681,6 +1721,7 @@ export function forecastConfidenceForSite(dataset: SafePredictDataset, siteId: s
     permits: countScoped(dataset.permits),
     hazards: countScoped(dataset.hazards),
     employees: dataset.employees.filter((employee) => siteIds.has(employee.assignedSiteId)).length,
+    oshaLogCases: dataset.oshaLogSummary.cases,
     forecastPoints: riskForecastForSite(dataset, siteId).length,
   };
   const signalCount =
@@ -1690,7 +1731,8 @@ export function forecastConfidenceForSite(dataset: SafePredictDataset, siteId: s
     counts.inspections +
     counts.permits +
     counts.hazards +
-    counts.employees;
+    counts.employees +
+    counts.oshaLogCases;
   const sourceCount = Object.entries(counts).filter(([key, count]) => key !== "forecastPoints" && count > 0).length;
 
   if (siteIds.size === 0 || scopedJobsites.length === 0 || !hasSafePredictForecastInputs(dataset, siteId)) {

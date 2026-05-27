@@ -65,7 +65,10 @@ function buildSafePredictGusContext(dataset: SafePredictDataset, selectedJobsite
   const aiContext = buildGusContextFromSafetyAiAssessment(safetyAiAssessment);
   const forecastRiskLevel = peakReason ? toGusRiskLevel(peakReason.riskLevel) : toGusRiskLevel(selectedSite?.riskLevel);
   const forecastDrivers = peakReason?.topDrivers.map((driver) => driver.label) ?? [];
-  const linkedRiskDrivers = [...new Set([...(aiContext.riskDrivers ?? []), ...forecastDrivers])].slice(0, 8);
+  const oshaRepeatDrivers = dataset.oshaLogSummary.topDrivers.map(
+    (driver) => `Deidentified OSHA repeat pattern: ${driver.label}; ${driver.count} case${driver.count === 1 ? "" : "s"}`
+  );
+  const linkedRiskDrivers = [...new Set([...(aiContext.riskDrivers ?? []), ...forecastDrivers, ...oshaRepeatDrivers])].slice(0, 8);
 
   return {
     ...aiContext,

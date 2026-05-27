@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -20,7 +20,9 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   TriangleAlert,
+  Upload,
   Users,
 } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
@@ -77,6 +79,7 @@ import { INCIDENT_SOURCES, INCIDENT_SOURCE_LABELS, type IncidentSource } from "@
 import { INJURY_TYPES, INJURY_TYPE_LABELS, type InjuryType } from "@/lib/incidents/injuryType";
 import type { SafePredictActionStatus, SafePredictDemoEmployee, SafePredictRiskLevel } from "@/lib/safePredictMockData";
 import { permitReadinessLabel } from "@/lib/safePredictPermitForms";
+import type { OshaLogImportRow, OshaLogParserWarning, OshaRepeatInjuryDriver } from "@/lib/oshaLogs";
 
 type RowAction = {
   label: string;
@@ -123,6 +126,16 @@ type TrainingAssignmentResult = {
   resourceUrl?: string | null;
   resourceInstructions?: string | null;
   resourceMissing?: boolean;
+};
+
+type OshaLogUploadResponse = {
+  id?: string;
+  status?: OshaLogImportRow["status"];
+  parsedCount?: number;
+  skippedCount?: number;
+  warnings?: OshaLogParserWarning[];
+  topDrivers?: OshaRepeatInjuryDriver[];
+  error?: string;
 };
 
 type CorrectiveObservationType = "positive" | "negative" | "near_miss";
@@ -776,6 +789,20 @@ function buildLocalTrainingAssignments(employees: SafePredictDemoEmployee[]): Tr
   });
 }
 
+function oshaImportStatusLabel(status: OshaLogImportRow["status"] | undefined) {
+  if (status === "processed") return "Processed";
+  if (status === "needs_review") return "Needs review";
+  if (status === "failed") return "Failed";
+  return "Unknown";
+}
+
+function oshaFileSizeLabel(bytes: number | null | undefined) {
+  const value = Number(bytes ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return "0 KB";
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.ceil(value / 1024)} KB`;
+}
+
 export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredictWorkspaceSlug }) {
   const { dataset, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, refreshLiveData, updateActionStatus, closeActionWithPhoto, addDraftAction, addDraftHazard, addDraftIncident, addDraftPermit, updatePermit } = useSafePredictData();
   const router = useRouter();
@@ -796,6 +823,16 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [incidentMessage, setIncidentMessage] = useState("");
   const [incidentSubmitting, setIncidentSubmitting] = useState(false);
   const [incidentTestSending, setIncidentTestSending] = useState(false);
+  const [showOshaLogPanel, setShowOshaLogPanel] = useState(false);
+  const [oshaLogFile, setOshaLogFile] = useState<File | null>(null);
+  const [oshaLogYear, setOshaLogYear] = useState(() => String(new Date().getFullYear()));
+  const [oshaLogJobsiteId, setOshaLogJobsiteId] = useState(selectedJobsiteId === "all" ? "all" : selectedJobsiteId);
+  const [oshaLogMessage, setOshaLogMessage] = useState("");
+  const [oshaLogWarnings, setOshaLogWarnings] = useState<OshaLogParserWarning[]>([]);
+  const [oshaLogImports, setOshaLogImports] = useState<OshaLogImportRow[]>([]);
+  const [oshaLogImporting, setOshaLogImporting] = useState(false);
+  const [oshaLogLoading, setOshaLogLoading] = useState(false);
+  const [recentOshaDrivers, setRecentOshaDrivers] = useState<OshaRepeatInjuryDriver[]>([]);
   const [permitSubmitting, setPermitSubmitting] = useState(false);
   const [incidentDraft, setIncidentDraft] = useState(() =>
     buildEmptyIncidentDraft(selectedJobsiteId === "all" ? "" : selectedJobsiteId)
@@ -932,6 +969,136 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
     setRiskFilter("all");
     setStatusFilter("all");
   }
+
+  const oshaLogAuthHeaders = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : null;
+  }, []);
+
+  const loadOshaLogImports = useCallback(async () => {
+    if (mode !== "live") {
+      setOshaLogImports([]);
+      return;
+    }
+    setOshaLogLoading(true);
+    try {
+      const headers = await oshaLogAuthHeaders();
+      if (!headers) {
+        setOshaLogMessage("Sign in again before viewing OSHA log imports.");
+        return;
+      }
+      const response = await fetch("/api/company/osha-logs/imports", { headers });
+      const body = (await response.json().catch(() => null)) as { imports?: OshaLogImportRow[]; warning?: string; error?: string } | null;
+      if (!response.ok) {
+        setOshaLogMessage(body?.error || body?.warning || "OSHA log import history is unavailable.");
+        return;
+      }
+      setOshaLogImports(body?.imports ?? []);
+    } catch {
+      setOshaLogMessage("OSHA log import history is unavailable.");
+    } finally {
+      setOshaLogLoading(false);
+    }
+  }, [mode, oshaLogAuthHeaders]);
+
+  function openOshaLogPanel() {
+    setShowOshaLogPanel(true);
+    setOshaLogMessage("");
+    setOshaLogWarnings([]);
+    setOshaLogJobsiteId(siteFilter !== "all" ? siteFilter : selectedJobsiteId !== "all" ? selectedJobsiteId : "all");
+    window.setTimeout(() => {
+      document.getElementById("safe-predict-osha-log-upload")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    void loadOshaLogImports();
+  }
+
+  async function uploadOshaLog() {
+    if (mode !== "live") {
+      setOshaLogMessage("Switch to Live data before uploading OSHA logs.");
+      return;
+    }
+    if (!oshaLogFile) {
+      setOshaLogMessage("Choose a CSV, Excel, or selectable-text PDF OSHA log.");
+      return;
+    }
+    setOshaLogImporting(true);
+    setOshaLogMessage("");
+    setOshaLogWarnings([]);
+    try {
+      const headers = await oshaLogAuthHeaders();
+      if (!headers) {
+        setOshaLogMessage("Sign in again before uploading OSHA logs.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", oshaLogFile);
+      if (oshaLogYear.trim()) formData.append("year", oshaLogYear.trim());
+      if (oshaLogJobsiteId !== "all") formData.append("jobsiteId", oshaLogJobsiteId);
+      const response = await fetch("/api/company/osha-logs/imports", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      const body = (await response.json().catch(() => null)) as OshaLogUploadResponse | null;
+      if (!response.ok) {
+        setOshaLogMessage(body?.error || "OSHA log upload failed.");
+        setOshaLogWarnings(body?.warnings ?? []);
+        return;
+      }
+      setOshaLogMessage(
+        `OSHA log ${oshaImportStatusLabel(body?.status).toLowerCase()}: ${body?.parsedCount ?? 0} parsed, ${body?.skippedCount ?? 0} skipped.`
+      );
+      setOshaLogWarnings(body?.warnings ?? []);
+      setRecentOshaDrivers(body?.topDrivers ?? []);
+      setOshaLogFile(null);
+      await loadOshaLogImports();
+      refreshLiveData();
+    } catch (error) {
+      setOshaLogMessage(error instanceof Error ? error.message : "OSHA log upload failed.");
+    } finally {
+      setOshaLogImporting(false);
+    }
+  }
+
+  async function deleteOshaLogImport(importId: string) {
+    if (!window.confirm("Delete this OSHA log import and its parsed prevention signals?")) return;
+    setOshaLogMessage("");
+    try {
+      const headers = await oshaLogAuthHeaders();
+      if (!headers) {
+        setOshaLogMessage("Sign in again before deleting OSHA log imports.");
+        return;
+      }
+      const response = await fetch(`/api/company/osha-logs/imports?id=${encodeURIComponent(importId)}`, {
+        method: "DELETE",
+        headers,
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setOshaLogMessage(body?.error || "Could not delete OSHA log import.");
+        return;
+      }
+      setOshaLogMessage("OSHA log import deleted.");
+      await loadOshaLogImports();
+      refreshLiveData();
+    } catch {
+      setOshaLogMessage("Could not delete OSHA log import.");
+    }
+  }
+
+  useEffect(() => {
+    if (workspace !== "incidents" || mode !== "live") return;
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) void loadOshaLogImports();
+    });
+    return () => {
+      active = false;
+    };
+  }, [workspace, mode, loadOshaLogImports]);
 
   function createActionFromSignal(signal: { id: string; title: string; siteId: string; riskLevel?: SafePredictRiskLevel; detail?: string; category?: string }) {
     const createdFrom = workspace === "observations" ? "Observation" : workspace === "inspections" ? "Inspection" : workspace === "hazards" ? "Hazard" : "Manual";
@@ -1507,6 +1674,7 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
 
   const selectedForecastSite = workspace === "analytics" ? (siteFilter === "all" ? "all" : siteFilter) : siteFilter === "all" ? dataset.jobsites[0]?.id ?? "riverside" : siteFilter;
   const selectedForecastTitle = selectedForecastSite === "all" ? (activeJobsites.length === dataset.jobsites.length ? "All Sites" : "Filtered Sites") : siteName(selectedForecastSite, dataset.jobsites);
+  const oshaDriversToShow = (recentOshaDrivers.length > 0 ? recentOshaDrivers : dataset.oshaLogSummary.topDrivers).slice(0, 3);
 
   return (
     <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
@@ -1564,6 +1732,14 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
               </button>
               <button
                 type="button"
+                onClick={openOshaLogPanel}
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-800 shadow-sm"
+              >
+                <Upload className="h-4 w-4" />
+                Upload OSHA Log
+              </button>
+              <button
+                type="button"
                 onClick={openIncidentComposer}
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)]"
               >
@@ -1616,6 +1792,138 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
           )}
         </div>
       </div>
+
+      {workspace === "incidents" && (showOshaLogPanel || dataset.oshaLogSummary.cases > 0 || oshaLogImports.length > 0 || oshaLogMessage) ? (
+        <Card id="safe-predict-osha-log-upload" className="mb-5 p-5">
+          <SectionTitle
+            title="OSHA Log Prevention Signals"
+            action={
+              <button
+                type="button"
+                onClick={() => setShowOshaLogPanel((current) => !current)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700 shadow-sm"
+              >
+                {showOshaLogPanel ? "Hide upload" : "Upload log"}
+              </button>
+            }
+            hint="Upload OSHA 300/300A/301 or equivalent logs as deidentified repeat-injury signals. This is prevention context, not compliance filing or guaranteed compliance evidence."
+          />
+          {oshaLogMessage ? (
+            <div className={cx("mt-4 rounded-lg border px-4 py-3 text-sm font-bold", oshaLogMessage.includes("parsed") || oshaLogMessage.includes("deleted") || oshaLogMessage.includes("processed") ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900")}>
+              {oshaLogMessage}
+            </div>
+          ) : null}
+          {showOshaLogPanel ? (
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="block md:col-span-3">
+                    <span className="mb-1 block text-xs font-bold text-slate-600">OSHA log file</span>
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls,.xlsm,.pdf,text/csv,application/pdf"
+                      onChange={(event) => setOshaLogFile(event.target.files?.[0] ?? null)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-black file:text-blue-700"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-bold text-slate-600">Year</span>
+                    <input
+                      value={oshaLogYear}
+                      onChange={(event) => setOshaLogYear(event.target.value)}
+                      inputMode="numeric"
+                      placeholder="2026"
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
+                    />
+                  </label>
+                  <SelectShell
+                    label="Jobsite scope"
+                    value={oshaLogJobsiteId}
+                    onChange={setOshaLogJobsiteId}
+                    options={[
+                      { label: "All Sites", value: "all" },
+                      ...dataset.jobsites.map((site) => ({ label: site.name, value: site.id })),
+                    ]}
+                  />
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => void uploadOshaLog()}
+                      disabled={oshaLogImporting}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_20px_rgba(37,99,235,0.24)] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {oshaLogImporting ? "Importing..." : "Import"}
+                    </button>
+                  </div>
+                </div>
+                {oshaLogWarnings.length > 0 ? (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-amber-700">Parsing warnings</p>
+                    <ul className="mt-2 space-y-1 text-sm font-semibold text-amber-900">
+                      {oshaLogWarnings.slice(0, 4).map((warning, index) => (
+                        <li key={`${warning.code}-${index}`}>{warning.rowNumber ? `Row ${warning.rowNumber}: ` : ""}{warning.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">Import history</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-600">{oshaLogLoading ? "Loading imports..." : `${oshaLogImports.length} recent import${oshaLogImports.length === 1 ? "" : "s"}`}</p>
+                  </div>
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="mt-3 space-y-2">
+                  {oshaLogImports.slice(0, 4).map((row) => (
+                    <div key={row.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-900">{row.original_file_name}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                          {oshaImportStatusLabel(row.status)} · {row.parsed_count} parsed · {oshaFileSizeLabel(row.file_size_bytes)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void deleteOshaLogImport(row.id)}
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:text-red-600"
+                        aria-label={`Delete ${row.original_file_name}`}
+                        title="Delete import"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {!oshaLogLoading && oshaLogImports.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-slate-200 p-3 text-sm font-semibold text-slate-500">No OSHA log imports yet.</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {oshaDriversToShow.length > 0 ? (
+              oshaDriversToShow.map((driver) => (
+                <div key={driver.key} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-black text-slate-950">{driver.label}</p>
+                    <RiskBadge level={driver.riskLevel} />
+                  </div>
+                  <p className="mt-2 text-sm font-semibold leading-5 text-slate-600">{driver.detail}</p>
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">{driver.count} cases · {driver.recordableCount} recordable</p>
+                  <p className="mt-2 text-sm font-bold text-slate-800">{driver.nextAction}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 p-4 md:col-span-3">
+                <p className="text-sm font-bold text-slate-600">No deidentified repeat-injury patterns are available yet.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       {workspace === "incidents" && (showIncidentComposer || incidentMessage) ? (
         <Card id="safe-predict-incident-composer" className="mb-5 p-5">
