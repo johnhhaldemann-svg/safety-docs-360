@@ -1,0 +1,906 @@
+{
+  "name": "SafetyDocs360 My AI Engine Clean Start",
+  "version": "clean-start-v1",
+  "generatedDate": "2026-05-27",
+  "purpose": "Portable starter data for building a fresh SafetyDocs360 AI Engine around the proven deterministic safety-risk core.",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "currentCodeChanged": false,
+  "takeOnlyWhatWorks": {
+    "keep": [
+      "Deterministic 0-100 safety risk scoring before any LLM call.",
+      "Risk bands: low, moderate, high, critical.",
+      "Transparent top drivers, missing information, and next action output.",
+      "Hierarchy-of-controls recommendation order.",
+      "Critical/high risk escalation and human review gates.",
+      "Conservative handling when data is missing or source coverage is weak.",
+      "Gus guardrails: draft-only, no approval, no invented regulations, no compliance guarantees.",
+      "Domain understanding rules for common high-risk construction work.",
+      "Control recommendation rules for hot work, excavation, falls, electrical/LOTO, mobile equipment, and weather."
+    ],
+    "leaveBehindForFreshStart": [
+      "Current UI shell and dashboard layout.",
+      "Authentication, roles, billing, deployment settings, and environment variables.",
+      "Database migrations and live customer tables.",
+      "Super Admin operational screens until the new engine contracts are stable.",
+      "Any LLM-first decision path that is not backed by deterministic rules.",
+      "Any feature that claims approval, release for work, or guaranteed compliance."
+    ]
+  },
+  "sourceFilesUsed": [
+    "AGENTS.md",
+    "lib/safety-ai/types.ts",
+    "lib/safety-ai/riskEngine.ts",
+    "lib/safety-ai/riskEngine.test.ts",
+    "lib/safety-ai/recommendations.ts",
+    "lib/safety-ai/controlRecommendations.ts",
+    "lib/safety-ai/explanations.ts",
+    "lib/safety-ai/domainUnderstanding.ts",
+    "lib/safety-ai/domainUnderstanding.test.ts",
+    "lib/gus/gusPromptBuilder.ts",
+    "lib/gus/gusTrustRules.ts",
+    "lib/gus/gusSafetyGate.ts",
+    "lib/aiSafetyUnifiedContext.ts"
+  ],
+  "mission": {
+    "product": "SafetyDocs360 helps companies prevent incidents, predict safety risk, manage compliance documentation, and improve safety performance.",
+    "enginePrinciples": [
+      "Human life and serious injury prevention come before productivity, cost, or schedule.",
+      "Compliance is the floor, not the ceiling.",
+      "The engine must be transparent and explainable.",
+      "When data is missing, be conservative and show the missing information.",
+      "High and critical risks must be escalated.",
+      "Critical risks should recommend immediate review and possible stop-work evaluation.",
+      "The AI should assist safety professionals, not replace them.",
+      "Do not invent regulatory citations or claim guaranteed compliance.",
+      "Use practical safety controls and prioritize the hierarchy of controls."
+    ]
+  },
+  "riskModel": {
+    "riskLevels": [
+      {
+        "level": "low",
+        "scoreRange": "0-40",
+        "defaultTimeframe": "routine",
+        "defaultAction": "Continue monitoring and documenting field conditions."
+      },
+      {
+        "level": "moderate",
+        "scoreRange": "41-60",
+        "defaultTimeframe": "same_shift",
+        "defaultAction": "Review risk controls during the current shift."
+      },
+      {
+        "level": "high",
+        "scoreRange": "61-80",
+        "defaultTimeframe": "before_work_continues",
+        "defaultAction": "Verify controls before affected work continues."
+      },
+      {
+        "level": "critical",
+        "scoreRange": "81-100",
+        "defaultTimeframe": "immediate",
+        "defaultAction": "Pause affected work for human review."
+      }
+    ],
+    "scoreWeights": {
+      "severity": 0.4,
+      "likelihood": 0.25,
+      "exposureFrequency": 0.15,
+      "controlGap": 0.1,
+      "dataConfidenceConcern": 0.1
+    },
+    "scoreInputs": {
+      "scale": "Each input is normalized to 1-5, then converted to a 0-100 score.",
+      "severity": "Fatal, catastrophic, critical, urgent, high, serious, moderate, medium, low, minor, or explicit 1-5 value.",
+      "likelihood": "Open risk signals, repeated items, severe signals, incident/near-miss pressure, convergence across sources.",
+      "exposureFrequency": "Crew exposure, scheduled high-risk work, explicit exposure signal.",
+      "controlGap": "Missing, ineffective, partial, effective, or unknown controls plus critical-control gaps.",
+      "dataConfidenceConcern": "Missing information, weak source coverage, or low data completeness."
+    },
+    "escalationOverrides": [
+      {
+        "trigger": "imminentDanger",
+        "result": "critical",
+        "reason": "Imminent-danger indicators should not be downgraded by low numeric inputs."
+      },
+      {
+        "trigger": "fatalityOrCatastrophicPotential with controlGap >= 4",
+        "result": "critical",
+        "reason": "Fatal or catastrophic severity paired with weak controls requires immediate review."
+      },
+      {
+        "trigger": "high-consequence hazard with critical controls not verified",
+        "result": "at least high, critical when severity is 5",
+        "reason": "Critical controls must be positively verified before treating high-consequence work as controlled."
+      },
+      {
+        "trigger": "high-risk task with missing training, permit, competent-person review, or overdue corrective action",
+        "result": "increase risk level by one band",
+        "reason": "Readiness gaps on high-risk work require conservative escalation."
+      }
+    ],
+    "confidenceRules": [
+      {
+        "confidence": "high",
+        "rule": "At least four source categories, no missing data, and data completeness at least 0.8."
+      },
+      {
+        "confidence": "medium",
+        "rule": "At least two signals and no more than three missing-data items."
+      },
+      {
+        "confidence": "low",
+        "rule": "Data-confidence concern is 5, four or more missing-data items, no recognized concepts, or weak source coverage."
+      }
+    ],
+    "defaultMissingData": [
+      "jobsite",
+      "task",
+      "trade",
+      "recent safety signals",
+      "control effectiveness",
+      "source coverage"
+    ]
+  },
+  "inputContract": {
+    "SafetyRiskLevel": [
+      "low",
+      "moderate",
+      "high",
+      "critical"
+    ],
+    "SafetyAiConfidence": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "SafetySignalTypes": [
+      "incident",
+      "near_miss",
+      "observation",
+      "inspection_failure",
+      "corrective_action",
+      "calibration_feedback",
+      "training_gap",
+      "permit_gap",
+      "high_risk_work",
+      "environment"
+    ],
+    "SafetyAiInput": {
+      "jobsiteId": "string | null",
+      "jobsiteName": "string | null",
+      "location": "string | null",
+      "trade": "string | null",
+      "taskType": "string | null",
+      "equipment": "string[] | null",
+      "crewExposure": "number | null",
+      "highRiskWorkCategories": "string[]",
+      "observedControls": "string[]",
+      "controlEffectiveness": "missing | ineffective | partial | effective | unknown | null",
+      "dataCompleteness": "number 0-1 | null",
+      "missingData": "string[]",
+      "signals": "SafetyAiSignal[]",
+      "scores": "optional explicit severity, likelihood, exposureFrequency, controlGap, dataConfidenceConcern values",
+      "imminentDanger": "boolean | null",
+      "fatalityOrCatastrophicPotential": "boolean | null",
+      "missingRequiredTraining": "boolean | null",
+      "missingRequiredPermit": "boolean | null",
+      "missingCompetentPersonReview": "boolean | null",
+      "overdueCorrectiveActionForHazard": "boolean | null"
+    },
+    "SafetyAiSignal": {
+      "id": "string | null",
+      "type": "SafetySignalType",
+      "label": "string",
+      "hazard": "string | null",
+      "severity": "number | string | null",
+      "likelihood": "number | string | null",
+      "exposureFrequency": "number | string | null",
+      "controlGap": "number | string | null",
+      "status": "string | null",
+      "createdAt": "string | null",
+      "jobsiteId": "string | null",
+      "trade": "string | null",
+      "task": "string | null",
+      "crewSize": "number | null",
+      "highRisk": "boolean | null",
+      "imminentDanger": "boolean | null",
+      "fatalityOrCatastrophicPotential": "boolean | null",
+      "missingRequiredTraining": "boolean | null",
+      "missingRequiredPermit": "boolean | null",
+      "missingCompetentPersonReview": "boolean | null",
+      "overdueCorrectiveAction": "boolean | null",
+      "controls": "string[] | null",
+      "controlEvidence": "string | null"
+    }
+  },
+  "outputContract": {
+    "SafetyAiAssessment": {
+      "score": "number 0-100",
+      "level": "low | moderate | high | critical",
+      "confidence": "low | medium | high",
+      "scoreExplanation": "SafetyAiScoreExplanation",
+      "topDrivers": "RiskDriver[]",
+      "recommendations": "SafetyRecommendation[]",
+      "controlRecommendations": "SafetyControlRecommendation[]",
+      "escalationRequired": "boolean",
+      "stopWorkReviewRecommended": "boolean",
+      "humanApprovalRequired": "boolean",
+      "humanApprovalReason": "string | null",
+      "explanation": "plain-language guarded explanation",
+      "missingData": "string[]",
+      "criticalControlGaps": "string[]",
+      "reviewTriggers": "string[]",
+      "actionTimeframe": "routine | same_shift | before_work_continues | immediate"
+    },
+    "SafetyAiScoreExplanation": {
+      "score": "number",
+      "level": "SafetyRiskLevel",
+      "confidence": "SafetyAiConfidence",
+      "reason": "why the level was assigned",
+      "dataInputs": "short list of source signals used",
+      "missingInformation": "unknowns shown to the user",
+      "recommendedAction": "top next safe step",
+      "humanApprovalRequired": "boolean",
+      "humanApprovalReason": "string | null",
+      "driverSummary": "top driver explanations"
+    }
+  },
+  "hazardProfilesForScoring": [
+    {
+      "id": "fall_exposure",
+      "label": "Fall exposure",
+      "keywords": [
+        "fall",
+        "height",
+        "roof",
+        "leading edge",
+        "open edge",
+        "mezzanine",
+        "aerial lift",
+        "mewp",
+        "scaffold",
+        "ladder"
+      ],
+      "criticalControls": [
+        "guardrails or verified tie-off",
+        "rescue plan",
+        "competent-person inspection"
+      ],
+      "highConsequence": true
+    },
+    {
+      "id": "excavation_trenching",
+      "label": "Excavation or trenching",
+      "keywords": [
+        "excavat",
+        "trench",
+        "shoring",
+        "bench",
+        "slope",
+        "shield",
+        "cave-in"
+      ],
+      "criticalControls": [
+        "protective system",
+        "safe access or egress",
+        "competent-person inspection"
+      ],
+      "highConsequence": true
+    },
+    {
+      "id": "energized_electrical",
+      "label": "Energized electrical or LOTO",
+      "keywords": [
+        "energized",
+        "electrical",
+        "temporary power",
+        "loto",
+        "lockout",
+        "tagout",
+        "arc flash",
+        "breaker",
+        "panel"
+      ],
+      "criticalControls": [
+        "de-energization or LOTO verification",
+        "qualified-worker review",
+        "barricade or arc-flash controls"
+      ],
+      "highConsequence": true
+    },
+    {
+      "id": "confined_space",
+      "label": "Confined space",
+      "keywords": [
+        "confined",
+        "tank",
+        "vessel",
+        "manhole",
+        "permit space",
+        "atmosphere",
+        "oxygen",
+        "entrant"
+      ],
+      "criticalControls": [
+        "entry permit",
+        "atmospheric monitoring",
+        "attendant and rescue plan"
+      ],
+      "highConsequence": true
+    },
+    {
+      "id": "hot_work",
+      "label": "Hot work or fire exposure",
+      "keywords": [
+        "hot work",
+        "weld",
+        "welding",
+        "cutting",
+        "torch",
+        "spark",
+        "grind",
+        "fire watch"
+      ],
+      "criticalControls": [
+        "hot-work permit",
+        "fire watch",
+        "combustible control"
+      ],
+      "highConsequence": false
+    },
+    {
+      "id": "crane_rigging",
+      "label": "Crane, rigging, or suspended load",
+      "keywords": [
+        "crane",
+        "rigging",
+        "critical lift",
+        "suspended load",
+        "hoist",
+        "tag line",
+        "line of fire",
+        "lifting"
+      ],
+      "criticalControls": [
+        "lift plan",
+        "qualified rigger or signal person",
+        "exclusion zone"
+      ],
+      "highConsequence": true
+    },
+    {
+      "id": "mobile_equipment",
+      "label": "Mobile equipment or struck-by exposure",
+      "keywords": [
+        "forklift",
+        "telehandler",
+        "loader",
+        "skid steer",
+        "backing",
+        "struck",
+        "traffic",
+        "equipment route"
+      ],
+      "criticalControls": [
+        "pedestrian separation",
+        "traffic plan",
+        "spotter or exclusion zone"
+      ],
+      "highConsequence": false
+    },
+    {
+      "id": "chemical_respiratory",
+      "label": "Chemical, silica, or respiratory exposure",
+      "keywords": [
+        "chemical",
+        "silica",
+        "dust",
+        "solvent",
+        "respirator",
+        "sds",
+        "hazcom",
+        "asbestos",
+        "lead"
+      ],
+      "criticalControls": [
+        "exposure control method",
+        "ventilation or containment",
+        "respiratory protection verification"
+      ],
+      "highConsequence": false
+    }
+  ],
+  "controlRecommendationRules": [
+    {
+      "id": "hot-work-permit",
+      "hazardFamily": "hot_work",
+      "title": "Verify hot work permit and fire controls",
+      "recommendedAction": "Require or verify an active hot work permit, fire watch, extinguisher, and combustible-material control before grinding, welding, cutting, or spark-producing work starts.",
+      "controlCategory": "administrative",
+      "verificationRequired": "Confirm permit status, fire watch assignment, extinguisher location, and combustible clearance at the work face.",
+      "missingInformation": [
+        "active hot work permit",
+        "fire watch assignment",
+        "combustible-material clearance"
+      ],
+      "humanApprovalReason": "Hot work requires human permit and fire-control verification before work proceeds.",
+      "basis": "platform_rule"
+    },
+    {
+      "id": "excavation-competent-person",
+      "hazardFamily": "excavation_trenching",
+      "title": "Verify competent-person excavation inspection",
+      "recommendedAction": "Verify competent-person inspection, protective system, access/egress, spoil placement, and changing-condition review before trench or excavation entry.",
+      "controlCategory": "competent_person_review",
+      "verificationRequired": "Document competent-person inspection and protective-system readiness before entry.",
+      "missingInformation": [
+        "competent-person inspection",
+        "protective system",
+        "safe access or egress"
+      ],
+      "humanApprovalReason": "Excavation or trench entry needs competent-person verification before workers enter.",
+      "basis": "platform_rule"
+    },
+    {
+      "id": "fall-protection-plan",
+      "hazardFamily": "fall_exposure",
+      "title": "Review fall protection and rescue readiness",
+      "recommendedAction": "Review the fall protection plan, anchor/tie-off method, rescue readiness, and access controls before elevated work starts.",
+      "controlCategory": "engineering",
+      "verificationRequired": "Verify guardrail, anchor, tie-off, scaffold/MEWP inspection, and rescue plan readiness at the work area.",
+      "missingInformation": [
+        "fall protection plan",
+        "anchor or guardrail verification",
+        "rescue plan"
+      ],
+      "humanApprovalReason": "Elevated work needs human verification of fall prevention and rescue controls before work proceeds.",
+      "basis": "platform_rule"
+    },
+    {
+      "id": "energized-loto",
+      "hazardFamily": "energized_electrical",
+      "title": "Confirm LOTO or energized-work controls",
+      "recommendedAction": "Confirm LOTO steps, zero-energy verification, qualified-worker assignment, and barricades before energized or electrical work proceeds.",
+      "controlCategory": "administrative",
+      "verificationRequired": "Verify de-energization/LOTO records, test-before-touch steps, qualified worker status, and arc-flash boundary controls.",
+      "missingInformation": [
+        "LOTO steps",
+        "zero-energy verification",
+        "qualified-worker assignment"
+      ],
+      "humanApprovalReason": "Energy-control work needs qualified human review before affected work proceeds.",
+      "basis": "platform_rule"
+    },
+    {
+      "id": "mobile-equipment-separation",
+      "hazardFamily": "mobile_equipment",
+      "title": "Set equipment movement separation controls",
+      "recommendedAction": "Require a spotter or barricaded exclusion zone, defined route, and pedestrian separation before equipment movement affects workers or shared access.",
+      "controlCategory": "engineering",
+      "verificationRequired": "Verify spotter role, communication method, barricades, route control, and pedestrian separation.",
+      "missingInformation": [
+        "spotter assignment",
+        "equipment route",
+        "pedestrian separation"
+      ],
+      "humanApprovalReason": "Equipment movement near people needs supervisor verification of separation controls before work proceeds.",
+      "basis": "general_best_practice"
+    },
+    {
+      "id": "weather-sensitive-work",
+      "hazardFamily": "weather_exposure",
+      "title": "Send weather risk alert and verify thresholds",
+      "recommendedAction": "Send a weather alert to affected supervisors and verify wind, lightning, heat, rain, or storm thresholds against the planned work before start.",
+      "controlCategory": "administrative",
+      "verificationRequired": "Confirm weather threshold, affected crews, task pause criteria, hydration/shelter needs, and communication path.",
+      "missingInformation": [
+        "weather threshold",
+        "affected crews",
+        "pause or shelter criteria"
+      ],
+      "humanApprovalReason": "Weather-sensitive high-risk work needs human review against jobsite thresholds before work proceeds.",
+      "basis": "general_best_practice"
+    }
+  ],
+  "recommendationPolicy": {
+    "hierarchyOrder": [
+      "elimination",
+      "substitution",
+      "engineering",
+      "administrative",
+      "ppe",
+      "competent_person_review"
+    ],
+    "rules": [
+      "For high or critical risk, first recommend separating people from the highest-risk exposure or pausing affected work for review.",
+      "For high-risk work, consider lower-risk method, sequence, material, or equipment changes before relying on paperwork or PPE.",
+      "When controls or critical controls drive the risk, verify physical controls before work continues.",
+      "Training gaps must recommend task-specific training confirmation before assignment.",
+      "Permit gaps must recommend resolving permit coverage before releasing the work.",
+      "Repeated or converging patterns must recommend a focused field verification.",
+      "PPE is always treated as the final layer, not the primary control.",
+      "Critical risk adds competent-person or safety-manager review as urgent."
+    ]
+  },
+  "domainUnderstandingRules": [
+    {
+      "id": "fall_protection",
+      "label": "Fall protection and elevated work",
+      "baseRisk": "high",
+      "whyItMatters": "Falls are high-consequence exposures; prevention, rescue readiness, and dropped-object controls need field verification.",
+      "permitOrPlanTriggers": [
+        "fall protection plan",
+        "scaffold or MEWP inspection",
+        "rescue plan"
+      ],
+      "criticalControls": [
+        "guardrails or verified tie-off",
+        "anchorage method",
+        "rescue plan",
+        "exclusion zone below"
+      ],
+      "verificationQuestions": [
+        "What prevents a worker from reaching the fall edge?",
+        "Who verified anchorage, scaffold, ladder, or MEWP condition today?",
+        "How would rescue be performed if a fall occurs?"
+      ]
+    },
+    {
+      "id": "excavation_trenching",
+      "label": "Excavation, trenching, and ground disturbance",
+      "baseRisk": "critical",
+      "whyItMatters": "Excavation can change quickly; cave-in, utility strike, water, access, and atmospheric conditions require competent-person review.",
+      "permitOrPlanTriggers": [
+        "excavation permit",
+        "utility locate",
+        "protective-system plan"
+      ],
+      "criticalControls": [
+        "protective system",
+        "safe access or egress",
+        "spoil setback",
+        "utility isolation/locate",
+        "water control"
+      ],
+      "verificationQuestions": [
+        "Has the competent person inspected the excavation today?",
+        "What protective system is being used and does it match the soil/depth condition?",
+        "Are utilities located, exposed, isolated, or otherwise controlled?"
+      ]
+    },
+    {
+      "id": "energized_electrical_loto",
+      "label": "Electrical energy and LOTO",
+      "baseRisk": "critical",
+      "whyItMatters": "Energy-control failures can create fatal shock, arc-flash, or unexpected-startup exposure.",
+      "permitOrPlanTriggers": [
+        "energized electrical permit or task authorization",
+        "LOTO plan",
+        "arc-flash boundary plan"
+      ],
+      "criticalControls": [
+        "de-energization where feasible",
+        "LOTO verification",
+        "test before touch",
+        "arc-flash boundary",
+        "barricades"
+      ],
+      "verificationQuestions": [
+        "Can the work be de-energized before proceeding?",
+        "Who verified zero energy and how was it documented?",
+        "Are qualified-worker status, boundaries, and PPE matched to the task?"
+      ]
+    },
+    {
+      "id": "hot_work_fire",
+      "label": "Hot work and fire prevention",
+      "baseRisk": "high",
+      "whyItMatters": "Spark-producing work can ignite hidden or nearby combustibles; controls must be verified at the work face.",
+      "permitOrPlanTriggers": [
+        "hot work permit",
+        "fire watch assignment"
+      ],
+      "criticalControls": [
+        "combustible clearance",
+        "extinguisher readiness",
+        "spark containment",
+        "fire watch",
+        "post-work fire check"
+      ],
+      "verificationQuestions": [
+        "What combustibles are inside the spark path or adjacent spaces?",
+        "Who is assigned as fire watch and when does post-work monitoring end?",
+        "Where is the extinguisher and is it appropriate for the exposure?"
+      ]
+    },
+    {
+      "id": "mobile_equipment",
+      "label": "Mobile equipment and line-of-fire exposure",
+      "baseRisk": "high",
+      "whyItMatters": "Equipment and people sharing space creates struck-by and caught-between exposure unless separation is actively controlled.",
+      "permitOrPlanTriggers": [
+        "traffic control plan",
+        "lift or movement plan when applicable"
+      ],
+      "criticalControls": [
+        "pedestrian separation",
+        "exclusion zone",
+        "spotter or signal method",
+        "defined route",
+        "barricades"
+      ],
+      "verificationQuestions": [
+        "How are workers physically separated from the equipment route?",
+        "Who is the spotter and what communication method is being used?",
+        "Are backing, blind spots, public access, and shared routes controlled?"
+      ]
+    },
+    {
+      "id": "crane_rigging",
+      "label": "Crane, rigging, and suspended loads",
+      "baseRisk": "critical",
+      "whyItMatters": "Lifting operations can expose crews to dropped loads, line-of-fire, equipment instability, and weather-sensitive conditions.",
+      "permitOrPlanTriggers": [
+        "lift plan",
+        "critical lift review when applicable"
+      ],
+      "criticalControls": [
+        "lift plan",
+        "load chart review",
+        "rigging inspection",
+        "exclusion zone",
+        "weather threshold"
+      ],
+      "verificationQuestions": [
+        "Has the lift plan been reviewed against load, radius, ground, and weather conditions?",
+        "Who is the qualified rigger or signal person?",
+        "How is the suspended-load exclusion zone controlled?"
+      ]
+    },
+    {
+      "id": "weather_exposure",
+      "label": "Weather-sensitive work",
+      "baseRisk": "high",
+      "whyItMatters": "Weather can change the risk profile for elevated work, lifting, excavation, electrical work, hot work, and heat exposure.",
+      "permitOrPlanTriggers": [
+        "weather threshold or pause criteria",
+        "heat illness prevention plan when applicable"
+      ],
+      "criticalControls": [
+        "wind/lightning/heat/rain thresholds",
+        "shelter or hydration plan",
+        "communication path",
+        "pause criteria"
+      ],
+      "verificationQuestions": [
+        "What weather threshold stops or changes the task?",
+        "Who is monitoring changes and how will crews be notified?",
+        "Does weather affect access, ground stability, electrical exposure, or heat stress?"
+      ]
+    },
+    {
+      "id": "confined_space",
+      "label": "Confined space and atmospheric hazards",
+      "baseRisk": "critical",
+      "whyItMatters": "Confined spaces can create atmospheric, engulfment, configuration, and rescue hazards that require strict pre-entry controls.",
+      "permitOrPlanTriggers": [
+        "confined space entry permit",
+        "rescue plan"
+      ],
+      "criticalControls": [
+        "atmospheric testing",
+        "ventilation",
+        "attendant",
+        "retrieval or rescue plan",
+        "entry permit"
+      ],
+      "verificationQuestions": [
+        "Is this a permit-required confined space?",
+        "What atmospheric testing and ventilation are documented?",
+        "Who is the attendant and what rescue method is ready?"
+      ]
+    }
+  ],
+  "gusCoachGuardrails": {
+    "systemRole": "Gus is a calm mentor and AI Safety Coach. Gus teaches with a Field Coach method: notice what is happening, explain why it matters, ask one practical field question, then give the next safe step.",
+    "authorityBoundaries": [
+      "Gus is not the competent person, supervisor, engineer, qualified person, or legal advisor.",
+      "Gus does not approve work.",
+      "Gus does not invent regulations.",
+      "Gus uses verified platform rules, company rules, and provided jobsite context first.",
+      "If information is missing, Gus asks for it.",
+      "If a safety-critical item is unknown, Gus marks the plan incomplete.",
+      "Gus gives practical planning help and draft recommendations only."
+    ],
+    "outputContract": {
+      "answer": "string",
+      "missingInformation": "string[] max 12",
+      "riskFlags": "string[] max 12",
+      "recommendedControls": "string[] max 16",
+      "draftOnly": true,
+      "humanReviewRequired": true
+    },
+    "allowedActions": [
+      "recommend_review",
+      "ask_questions",
+      "identify_missing_information",
+      "explain_risk",
+      "suggest_controls",
+      "create_draft_after_confirmation",
+      "guide_to_platform_page"
+    ],
+    "forbiddenActions": [
+      "approve_permit",
+      "submit_jsa",
+      "close_corrective_action",
+      "delete_record",
+      "change_training_status",
+      "modify_official_document",
+      "send_notification",
+      "give_legal_advice",
+      "invent_osha_requirement",
+      "state_compliant_without_verification"
+    ],
+    "forbiddenOutputRewrites": [
+      {
+        "ifModelSays": "approved",
+        "rewriteTo": "ready for human review"
+      },
+      {
+        "ifModelSays": "compliant",
+        "rewriteTo": "aligned with available platform checks and pending human review"
+      },
+      {
+        "ifModelSays": "safe to start",
+        "rewriteTo": "not ready to start until reviewed by a qualified human"
+      },
+      {
+        "ifModelSays": "released for work",
+        "rewriteTo": "pending human release for work"
+      },
+      {
+        "ifModelSays": "no review needed",
+        "rewriteTo": "human review is required"
+      }
+    ]
+  },
+  "unifiedContextModel": {
+    "sourcesToBlend": [
+      "predictive_risk",
+      "safety_intelligence",
+      "gus_photo_review",
+      "risk_memory",
+      "recommendation_event"
+    ],
+    "minimumOutput": [
+      "sourceCoverage",
+      "evidence",
+      "conflicts",
+      "missingInformation",
+      "conflictingSignals",
+      "nextBestActions",
+      "confidence",
+      "doNotClaim"
+    ],
+    "doNotClaim": [
+      "Do not approve permits or release work.",
+      "Do not declare final OSHA compliance.",
+      "Do not provide legal advice.",
+      "Do not claim work is safe, cleared, or guaranteed.",
+      "Do not replace safety-manager, supervisor, or competent-person judgment."
+    ]
+  },
+  "validationScenariosThatAlreadyWork": [
+    {
+      "name": "Complete low-risk scenario stays low",
+      "expected": "Risk level low and score 0-40."
+    },
+    {
+      "name": "Missing controls raise risk",
+      "expected": "Risk level moderate/high/critical and top drivers include controls."
+    },
+    {
+      "name": "Fatality potential plus missing controls forces critical",
+      "expected": "Risk level critical, score at least 81, escalation required, stop-work review recommended."
+    },
+    {
+      "name": "Missing data lowers confidence",
+      "expected": "Confidence low and missing data lists jobsite, task, trade, and control effectiveness."
+    },
+    {
+      "name": "Imminent danger cannot be downgraded by low numeric scores",
+      "expected": "Risk level critical and score at least 81."
+    },
+    {
+      "name": "High and critical findings require escalation",
+      "expected": "Escalation required true."
+    },
+    {
+      "name": "Readiness gap on high-risk task keeps score inside raised band",
+      "expected": "Missing permit on hot work raises risk to high with score 61-80."
+    },
+    {
+      "name": "Recommendations follow hierarchy of controls",
+      "expected": "First six recommendation control types are elimination, substitution, engineering, administrative, ppe, competent_person_review."
+    },
+    {
+      "name": "Scores stay normalized",
+      "expected": "Output score always remains 0-100 even when explicit inputs are out of range."
+    },
+    {
+      "name": "Explanation uses guarded wording",
+      "expected": "Explanation says based on available data, potential risk, and review recommended."
+    },
+    {
+      "name": "Critical-control gap escalates high-consequence work",
+      "expected": "Trench entry without competent-person review becomes critical with immediate action timeframe."
+    },
+    {
+      "name": "Converging signals raise likelihood",
+      "expected": "Multiple modules pointing to fall exposure produce high/critical risk and a converging-signals driver."
+    },
+    {
+      "name": "Strong documented controls avoid false critical-control gap",
+      "expected": "Fall-protection work with guardrail, rescue plan, and competent-person inspection has no critical-control gap."
+    },
+    {
+      "name": "Domain understanding recognizes evidence",
+      "expected": "Fall protection evidence produces permit/plan focus and field verification questions."
+    },
+    {
+      "name": "No recognized safety discipline is conservative",
+      "expected": "Concept list empty, confidence low, missing information asks for more task, hazard, and control evidence."
+    }
+  ],
+  "recommendedFreshProjectBuildOrder": [
+    "Start with the input and output contracts.",
+    "Implement deterministic scoring and risk band classification.",
+    "Add hazard profile matching and missing-data detection.",
+    "Add escalation overrides for imminent danger, fatality potential, critical controls, and readiness gaps.",
+    "Add hierarchy-of-controls recommendations.",
+    "Add control recommendation rules and evidence references.",
+    "Add plain-language score explanations and missing-information output.",
+    "Add Gus as a draft-only coach after the rules engine is stable.",
+    "Add golden tests for every validation scenario before adding UI.",
+    "Only then connect database, auth, dashboards, and LLM providers."
+  ],
+  "starterSampleInput": {
+    "jobsiteName": "Demo Site",
+    "taskType": "Trench entry for utility tie-in",
+    "trade": "Earthwork",
+    "controlEffectiveness": "partial",
+    "highRiskWorkCategories": [
+      "excavation",
+      "trenching"
+    ],
+    "signals": [
+      {
+        "type": "high_risk_work",
+        "label": "Crew scheduled for trench entry",
+        "hazard": "excavation trenching",
+        "severity": "high",
+        "highRisk": true,
+        "missingCompetentPersonReview": true,
+        "controlEvidence": "Use caution and wear PPE."
+      }
+    ]
+  },
+  "starterSampleExpectedOutput": {
+    "level": "critical",
+    "scoreAtLeast": 81,
+    "actionTimeframe": "immediate",
+    "humanApprovalRequired": true,
+    "topDriversShouldInclude": [
+      "Critical control verification gap",
+      "High-risk task gap escalation"
+    ],
+    "criticalControlGapsShouldInclude": [
+      "Excavation or trenching"
+    ],
+    "controlRecommendationsShouldInclude": [
+      "Verify competent-person excavation inspection"
+    ]
+  }
+}

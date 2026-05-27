@@ -1,0 +1,475 @@
+{
+  "name": "My Biotech AI Engine Clean Start",
+  "version": "bio-clean-start-v1",
+  "generatedDate": "2026-05-27",
+  "purpose": "Portable starter data for building a fresh biotech AI Engine platform.",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "currentCodeChanged": false,
+  "domain": "biotech",
+  "mission": [
+    "Prevent biosafety and contamination incidents.",
+    "Protect product quality and patient safety.",
+    "Detect data-integrity and documentation risk.",
+    "Manage SOPs, deviations, CAPA, change controls, training, audits, and batch/study readiness.",
+    "Predict operational, quality, and compliance risk before it becomes a failure."
+  ],
+  "nonNegotiableRules": [
+    "Patient safety, worker safety, biosafety, and product quality come before speed or cost.",
+    "Compliance is the floor, not the ceiling.",
+    "Missing data must be shown clearly.",
+    "High and critical risk must be escalated.",
+    "Critical risk should recommend immediate human review and possible hold, quarantine, stop-use, stop-work, or escalation evaluation.",
+    "AI assists scientists, QA, EHS, biosafety, manufacturing, and regulatory professionals. It does not replace them.",
+    "Do not invent regulatory citations.",
+    "Do not claim GMP, GLP, GCP, FDA, EMA, OSHA, CDC, NIH, ISO, CAP, CLIA, or other compliance unless verified source material is provided.",
+    "Do not diagnose, provide medical advice, approve clinical decisions, or certify product release."
+  ],
+  "riskModel": {
+    "levels": [
+      {
+        "level": "low",
+        "scoreRange": "0-40",
+        "timeframe": "routine",
+        "defaultAction": "Continue monitoring and document routine controls."
+      },
+      {
+        "level": "moderate",
+        "scoreRange": "41-60",
+        "timeframe": "same_day",
+        "defaultAction": "Review controls, missing data, and owner follow-up."
+      },
+      {
+        "level": "high",
+        "scoreRange": "61-80",
+        "timeframe": "before_continuing",
+        "defaultAction": "Escalate to responsible owner and verify controls before work, batch, study, or change continues."
+      },
+      {
+        "level": "critical",
+        "scoreRange": "81-100",
+        "timeframe": "immediate",
+        "defaultAction": "Recommend immediate human review and possible hold, quarantine, stop-use, stop-work, or escalation evaluation."
+      }
+    ],
+    "weights": {
+      "severity": 0.35,
+      "likelihood": 0.2,
+      "exposureOrScope": 0.15,
+      "controlGap": 0.15,
+      "dataIntegrityOrConfidenceConcern": 0.15
+    },
+    "escalationOverrides": [
+      "Potential patient-impacting quality issue becomes at least high.",
+      "Confirmed or suspected product contamination becomes critical until assessed by QA or quality unit.",
+      "Biosafety exposure, release, spill, sharps injury, aerosol event, or containment breach becomes at least high and may become critical.",
+      "Missing chain of custody for critical samples becomes high or critical depending on impact.",
+      "Data integrity concern affecting release, study endpoint, regulatory submission, or batch record becomes high or critical.",
+      "Critical equipment out of tolerance affecting active work becomes high or critical.",
+      "Unapproved change affecting validated process, method, system, assay, cleanroom, or batch becomes high.",
+      "Expired training for critical GxP, biosafety, cleanroom, or assay work increases risk by one band.",
+      "Missing SOP, missing approval, missing deviation, missing CAPA, or overdue CAPA on high-risk work increases risk by one band.",
+      "Repeat deviation pattern across batches, studies, instruments, teams, or sites increases likelihood and confidence."
+    ]
+  },
+  "domainObjects": [
+    "organization",
+    "site",
+    "lab",
+    "cleanroom_or_suite",
+    "manufacturing_area",
+    "program",
+    "product_candidate",
+    "study",
+    "batch_or_lot",
+    "sample",
+    "assay",
+    "instrument_or_equipment",
+    "sop",
+    "training_record",
+    "deviation",
+    "capa",
+    "change_control",
+    "audit_finding",
+    "environmental_monitoring_event",
+    "biosafety_incident",
+    "supplier_or_material",
+    "document",
+    "risk_assessment"
+  ],
+  "riskFamilies": [
+    {
+      "id": "biosafety_containment",
+      "label": "Biosafety and containment",
+      "examples": [
+        "exposure",
+        "spill",
+        "sharps injury",
+        "aerosol-generating event",
+        "containment breach",
+        "incorrect BSL controls",
+        "waste handling issue"
+      ],
+      "criticalControls": [
+        "biosafety review",
+        "appropriate containment level",
+        "PPE matched to hazard",
+        "spill/exposure response",
+        "waste decontamination",
+        "incident documentation",
+        "medical/EHS escalation when appropriate"
+      ],
+      "reviewOwners": [
+        "biosafety_officer",
+        "ehs",
+        "responsible_scientist"
+      ]
+    },
+    {
+      "id": "contamination_sterility",
+      "label": "Contamination and sterility assurance",
+      "examples": [
+        "microbial contamination",
+        "cross-contamination",
+        "cleanroom excursion",
+        "environmental monitoring excursion",
+        "sterility concern",
+        "aseptic process breach"
+      ],
+      "criticalControls": [
+        "segregation or quarantine review",
+        "QA review",
+        "environmental monitoring assessment",
+        "cleaning/disinfection verification",
+        "batch/sample impact assessment",
+        "deviation and CAPA workflow"
+      ],
+      "reviewOwners": [
+        "qa",
+        "quality_unit",
+        "manufacturing_lead"
+      ]
+    },
+    {
+      "id": "product_quality_batch",
+      "label": "Product quality and batch risk",
+      "examples": [
+        "batch record discrepancy",
+        "process deviation",
+        "critical process parameter excursion",
+        "material mix-up",
+        "labeling issue",
+        "release-impacting discrepancy"
+      ],
+      "criticalControls": [
+        "batch hold or QA disposition review",
+        "deviation record",
+        "impact assessment",
+        "material traceability",
+        "second-person verification where required by SOP",
+        "CAPA when systemic"
+      ],
+      "reviewOwners": [
+        "qa",
+        "quality_unit",
+        "manufacturing_lead"
+      ]
+    },
+    {
+      "id": "data_integrity",
+      "label": "Data integrity",
+      "examples": [
+        "missing raw data",
+        "unattributable entry",
+        "backdated record concern",
+        "audit trail gap",
+        "uncontrolled spreadsheet",
+        "invalidated assay without rationale",
+        "missing review signature"
+      ],
+      "criticalControls": [
+        "preserve records",
+        "QA/data owner review",
+        "audit trail review",
+        "document correction under controlled process",
+        "do not overwrite or recreate source data",
+        "escalate if release, endpoint, or submission could be affected"
+      ],
+      "reviewOwners": [
+        "qa",
+        "quality_unit",
+        "responsible_scientist"
+      ]
+    },
+    {
+      "id": "sample_chain_of_custody",
+      "label": "Sample integrity and chain of custody",
+      "examples": [
+        "unknown sample identity",
+        "missing chain of custody",
+        "temperature excursion",
+        "label mismatch",
+        "missing storage record",
+        "sample mix-up"
+      ],
+      "criticalControls": [
+        "quarantine or hold affected sample/material",
+        "chain-of-custody reconstruction by authorized owner",
+        "temperature/log review",
+        "identity confirmation",
+        "impact assessment before use"
+      ],
+      "reviewOwners": [
+        "responsible_scientist",
+        "qa",
+        "quality_unit"
+      ]
+    },
+    {
+      "id": "equipment_calibration_validation",
+      "label": "Equipment, calibration, and validation",
+      "examples": [
+        "out-of-calibration instrument",
+        "failed qualification",
+        "maintenance overdue",
+        "invalidated system",
+        "alarm ignored",
+        "critical freezer/incubator excursion"
+      ],
+      "criticalControls": [
+        "stop-use or restricted-use review",
+        "QA/validation assessment",
+        "impact assessment for affected data, samples, batches, or studies",
+        "calibration or qualification evidence",
+        "deviation/CAPA if required"
+      ],
+      "reviewOwners": [
+        "validation_lead",
+        "qa",
+        "quality_unit"
+      ]
+    },
+    {
+      "id": "sop_training_readiness",
+      "label": "SOP, training, and readiness",
+      "examples": [
+        "expired training",
+        "missing SOP",
+        "unapproved procedure",
+        "wrong SOP revision",
+        "work performed before training completion"
+      ],
+      "criticalControls": [
+        "training verification",
+        "current approved SOP",
+        "supervisor or QA review",
+        "work impact assessment if already performed",
+        "documentation of remediation"
+      ],
+      "reviewOwners": [
+        "qa",
+        "responsible_scientist",
+        "manufacturing_lead"
+      ]
+    },
+    {
+      "id": "change_control_validation",
+      "label": "Change control and validation",
+      "examples": [
+        "unapproved process change",
+        "method change",
+        "system configuration change",
+        "facility or cleanroom change",
+        "supplier/material change",
+        "assay acceptance criteria change"
+      ],
+      "criticalControls": [
+        "change control review",
+        "validation or qualification impact assessment",
+        "QA approval where required",
+        "regulatory impact assessment when applicable",
+        "implementation controls"
+      ],
+      "reviewOwners": [
+        "qa",
+        "validation_lead",
+        "regulatory_affairs"
+      ]
+    },
+    {
+      "id": "supplier_material",
+      "label": "Supplier and material risk",
+      "examples": [
+        "supplier quality issue",
+        "material CoA mismatch",
+        "expired material",
+        "temperature excursion in transit",
+        "unapproved supplier",
+        "incoming inspection failure"
+      ],
+      "criticalControls": [
+        "material quarantine review",
+        "supplier quality assessment",
+        "CoA and traceability review",
+        "impact assessment for affected batches/studies",
+        "QA disposition"
+      ],
+      "reviewOwners": [
+        "qa",
+        "quality_unit",
+        "manufacturing_lead"
+      ]
+    },
+    {
+      "id": "clinical_patient_impact",
+      "label": "Clinical study or patient-impacting risk",
+      "examples": [
+        "protocol deviation",
+        "informed consent issue",
+        "endpoint data concern",
+        "sample mismatch",
+        "safety event documentation gap",
+        "clinical supply quality concern"
+      ],
+      "criticalControls": [
+        "clinical operations review",
+        "PI or medical monitor escalation when applicable",
+        "QA/regulatory review",
+        "preserve source records",
+        "assess patient safety and data integrity impact"
+      ],
+      "reviewOwners": [
+        "clinical_operations",
+        "principal_investigator",
+        "regulatory_affairs",
+        "qa"
+      ]
+    }
+  ],
+  "aiGuardrails": {
+    "neverSay": [
+      "This batch is released.",
+      "This product is safe.",
+      "This study is compliant.",
+      "This deviation is closed.",
+      "This CAPA is adequate.",
+      "This SOP is approved.",
+      "This change is approved.",
+      "This data is valid for submission.",
+      "This clinical decision is appropriate.",
+      "Compliance is guaranteed."
+    ],
+    "allowedLanguage": [
+      "Based on available data.",
+      "Potential risk.",
+      "Needs QA review.",
+      "Needs biosafety review.",
+      "Needs responsible-scientist review.",
+      "Missing information includes...",
+      "Suggested draft next steps.",
+      "Consider hold or quarantine review.",
+      "Consider stop-use review.",
+      "This does not replace quality, regulatory, biosafety, clinical, or scientific judgment."
+    ]
+  },
+  "recommendedBuildOrder": [
+    "Create TypeScript contracts.",
+    "Build deterministic scoring.",
+    "Build risk band classifier.",
+    "Build missing-data detector.",
+    "Build biotech risk family matcher.",
+    "Build escalation overrides.",
+    "Build top risk drivers.",
+    "Build recommended actions.",
+    "Build guarded explanations.",
+    "Build tests.",
+    "Build a simple engine workbench page.",
+    "Add saved assessments.",
+    "Add audit logs.",
+    "Add document/SOP intelligence.",
+    "Add deviation/CAPA intelligence.",
+    "Add batch/sample/equipment intelligence.",
+    "Add AI coach.",
+    "Add dashboards.",
+    "Add admin monitoring.",
+    "Add LLM providers only after deterministic rules are proven."
+  ],
+  "firstTests": [
+    "Low-risk complete data stays low.",
+    "Missing data lowers confidence.",
+    "Suspected contamination becomes critical.",
+    "Biosafety exposure becomes high or critical.",
+    "Patient-impacting quality issue becomes at least high.",
+    "Data-integrity issue affecting release or submission becomes high or critical.",
+    "Missing chain of custody escalates sample risk.",
+    "Out-of-calibration equipment affecting active work escalates risk.",
+    "Unapproved validated-process change escalates risk.",
+    "Expired critical training increases risk by one band.",
+    "Repeat deviation pattern increases likelihood.",
+    "Strong documented controls prevent false critical escalation.",
+    "AI explanation includes missing information.",
+    "AI never claims compliance or approval.",
+    "AI never releases batch, closes deviation, approves CAPA, or certifies data."
+  ],
+  "starterSampleInput": {
+    "siteName": "Demo Biotech Site",
+    "area": "QC Microbiology Lab",
+    "workflow": "Sterility assay review",
+    "program": "Demo Program",
+    "productCandidate": "BIO-001",
+    "batchOrLot": "LOT-0001",
+    "controlEffectiveness": "partial",
+    "contaminationSuspected": true,
+    "productQualityImpactPotential": true,
+    "gxpImpact": true,
+    "signals": [
+      {
+        "type": "contamination_event",
+        "label": "Unexpected microbial growth in assay control",
+        "severity": "high",
+        "status": "open",
+        "productQualityImpactPotential": true,
+        "gxpImpact": true,
+        "controls": [
+          "Initial lab notification completed"
+        ],
+        "evidence": "Assay control showed unexpected growth; investigation not complete."
+      },
+      {
+        "type": "data_integrity",
+        "label": "Missing second-person review signature",
+        "severity": "medium",
+        "status": "open",
+        "dataIntegrityConcern": 4,
+        "evidence": "Review signature missing from assay worksheet."
+      }
+    ]
+  },
+  "starterSampleExpectedOutput": {
+    "level": "critical",
+    "humanReviewRequired": true,
+    "holdOrQuarantineReviewRecommended": true,
+    "topDriversShouldInclude": [
+      "contamination",
+      "product quality impact",
+      "data integrity",
+      "control gap"
+    ],
+    "missingInformationShouldInclude": [
+      "investigation status",
+      "QA assessment",
+      "batch/sample impact",
+      "final disposition"
+    ],
+    "recommendedOwnerShouldInclude": [
+      "qa",
+      "quality_unit"
+    ],
+    "mustNotSay": [
+      "released",
+      "compliant",
+      "safe",
+      "acceptable"
+    ]
+  }
+}

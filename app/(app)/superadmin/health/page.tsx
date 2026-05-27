@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Clock, Database, Gauge, ShieldCheck, Ticket, UserCheck } from "lucide-react";
+import { Activity, Check, Clock, Copy, Database, Gauge, ShieldCheck, Ticket, UserCheck } from "lucide-react";
 import {
   EmptyState,
   InlineMessage,
@@ -14,6 +14,7 @@ import {
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { buildSuperadminHealthCodexPrompt } from "@/lib/superadmin/health/codexPrompt";
 import type { SuperadminHealthScore } from "@/lib/superadmin/health/types";
 
 const supabase = getSupabaseBrowserClient();
@@ -110,12 +111,15 @@ export default function SuperadminHealthPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [promptError, setPromptError] = useState("");
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const query = useMemo(() => buildQuery(filters), [filters]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    setPromptError("");
     try {
       const {
         data: { session },
@@ -174,6 +178,28 @@ export default function SuperadminHealthPage() {
     void load();
   }, [load]);
 
+  const copyCodexPrompt = useCallback(async () => {
+    setPromptError("");
+    setPromptCopied(false);
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard copy is not available in this browser.");
+      }
+
+      const prompt = buildSuperadminHealthCodexPrompt({
+        payload,
+        filters,
+        generatedAt: new Date().toISOString(),
+      });
+      await navigator.clipboard.writeText(prompt);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 2200);
+    } catch (copyError) {
+      setPromptError(copyError instanceof Error ? copyError.message : "Could not copy the Codex review prompt.");
+    }
+  }, [filters, payload]);
+
   const score = payload.score;
   const categoryRows = score ? Object.entries(score.categories) : [];
 
@@ -188,6 +214,15 @@ export default function SuperadminHealthPage() {
             <button type="button" onClick={() => void load()} className={appButtonSecondaryClassName}>
               <Clock className="h-4 w-4" />
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyCodexPrompt()}
+              disabled={loading}
+              className={`${appButtonSecondaryClassName} disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              {promptCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {promptCopied ? "Copied" : "Copy Codex Prompt"}
             </button>
             <Link href="/superadmin/system-health" className={appButtonSecondaryClassName}>
               System Health
@@ -246,6 +281,7 @@ export default function SuperadminHealthPage() {
       </SectionCard>
 
       {error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
+      {promptError ? <InlineMessage tone="error">{promptError}</InlineMessage> : null}
       {loading ? <InlineMessage>Refreshing Health Intelligence data...</InlineMessage> : null}
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
