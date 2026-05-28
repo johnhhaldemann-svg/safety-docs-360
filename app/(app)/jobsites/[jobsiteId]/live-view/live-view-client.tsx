@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -135,10 +136,10 @@ export function JobsiteLiveViewClient({ jobsiteId }: { jobsiteId: string }) {
     setLoading(false);
   }
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobsiteId]);
+  }), [jobsiteId]);
 
   const permitByObservationId = useMemo(() => {
     const map = new Map<string, PermitRow[]>();

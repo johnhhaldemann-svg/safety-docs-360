@@ -1,4 +1,5 @@
 ﻿"use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -109,9 +110,9 @@ export default function ReportsPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadReports();
-  }, []);
+  }), []);
 
   async function loadAttachments(reportId: string) {
     const headers = await getAuthHeaders();

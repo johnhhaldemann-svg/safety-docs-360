@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -230,6 +231,14 @@ type ScheduledRiskEvent = SafePredictScheduleEvent & {
   editForm?: ScheduleTaskForm;
   readOnly?: boolean;
   scheduleItemId?: string;
+};
+
+type PersistedScheduleLoaderOptions = {
+  scheduleJobsiteId: string;
+  scheduleFallbackOwner: string;
+  scheduleFallbackLocation: string;
+  setPersistedScheduleTasks: (tasks: ScheduledRiskEvent[]) => void;
+  setScheduleLoadError: (message: string | null) => void;
 };
 
 type JobsiteAttentionTone = "critical" | "high" | "medium" | "low" | "blue";
@@ -1000,6 +1009,48 @@ function scheduleFormForApiItem(item: SafePredictScheduleApiItem): ScheduleTaskF
   };
 }
 
+async function loadPersistedScheduleForJobsite({
+  scheduleJobsiteId,
+  scheduleFallbackOwner,
+  scheduleFallbackLocation,
+  setPersistedScheduleTasks,
+  setScheduleLoadError,
+}: PersistedScheduleLoaderOptions) {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token ?? null;
+    const response = await fetch(`/api/company/jobsites/${encodeURIComponent(scheduleJobsiteId)}/schedule`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    });
+    const data = (await response.json().catch(() => null)) as {
+      items?: SafePredictScheduleApiItem[];
+      warning?: string;
+      error?: string;
+    } | null;
+    if (!response.ok) {
+      setScheduleLoadError(data?.error || "Saved schedule tasks could not be loaded.");
+      setPersistedScheduleTasks([]);
+      return;
+    }
+    const items = Array.isArray(data?.items) ? data.items : [];
+    setPersistedScheduleTasks(
+      items.map((item) => ({
+        ...scheduleApiItemToEvent(item, { owner: scheduleFallbackOwner, location: scheduleFallbackLocation }),
+        editForm: item.readOnly ? undefined : scheduleFormForApiItem(item),
+        readOnly: Boolean(item.readOnly),
+        scheduleItemId: item.source === "manual" ? item.id : undefined,
+      }))
+    );
+    setScheduleLoadError(data?.warning ?? null);
+  } catch (error) {
+    setScheduleLoadError(error instanceof Error ? error.message : "Saved schedule tasks could not be loaded.");
+    setPersistedScheduleTasks([]);
+  }
+}
+
 export function SafePredictJobsitesPortfolio() {
   const { dataset, loading, mode, setMode, selectedJobsiteId, setSelectedJobsiteId, addDraftJobsite } = useSafePredictData();
   const router = useRouter();
@@ -1485,7 +1536,7 @@ function SiteFilingHeatMap({
 
   return (
     <div className="space-y-4" data-testid="site-filing-heat-map">
-      <div className="overflow-x-auto pb-1">
+      <div className="overflow-x-auto pb-1" role="region" aria-label="Site filing severity lanes" tabIndex={0}>
         <div className="grid min-w-[720px] grid-cols-4 gap-3">
           {severityLanes.map((lane) => (
             <section key={lane.key} data-testid={`site-filing-lane-${lane.key}`} className={cx("rounded-lg border p-3", siteFilingLaneClass(lane.key))}>
@@ -1949,9 +2000,9 @@ function JobsiteAssignmentManager({
     }
   }, [mode]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadAssignments();
-  }, [loadAssignments]);
+  }), [loadAssignments]);
 
   async function toggleAssignment(userId: string) {
     if (mode !== "live") {
@@ -2150,9 +2201,9 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   const siteReports = siteScoped(dataset.reports, site.id);
   const siteEvents = dataset.events.filter((event) => event.detail.toLowerCase().includes(site.name.toLowerCase().split(" ")[0]) || event.detail.toLowerCase().includes(site.name.toLowerCase()));
   const displayedRiskScore = clampRiskScore(site.riskScore);
-  const scheduleJobsiteId = site.id;
-  const scheduleFallbackOwner = site.siteLead;
-  const scheduleFallbackLocation = site.phase;
+  const scheduleJobsiteId = String(site.id);
+  const scheduleFallbackOwner = String(site.siteLead ?? "");
+  const scheduleFallbackLocation = String(site.phase ?? "");
   const fallbackWeatherOverview = jobsiteWeatherFromSite(site);
   const displayedWeatherOverview = mode === "live" && weatherOverview?.jobsiteId === site.id ? weatherOverview.data : fallbackWeatherOverview;
 
@@ -2456,52 +2507,30 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
     }
   }
 
-  const loadPersistedSchedule = useCallback(async () => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token ?? null;
-      const response = await fetch(`/api/company/jobsites/${encodeURIComponent(scheduleJobsiteId)}/schedule`, {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-      });
-      const data = (await response.json().catch(() => null)) as {
-        items?: SafePredictScheduleApiItem[];
-        warning?: string;
-        error?: string;
-      } | null;
-      if (!response.ok) {
-        setScheduleLoadError(data?.error || "Saved schedule tasks could not be loaded.");
-        setPersistedScheduleTasks([]);
-        return;
-      }
-      const items = Array.isArray(data?.items) ? data.items : [];
-      setPersistedScheduleTasks(
-        items.map((item) => ({
-          ...scheduleApiItemToEvent(item, { owner: scheduleFallbackOwner, location: scheduleFallbackLocation }),
-          editForm: item.readOnly ? undefined : scheduleFormForApiItem(item),
-          readOnly: Boolean(item.readOnly),
-          scheduleItemId: item.source === "manual" ? item.id : undefined,
-        }))
-      );
-      setScheduleLoadError(data?.warning ?? null);
-    } catch (error) {
-      setScheduleLoadError(error instanceof Error ? error.message : "Saved schedule tasks could not be loaded.");
-      setPersistedScheduleTasks([]);
-    }
-  }, [scheduleFallbackLocation, scheduleFallbackOwner, scheduleJobsiteId]);
+  async function loadPersistedSchedule() {
+    await loadPersistedScheduleForJobsite({
+      scheduleJobsiteId,
+      scheduleFallbackOwner,
+      scheduleFallbackLocation,
+      setPersistedScheduleTasks,
+      setScheduleLoadError,
+    });
+  }
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (mode !== "live") {
-      const handle = window.setTimeout(() => {
-        setPersistedScheduleTasks([]);
-        setScheduleLoadError(null);
-      }, 0);
-      return () => window.clearTimeout(handle);
+      setPersistedScheduleTasks([]);
+      setScheduleLoadError(null);
+      return;
     }
-    void loadPersistedSchedule();
-  }, [loadPersistedSchedule, mode]);
+    void loadPersistedScheduleForJobsite({
+      scheduleJobsiteId,
+      scheduleFallbackOwner,
+      scheduleFallbackLocation,
+      setPersistedScheduleTasks,
+      setScheduleLoadError,
+    });
+  }), [mode, scheduleFallbackLocation, scheduleFallbackOwner, scheduleJobsiteId]);
 
   const alertScheduleEvents: ScheduledRiskEvent[] = siteAlerts.slice(0, 4).map((alert, index) => ({
     id: `alert-${alert.id}`,
@@ -3530,7 +3559,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         }}
       />
 
-      <div className="mb-5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
+      <div className="mb-5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1" role="region" aria-label="Schedule calendar days" tabIndex={0}>
         <div className="flex min-w-max flex-nowrap gap-2">
           {detailTabs.map((tab) => (
             <button
@@ -3903,6 +3932,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 onChange={(event) => updateScheduleTaskForm("title", event.target.value)}
                 className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 placeholder="Task title"
+                aria-label="Task title"
               />
               <input
                 type="date"
@@ -3965,6 +3995,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 min="0"
                 placeholder="Crew size"
                 type="number"
+                aria-label="Crew size"
               />
               <select
                 value={scheduleTaskForm.riskLevel}
@@ -3982,6 +4013,7 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 onChange={(event) => updateScheduleTaskForm("owner", event.target.value)}
                 className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 placeholder="Owner / supervisor"
+                aria-label="Owner or supervisor"
               />
             </div>
             {schedulePrediction ? (
@@ -4020,24 +4052,28 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
                 onChange={(event) => updateScheduleTaskForm("hazards", event.target.value)}
                 className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 placeholder="Hazards, comma separated"
+                aria-label="Hazards"
               />
               <input
                 value={scheduleTaskForm.permits}
                 onChange={(event) => updateScheduleTaskForm("permits", event.target.value)}
                 className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 placeholder="Permit triggers, comma separated"
+                aria-label="Permit triggers"
               />
               <input
                 value={scheduleTaskForm.controls}
                 onChange={(event) => updateScheduleTaskForm("controls", event.target.value)}
                 className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 placeholder="Required controls, comma separated"
+                aria-label="Required controls"
               />
             </div>
             <textarea
               value={scheduleTaskForm.notes}
               onChange={(event) => updateScheduleTaskForm("notes", event.target.value)}
               className="mt-3 min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              aria-label="Schedule task notes"
               placeholder="Notes or adjacent work context"
             />
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -4358,17 +4394,8 @@ function DailyTodoBoard({
               {grouped[role].map((todo) => (
                 <article
                   key={todo.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onOpenTab(todo.targetTab)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenTab(todo.targetTab);
-                    }
-                  }}
                   className={cx(
-                    "cursor-pointer rounded-lg border border-l-4 border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40",
+                    "rounded-lg border border-l-4 border-slate-200 bg-white p-3 shadow-sm",
                     dailyTodoPriorityClass(todo.priority)
                   )}
                 >
@@ -4388,10 +4415,15 @@ function DailyTodoBoard({
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStatusChange(todo, "reviewed");
-                      }}
+                      onClick={() => onOpenTab(todo.targetTab)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                    >
+                      <ArrowRight className="h-3.5 w-3.5" />
+                      Open
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onStatusChange(todo, "reviewed")}
                       disabled={busyId === todo.id}
                       className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-black text-amber-800 disabled:cursor-wait disabled:opacity-60"
                     >
@@ -4400,10 +4432,7 @@ function DailyTodoBoard({
                     </button>
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStatusChange(todo, "completed");
-                      }}
+                      onClick={() => onStatusChange(todo, "completed")}
                       disabled={busyId === todo.id}
                       className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[11px] font-black text-blue-700 disabled:cursor-wait disabled:opacity-60"
                     >
@@ -4412,10 +4441,7 @@ function DailyTodoBoard({
                     </button>
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStatusChange(todo, "closed_out");
-                      }}
+                      onClick={() => onStatusChange(todo, "closed_out")}
                       disabled={busyId === todo.id}
                       className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-800 disabled:cursor-wait disabled:opacity-60"
                     >
@@ -4804,7 +4830,7 @@ function DataTable({
           <EmptyTabPanel title={emptyTitle} detail={emptyDetail} actionLabel={emptyAction?.label} href={emptyAction?.href} onAction={emptyAction?.onClick} />
         ) : null}
       </div>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto md:block" role="region" aria-label={`${displayTitle} table`} tabIndex={0}>
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-xs font-black text-slate-600">

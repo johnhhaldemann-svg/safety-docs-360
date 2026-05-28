@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -174,9 +175,9 @@ export default function SuperadminHealthPage() {
     }
   }, [query]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   const copyCodexPrompt = useCallback(async () => {
     setPromptError("");

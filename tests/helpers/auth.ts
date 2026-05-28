@@ -2,8 +2,36 @@ import type { Page } from "@playwright/test";
 
 /** E2E: with E2E_USER_EMAIL/PASSWORD, authenticated flows can open /dashboard or /documents; company AI panels POST to /api/company/ai/assist only after user clicks Ask. */
 
+export const E2E_ROLE_AUTH = {
+  companyAdmin: {
+    label: "company admin",
+    emailEnv: "E2E_COMPANY_ADMIN_EMAIL",
+    passwordEnv: "E2E_COMPANY_ADMIN_PASSWORD",
+    storageState: "playwright/.auth/company-admin.json",
+  },
+  fieldUser: {
+    label: "field user",
+    emailEnv: "E2E_FIELD_USER_EMAIL",
+    passwordEnv: "E2E_FIELD_USER_PASSWORD",
+    storageState: "playwright/.auth/field-user.json",
+  },
+  superadmin: {
+    label: "superadmin",
+    emailEnv: "E2E_SUPERADMIN_EMAIL",
+    passwordEnv: "E2E_SUPERADMIN_PASSWORD",
+    storageState: "playwright/.auth/superadmin.json",
+  },
+} as const;
+
+export type E2ERoleKey = keyof typeof E2E_ROLE_AUTH;
+
 export function hasE2ECredentials(): boolean {
   return Boolean(process.env.E2E_USER_EMAIL?.trim() && process.env.E2E_USER_PASSWORD);
+}
+
+export function hasRoleE2ECredentials(role: E2ERoleKey): boolean {
+  const config = E2E_ROLE_AUTH[role];
+  return Boolean(process.env[config.emailEnv]?.trim() && process.env[config.passwordEnv]);
 }
 
 /**

@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -73,9 +74,9 @@ export default function JobsiteInductionsPage() {
     setLoading(false);
   }, [jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function recordCompletion() {
     if (!recordProgramId || !jobsiteId) return;

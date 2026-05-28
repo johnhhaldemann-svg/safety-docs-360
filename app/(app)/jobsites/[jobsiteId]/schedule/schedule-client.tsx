@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { Archive, Bot, CalendarDays, Pencil, Plus, RefreshCw, X } from "lucide-react";
@@ -240,9 +241,9 @@ export function JobsiteScheduleClient({ jobsiteId }: { jobsiteId: string }) {
     setLoading(false);
   }, [jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadSchedule();
-  }, [loadSchedule]);
+  }), [loadSchedule]);
 
   const groupedItems = useMemo(() => {
     const rows = [...(payload?.items ?? [])];

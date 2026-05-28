@@ -93,6 +93,27 @@ function detectDuplicateCronPaths(crons) {
     .map(([cronPath, schedules]) => ({ path: cronPath, schedules }));
 }
 
+function duplicateCronStatus(duplicateCrons) {
+  const intended = [];
+  const unresolved = [];
+  for (const item of duplicateCrons) {
+    const schedules = item.schedules.slice().sort();
+    const isDailyTodoDstPair =
+      item.path === "/api/cron/jobsite-daily-todos" &&
+      schedules.length === 2 &&
+      schedules[0] === "0 10 * * *" &&
+      schedules[1] === "0 11 * * *";
+    if (isDailyTodoDstPair) {
+      intended.push(
+        `${item.path} (${item.schedules.join(", ")}) covers 5am America/Chicago across daylight and standard time; the route skips non-5am local invocations.`
+      );
+    } else {
+      unresolved.push(item);
+    }
+  }
+  return { intended, unresolved };
+}
+
 function supabaseCliPath() {
   const win = process.platform === "win32";
   const exe = path.join(root, "node_modules", "supabase", "bin", win ? "supabase.exe" : "supabase");
@@ -211,6 +232,7 @@ const dbUrl = process.env.SUPABASE_MIGRATION_CHECK_DB_URL || process.env.DATABAS
 const remote = runSupabaseMigrationList(dbUrl);
 const latestRemote = remote.versions.at(-1) ?? null;
 const duplicateCrons = detectDuplicateCronPaths(vercelJson?.crons);
+const cronDuplicates = duplicateCronStatus(duplicateCrons);
 
 const report = [];
 report.push("# Production Integration Audit Map");
@@ -244,11 +266,14 @@ if (remote.error) {
   report.push(statusLine("unknown", `Supabase CLI migration probe: ${remote.error}`));
 }
 report.push(statusLine(
-  duplicateCrons.length > 0 ? "warning" : "healthy",
-  duplicateCrons.length > 0
-    ? `duplicate cron path(s): ${duplicateCrons.map((item) => `${item.path} (${item.schedules.join(", ")})`).join("; ")}`
-    : `${Array.isArray(vercelJson?.crons) ? vercelJson.crons.length : 0} cron job(s) declared with no duplicate paths.`
+  cronDuplicates.unresolved.length > 0 ? "warning" : "healthy",
+  cronDuplicates.unresolved.length > 0
+    ? `duplicate cron path(s): ${cronDuplicates.unresolved.map((item) => `${item.path} (${item.schedules.join(", ")})`).join("; ")}`
+    : `${Array.isArray(vercelJson?.crons) ? vercelJson.crons.length : 0} cron job(s) declared with no unresolved duplicate paths.`
 ));
+if (cronDuplicates.intended.length > 0) {
+  report.push(statusLine("healthy", `intentional duplicate cron coverage: ${cronDuplicates.intended.join("; ")}`));
+}
 report.push(statusLine(
   process.env.SUPABASE_SERVICE_ROLE_KEY ? "healthy" : "critical",
   `SUPABASE_SERVICE_ROLE_KEY is ${process.env.SUPABASE_SERVICE_ROLE_KEY ? "present" : "missing"}.`
@@ -269,7 +294,7 @@ report.push("");
 report.push("## Next Actions");
 report.push("");
 report.push("- Align Vercel project Node.js runtime with package.json Node 20.x.");
-report.push("- Confirm whether duplicate cron paths are intentional.");
+report.push("- Keep `/api/cron/jobsite-daily-todos` scheduled at both 10:00 UTC and 11:00 UTC unless the route stops enforcing the 5am America/Chicago local-hour guard.");
 report.push("- Re-run Supabase security and performance advisors and prioritize SECURITY DEFINER/RLS findings.");
 report.push("- Repair Vercel connector/CLI access and capture latest deployment/log/env parity evidence.");
 report.push("- Use the in-app Superadmin System Health Integration Map for route/table/storage/Auth checks.");

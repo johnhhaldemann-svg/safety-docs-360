@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -74,9 +75,9 @@ export function CompanyMemoryBankPanel({ className = "" }: Props) {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   const saveMemory = async (opts: { replaceMemoryItemId?: string }) => {
     const {

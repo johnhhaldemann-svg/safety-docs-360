@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Search, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -180,7 +181,7 @@ export default function CompanyFieldAuditsPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error" | "warning">("neutral");
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const draft = loadDraft();
     setAuditCustomerId(draft.auditCustomerId);
     setJobsiteId(draft.jobsiteId);
@@ -191,7 +192,7 @@ export default function CompanyFieldAuditsPage() {
     setStatusMap(draft.statusMap);
     setNotesMap(draft.notesMap);
     setPhotoCounts(draft.photoCounts);
-  }, []);
+  }), []);
 
   useEffect(() => {
     const draft: Draft = {
@@ -253,9 +254,9 @@ export default function CompanyFieldAuditsPage() {
     }
   }, [auditCustomerId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadData();
-  }, [loadData]);
+  }), [loadData]);
 
   const selectedCustomer = auditCustomers.find((customer) => customer.id === auditCustomerId);
   const filteredJobsites = useMemo(
@@ -272,12 +273,12 @@ export default function CompanyFieldAuditsPage() {
   const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
   const selectedReportEmail = selectedJobsite?.customer_report_email || selectedCustomer?.report_email || "";
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!jobsiteId || !auditCustomerId) return;
     if (!filteredJobsites.some((jobsite) => jobsite.id === jobsiteId)) {
       setJobsiteId("");
     }
-  }, [auditCustomerId, filteredJobsites, jobsiteId]);
+  }), [auditCustomerId, filteredJobsites, jobsiteId]);
   const normalized = useMemo(
     () => normalizeFieldAuditPayload({ selectedTrade, statusMap, notesMap, photoCounts }),
     [notesMap, photoCounts, selectedTrade, statusMap]

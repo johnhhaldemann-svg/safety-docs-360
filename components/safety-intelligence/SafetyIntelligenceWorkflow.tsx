@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -69,9 +70,9 @@ export function SafetyIntelligenceWorkflow({
   const [mainTab, setMainTab] = useState("intake");
   const scopedJobsiteId = fixedJobsiteId ?? selectedJobsiteId;
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setSelectedJobsiteId(fixedJobsiteId);
-  }, [fixedJobsiteId]);
+  }), [fixedJobsiteId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,9 +134,9 @@ export function SafetyIntelligenceWorkflow({
     }
   }, [fixedJobsiteId, scopedJobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   const loadEngineOutputs = useCallback(
     async (headers: Record<string, string>, input: Record<string, unknown>) => {

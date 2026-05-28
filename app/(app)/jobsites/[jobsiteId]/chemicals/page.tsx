@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -56,9 +57,9 @@ export default function JobsiteChemicalsPage() {
     setLoading(false);
   }, [jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function addRow() {
     if (!name.trim() || !jobsiteId) return;

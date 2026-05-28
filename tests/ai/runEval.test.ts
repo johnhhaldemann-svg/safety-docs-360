@@ -9,14 +9,14 @@
  * `.github/workflows/ai-eval.yml`) — its failures should be triaged like a
  * regression report, not a merge blocker.
  *
- * Skip behavior: when `OPENAI_API_KEY` is missing, every fixture is marked
- * skipped instead of failing, so engineers can run the harness locally without
- * a key and see the surfaces they would exercise.
+ * Skip behavior: when `OPENAI_API_KEY` is missing, live model fixtures are
+ * skipped instead of failing. Deterministic surfaces still run so source-safety
+ * regressions are caught without requiring a provider key.
  */
 
 import { describe, it, expect } from "vitest";
 import { loadAiEvalFixtures } from "@/tests/ai/golden/loadFixtures";
-import { getAiEvalAdapter, listAiEvalSurfaces } from "@/tests/ai/golden/surfaces";
+import { aiEvalSurfaceRequiresOpenAi, getAiEvalAdapter, listAiEvalSurfaces } from "@/tests/ai/golden/surfaces";
 import { evaluateAiOutput, summarizeChecks } from "@/tests/ai/golden/assertions";
 
 const HAS_KEY = Boolean(process.env.OPENAI_API_KEY?.trim());
@@ -43,7 +43,7 @@ for (const fixture of FIXTURES) {
       return;
     }
 
-    if (!HAS_KEY) {
+    if (!HAS_KEY && aiEvalSurfaceRequiresOpenAi(fixture.surface)) {
       it.skip(`${fixture.name} — OPENAI_API_KEY not set, skipping live call`, () => {});
       return;
     }

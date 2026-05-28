@@ -17,6 +17,7 @@ import { generateGcProgramAiReview } from "@/lib/gcProgramAiReview";
 import { runStructuredAiJsonTask } from "@/lib/ai/responses";
 import { generateFieldAuditAiReview } from "@/lib/fieldAudits/aiReview";
 import { injuryWeatherWebResearchSupplement } from "@/lib/injuryWeather/sparseDataWebResearch";
+import { buildVerifiedSafetyAnswer } from "@/lib/gusLearning/answer";
 import { buildAiEngineRecommendationCandidates } from "@/lib/superadmin/aiEngineOperations";
 import {
   SITE_VISUAL_SCENE_JSON_SCHEMA,
@@ -26,8 +27,130 @@ import {
   type SiteVisualGenerationInput,
 } from "@/lib/jobsiteSiteVisual";
 import type { RiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
+import type { ApprovedKnowledgeRow } from "@/lib/gusLearning/types";
 
 export type AiEvalAdapter = (input: unknown) => Promise<unknown>;
+
+function gusKnowledge(overrides: Partial<ApprovedKnowledgeRow> = {}): ApprovedKnowledgeRow {
+  return {
+    id: "gus-knowledge-1",
+    company_id: "company-1",
+    project_id: null,
+    approved_source_id: "source-1",
+    research_queue_id: "research-1",
+    topic: "Safety requirement",
+    knowledge_title: "Verified safety knowledge",
+    approved_summary: "Use the verified safety control described by the approved source.",
+    source_url: "https://safety360docs.example/verified-source",
+    source_title: "Verified source",
+    source_type: "company policy",
+    jurisdiction: "Company",
+    regulation_reference: null,
+    applies_to: "Pilot eval",
+    affected_modules: ["gus"],
+    required_control_type: "company_policy",
+    citation_excerpt: "Approved source excerpt for this safety control.",
+    citation_locator: "Section 1",
+    source_content_hash: "hash-gus-1",
+    verification_notes: "Approved for AI eval fixture coverage.",
+    quality_score: 85,
+    supersedes_knowledge_id: null,
+    superseded_by_knowledge_id: null,
+    approved_by: "safety-admin-1",
+    approved_at: "2026-01-01T00:00:00Z",
+    review_due_date: "2027-01-01",
+    review_status: "current",
+    version: 1,
+    is_active: true,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function gusVerifiedLearningKnowledge(scenario: string): ApprovedKnowledgeRow[] {
+  if (scenario === "unsupported-osha-claim") return [];
+  if (scenario === "prompt-injection-blocked") {
+    return [
+      gusKnowledge({
+        id: "gus-injection-safe",
+        knowledge_title: "Approved housekeeping control",
+        approved_summary: "Keep access paths clear and route blocked walkways to supervisor review before work continues.",
+        source_url: "https://safety360docs.example/company/housekeeping",
+        required_control_type: "company_policy",
+      }),
+    ];
+  }
+  if (scenario === "site-over-company-priority") {
+    return [
+      gusKnowledge({
+        id: "gus-company-fall-protection",
+        knowledge_title: "Company fall protection policy",
+        approved_summary: "Company policy requires fall protection planning for elevated work.",
+        source_url: "https://safety360docs.example/company/fall-protection",
+        required_control_type: "company_policy",
+      }),
+      gusKnowledge({
+        id: "gus-site-fall-protection",
+        project_id: "jobsite-1",
+        source_type: "site safety plan",
+        knowledge_title: "Jobsite fall protection plan",
+        approved_summary: "The site-specific requirement is to use approved guardrails or personal fall arrest before roof-edge work starts.",
+        source_url: "https://safety360docs.example/sites/jobsite-1/fall-protection",
+        required_control_type: "site_requirement",
+      }),
+    ];
+  }
+  if (scenario === "manufacturer-vs-best-practice") {
+    return [
+      gusKnowledge({
+        id: "gus-lift-anchor-manufacturer",
+        source_type: "manufacturer manual",
+        knowledge_title: "Lift anchor inspection manual",
+        approved_summary: "Inspect the lift anchor according to the manufacturer instruction before use and remove damaged anchors from service.",
+        source_url: "https://safety360docs.example/manuals/lift-anchor",
+        required_control_type: "manufacturer_instruction",
+      }),
+      gusKnowledge({
+        id: "gus-lift-anchor-best-practice",
+        source_type: "insurance carrier guidance",
+        knowledge_title: "Lift anchor visual check reminder",
+        approved_summary: "A documented pre-use visual check is a best practice for lift anchors.",
+        source_url: "https://safety360docs.example/best-practices/lift-anchor",
+        required_control_type: "best_practice",
+      }),
+    ];
+  }
+  if (scenario === "low-confidence-best-practice") {
+    return [
+      gusKnowledge({
+        id: "gus-best-practice-only",
+        source_type: "insurance carrier guidance",
+        knowledge_title: "Best practice only guidance",
+        approved_summary: "When only best practice knowledge matches, label it as best practice and ask a safety reviewer to confirm before treating it as a requirement.",
+        source_url: "https://safety360docs.example/best-practices/general",
+        required_control_type: "best_practice",
+        regulation_reference: null,
+      }),
+    ];
+  }
+  if (scenario === "expired-knowledge-warning") {
+    return [
+      gusKnowledge({
+        id: "gus-expired-confined-space",
+        source_type: "company policy",
+        knowledge_title: "Confined space entry rule",
+        approved_summary: "Follow the approved confined space entry procedure and verify permits, atmosphere testing, attendants, and rescue planning.",
+        source_url: "https://safety360docs.example/company/confined-space",
+        required_control_type: "company_policy",
+        review_due_date: "2025-01-01",
+        review_status: "needs_review",
+        quality_score: 52,
+      }),
+    ];
+  }
+  return [];
+}
 
 const adapters: Record<string, AiEvalAdapter> = {
   "gc-program.review": async (input) => {
@@ -177,6 +300,23 @@ const adapters: Record<string, AiEvalAdapter> = {
     const params = input as Parameters<typeof buildAiEngineRecommendationCandidates>[0];
     return { recommendations: buildAiEngineRecommendationCandidates(params) };
   },
+
+  "gus.verified-learning": async (input) => {
+    const params = input as {
+      question: string;
+      scenario: string;
+      companyId?: string | null;
+      projectId?: string | null;
+      now?: string;
+    };
+    return buildVerifiedSafetyAnswer({
+      question: params.question,
+      companyId: params.companyId ?? "company-1",
+      projectId: params.projectId ?? null,
+      knowledge: gusVerifiedLearningKnowledge(params.scenario),
+      now: params.now ? new Date(params.now) : undefined,
+    });
+  },
 };
 
 export function getAiEvalAdapter(surface: string): AiEvalAdapter | null {
@@ -185,4 +325,8 @@ export function getAiEvalAdapter(surface: string): AiEvalAdapter | null {
 
 export function listAiEvalSurfaces(): string[] {
   return Object.keys(adapters);
+}
+
+export function aiEvalSurfaceRequiresOpenAi(surface: string): boolean {
+  return surface !== "gus.verified-learning";
 }

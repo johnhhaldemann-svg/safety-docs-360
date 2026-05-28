@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import {
   AlertCircle,
@@ -73,11 +74,11 @@ export default function SupportPage() {
     text: string;
   } | null>(null);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (typeof window !== "undefined") {
       setPageUrl(window.location.href);
     }
-  }, []);
+  }), []);
 
   const loadTickets = useCallback(async () => {
     setLoadingTickets(true);
@@ -107,9 +108,9 @@ export default function SupportPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadTickets();
-  }, [loadTickets]);
+  }), [loadTickets]);
 
   const openTicketCount = useMemo(
     () => tickets.filter((ticket) => !["resolved", "closed"].includes(ticket.status)).length,

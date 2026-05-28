@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -100,9 +101,9 @@ export default function AdminMarketplacePage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadMarketplace();
-  }, [loadMarketplace]);
+  }), [loadMarketplace]);
 
   const filteredDocuments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

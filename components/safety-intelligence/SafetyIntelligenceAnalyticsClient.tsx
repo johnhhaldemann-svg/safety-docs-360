@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -33,9 +34,9 @@ export function SafetyIntelligenceAnalyticsClient() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   return (
     <div className="space-y-6">

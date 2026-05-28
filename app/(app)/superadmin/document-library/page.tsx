@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import type { FormEvent, InputHTMLAttributes } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -93,9 +94,9 @@ export default function SuperadminDocumentLibraryPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadDocuments();
-  }, [loadDocuments]);
+  }), [loadDocuments]);
 
   const stats = useMemo(() => {
     const listed = documents.filter((document) => document.marketplaceEnabled);

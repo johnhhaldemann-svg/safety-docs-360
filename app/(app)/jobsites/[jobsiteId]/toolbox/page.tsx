@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -72,9 +73,9 @@ export default function JobsiteToolboxPage() {
     setLoading(false);
   }, [jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("indexedDB" in window)) return;

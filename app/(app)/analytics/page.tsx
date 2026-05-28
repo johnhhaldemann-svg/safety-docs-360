@@ -13,6 +13,7 @@ import { AddInsightToDashboardButton } from "@/components/analytics/AddInsightTo
 import { AnalyticsFocusedTab } from "@/components/analytics/AnalyticsFocusedTab";
 import { AnalyticsOverviewSkeleton } from "@/components/analytics/AnalyticsOverviewSkeleton";
 import { TrustSummaryPanel } from "@/components/leadership/TrustSummaryPanel";
+import { deferEffect } from "@/lib/deferredEffect";
 import type {
   AnalyticsSummary,
   LikelyInjuryInsightPayload,
@@ -53,14 +54,14 @@ function AnalyticsPageInner() {
   const [tab, setTab] = useState<TabId>("overview");
   const [observationMode, setObservationMode] = useState<ObservationModeId>("near_misses");
 
-  useLayoutEffect(() => {
+  useLayoutEffect(() => deferEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
     const t = readAllowedSearchParam(sp, "tab", ANALYTICS_TAB_IDS, "overview") as TabId;
     const o = readAllowedSearchParam(sp, "obs", OBSERVATION_MODE_IDS, "near_misses") as ObservationModeId;
     setTab(t);
     setObservationMode(o);
-  }, []);
+  }), []);
 
   const setTabWithUrl = useCallback(
     (next: TabId) => {

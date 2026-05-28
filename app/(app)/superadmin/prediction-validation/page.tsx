@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -141,9 +142,9 @@ export default function PredictionValidationPage() {
     }
   }, [query]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   function toggle(row: ReviewRow) {
     const key = `${row.sourceType}:${row.id}`;

@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import {
   CheckCircle2,
@@ -107,7 +108,7 @@ export default function SuperadminHelpTicketsPage() {
     [selectedId, tickets]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!selected) {
       setDraft(null);
       return;
@@ -119,7 +120,7 @@ export default function SuperadminHelpTicketsPage() {
       adminNotes: selected.adminNotes ?? "",
       resolutionNote: selected.resolutionNote ?? "",
     });
-  }, [selected]);
+  }), [selected]);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -161,9 +162,9 @@ export default function SuperadminHelpTicketsPage() {
     }
   }, [priorityFilter, statusFilter]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadTickets();
-  }, [loadTickets]);
+  }), [loadTickets]);
 
   useEffect(() => {
     let cancelled = false;

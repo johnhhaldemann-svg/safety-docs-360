@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -677,7 +678,7 @@ export default function CSEPPage() {
     [programSelectionState.missingSubtypeGroups]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const eligibleKeys = new Set(eligiblePricedAttachments.map((item) => item.key));
 
     setForm((prev) => {
@@ -686,7 +687,7 @@ export default function CSEPPage() {
         ? prev
         : { ...prev, priced_attachment_keys: nextKeys };
     });
-  }, [eligiblePricedAttachments]);
+  }), [eligiblePricedAttachments]);
 
   const jurisdictionProfile = useMemo(
     () => resolveBuilderJurisdiction({ governingState: form.governing_state }),
@@ -1002,20 +1003,20 @@ export default function CSEPPage() {
     ]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!previewState) return;
     if (previewState.payloadSignature === payloadSignature) return;
     setPreviewApproved(false);
-  }, [payloadSignature, previewState]);
+  }), [payloadSignature, previewState]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (step !== 3) return;
     if (form.tasks.length === 0) return;
     setMessageTone("success");
     setMessage(
       `Tasks selected. Finish intelligence enrichment next, then complete the task-driven sections in Step ${taskDrivenStepNumber}.`
     );
-  }, [form.tasks.length, step, taskDrivenStepNumber]);
+  }), [form.tasks.length, step, taskDrivenStepNumber]);
 
   function handleCompanyLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -90,9 +91,9 @@ export default function CompanyInductionsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function createProgram() {
     if (!newName.trim()) return;
@@ -193,6 +194,7 @@ export default function CompanyInductionsPage() {
               <select
                 value={newAudience}
                 onChange={(e) => setNewAudience(e.target.value)}
+                aria-label="Program audience"
                 className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
               >
                 <option value="worker">Worker</option>
@@ -237,6 +239,7 @@ export default function CompanyInductionsPage() {
           <select
             value={reqProgramId}
             onChange={(e) => setReqProgramId(e.target.value)}
+            aria-label="Requirement program"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
           >
             <option value="">Select program…</option>
@@ -249,6 +252,7 @@ export default function CompanyInductionsPage() {
           <select
             value={reqJobsiteId}
             onChange={(e) => setReqJobsiteId(e.target.value)}
+            aria-label="Requirement jobsite scope"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
           >
             <option value="">All jobsites</option>

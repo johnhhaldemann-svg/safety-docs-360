@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import type { DragEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
@@ -71,9 +72,9 @@ export function GcRequiredProgramUpload({
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadCurrent();
-  }, [loadCurrent]);
+  }), [loadCurrent]);
 
   async function uploadFile(file: File) {
     setMessage("");

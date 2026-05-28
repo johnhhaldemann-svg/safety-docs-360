@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
@@ -57,7 +58,7 @@ export function PilotAccountPanel({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!isPilotMode(companyProfile)) return;
     setName(companyProfile.name ?? "");
     setIndustry(companyProfile.industry ?? "");
@@ -70,7 +71,7 @@ export function PilotAccountPanel({
     setCountry(companyProfile.country ?? "");
     setPrimaryContactName(companyProfile.primary_contact_name ?? "");
     setPrimaryContactEmail(companyProfile.primary_contact_email ?? "");
-  }, [companyProfile]);
+  }), [companyProfile]);
 
   if (!isPilotMode(companyProfile) || !companyProfile.pilot_trial_ends_at) {
     return null;

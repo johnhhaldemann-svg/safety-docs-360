@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -323,7 +324,7 @@ export default function AppLayout({
     setExpandedSectionKey(nextKey);
   }, [currentNavSection?.key, pathname, keyedSideSections]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (
       expandedSectionKey != null &&
       keyedSideSections.some((section) => section.key === expandedSectionKey)
@@ -332,7 +333,7 @@ export default function AppLayout({
     }
 
     setExpandedSectionKey(currentNavSection?.key ?? keyedSideSections[0]?.key ?? null);
-  }, [currentNavSection?.key, expandedSectionKey, keyedSideSections]);
+  }), [currentNavSection?.key, expandedSectionKey, keyedSideSections]);
 
   useEffect(() => {
     let cancelled = false;
@@ -355,7 +356,7 @@ export default function AppLayout({
     };
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!userEmail.trim() || acceptedTerms) {
       return;
     }
@@ -363,7 +364,7 @@ export default function AppLayout({
     if (readAcceptedTermsCache(userEmail, agreementConfig.version)) {
       setAcceptedTerms(true);
     }
-  }, [acceptedTerms, agreementConfig.version, userEmail]);
+  }), [acceptedTerms, agreementConfig.version, userEmail]);
 
   const syncSession = useCallback(
     async (
@@ -723,9 +724,9 @@ export default function AppLayout({
     workspaceProduct,
   ]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }), [pathname]);
 
   const workspaceChromeReady =
     !loading && accountStatus === "active" && acceptedTerms;

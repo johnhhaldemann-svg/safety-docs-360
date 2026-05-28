@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -99,9 +100,9 @@ export default function AdminArchivePage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadDocuments();
-  }, [loadDocuments]);
+  }), [loadDocuments]);
 
   const documentTypes = useMemo(() => {
     const values = Array.from(

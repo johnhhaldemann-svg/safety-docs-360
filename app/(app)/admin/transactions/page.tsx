@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -141,9 +142,9 @@ export default function AdminTransactionsPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadAudit();
-  }, [loadAudit]);
+  }), [loadAudit]);
 
   const filteredTransactions = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

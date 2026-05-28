@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useState } from "react";
@@ -57,9 +58,9 @@ export default function CompanySafetyFormsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function createDefinition() {
     if (!title.trim()) return;
@@ -173,6 +174,7 @@ export default function CompanySafetyFormsPage() {
             value={schemaJson}
             onChange={(e) => setSchemaJson(e.target.value)}
             rows={12}
+            aria-label="Safety form schema JSON"
             className="font-mono text-xs rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100 [color-scheme:dark]"
           />
           <button type="button" onClick={() => void createDefinition()} className={appButtonPrimaryClassName}>
@@ -186,6 +188,7 @@ export default function CompanySafetyFormsPage() {
           <select
             value={extendDefId}
             onChange={(e) => setExtendDefId(e.target.value)}
+            aria-label="Definition to version"
             className="rounded-xl border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 [color-scheme:dark]"
           >
             <option value="">Select definition…</option>

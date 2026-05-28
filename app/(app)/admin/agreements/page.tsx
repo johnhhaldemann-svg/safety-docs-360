@@ -9,6 +9,7 @@ import {
   PageHero,
   SectionCard,
 } from "@/components/WorkspacePrimitives";
+import { deferEffect } from "@/lib/deferredEffect";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -127,9 +128,9 @@ export default function AdminAgreementsPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadAudit();
-  }, [loadAudit]);
+  }), [loadAudit]);
 
   const roleOptions = useMemo(() => {
     return Array.from(new Set(audit.agreements.map((row) => row.role))).sort();

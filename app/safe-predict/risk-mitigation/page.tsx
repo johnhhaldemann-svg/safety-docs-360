@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -178,13 +179,13 @@ export default function SafePredictRiskMitigationPage() {
     return () => window.removeEventListener("hashchange", syncSelectedRiskFromHash);
   }, [providerAlerts]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setActions(providerActions);
-  }, [providerActions]);
+  }), [providerActions]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setAiAssignableUsers(dataset.assignableUsers);
-  }, [dataset.assignableUsers]);
+  }), [dataset.assignableUsers]);
 
   const visibleAlerts = useMemo(() => {
     const byRisk = filterAlertsByRisk(providerAlerts, riskLevel)

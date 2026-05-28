@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -65,9 +66,9 @@ export default function RiskMemorySettingsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadAll();
-  }, [loadAll]);
+  }), [loadAll]);
 
   async function addContractor() {
     const name = contractorName.trim();

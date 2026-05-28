@@ -25,6 +25,7 @@
     "test:e2e:ci": "npm run build && playwright test",
     "test:e2e:smoke": "playwright test tests/smoke.spec.ts --project=chromium",
     "test:e2e:beta": "playwright test tests/beta-exit.spec.ts --project=chromium",
+    "test:routes": "playwright test tests/route-operability.spec.ts --project=chromium",
     "verify:release": "npm run lint && npm run test && npm run test:navigation && npm run test:links && node ./node_modules/typescript/bin/tsc --noEmit && npx playwright test tests/adoption.spec.ts --project=chromium",
     "verify:pilot": "npm run vercel:check && npm run db:check-sync && npm run typecheck && npm run lint && npm run test && npm run test:navigation && npm run test:links && npm run build",
     "stress:platform": "node scripts/stress-platform.mjs",

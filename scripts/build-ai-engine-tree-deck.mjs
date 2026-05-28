@@ -32,8 +32,6 @@ pptx.margin = 0;
 pptx.defineLayout({ name: "WIDE", width: 13.333, height: 7.5 });
 pptx.layout = "WIDE";
 
-const W = 13.333;
-const H = 7.5;
 const C = {
   ink: "15202B",
   muted: "536171",
