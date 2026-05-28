@@ -19,6 +19,9 @@ export const PUBLIC_ROUTES = [
   "/company-signup",
   "/contractor-training-intake",
   "/demo/load",
+] as const;
+
+export const SAFE_PREDICT_WORKSPACE_ROUTES = [
   "/safe-predict",
   "/safe-predict/analytics",
   "/safe-predict/apps-integrations",
@@ -150,6 +153,7 @@ export function authenticatedSmokeRoutes(): string[] {
   const set = new Set<string>([
     ...AUTH_APP_STATIC_ROUTES,
     ...AUTH_APP_DYNAMIC_ROUTES,
+    ...SAFE_PREDICT_WORKSPACE_ROUTES,
     ...getDeclaredAppNavHrefs(),
   ]);
   return [...set].sort((a, b) => a.localeCompare(b));

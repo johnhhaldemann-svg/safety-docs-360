@@ -27,11 +27,11 @@ function walkPageFiles(dir: string): string[] {
 }
 
 /**
- * True when the page lives under the authenticated `(app)` route group (needs session for smoke).
+ * True when the page lives under an authenticated workspace route (needs session for smoke).
  */
 export function isAuthenticatedAppShellPage(appRoot: string, pageFilePath: string): boolean {
   const rel = relative(appRoot, pageFilePath).split(sep).join("/");
-  return rel.includes("(app)/") || rel.startsWith("(app)/");
+  return rel.includes("(app)/") || rel.startsWith("(app)/") || rel.startsWith("safe-predict/");
 }
 
 /**

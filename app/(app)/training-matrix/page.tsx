@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -633,7 +634,7 @@ function Stage1ComplianceGrid({
       </div>
 
       {mode === "worker" ? (
-        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white">
+        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white" role="region" aria-label="Training matrix by worker table" tabIndex={0}>
           <table className="min-w-[1500px] border-collapse text-left text-sm">
             <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
               <tr>
@@ -706,7 +707,7 @@ function Stage1ComplianceGrid({
                     {expanded ? (
                       <tr key={`${row.userId}-expanded`} className="border-b border-[var(--app-border)] bg-[var(--app-panel-soft)]">
                         <td colSpan={16} className="px-4 py-4">
-                          <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white">
+                          <div className="overflow-x-auto rounded-lg border border-[var(--app-border)] bg-white" role="region" aria-label={`${row.name} training details table`} tabIndex={0}>
                             <table className="min-w-full text-left text-xs">
                               <thead className="bg-[var(--app-panel-soft)] uppercase tracking-wide text-[var(--app-muted)]">
                                 <tr>
@@ -753,7 +754,7 @@ function Stage1ComplianceGrid({
           </table>
         </div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white">
+        <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--app-border)] bg-white" role="region" aria-label="Training matrix by course table" tabIndex={0}>
           <table className="min-w-[1100px] border-collapse text-left text-sm">
             <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
               <tr>
@@ -1137,6 +1138,7 @@ function PickTradesAndPositions({
           key={`trade-dd-${trades.join("|")}`}
           className={selectClass}
           defaultValue=""
+          aria-label="Add applicable trade"
           onChange={(e) => {
             const v = e.target.value;
             if (!v) return;
@@ -1194,6 +1196,7 @@ function PickTradesAndPositions({
           key={`position-dd-${positions.join("|")}`}
           className={selectClass}
           defaultValue=""
+          aria-label="Add applicable position"
           onChange={(e) => {
             const v = e.target.value;
             if (!v) return;
@@ -1419,7 +1422,7 @@ function ReadinessChartPreview({ rows }: { rows: ReadinessRow[] }) {
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-zinc-800">
+      <div className="overflow-x-auto rounded-lg border border-zinc-800" role="region" aria-label="Readiness chart preview table" tabIndex={0}>
         <table className="min-w-full border-collapse text-left text-xs">
           <thead>
             <tr className="border-b border-zinc-800 bg-zinc-900/90">
@@ -1687,7 +1690,7 @@ function ReadinessMatrixPanel({
       ) : rows.length === 0 ? (
         <InlineMessage tone="neutral">No readiness rows are available for the selected filters.</InlineMessage>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50" role="region" aria-label="Legacy training requirement matrix table" tabIndex={0}>
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900/90">
@@ -1869,7 +1872,7 @@ export default function TrainingMatrixPage() {
     [pathname, router, searchParams, selectedWorkerTab]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     try {
       if (
         typeof window !== "undefined" &&
@@ -1886,14 +1889,14 @@ export default function TrainingMatrixPage() {
     } catch {
       /* ignore */
     }
-  }, []);
+  }), []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const status = searchParams.get("status");
     if (status === "complete" || status === "expiring_soon" || status === "overdue") {
       setStage1StatusFilter(status);
     }
-  }, [searchParams]);
+  }), [searchParams]);
 
   const dismissSchemaMigrationBanner = useCallback(() => {
     setSchemaMigrationBannerDismissed(true);
@@ -2132,9 +2135,9 @@ export default function TrainingMatrixPage() {
     }
   }, [isOfflineDemoUi, selectedSubTradeFilter, selectedTaskCodeFilter, selectedTradeFilter]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadMatrix();
-  }, [loadMatrix]);
+  }), [loadMatrix]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -3170,7 +3173,7 @@ export default function TrainingMatrixPage() {
             onRunAi={() => void runAiReadinessReview()}
           />
         ) : (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50">
+        <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/50" role="region" aria-label="Training compliance matrix table" tabIndex={0}>
           <table
             className={`min-w-full border-collapse text-left ${isCompact ? "text-xs" : "text-sm"}`}
           >

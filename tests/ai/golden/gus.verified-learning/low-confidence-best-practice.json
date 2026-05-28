@@ -1,15 +1,30 @@
 {
   "surface": "gus.verified-learning",
   "name": "Low-confidence best practice remains labeled",
-  "question": "What should we do when only best-practice knowledge matches?",
-  "expected": {
-    "confidence": "Low",
+  "input": {
+    "question": "What should we do when only best-practice knowledge matches?",
+    "scenario": "low-confidence-best-practice",
+    "now": "2026-05-26T12:00:00Z"
+  },
+  "assertions": {
     "mustContain": [
       "best practice",
       "Recommended Action"
     ],
     "mustNotContain": [
       "required by OSHA"
+    ],
+    "expectedFields": [
+      {
+        "path": "confidence",
+        "type": "string",
+        "equals": "Low"
+      },
+      {
+        "path": "statements.0.classification",
+        "type": "string",
+        "equals": "best_practice"
+      }
     ]
   }
 }

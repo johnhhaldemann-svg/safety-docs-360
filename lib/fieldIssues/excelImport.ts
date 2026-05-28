@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import { buildSimpleWorkbookBuffer, readExcelRows } from "@/lib/excelRows";
 
 /** POST /api/company/observations body shape (JSON keys). */
 export type FieldIssueObservationImportPayload = {
@@ -203,18 +203,15 @@ function resolveJobsiteId(
  * Parse first worksheet of an .xlsx/.xls file into observation payloads.
  * Row 1 = headers; data from row 2. `sheetRow` is 1-based Excel row index.
  */
-export function parseFieldIssueExcelBuffer(
+export async function parseFieldIssueExcelBuffer(
   buffer: ArrayBuffer,
   jobsites: FieldIssueJobsiteRef[],
   userLookup?: FieldIssueUserLookup | null
-): { ok: FieldIssueImportRowOk[]; errors: FieldIssueImportRowErr[] } {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) {
+): Promise<{ ok: FieldIssueImportRowOk[]; errors: FieldIssueImportRowErr[] }> {
+  const rows = await readExcelRows(buffer);
+  if (!rows.length) {
     return { ok: [], errors: [{ sheetRow: 0, message: "Workbook has no sheets." }] };
   }
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
 
   if (!rows.length) {
     return { ok: [], errors: [{ sheetRow: 1, message: "Sheet is empty." }] };
@@ -349,7 +346,7 @@ export function parseFieldIssueExcelBuffer(
 }
 
 /** Build a minimal .xlsx template with header row and one example row. */
-export function buildFieldIssueImportTemplateXlsx(): Uint8Array {
+export function buildFieldIssueImportTemplateRows() {
   const exampleRow = [
     "Example: Unguarded leading edge",
     "North side deck — no rail or warning line",
@@ -365,10 +362,9 @@ export function buildFieldIssueImportTemplateXlsx(): Uint8Array {
     "",
     "",
   ];
-  const aoa = [[...FIELD_ISSUE_IMPORT_TEMPLATE_HEADERS], exampleRow];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Issues");
-  const out = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
-  return new Uint8Array(out);
+  return [[...FIELD_ISSUE_IMPORT_TEMPLATE_HEADERS], exampleRow];
+}
+
+export async function buildFieldIssueImportTemplateXlsx(): Promise<Uint8Array> {
+  return buildSimpleWorkbookBuffer("Issues", buildFieldIssueImportTemplateRows());
 }

@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -281,9 +282,9 @@ export default function SuperadminAiImprovementsPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function approve(id: string) {
     setBusyAction(`approve:${id}`);

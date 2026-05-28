@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, CheckCircle2, ClipboardCheck, ExternalLink, Eye, FileSearch, Flag, Gauge, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
@@ -227,9 +228,9 @@ export default function GusLearningReviewPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   const stats = useMemo(() => {
     const ov = overview;

@@ -342,8 +342,10 @@ export default function ReviewDocumentPage() {
     })();
   }, []);
 
+  const documentId = documentItem?.id ?? "";
+
   const previewAdminExcerpt = useCallback(async () => {
-    if (!documentItem?.id) {
+    if (!documentId) {
       return;
     }
 
@@ -351,7 +353,7 @@ export default function ReviewDocumentPage() {
 
     try {
       const token = await getAccessToken();
-      const res = await fetch(`/api/admin/documents/${documentItem.id}/preview-excerpt`, {
+      const res = await fetch(`/api/admin/documents/${documentId}/preview-excerpt`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -404,10 +406,10 @@ export default function ReviewDocumentPage() {
     } finally {
       setPreviewExcerptLoading(false);
     }
-  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+  }, [documentId, getAccessToken, setFeedbackMessage]);
 
   const downloadFullDraft = useCallback(async () => {
-    if (!documentItem?.id) {
+    if (!documentId) {
       return;
     }
 
@@ -415,7 +417,7 @@ export default function ReviewDocumentPage() {
 
     try {
       const token = await getAccessToken();
-      const res = await fetch(`/api/documents/download/${documentItem.id}`, {
+      const res = await fetch(`/api/documents/download/${documentId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -443,10 +445,10 @@ export default function ReviewDocumentPage() {
     } finally {
       setFullFileDownloadLoading(false);
     }
-  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+  }, [documentId, getAccessToken, setFeedbackMessage]);
 
   const downloadGcFullUpload = useCallback(async () => {
-    if (!documentItem?.id) {
+    if (!documentId) {
       return;
     }
 
@@ -454,7 +456,7 @@ export default function ReviewDocumentPage() {
 
     try {
       const token = await getAccessToken();
-      const res = await fetch(`/api/admin/documents/${documentItem.id}/download-upload`, {
+      const res = await fetch(`/api/admin/documents/${documentId}/download-upload`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -482,7 +484,7 @@ export default function ReviewDocumentPage() {
     } finally {
       setFullFileDownloadLoading(false);
     }
-  }, [documentItem?.id, getAccessToken, setFeedbackMessage]);
+  }, [documentId, getAccessToken, setFeedbackMessage]);
 
   async function runGcReview(action: "approve" | "reject") {
     if (!documentItem?.id) {

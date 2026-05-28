@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -121,9 +122,9 @@ export default function AdminSettingsPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadSettings();
-  }, [loadSettings]);
+  }), [loadSettings]);
 
   function updateGroupTitle(group: keyof Pick<AgreementConfig, "termsOfService" | "liabilityWaiver">, value: string) {
     setConfig((prev) => ({

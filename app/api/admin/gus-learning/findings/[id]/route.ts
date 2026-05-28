@@ -4,7 +4,6 @@ import {
   approveResearchFinding,
   canApproveGusLearning,
   canReviewGusLearning,
-  isAllowedSourceType,
   REQUIRED_CONTROL_TYPES,
   updateResearchFindingStatus,
 } from "@/lib/gusLearning";

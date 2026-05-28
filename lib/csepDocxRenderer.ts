@@ -43,10 +43,7 @@ import {
   relocateSafetyProgramReferencePacks,
 } from "@/lib/csepSafetyProgramReferenceRelocation";
 import { formatGcCmPartnersForExport, normalizeGcCmPartnerEntries } from "@/lib/csepGcCmPartners";
-import {
-  CSEP_WORK_ATTIRE_DEFAULT_BULLETS,
-  CSEP_WORK_ATTIRE_SUBSECTION_BODY,
-} from "@/lib/csepWorkAttireDefaults";
+import { CSEP_WORK_ATTIRE_DEFAULT_BULLETS } from "@/lib/csepWorkAttireDefaults";
 import { assertCsepExportQuality } from "@/lib/csepExportQualityCheck";
 import { CANONICAL_CSEP_SECTION_ORDER } from "@/lib/csep/csep-section-order";
 import {
@@ -2425,19 +2422,7 @@ function placeholderParagraphForSection(sectionKey: string) {
     default:
       return "Project-specific information to be completed.";
   }
-}
-
-function synthesizeWorkAttireSubsections(): CsepTemplateSubsection[] {
-  return [
-    {
-      title: "Work Attire Requirements",
-      paragraphs: [CSEP_WORK_ATTIRE_SUBSECTION_BODY],
-      items: [...CSEP_WORK_ATTIRE_DEFAULT_BULLETS],
-    },
-  ];
-}
-
-function synthesizePpeVersionCSubsections(
+}function synthesizePpeVersionCSubsections(
   draft: GeneratedSafetyPlanDraft,
   existing: CsepTemplateSubsection[]
 ): CsepTemplateSubsection[] {
@@ -3137,32 +3122,6 @@ function buildAppendixETaskHazardMatrixSection(tasks: CsepTask[]): CsepTemplateS
   };
 }
 
-function synthesizeTrainingInspectionsMonitoringRecordkeepingSubsections(): CsepTemplateSubsection[] {
-  return [
-    {
-      title: "Training and Competency",
-      paragraphs: [
-        "Define role-appropriate training and competency verification before work starts and when task conditions change.",
-      ],
-      items: [
-        "For lifting activities, verify lift plan / pick plan communication and crane permit responsibilities before execution.",
-      ],
-    },
-    {
-      title: "Inspections and Monitoring",
-      paragraphs: [
-        "Set inspection cadence, responsible persons, and field monitoring expectations for active work areas and critical controls.",
-      ],
-    },
-    {
-      title: "Recordkeeping",
-      paragraphs: [
-        "Maintain training, inspection, corrective action, and verification records in a review-ready format for project and client requirements.",
-      ],
-    },
-  ];
-}
-
 function synthesizeCloseOutLessonsLearnedSubsections(): CsepTemplateSubsection[] {
   return [
     {
@@ -3173,55 +3132,6 @@ function synthesizeCloseOutLessonsLearnedSubsections(): CsepTemplateSubsection[]
     },
   ];
 }
-
-const HIGH_RISK_STEEL_PROGRAMS = [
-  "Leading Edge and Connector Work Program",
-  "Fall Rescue and Suspension Trauma Program",
-  "Controlled Decking Zone and Decking Access Program",
-  "Hoisting and Rigging Program",
-  "Multiple Lift Rigging Program",
-  "Structural Stability and Temporary Bracing Program",
-  "Column Anchorage and Initial Connection Program",
-  "Open Web Joist and Bridging Program",
-  "Falling Objects and Drop Zone Control Program",
-  "Weather, Wind, Lightning and Site Condition Program",
-];
-
-const HAZARD_CONTROL_MODULES = [
-  "Fall Exposure",
-  "Struck-By / Load Path / Swing Radius",
-  "Caught-In / Pinch Points",
-  "Crane, Rigging, and Suspended Loads",
-  "Structural Instability / Collapse",
-  "Column Anchorage",
-  "Open Web Joists and Bridging",
-  "Falling Objects / Dropped Materials",
-  "Hot Work / Welding / Cutting",
-  "Fire Prevention",
-  "Fumes / Ventilation",
-  "Electrical / Temporary Power",
-  "Mobile Equipment / Pedestrian Interface",
-  "Weather / Wind / Lightning",
-  "Heat / Cold Stress",
-  "Housekeeping / Slip, Trip, Fall",
-  "PPE Hazard Controls",
-];
-
-const TASK_EXECUTION_MODULES = [
-  "Receiving, Unloading, Inspecting, and Staging Steel",
-  "Sorting Members / Shakeout",
-  "Rigging and Crane Picks",
-  "Column Erection",
-  "Beam and Girder Setting",
-  "Initial Connections",
-  "Plumbing, Temporary Bracing, and Final Bolting",
-  "Field Welding, Cutting, and Shear Connectors",
-  "Metal Decking Installation",
-  "Opening and Perimeter Protection During Decking",
-  "Embeds / Plates / Miscellaneous Metals",
-  "Punch List / Detail Work",
-  "Touch-Up Painting / Coatings",
-];
 
 function synthesizeNamedModuleSubsections(names: readonly string[], fallback: string): CsepTemplateSubsection[] {
   return names.map((title) => ({
@@ -5805,23 +5715,7 @@ function createRunningFooter(footerCompanyName: string, contractorName: string) 
       ),
     ],
   });
-}
-
-function subtleDivider() {
-  return new Paragraph({
-    border: {
-      bottom: {
-        color: COLORS.titleBlue,
-        style: BorderStyle.SINGLE,
-        size: 3,
-      },
-    },
-    spacing: { after: 140 },
-    children: [],
-  });
-}
-
-function labeledFieldParagraph(
+}function labeledFieldParagraph(
   label: string,
   value: string,
   options?: {
@@ -6328,20 +6222,7 @@ function outlineOrdinalForSectionKey(plan: CsepOutlinePlanEntry[], sectionKey: s
     throw new Error(`CSEP outline plan missing section key "${sectionKey}".`);
   }
   return hit.ordinal;
-}
-
-function outlineOrdinalForKind(
-  plan: CsepOutlinePlanEntry[],
-  kind: "disclaimer"
-): number {
-  const hit = plan.find((e) => e.kind === kind);
-  if (!hit) {
-    throw new Error(`CSEP outline plan missing entry kind "${kind}".`);
-  }
-  return hit.ordinal;
-}
-
-function sectionPrefix(_section: CsepTemplateSection, outlineOrdinal: number) {
+}function sectionPrefix(_section: CsepTemplateSection, outlineOrdinal: number) {
   if (_section.kind === "appendix") {
     const letter = /^Appendix\s+([A-Z])\b/i.exec(_section.title.trim())?.[1]?.toUpperCase();
     return letter || "";
@@ -6853,24 +6734,6 @@ function createContents(model: CsepRenderModel) {
     bodyParagraph("Appendices", { style: STYLE_IDS.subheading, spacing: { before: 120, after: 60 } }),
     ...appendices.map((entry) => bodyParagraph(entry, { style: STYLE_IDS.contentsEntry })),
     bodyParagraph("Disclaimer", { style: STYLE_IDS.contentsEntry }),
-  ];
-}
-
-function createAttachmentsDivider(ordinal: number) {
-  return [
-    sectionHeading(`${ordinal}. Attachments`),
-    sectionDescriptorParagraph(
-      "Forms, checklists, and supporting inserts issued with this CSEP package."
-    ),
-  ];
-}
-
-function createAppendicesDivider(ordinal: number) {
-  return [
-    sectionHeading(`${ordinal}. Appendices`),
-    sectionDescriptorParagraph(
-      "Matrices, program reference packs, and library material referenced from the body of this plan."
-    ),
   ];
 }
 

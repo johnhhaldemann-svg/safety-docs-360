@@ -1,13 +1,32 @@
 {
   "surface": "gus.verified-learning",
   "name": "Expired knowledge is cited with warning",
-  "question": "What is our confined space entry rule?",
-  "expected": {
-    "unsupported": false,
-    "needsReview": true,
+  "input": {
+    "question": "What is our confined space entry rule?",
+    "scenario": "expired-knowledge-warning",
+    "now": "2026-05-26T12:00:00Z"
+  },
+  "assertions": {
     "mustContain": [
       "past review due date",
       "may be outdated"
+    ],
+    "expectedFields": [
+      {
+        "path": "unsupported",
+        "type": "boolean",
+        "equals": false
+      },
+      {
+        "path": "needsReview",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "qualitySignals.expiredCitationCount",
+        "type": "number",
+        "min": 1
+      }
     ]
   }
 }

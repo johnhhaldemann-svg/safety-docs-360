@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -132,9 +133,9 @@ export default function SuperadminJurisdictionStandardsPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadConfig();
-  }, [loadConfig]);
+  }), [loadConfig]);
 
   const filteredStandards = useMemo(() => {
     return config.standards.filter((standard) => {
@@ -147,11 +148,11 @@ export default function SuperadminJurisdictionStandardsPage() {
     });
   }, [config.standards, selectedJurisdiction, selectedSurface]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!filteredStandards.some((standard) => standard.id === selectedStandardId)) {
       setSelectedStandardId(filteredStandards[0]?.id ?? "");
     }
-  }, [filteredStandards, selectedStandardId]);
+  }), [filteredStandards, selectedStandardId]);
 
   const selectedStandard =
     filteredStandards.find((standard) => standard.id === selectedStandardId) ??
@@ -163,13 +164,13 @@ export default function SuperadminJurisdictionStandardsPage() {
     return config.mappings.filter((mapping) => mapping.standardId === selectedStandard.id);
   }, [config.mappings, selectedStandard]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!selectedStandard) {
       setApplicabilityDraft("{}");
       return;
     }
     setApplicabilityDraft(formatJson(selectedStandard.applicability));
-  }, [selectedStandard]);
+  }), [selectedStandard]);
 
   function updateStandard(
     standardId: string,

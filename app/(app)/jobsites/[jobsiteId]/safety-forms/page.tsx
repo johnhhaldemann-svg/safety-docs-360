@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -54,11 +55,11 @@ export default function JobsiteSafetyFormsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadDefinitions();
-  }, [loadDefinitions]);
+  }), [loadDefinitions]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!defId) {
       setVersion(null);
       return;
@@ -81,7 +82,7 @@ export default function JobsiteSafetyFormsPage() {
         setVersion(null);
       }
     })();
-  }, [defId]);
+  }), [defId]);
 
   async function saveDraft() {
     if (!jobsiteId || !version) return;

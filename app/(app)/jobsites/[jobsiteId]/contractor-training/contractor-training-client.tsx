@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Check, Mail, MessageSquareText, Plus, Save, X } from "lucide-react";
@@ -172,10 +173,16 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
   const [trainingDrafts, setTrainingDrafts] = useState<Record<string, { completedOn: string; expiresOn: string; notes: string }>>({});
 
   const canManage = Boolean(payload.capabilities?.canManage);
-  const requirements = payload.requirements ?? [];
-  const assignments = payload.assignments ?? [];
-  const activeAssignments = assignments.filter((assignment) => assignment.status !== "archived");
-  const archivedAssignments = assignments.filter((assignment) => assignment.status === "archived");
+  const requirements = useMemo(() => payload.requirements ?? [], [payload.requirements]);
+  const assignments = useMemo(() => payload.assignments ?? [], [payload.assignments]);
+  const activeAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.status !== "archived"),
+    [assignments]
+  );
+  const archivedAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.status === "archived"),
+    [assignments]
+  );
 
   const stats = useMemo(() => {
     let totalChecks = 0;
@@ -219,9 +226,9 @@ export function ContractorTrainingClient({ jobsiteId }: { jobsiteId: string }) {
     setLoading(false);
   }, [getToken, jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function postAction(body: Record<string, unknown>, success: string) {
     const token = await getToken();

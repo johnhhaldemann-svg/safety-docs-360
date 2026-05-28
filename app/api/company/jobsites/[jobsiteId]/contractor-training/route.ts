@@ -25,6 +25,7 @@ import {
 export const runtime = "nodejs";
 
 type Params = { jobsiteId: string };
+type SupabaseAdminClient = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
 function canManage(role: string) {
   return isAdminRole(role) || role === "company_admin" || role === "manager" || role === "safety_manager";
@@ -116,7 +117,7 @@ async function resolveScope(request: Request, jobsiteId: string) {
   return { auth, companyScope, db, jobsite } as const;
 }
 
-async function loadMatrix(db: any, companyId: string, jobsiteId: string) {
+async function loadMatrix(db: SupabaseAdminClient, companyId: string, jobsiteId: string) {
   const [requirementsResult, assignmentsResult, contractorsResult] = await Promise.all([
     db
       .from("jobsite_contractor_training_requirements")

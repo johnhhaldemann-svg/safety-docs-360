@@ -16,7 +16,11 @@ test.describe("Safety Intelligence review", () => {
 
     const onWorkflow = page.url().includes("/safety-intelligence");
     const redirected = page.url().includes("/dashboard");
-    expect(onWorkflow || redirected, `unexpected URL after safety-intelligence: ${page.url()}`).toBeTruthy();
+    const currentSafePredictSurface = page.url().includes("/safe-predict/hazards");
+    expect(
+      onWorkflow || redirected || currentSafePredictSurface,
+      `unexpected URL after safety-intelligence: ${page.url()}`
+    ).toBeTruthy();
 
     if (onWorkflow) {
       await expect(page.getByText("Permit matrix", { exact: false }).first()).toBeVisible({
@@ -26,6 +30,8 @@ test.describe("Safety Intelligence review", () => {
       await expect(page.getByText("PPE review", { exact: false }).first()).toBeVisible();
       await page.getByRole("tab", { name: "Training review" }).click();
       await expect(page.getByRole("tab", { name: "Training review" })).toBeVisible();
+    } else if (currentSafePredictSurface) {
+      await expect(page.getByRole("heading", { name: /Hazards/i })).toBeVisible({ timeout: 25_000 });
     }
   });
 });

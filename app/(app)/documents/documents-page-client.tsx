@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -579,7 +580,7 @@ function DocumentsPageContent() {
     }
   }, [setLibraryTab]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     try {
       const saved = getWithLegacyStorageFallback(
         window.localStorage,
@@ -611,7 +612,7 @@ function DocumentsPageContent() {
     } finally {
       setFiltersLoaded(true);
     }
-  }, []);
+  }), []);
 
   useEffect(() => {
     if (!filtersLoaded) return;

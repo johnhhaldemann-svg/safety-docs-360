@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 describe("useGusAssistant launcher visibility", () => {
   const source = readFileSync("components/gus/useGusAssistant.ts", "utf8");
 
-  it("keeps the manual launcher visible on allowed routes even after popup suppression", () => {
-    expect(source).toContain("const isVisible = isAllowed;");
+  it("hides the manual launcher after Gus is dismissed or disabled for the day", () => {
+    expect(source).toContain("const isVisible = isAllowed && !disabledToday && !dismissed;");
     expect(source).toContain("const canAutoShow = isAllowed && !disabledToday && !dismissed && !quietMode;");
     expect(source).toContain("if (!canAutoShow || open) return false;");
     expect(source).toContain("if (!canAutoShow || open) return undefined;");

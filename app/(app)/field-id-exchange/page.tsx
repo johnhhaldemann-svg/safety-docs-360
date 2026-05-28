@@ -1201,8 +1201,8 @@ export default function FieldIdExchangePage() {
     }
   }
 
-  function downloadFieldIssueImportTemplate() {
-    const bytes = buildFieldIssueImportTemplateXlsx();
+  async function downloadFieldIssueImportTemplate() {
+    const bytes = await buildFieldIssueImportTemplateXlsx();
     const arrayBuffer = bytes.buffer.slice(
       bytes.byteOffset,
       bytes.byteOffset + bytes.byteLength
@@ -1229,7 +1229,7 @@ export default function FieldIdExchangePage() {
     }
     try {
       const buffer = await file.arrayBuffer();
-      const { ok, errors } = parseFieldIssueExcelBuffer(
+      const { ok, errors } = await parseFieldIssueExcelBuffer(
         buffer,
         jobsites.map((j) => ({ id: j.id, name: j.name })),
         { emailToUserId: fieldIssueEmailToUserId }

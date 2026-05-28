@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Plus, Save, X } from "lucide-react";
@@ -71,7 +72,7 @@ export default function ContractorTrainingIntakePage() {
   });
   const records = useMemo(() => payload.records ?? [], [payload.records]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const nextToken = new URLSearchParams(window.location.search).get("token")?.trim() ?? "";
     setToken(nextToken);
     if (!nextToken) {
@@ -103,7 +104,7 @@ export default function ContractorTrainingIntakePage() {
       }
       setLoading(false);
     })();
-  }, []);
+  }), []);
 
   function addCertification() {
     const title = certName.trim();

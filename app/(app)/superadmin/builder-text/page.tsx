@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -261,18 +262,18 @@ export default function SuperadminBuilderTextPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadSettings();
-  }, [loadSettings]);
+  }), [loadSettings]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!programConfig.definitions.some((definition) => getProgramDefinitionKey(definition) === selectedKey)) {
       const first = programConfig.definitions[0];
       if (first) {
         setSelectedKey(getProgramDefinitionKey(first));
       }
     }
-  }, [programConfig.definitions, selectedKey]);
+  }), [programConfig.definitions, selectedKey]);
 
   const selectedProgram =
     programConfig.definitions.find((definition) => getProgramDefinitionKey(definition) === selectedKey) ??
@@ -290,7 +291,7 @@ export default function SuperadminBuilderTextPage() {
     [builderConfig]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setSelectedSectionKeys((current) => {
       const next = { ...current };
       (["csep", "site_builder"] as DocumentBuilderId[]).forEach((builderId) => {
@@ -303,7 +304,7 @@ export default function SuperadminBuilderTextPage() {
       });
       return next;
     });
-  }, [flattenedSections]);
+  }), [flattenedSections]);
 
   const selectedSection =
     activeTab === "csep_programs"

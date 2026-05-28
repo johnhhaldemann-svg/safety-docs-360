@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -68,9 +69,9 @@ export default function ContractorDetailPage() {
     setLoading(false);
   }, [contractorId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   async function addDocument() {
     if (!title.trim() || !contractorId) return;

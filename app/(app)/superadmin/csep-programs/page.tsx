@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -196,18 +197,18 @@ export default function SuperadminCsepProgramsPage() {
     }
   }, [getAccessToken]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadConfig();
-  }, [loadConfig]);
+  }), [loadConfig]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!config.definitions.some((definition) => getProgramDefinitionKey(definition) === selectedKey)) {
       const first = config.definitions[0];
       if (first) {
         setSelectedKey(getProgramDefinitionKey(first));
       }
     }
-  }, [config.definitions, selectedKey]);
+  }), [config.definitions, selectedKey]);
 
   const selectedProgram = useMemo(() => {
     return (

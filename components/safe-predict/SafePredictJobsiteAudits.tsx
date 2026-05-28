@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Send } from "lucide-react";
@@ -172,7 +173,7 @@ export function SafePredictJobsiteAudits() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error" | "warning">("neutral");
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const draft = loadDraft();
     setCompanyId(draft.companyId);
     setJobsiteId(draft.jobsiteId);
@@ -184,7 +185,7 @@ export function SafePredictJobsiteAudits() {
     setStatusMap(draft.statusMap);
     setNotesMap(draft.notesMap);
     setPhotoCounts(draft.photoCounts);
-  }, []);
+  }), []);
 
   useEffect(() => {
     const draft: Draft = {
@@ -246,9 +247,9 @@ export function SafePredictJobsiteAudits() {
     }
   }, [companyId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadData();
-  }, [loadData]);
+  }), [loadData]);
 
   const selectedCompany = companies.find((company) => company.id === companyId);
   const filteredJobsites = useMemo(
@@ -265,12 +266,12 @@ export function SafePredictJobsiteAudits() {
   );
   const score = normalized.scoreSummary;
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!jobsiteId || !companyId) return;
     if (!filteredJobsites.some((jobsite) => jobsite.id === jobsiteId)) {
       setJobsiteId("");
     }
-  }, [companyId, filteredJobsites, jobsiteId]);
+  }), [companyId, filteredJobsites, jobsiteId]);
 
   const setRowStatus = useCallback((key: string, next: "pass" | "fail" | "na" | "") => {
     setStatusMap((prev) => {

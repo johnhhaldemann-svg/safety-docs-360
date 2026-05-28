@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -350,6 +351,105 @@ function connectionArrowColor(status: SystemHealthStatus) {
   return "text-emerald-600";
 }
 
+function getFlowEdge(
+  connections: Map<string, SystemHealthConnection>,
+  from: string,
+  to: string
+) {
+  return connections.get(`${from}->${to}`);
+}
+
+function HorizontalEdge({
+  connections,
+  from,
+  to,
+}: {
+  connections: Map<string, SystemHealthConnection>;
+  from: string;
+  to: string;
+}) {
+  const edge = getFlowEdge(connections, from, to);
+  const st = edge?.status ?? "unknown";
+  return (
+    <div
+      className={`flex min-w-[40px] max-w-[56px] shrink-0 flex-col items-center justify-center self-center px-0.5 ${connectionArrowColor(st)}`}
+    >
+      <ArrowRight className="h-5 w-5 shrink-0" strokeWidth={2.2} aria-hidden />
+      <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
+    </div>
+  );
+}
+
+function VerticalEdge({
+  connections,
+  from,
+  to,
+}: {
+  connections: Map<string, SystemHealthConnection>;
+  from: string;
+  to: string;
+}) {
+  const edge = getFlowEdge(connections, from, to);
+  const st = edge?.status ?? "unknown";
+  return (
+    <div className={`flex flex-col items-center py-0.5 ${connectionArrowColor(st)}`}>
+      <ArrowUp className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
+      <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
+    </div>
+  );
+}
+
+function LoopBackEdge({
+  connections,
+  from,
+  to,
+  caption,
+  Icon,
+}: {
+  connections: Map<string, SystemHealthConnection>;
+  from: string;
+  to: string;
+  caption: string;
+  Icon: LucideIcon;
+}) {
+  const edge = getFlowEdge(connections, from, to);
+  const st = edge?.status ?? "unknown";
+  return (
+    <div className={`flex max-w-[120px] flex-col items-center gap-0.5 ${connectionArrowColor(st)}`}>
+      <div className="[&_svg_path]:stroke-[currentColor] [&_svg_path]:[stroke-dasharray:5_4] [&_svg_path]:[stroke-linecap:round]">
+        <Icon className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
+      </div>
+      <span className="text-center text-[8px] font-bold leading-tight">{caption}</span>
+      <span className="text-center text-[8px] font-semibold opacity-90">{edge?.label ?? " - "}</span>
+    </div>
+  );
+}
+
+function NodeCard({
+  sections,
+  id,
+  className,
+}: {
+  sections: Map<string, SystemHealthSection>;
+  id: string;
+  className?: string;
+}) {
+  const section = sections.get(id);
+  const status = section?.status ?? "unknown";
+  const label = SECTION_LABELS[id] ?? id;
+  return (
+    <div
+      className={`flex min-h-[88px] min-w-[100px] flex-col items-center justify-center rounded-2xl border bg-white/95 px-2 py-3 text-center shadow-sm sm:min-w-[112px] ${nodeRing(status)} ${className ?? ""}`}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Layer</span>
+      <span className="mt-1 text-xs font-bold leading-tight text-slate-900">{label}</span>
+      <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusBadgeClasses(status)}`}>
+        {formatStatusLabel(status)}
+      </span>
+    </div>
+  );
+}
+
 function FlowDiagram({
   sections,
   connections,
@@ -366,75 +466,6 @@ function FlowDiagram({
     return m;
   }, [connections]);
 
-  function getEdge(from: string, to: string) {
-    return connMap.get(`${from}->${to}`);
-  }
-
-  function HorizontalEdge({ from, to }: { from: string; to: string }) {
-    const edge = getEdge(from, to);
-    const st = edge?.status ?? "unknown";
-    return (
-      <div
-        className={`flex min-w-[40px] max-w-[56px] shrink-0 flex-col items-center justify-center self-center px-0.5 ${connectionArrowColor(st)}`}
-      >
-        <ArrowRight className="h-5 w-5 shrink-0" strokeWidth={2.2} aria-hidden />
-        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
-      </div>
-    );
-  }
-
-  function VerticalEdge({ from, to }: { from: string; to: string }) {
-    const edge = getEdge(from, to);
-    const st = edge?.status ?? "unknown";
-    return (
-      <div className={`flex flex-col items-center py-0.5 ${connectionArrowColor(st)}`}>
-        <ArrowUp className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
-        <span className="text-center text-[8px] font-bold leading-tight">{edge?.label ?? " - "}</span>
-      </div>
-    );
-  }
-
-  function LoopBackEdge({
-    from,
-    to,
-    caption,
-    Icon,
-  }: {
-    from: string;
-    to: string;
-    caption: string;
-    Icon: LucideIcon;
-  }) {
-    const edge = getEdge(from, to);
-    const st = edge?.status ?? "unknown";
-    return (
-      <div className={`flex max-w-[120px] flex-col items-center gap-0.5 ${connectionArrowColor(st)}`}>
-        <div className="[&_svg_path]:stroke-[currentColor] [&_svg_path]:[stroke-dasharray:5_4] [&_svg_path]:[stroke-linecap:round]">
-          <Icon className="h-6 w-6 shrink-0" strokeWidth={2.2} aria-hidden />
-        </div>
-        <span className="text-center text-[8px] font-bold leading-tight">{caption}</span>
-        <span className="text-center text-[8px] font-semibold opacity-90">{edge?.label ?? " - "}</span>
-      </div>
-    );
-  }
-
-  function NodeCard({ id, className }: { id: string; className?: string }) {
-    const section = byId.get(id);
-    const status = section?.status ?? "unknown";
-    const label = SECTION_LABELS[id] ?? id;
-    return (
-      <div
-        className={`flex min-h-[88px] min-w-[100px] flex-col items-center justify-center rounded-2xl border bg-white/95 px-2 py-3 text-center shadow-sm sm:min-w-[112px] ${nodeRing(status)} ${className ?? ""}`}
-      >
-        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Layer</span>
-        <span className="mt-1 text-xs font-bold leading-tight text-slate-900">{label}</span>
-        <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusBadgeClasses(status)}`}>
-          {formatStatusLabel(status)}
-        </span>
-      </div>
-    );
-  }
-
   /** Matches the Smart Safety reference: vertical stack under the engine, outputs branch right, dashed feedback from the field loop. */
   const spineCol = "flex w-[min(100%,118px)] shrink-0 flex-col items-center sm:w-[128px]";
 
@@ -443,21 +474,23 @@ function FlowDiagram({
       <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-1">
         <div className="flex w-full flex-wrap items-end justify-center gap-x-0.5 gap-y-2 sm:flex-nowrap sm:justify-center">
           <div className={spineCol}>
-            <NodeCard id="intelligence_engine" className="w-full min-w-0" />
+            <NodeCard sections={byId} id="intelligence_engine" className="w-full min-w-0" />
           </div>
-          <HorizontalEdge from="intelligence_engine" to="protection_outputs" />
-          <NodeCard id="protection_outputs" className="min-w-[100px] shrink-0 sm:min-w-[112px]" />
-          <HorizontalEdge from="protection_outputs" to="field_feedback_loop" />
+          <HorizontalEdge connections={connMap} from="intelligence_engine" to="protection_outputs" />
+          <NodeCard sections={byId} id="protection_outputs" className="min-w-[100px] shrink-0 sm:min-w-[112px]" />
+          <HorizontalEdge connections={connMap} from="protection_outputs" to="field_feedback_loop" />
           <div className="flex shrink-0 flex-col items-center">
-            <NodeCard id="field_feedback_loop" className="min-w-[108px] sm:min-w-[120px]" />
+            <NodeCard sections={byId} id="field_feedback_loop" className="min-w-[108px] sm:min-w-[120px]" />
             <div className="mt-1 flex max-w-[220px] flex-wrap justify-center gap-2 sm:gap-3">
               <LoopBackEdge
+                connections={connMap}
                 from="field_feedback_loop"
                 to="intelligence_engine"
                 caption="Feedback -> engine"
                 Icon={ArrowUpLeft}
               />
               <LoopBackEdge
+                connections={connMap}
                 from="field_feedback_loop"
                 to="memory_buckets"
                 caption="Feedback -> memory"
@@ -468,12 +501,12 @@ function FlowDiagram({
         </div>
 
         <div className={spineCol}>
-          <VerticalEdge from="prevention_logic" to="intelligence_engine" />
-          <NodeCard id="prevention_logic" className="w-full min-w-0" />
-          <VerticalEdge from="memory_buckets" to="prevention_logic" />
-          <NodeCard id="memory_buckets" className="w-full min-w-0" />
-          <VerticalEdge from="data_foundation" to="memory_buckets" />
-          <NodeCard id="data_foundation" className="w-full min-w-0" />
+          <VerticalEdge connections={connMap} from="prevention_logic" to="intelligence_engine" />
+          <NodeCard sections={byId} id="prevention_logic" className="w-full min-w-0" />
+          <VerticalEdge connections={connMap} from="memory_buckets" to="prevention_logic" />
+          <NodeCard sections={byId} id="memory_buckets" className="w-full min-w-0" />
+          <VerticalEdge connections={connMap} from="data_foundation" to="memory_buckets" />
+          <NodeCard sections={byId} id="data_foundation" className="w-full min-w-0" />
         </div>
       </div>
       <p className="mt-4 text-center text-xs text-[var(--app-muted)]">
@@ -715,9 +748,9 @@ export default function SuperadminSystemHealthPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void load();
-  }, [load]);
+  }), [load]);
 
   const issuesPanel = useMemo(() => (data ? issuesPanelItemsFromPayload(data) : []), [data]);
   const orderedSections = useMemo(() => {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LifeBuoy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { deferEffect } from "@/lib/deferredEffect";
 import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 import type { PlatformHelpTicketSummary } from "@/types/platform-support";
 
@@ -39,11 +40,16 @@ export function PlatformSupportAlert() {
   }, []);
 
   useEffect(() => {
-    void loadSummary();
+    const cancelInitialLoad = deferEffect(() => {
+      void loadSummary();
+    });
     const id = window.setInterval(() => {
       void loadSummary();
     }, 60_000);
-    return () => window.clearInterval(id);
+    return () => {
+      cancelInitialLoad();
+      window.clearInterval(id);
+    };
   }, [loadSummary]);
 
   const activeCount = summary.open + summary.inProgress + summary.waitingOnUser;
@@ -68,4 +74,3 @@ export function PlatformSupportAlert() {
     </Link>
   );
 }
-

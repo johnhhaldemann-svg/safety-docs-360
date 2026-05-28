@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -124,14 +125,14 @@ export default function SearchPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     setQuery(initialQuery);
     setSubmittedQuery(initialQuery);
-  }, [initialQuery]);
+  }), [initialQuery]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadResults(submittedQuery, typeFilter);
-  }, [loadResults, submittedQuery, typeFilter]);
+  }), [loadResults, submittedQuery, typeFilter]);
 
   const typeOptions = useMemo(() => {
     const present = Object.keys(facets.typeCounts) as WorkspaceSearchResultType[];

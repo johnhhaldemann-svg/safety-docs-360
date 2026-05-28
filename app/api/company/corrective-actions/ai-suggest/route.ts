@@ -8,7 +8,6 @@ import {
   buildAiActionPrompt,
   defaultDueDateForRisk,
   fallbackAiActionSuggestion,
-  normalizeAiRiskLevel,
   parseAiActionSuggestionText,
   type CorrectiveActionRiskSignal,
 } from "@/lib/correctiveActionAi";

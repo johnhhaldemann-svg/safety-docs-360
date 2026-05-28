@@ -16,7 +16,11 @@ test.describe("Training matrix", () => {
 
     const onMatrix = page.url().includes("/training-matrix");
     const redirected = page.url().includes("/dashboard");
-    expect(onMatrix || redirected, `unexpected URL after training-matrix: ${page.url()}`).toBeTruthy();
+    const legacyWorkspaceRedirect = page.url().includes("/safe-predict/training-tracker");
+    expect(
+      onMatrix || redirected || legacyWorkspaceRedirect,
+      `unexpected URL after training-matrix: ${page.url()}`
+    ).toBeTruthy();
 
     if (onMatrix) {
       await expect(page.getByText("Training matrix", { exact: false }).first()).toBeVisible({

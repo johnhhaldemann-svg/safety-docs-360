@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -214,14 +215,14 @@ export default function IncidentsPage() {
     })();
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const observationId = searchParams.get("observationId")?.trim() ?? "";
     if (observationId) {
       setForm((current) => ({ ...current, observationId }));
     }
     void loadIncidents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, searchParams]);
+  }), [statusFilter, searchParams]);
 
   const counts = useMemo(
     () => ({

@@ -1,4 +1,5 @@
 ﻿"use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -259,7 +260,7 @@ export default function PermitsPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const jsaActivityId = searchParams.get("jsaActivityId")?.trim() ?? "";
     const jobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
     const observationId = searchParams.get("observationId")?.trim() ?? "";
@@ -271,7 +272,7 @@ export default function PermitsPage() {
     }));
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, searchParams]);
+  }), [statusFilter, searchParams]);
 
   const jobsiteById = useMemo(
     () => new Map(jobsites.map((jobsite) => [jobsite.id, jobsite])),
@@ -283,11 +284,11 @@ export default function PermitsPage() {
     [jsaActivities]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!form.jobsiteId && activeJobsites.length === 1) {
       setForm((current) => ({ ...current, jobsiteId: activeJobsites[0].id }));
     }
-  }, [activeJobsites, form.jobsiteId]);
+  }), [activeJobsites, form.jobsiteId]);
   const selectedActivity = useMemo(
     () => (form.jsaActivityId ? activityById.get(form.jsaActivityId) ?? null : null),
     [form.jsaActivityId, activityById]
@@ -320,7 +321,7 @@ export default function PermitsPage() {
     [permits]
   );
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!selectedActivity) return;
     setForm((current) => {
       const next: PermitForm = { ...current };
@@ -335,7 +336,7 @@ export default function PermitsPage() {
       }
       return next;
     });
-  }, [selectedActivity]);
+  }), [selectedActivity]);
 
   async function createPermit() {
     const hasLinkedJsa = Boolean(form.jsaActivityId.trim());

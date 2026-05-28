@@ -10,6 +10,8 @@ This file is the working evidence log for the staging-first pilot readiness pass
 | Latest local migration | Ready | `npm run db:check-local` reports `20260526150000_pilot_revenue_supabase_hardening.sql`. |
 | Local Vercel runtime guard | Ready with warning | `npm run vercel:check` passes because `package.json` pins Node `20.x`; linked Vercel metadata still reports `24.x`. |
 | Unit/build verification | Ready | Latest verification before this evidence log: typecheck, lint, navigation, link checks, Vitest, and Next build passed. Lint has existing warning backlog. |
+| Public accessibility verification | Ready locally | `npx playwright test tests/a11y.spec.ts --project=chromium` passes after SafePredict route accessibility fixes. |
+| Gus verified-learning fixture coverage | Ready locally | `npm run test:ai-eval` runs deterministic Gus fixtures without `OPENAI_API_KEY`; live OpenAI-backed fixtures still require provider credentials and metrics. |
 
 ## Environment Confirmation
 
@@ -56,6 +58,8 @@ Do not apply migrations until the staging target is confirmed.
 | Supabase security advisors reviewed after migration | ☐ | |
 | Supabase performance advisors reviewed after migration | ☐ | |
 | Vercel Node set to `20.x` for staging | ☐ | |
+| AI release metrics attached for staging | ☐ | |
+| `npm run ai:release-gate` passes with real metrics | ☐ | |
 | Vercel deployment/build logs captured | ☐ | |
 | Staging env matrix redacted and reviewed | ☐ | |
 | Cron registration and latest run evidence captured | ☐ | |

@@ -4,10 +4,23 @@ import { clearClientAuthState } from "./helpers/storage";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
 
 function getAuthSmokeCredentials() {
-  const email = process.env.E2E_AUTH_USER_EMAIL?.trim() || process.env.E2E_USER_EMAIL?.trim();
-  const password = process.env.E2E_AUTH_USER_PASSWORD?.trim() || process.env.E2E_USER_PASSWORD?.trim();
+  const email = process.env.E2E_AUTH_USER_EMAIL?.trim();
+  const password = process.env.E2E_AUTH_USER_PASSWORD?.trim();
 
   if (!email || !password) {
+    return null;
+  }
+
+  const sharedEmails = [
+    process.env.E2E_USER_EMAIL,
+    process.env.E2E_COMPANY_ADMIN_EMAIL,
+    process.env.E2E_FIELD_USER_EMAIL,
+    process.env.E2E_SUPERADMIN_EMAIL,
+  ]
+    .map((value) => value?.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (sharedEmails.includes(email.toLowerCase())) {
     return null;
   }
 
@@ -36,7 +49,10 @@ test.describe("Login page", () => {
 test.describe("Authenticated session", () => {
   test("login and logout round-trip", async ({ page }) => {
     const credentials = getAuthSmokeCredentials();
-    test.skip(!credentials, "Set E2E_AUTH_USER_EMAIL and E2E_AUTH_USER_PASSWORD to run this test.");
+    test.skip(
+      !credentials,
+      "Set E2E_AUTH_USER_EMAIL and E2E_AUTH_USER_PASSWORD to a dedicated smoke user; do not reuse saved-storage E2E users."
+    );
 
     const { email, password } = credentials!;
 

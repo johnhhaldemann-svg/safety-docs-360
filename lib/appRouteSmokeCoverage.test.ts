@@ -6,6 +6,7 @@ import {
   AUTH_APP_DYNAMIC_ROUTES,
   AUTH_APP_STATIC_ROUTES,
   PUBLIC_ROUTES,
+  SAFE_PREDICT_WORKSPACE_ROUTES,
 } from "../tests/helpers/routes";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -49,14 +50,16 @@ describe("App route smoke coverage", () => {
     const missingPublic = PUBLIC_ROUTES.filter((href) => href !== "/" && !discoveredPaths.has(href));
     const missingStatic = AUTH_APP_STATIC_ROUTES.filter((href) => !discoveredPaths.has(href));
     const missingDynamic = AUTH_APP_DYNAMIC_ROUTES.filter((href) => !discoveredPaths.has(href));
+    const missingSafePredict = SAFE_PREDICT_WORKSPACE_ROUTES.filter((href) => !discoveredPaths.has(href));
 
     expect(
-      [...missingPublic, ...missingStatic, ...missingDynamic],
+      [...missingPublic, ...missingStatic, ...missingDynamic, ...missingSafePredict],
       [
         "Remove stale routes from tests/helpers/routes.ts or restore the missing page files.",
         `Public: ${missingPublic.join(", ") || "(none)"}`,
         `Auth static: ${missingStatic.join(", ") || "(none)"}`,
         `Auth dynamic: ${missingDynamic.join(", ") || "(none)"}`,
+        `SafePredict workspace: ${missingSafePredict.join(", ") || "(none)"}`,
       ].join("\n")
     ).toEqual([]);
   });

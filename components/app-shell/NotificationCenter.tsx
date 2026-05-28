@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Bell, CheckCheck, Inbox, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { deferEffect } from "@/lib/deferredEffect";
 import { getSupabaseAccessToken } from "@/lib/supabaseClientSession";
 import type { CompanyNotification } from "@/types/product-depth";
 
@@ -64,11 +65,16 @@ export function NotificationCenter() {
   }, []);
 
   useEffect(() => {
-    void loadNotifications();
+    const cancelInitialLoad = deferEffect(() => {
+      void loadNotifications();
+    });
     const id = window.setInterval(() => {
       void loadNotifications();
     }, 60000);
-    return () => window.clearInterval(id);
+    return () => {
+      cancelInitialLoad();
+      window.clearInterval(id);
+    };
   }, [loadNotifications]);
 
   useEffect(() => {

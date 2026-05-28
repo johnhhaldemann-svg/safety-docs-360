@@ -6,7 +6,7 @@ test.describe("Adoption public path", () => {
   test("marketing page exposes the three primary adoption CTAs", async ({ page }) => {
     await page.goto("/marketing", { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: /Safety operations command center/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /SafePredict Construction/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Book Demo" }).first()).toHaveAttribute("href", /mailto:/);
     await expect(page.getByRole("link", { name: "Request Company Workspace" }).first()).toHaveAttribute(
       "href",
@@ -55,10 +55,12 @@ test.describe("Adoption authenticated path", () => {
     test.skip(!hasE2ECredentials(), "Set E2E_USER_EMAIL and E2E_USER_PASSWORD for authenticated adoption tests.");
   });
 
-  test("Command Center is reachable and shows the launch checklist", async ({ page }) => {
+  test("Command Center is reachable and shows live workspace signals", async ({ page }) => {
     await page.goto("/command-center", { waitUntil: "domcontentloaded" });
     await expectAuthenticatedShellUrl(page, "/command-center");
-    await expect(page.getByText("Workspace launch checklist")).toBeVisible({ timeout: 20000 });
-    await expect(page.getByText("Complete company profile")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /SafePredict Command Center/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/Current Operating Signals|Action Queue/i).first()).toBeVisible();
   });
 });

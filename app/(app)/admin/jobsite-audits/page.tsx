@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -365,10 +366,10 @@ export default function AdminJobsiteAuditsPage() {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (!hydrated) return;
     void refreshSubmissions();
-  }, [hydrated, refreshSubmissions]);
+  }), [hydrated, refreshSubmissions]);
 
   const downloadJson = useCallback(() => {
     const payload = buildPayload();

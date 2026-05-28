@@ -16,6 +16,17 @@ The release gate also failed because no runtime metrics were supplied for pass r
 
 No app code, schema, or runtime behavior was changed.
 
+## Follow-up - 2026-05-28
+
+The `gus.verified-learning` gap from this audit is fixed in the local harness:
+
+- Registered a deterministic `gus.verified-learning` adapter in `tests/ai/golden/surfaces.ts`.
+- Converted the six Gus fixtures to the standard `input` / `assertions` schema.
+- Allowed deterministic Gus fixtures to run without `OPENAI_API_KEY` while OpenAI-backed fixtures still skip locally when no key is present.
+- `npm run test:ai-eval` now passes locally with 8 passed and 14 skipped when no OpenAI key is provided.
+
+This does not close the full AI release gate. Live OpenAI-backed evals and real runtime metrics are still required before paid pilot launch.
+
 ## Commands Run
 
 ```powershell

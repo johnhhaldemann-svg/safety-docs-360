@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { demoCompanyJobsiteRows } from "@/lib/demoWorkspace";
+import { autoAssignSchedulePermits } from "@/lib/schedulePermitAutoAssignment";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,13 @@ type ScheduleDbRow = {
   source_metadata: Record<string, unknown> | null;
   notes: string | null;
   updated_at: string | null;
+};
+
+type ScheduleAutoAssignSummary = {
+  warning?: string;
+  createdCount: number;
+  skippedCount: number;
+  unassignedCount: number;
 };
 
 const SCHEDULE_STATUSES = new Set(["planned", "active", "blocked", "completed", "archived"]);
@@ -215,6 +223,45 @@ function canManageSchedule(role: string) {
     role === "safety_manager" ||
     role === "project_manager"
   );
+}
+
+async function autoAssignPermitsForScheduleItem({
+  supabase,
+  companyId,
+  jobsiteId,
+  itemId,
+  actorUserId,
+}: {
+  supabase: Parameters<typeof autoAssignSchedulePermits>[0]["supabase"];
+  companyId: string;
+  jobsiteId: string;
+  itemId: string;
+  actorUserId: string;
+}): Promise<ScheduleAutoAssignSummary> {
+  const result = await autoAssignSchedulePermits({
+    supabase,
+    profileClient: supabase,
+    companyId,
+    jobsiteId,
+    scope: "weekly",
+    scheduleItemIds: [itemId],
+    actorUserId,
+  });
+
+  if (!result.success) {
+    return {
+      warning: result.error,
+      createdCount: 0,
+      skippedCount: 0,
+      unassignedCount: 0,
+    };
+  }
+
+  return {
+    createdCount: result.createdPermits.length,
+    skippedCount: result.skippedPermits.length,
+    unassignedCount: result.unassignedPermits.length,
+  };
 }
 
 function isMissingScheduleSchema(message?: string | null) {
@@ -616,7 +663,24 @@ export async function POST(
     return NextResponse.json({ error: insertResult.error.message || "Failed to create schedule item." }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, item: insertResult.data, message: "Schedule item added." });
+  const autoAssignment = await autoAssignPermitsForScheduleItem({
+    supabase: auth.supabase,
+    companyId: companyScope.companyId,
+    jobsiteId,
+    itemId: String((insertResult.data as { id?: string } | null)?.id ?? ""),
+    actorUserId: auth.user.id,
+  });
+
+  return NextResponse.json({
+    success: true,
+    item: insertResult.data,
+    autoAssignment,
+    message:
+      autoAssignment.createdCount > 0
+        ? `Schedule item added. ${autoAssignment.createdCount} permit draft${autoAssignment.createdCount === 1 ? "" : "s"} auto-assigned.`
+        : "Schedule item added.",
+    warning: autoAssignment.warning,
+  });
 }
 
 export async function PATCH(
@@ -744,9 +808,24 @@ export async function PATCH(
     return NextResponse.json({ error: updateResult.error.message || "Failed to update schedule item." }, { status: 500 });
   }
 
+  const autoAssignment = archived
+    ? undefined
+    : await autoAssignPermitsForScheduleItem({
+        supabase: auth.supabase,
+        companyId: companyScope.companyId,
+        jobsiteId,
+        itemId,
+        actorUserId: auth.user.id,
+      });
+
   return NextResponse.json({
     success: true,
     item: updateResult.data,
-    message: archived ? "Schedule item archived." : "Schedule item updated.",
+    autoAssignment,
+    message:
+      !archived && autoAssignment && autoAssignment.createdCount > 0
+        ? `Schedule item updated. ${autoAssignment.createdCount} permit draft${autoAssignment.createdCount === 1 ? "" : "s"} auto-assigned.`
+        : archived ? "Schedule item archived." : "Schedule item updated.",
+    warning: autoAssignment?.warning,
   });
 }

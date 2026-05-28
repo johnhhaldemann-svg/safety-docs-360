@@ -2,24 +2,29 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { mapSafePredictOperationHref } from "@/lib/safePredictRouteMap";
 
-const PUBLIC_PREFIXES = [
+const PUBLIC_EXACT_PATHS = new Set([
   "/",
-  "/api/auth",
-  "/api/cron",
-  "/api/contractor-training-intake",
-  "/contractor-training-intake",
   "/company-signup",
+  "/contractor-training-intake",
   "/demo/load",
   "/liability-waiver",
   "/login",
   "/marketing",
   "/privacy",
-  "/safe-predict",
   "/terms",
+]);
+
+const PUBLIC_PREFIXES = [
+  "/api/auth",
+  "/api/cron",
+  "/api/contractor-training-intake",
 ];
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || (prefix !== "/" && pathname.startsWith(`${prefix}/`)));
+  return (
+    PUBLIC_EXACT_PATHS.has(pathname) ||
+    PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+  );
 }
 
 function hasSupabaseAuthCookie(request: NextRequest) {
@@ -37,6 +42,14 @@ function shouldRefreshSupabaseSession(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (!pathname.startsWith("/api") && !isPublicPath(pathname) && !hasSupabaseAuthCookie(request)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   const mappedWorkspacePath = mapSafePredictOperationHref(
     `${request.nextUrl.pathname}${request.nextUrl.search}`
   );
@@ -45,14 +58,6 @@ export async function proxy(request: NextRequest) {
     const [pathname, search = ""] = mappedWorkspacePath.split("?");
     redirectUrl.pathname = pathname;
     redirectUrl.search = search ? `?${search}` : "";
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  const pathname = request.nextUrl.pathname;
-  if (!pathname.startsWith("/api") && !isPublicPath(pathname) && !hasSupabaseAuthCookie(request)) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
 

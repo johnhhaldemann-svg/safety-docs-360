@@ -1,4 +1,5 @@
 "use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import * as Tabs from "@radix-ui/react-tabs";
 import Link from "next/link";
@@ -367,16 +368,16 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadRecords();
-  }, [loadRecords]);
+  }), [loadRecords]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (jobsiteId) {
       setNewJobsiteId(jobsiteId);
       setSelectedJobsiteId((current) => current || jobsiteId);
     }
-  }, [jobsiteId]);
+  }), [jobsiteId]);
 
   const loadDirectoryLists = useCallback(async () => {
     setDirectoryHint("");
@@ -424,11 +425,11 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
     }
   }, []);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     void loadDirectoryLists();
-  }, [loadDirectoryLists]);
+  }), [loadDirectoryLists]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const r = records.find((x) => x.id === selectedId);
     if (r) {
       setJobSiteName(r.title ?? "");
@@ -440,15 +441,15 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
       setOverlay(defaultOverlay());
       setSteps([]);
     }
-  }, [selectedId, records, jobsiteId]);
+  }), [selectedId, records, jobsiteId]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (selectedId) void loadActivitiesForDap(selectedId);
-  }, [selectedId, loadActivitiesForDap]);
+  }), [selectedId, loadActivitiesForDap]);
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     if (selectedId) setMainTab("setup");
-  }, [selectedId]);
+  }), [selectedId]);
 
   const hazardTagsForStep = (hazard_category: string) =>
     hazard_category

@@ -1,4 +1,5 @@
 ﻿"use client";
+import { deferEffect } from "@/lib/deferredEffect";
 
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import Link from "next/link";
@@ -252,7 +253,9 @@ export function JobsiteSurfaceClient({
   const loadSurface = useCallback(async (options?: { keepLoading?: boolean }) => {
     let cancelled = false;
     async function load() {
-      setLoading(true);
+      if (!options?.keepLoading) {
+        setLoading(true);
+      }
       setError("");
       setErrorTone("error");
       try {
@@ -1200,7 +1203,6 @@ function TeamSurface({
   jobsiteId: string;
   onReload: () => void;
 }) {
-  const jobsite = (payload?.jobsite as JobsiteRow | undefined) ?? null;
   const users = ((payload?.users as TeamUserRow[] | undefined) ?? []).filter(Boolean);
   const assignments = ((payload?.assignments as JobsiteAssignmentRow[] | undefined) ?? []).filter(Boolean);
   const [assignmentMap, setAssignmentMap] = useState<Record<string, string[]>>({});
@@ -1208,7 +1210,7 @@ function TeamSurface({
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"success" | "warning" | "error">("success");
 
-  useEffect(() => {
+  useEffect(() => deferEffect(() => {
     const next: Record<string, string[]> = {};
     for (const assignment of assignments) {
       const userId = assignment.user_id ?? "";
@@ -1217,7 +1219,7 @@ function TeamSurface({
       next[userId] = next[userId] ? [...next[userId], assignedJobsiteId] : [assignedJobsiteId];
     }
     setAssignmentMap(next);
-  }, [assignments]);
+  }), [assignments]);
 
   const usersWithAccess = useMemo(
     () =>

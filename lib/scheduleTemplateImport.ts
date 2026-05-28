@@ -1,3 +1,5 @@
+import { readExcelRows } from "@/lib/excelRows";
+
 export type ScheduleTemplateRiskLevel = "critical" | "high" | "medium" | "low";
 
 export type ScheduleTemplateTask = {
@@ -262,12 +264,7 @@ export function parseScheduleTemplateCsv(text: string) {
 }
 
 async function parseScheduleWorkbookRows(buffer: ArrayBuffer) {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false }) as unknown[][];
+  const rows = await readExcelRows(buffer);
   return rows.map((row) => row.map((cell) => String(cell ?? "")));
 }
 
