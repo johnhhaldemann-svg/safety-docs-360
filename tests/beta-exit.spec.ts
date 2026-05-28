@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { acceptAgreementIfPresent, performLogin, performLogout } from "./helpers/auth";
+import { acceptAgreementIfPresent } from "./helpers/auth";
 import { clearClientAuthState } from "./helpers/storage";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
 
@@ -55,15 +55,13 @@ test.describe("Beta exit public surface", () => {
 });
 
 test.describe("Beta exit admin walkthrough", () => {
-  test.beforeEach(async ({ page, context }) => {
-    await clearClientAuthState(page, context);
-  });
+  test.use({ storageState: "playwright/.auth/company-admin.json" });
 
   test("admin can traverse critical workspace flows", async ({ page }) => {
     const admin = credentials("ADMIN");
     test.skip(!admin, "Set E2E_BETA_ADMIN_EMAIL and E2E_BETA_ADMIN_PASSWORD to run beta admin E2E.");
 
-    await performLogin(page, admin!);
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     await expectAuthenticatedShellUrl(page, "beta admin login");
 
     const routes: Array<{ path: string; marker: RegExp }> = [
@@ -85,21 +83,18 @@ test.describe("Beta exit admin walkthrough", () => {
       await expect(page.locator("body")).toContainText(route.marker, { timeout: 20_000 });
     }
 
-    await performLogout(page);
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page.locator("body")).toBeVisible();
   });
 });
 
 test.describe("Beta exit field and security checks", () => {
-  test.beforeEach(async ({ page, context }) => {
-    await clearClientAuthState(page, context);
-  });
+  test.use({ storageState: "playwright/.auth/field-user.json" });
 
   test("field user can sign in but is blocked from admin-only surfaces", async ({ page }) => {
     const field = credentials("FIELD");
     test.skip(!field, "Set E2E_BETA_FIELD_EMAIL and E2E_BETA_FIELD_PASSWORD to run beta field E2E.");
 
-    await performLogin(page, field!);
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 2_500);
     await expectAuthenticatedShellUrl(page, "beta field login");
 

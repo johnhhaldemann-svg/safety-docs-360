@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import XLSX from "xlsx";
+import { readWorkbookObjects } from "./excel-rows.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -93,14 +93,13 @@ if (!fs.existsSync(xlsxPath)) {
   process.exit(1);
 }
 
-const wb = XLSX.readFile(xlsxPath);
 const sheetName = "Construction_Quick_View";
-if (!wb.SheetNames.includes(sheetName)) {
+const rows = await readWorkbookObjects(xlsxPath, sheetName);
+if (!rows) {
   console.error("Missing sheet:", sheetName, "in", xlsxPath);
   process.exit(1);
 }
 
-const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
 const outRows = [];
 
 for (const r of rows) {

@@ -31,6 +31,7 @@ import {
   validateJobsiteImportRows,
   validateTrainingRecordImportRows,
 } from "@/lib/companyOnboardingImport";
+import { readExcelObjects } from "@/lib/excelRows";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -189,15 +190,9 @@ export default function CompanyOnboardingPage() {
     setRowErrors([]);
     setMessage(null);
     try {
-      const XLSX = await import("xlsx");
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const firstSheet = workbook.SheetNames[0];
-      if (!firstSheet) throw new Error("The uploaded file does not contain a worksheet.");
-      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet], {
-        defval: "",
-        raw: false,
-      });
+      const raw = await readExcelObjects(buffer);
+      if (!raw.length) throw new Error("The uploaded file does not contain any rows.");
       const rows = normalizeRowsArray(raw);
       setPreview((current) => ({ ...current, [activeTab]: rows }));
       setMessage(`${rows.length} row${rows.length === 1 ? "" : "s"} ready for preview.`);

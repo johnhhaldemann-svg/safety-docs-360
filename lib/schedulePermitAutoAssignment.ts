@@ -359,6 +359,7 @@ export async function autoAssignSchedulePermits(params: {
   companyId: string;
   jobsiteId: string;
   scope: SchedulePermitAssignmentScope;
+  scheduleItemIds?: string[];
   dryRun?: boolean;
   actorUserId?: string | null;
   now?: Date;
@@ -401,8 +402,12 @@ export async function autoAssignSchedulePermits(params: {
     return { success: false, status: 500, error: scheduleResult.error.message || "Failed to load schedule items." };
   }
 
+  const requestedItemIds = new Set((params.scheduleItemIds ?? []).map((id) => clean(id)).filter(Boolean));
   const scheduleItems = ((scheduleResult.data ?? []) as ScheduleItemRow[])
-    .filter((item) => isPlannedOrActive(item) && itemOverlapsWindow(item, startDate, endDate))
+    .filter((item) =>
+      isPlannedOrActive(item) &&
+      (requestedItemIds.size > 0 ? requestedItemIds.has(item.id) : itemOverlapsWindow(item, startDate, endDate))
+    )
     .map((item) => ({ ...item, permitTriggers: permitTriggersForItem(item) }))
     .filter((item) => item.permitTriggers.length > 0);
 

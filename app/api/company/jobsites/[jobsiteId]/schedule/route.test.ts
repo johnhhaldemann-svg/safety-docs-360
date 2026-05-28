@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requireRouteResponse } from "@/lib/routeResponseTest";
 
-const { authorizeRequest, getCompanyScope, isAdminRole } = vi.hoisted(() => ({
+const { authorizeRequest, autoAssignSchedulePermits, getCompanyScope, isAdminRole } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
+  autoAssignSchedulePermits: vi.fn(),
   getCompanyScope: vi.fn(),
   isAdminRole: vi.fn(),
 }));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest, isAdminRole }));
 vi.mock("@/lib/companyScope", () => ({ getCompanyScope }));
+vi.mock("@/lib/schedulePermitAutoAssignment", () => ({ autoAssignSchedulePermits }));
 
 import { GET, PATCH, POST } from "./route";
 
@@ -61,6 +63,16 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
     vi.clearAllMocks();
     isAdminRole.mockReturnValue(false);
     getCompanyScope.mockResolvedValue({ companyId: "company-1" });
+    autoAssignSchedulePermits.mockResolvedValue({
+      success: true,
+      dryRun: false,
+      scope: "weekly",
+      window: { startDate: "2026-05-18", endDate: "2026-05-25", days: 7 },
+      createdPermits: [],
+      skippedPermits: [],
+      unassignedPermits: [],
+      tasks: [],
+    });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-18T12:00:00.000Z"));
   });
@@ -216,6 +228,15 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
         supervisor_name: "Sam Safety",
       })
     );
+    expect(autoAssignSchedulePermits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: "company-1",
+        jobsiteId: "jobsite-1",
+        scope: "weekly",
+        scheduleItemIds: ["manual-1"],
+        actorUserId: "user-1",
+      })
+    );
   });
 
   it("PATCH only updates the manual schedule table", async () => {
@@ -235,6 +256,7 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
 
     expect(response.status).toBe(200);
     expect(update.update).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" }));
+    expect(autoAssignSchedulePermits).not.toHaveBeenCalled();
   });
 
   it("PATCH updates predictive schedule fields on manual work", async () => {
@@ -265,5 +287,14 @@ describe("/api/company/jobsites/[jobsiteId]/schedule", () => {
       permit_triggers: ["hot_work_permit"],
       required_controls: ["fire watch"],
     }));
+    expect(autoAssignSchedulePermits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: "company-1",
+        jobsiteId: "jobsite-1",
+        scope: "weekly",
+        scheduleItemIds: ["manual-1"],
+        actorUserId: "user-1",
+      })
+    );
   });
 });

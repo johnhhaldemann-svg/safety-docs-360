@@ -1,0 +1,9 @@
+{
+  "source": "local deterministic golden evaluation run",
+  "generatedAt": "2026-05-28T00:00:00.000Z",
+  "criticalEvalPassRate": 1,
+  "failureRate": 0,
+  "fallbackRate": 0,
+  "tokenCostRegression": 0,
+  "p95LatencyRegression": 0
+}

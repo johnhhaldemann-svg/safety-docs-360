@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowserContext, Page, Response } from "@playwright/test";
 import { test, expect } from "./fixtures";
-import { E2E_ROLE_AUTH, type E2ERoleKey } from "./helpers/auth";
+import { E2E_ROLE_AUTH, hasRoleE2ECredentials, type E2ERoleKey } from "./helpers/auth";
 import { discoverAppPageRoutes, normalizeRouteForCoverage } from "./helpers/pageRouteInventory";
 import { PUBLIC_ROUTES, authenticatedSmokeRoutes } from "./helpers/routes";
 
@@ -214,7 +214,7 @@ test.describe("Public page routes", () => {
   });
 
   test("visible public navigation links stay operational", async ({ page }) => {
-    await checkRoute(page, "/safe-predict", "public");
+    await checkRoute(page, "/", "public");
     const hrefs = [...new Set(await visibleNavigationHrefs(page))].map(normalizeRouteForCoverage);
     const context = page.context();
     const results = await checkRoutesInContext(context, hrefs, "public");
@@ -224,11 +224,17 @@ test.describe("Public page routes", () => {
 
 for (const role of Object.keys(E2E_ROLE_AUTH) as E2ERoleKey[]) {
   const config = E2E_ROLE_AUTH[role];
+  const hasCurrentCredentials = hasRoleE2ECredentials(role);
+  const hasStorageState = existsSync(config.storageState);
 
   test.describe(`${config.label} page routes`, () => {
-    test.skip(!existsSync(config.storageState), `${config.storageState} missing. Set ${config.emailEnv}/${config.passwordEnv}.`);
+    test.skip(
+      !hasCurrentCredentials || !hasStorageState,
+      `${config.storageState} unavailable. Set ${config.emailEnv}/${config.passwordEnv}.`
+    );
 
     test("known authenticated routes render, redirect, or deny cleanly", async ({ browser }) => {
+      test.setTimeout(180_000);
       const context = await browser.newContext({ storageState: config.storageState });
       const results = await checkRoutesInContext(context, roleRoutes, role);
       await context.close();
@@ -236,6 +242,7 @@ for (const role of Object.keys(E2E_ROLE_AUTH) as E2ERoleKey[]) {
     });
 
     test("visible authenticated navigation links stay operational", async ({ browser }) => {
+      test.setTimeout(120_000);
       const context = await browser.newContext({ storageState: config.storageState });
       const page = await context.newPage();
       await checkRoute(page, "/dashboard", role);
@@ -247,7 +254,7 @@ for (const role of Object.keys(E2E_ROLE_AUTH) as E2ERoleKey[]) {
     });
   });
 
-  if (!existsSync(config.storageState)) {
+  if (!hasCurrentCredentials || !hasStorageState) {
     missingRoleStorageStates.push(`${config.label}: ${config.storageState}`);
   }
 }

@@ -64,9 +64,37 @@ export async function performLogin(
 ): Promise<void> {
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Login" }).first().click();
-  await page.getByPlaceholder("name@company.com").fill(opts.email);
-  await page.locator("input[type='password']").first().fill(opts.password);
-  await page.getByRole("button", { name: "Access Workspace" }).click();
+  const emailInput = page.locator("#login-email");
+  const passwordInput = page.locator("#login-password");
+  const submitButton = page.getByRole("button", {
+    name: /Access Workspace|Accessing workspace/i,
+  });
+
+  await submitButton.waitFor({ state: "visible", timeout: 20_000 });
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
+  await emailInput.fill(opts.email);
+  await passwordInput.fill(opts.password);
+  await submitButton.click();
+
+  const submitStarted = await page
+    .waitForFunction(
+      () => {
+        const p = window.location.pathname;
+        if (p !== "/login" && !p.startsWith("/login/")) return true;
+        const error = document.querySelector("[data-testid=\"login-error\"]");
+        if (error?.textContent?.trim()) return true;
+        const buttons = Array.from(document.querySelectorAll("button"));
+        return buttons.some((button) => /Accessing workspace/i.test(button.textContent ?? ""));
+      },
+      null,
+      { timeout: 2_500 }
+    )
+    .then(() => true)
+    .catch(() => false);
+
+  if (!submitStarted) {
+    await submitButton.click();
+  }
 
   // Leave /login (router.push) or show `data-testid="login-error"` — both are visible in the
   // page context; `waitForURL` is unreliable for App Router client transitions.
@@ -102,7 +130,7 @@ export async function performLogin(
 }
 
 export async function performLogout(page: Page): Promise<void> {
-  let logout = page.getByRole("button", { name: /log\s*out/i });
+  let logout = page.getByRole("button", { name: "Log out", exact: true });
   const canLogoutFromCurrentPage = await logout
     .waitFor({ state: "visible", timeout: 5_000 })
     .then(() => true)
@@ -111,9 +139,10 @@ export async function performLogout(page: Page): Promise<void> {
   if (!canLogoutFromCurrentPage) {
     await page.goto("/safe-predict", { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 2_500);
-    logout = page.getByRole("button", { name: /log\s*out/i });
+    logout = page.getByRole("button", { name: "Log out", exact: true });
   }
 
+  await page.getByRole("button", { name: "Minimize Gus" }).click({ timeout: 1_500 }).catch(() => undefined);
   await logout.click();
   await page.waitForFunction(
     () => {

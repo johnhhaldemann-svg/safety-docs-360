@@ -26,7 +26,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import XLSX from "xlsx";
+import { firstWorksheetName, readWorkbookObjects } from "./excel-rows.mjs";
 
 function applyEnvFile(path, overrideExisting) {
   if (!existsSync(path)) return;
@@ -175,10 +175,10 @@ async function main() {
     process.exit(1);
   }
 
-  const wb = XLSX.readFile(filePath, { cellDates: true });
-  const sheetName = wb.SheetNames.includes("Keyword Reworked") ? "Keyword Reworked" : wb.SheetNames[0];
-  const sheet = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet).filter((row) => {
+  const fallbackSheet = await firstWorksheetName(filePath);
+  const preferredRows = await readWorkbookObjects(filePath, "Keyword Reworked");
+  const sheetName = preferredRows ? "Keyword Reworked" : fallbackSheet;
+  const rows = (preferredRows ?? (sheetName ? await readWorkbookObjects(filePath, sheetName) : null) ?? []).filter((row) => {
     const id = row.external_id;
     const hasId = id !== undefined && id !== null && String(id).trim() !== "";
     const hasObs = row.observed_at !== undefined && row.observed_at !== null && row.observed_at !== "";

@@ -64,7 +64,7 @@ async function ensureCompanyInviteApplied(params: {
   email: string;
   invite: CompanyInviteLookupRow | null;
 }) {
-  const { publicClient, adminClient, userId, email, invite } = params;
+  const { adminClient, userId, invite } = params;
 
   if (!invite) {
     return { error: null };
@@ -130,10 +130,12 @@ async function ensureCompanyInviteApplied(params: {
     return { error: null };
   }
 
-  return publicClient.rpc("consume_company_invite", {
-    invite_email: email,
-    invited_user_id: userId,
-  });
+  return {
+    error: {
+      message:
+        "The company invite could not be applied automatically because the server admin client is not configured.",
+    },
+  };
 }
 
 function createPublicClient() {

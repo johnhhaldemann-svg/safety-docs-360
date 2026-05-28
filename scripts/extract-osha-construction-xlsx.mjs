@@ -6,7 +6,7 @@
  * Usage:
  *   node scripts/extract-osha-construction-xlsx.mjs "C:/path/2023 Const.xlsx" "C:/path/2023 fatal.xlsx"
  */
-import XLSX from "xlsx";
+import { readWorkbookMatrix } from "./excel-rows.mjs";
 function num(v) {
   if (v === "–" || v === "-" || v === "" || v == null) return null;
   const n = Number(v);
@@ -27,9 +27,8 @@ if (!constPath || !fatalPath) {
   process.exit(1);
 }
 
-const wbC = XLSX.readFile(constPath);
-const shC = wbC.Sheets[wbC.SheetNames[0]];
-const mC = XLSX.utils.sheet_to_json(shC, { header: 1, defval: "" });
+const mC = await readWorkbookMatrix(constPath);
+if (!mC) throw new Error("Could not read construction DAFW workbook");
 
 const totalC = findRow(mC, (r) => String(r[0] ?? "").trim().toLowerCase() === "total:");
 if (!totalC) throw new Error("Could not find Total row in construction DAFW file");
@@ -44,9 +43,8 @@ function consCount(labelSubstring) {
   return hit ? num(hit.row[2]) : null;
 }
 
-const wbF = XLSX.readFile(fatalPath);
-const shF = wbF.Sheets[wbF.SheetNames[0]];
-const mF = XLSX.utils.sheet_to_json(shF, { header: 1, defval: "" });
+const mF = await readWorkbookMatrix(fatalPath);
+if (!mF) throw new Error("Could not read fatal workbook");
 const totalF = findRow(mF, (r) => String(r[0] ?? "").trim().toLowerCase() === "total:");
 if (!totalF) throw new Error("Could not find Total row in fatal file");
 const fat23 = num(totalF.row[1]);

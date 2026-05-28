@@ -1,6 +1,17 @@
 import { test, expect } from "./fixtures";
+import type { Page } from "@playwright/test";
 import { hasE2ECredentials } from "./helpers/auth";
 import { expectAuthenticatedShellUrl } from "./helpers/sessionWait";
+
+async function expectWorkspaceChromeReady(page: Page) {
+  await expect(page.getByRole("button", { name: "Log out", exact: true })).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByRole("button", { name: "Menu" })).toBeVisible({ timeout: 25_000 });
+}
+
+async function openCommandPaletteWithShortcut(page: Page) {
+  await page.evaluate(() => window.focus());
+  await page.keyboard.press("ControlOrMeta+K");
+}
 
 /**
  * Focus-trap contract tests.
@@ -23,17 +34,18 @@ test.describe("Focus trap — AppCommandPalette", () => {
   test("Tab / Shift+Tab stay inside the dialog, Esc closes, focus returns to trigger", async ({
     page,
   }) => {
-    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    await expectAuthenticatedShellUrl(page, "/dashboard");
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expectAuthenticatedShellUrl(page, "/profile");
+    await expectWorkspaceChromeReady(page);
 
-    const trigger = page.locator("aside nav a[href^='/']").first();
+    const trigger = page.getByRole("button", { name: "Menu" });
     await expect(trigger).toBeVisible({ timeout: 25_000 });
     await trigger.focus();
 
     const triggerTag = await trigger.evaluate((node) => node.tagName);
-    const triggerHref = await trigger.evaluate((node) => (node as HTMLAnchorElement).href);
+    const triggerText = await trigger.evaluate((node) => node.textContent);
 
-    await page.keyboard.press("Control+K");
+    await openCommandPaletteWithShortcut(page);
 
     const dialog = page.getByRole("dialog", { name: "Go to page" });
     await expect(dialog).toBeVisible({ timeout: 10_000 });
@@ -74,12 +86,12 @@ test.describe("Focus trap — AppCommandPalette", () => {
               const active = document.activeElement as HTMLElement | null;
               if (!active) return false;
               if (active.tagName !== tag) return false;
-              if (tag === "A") {
-                return (active as HTMLAnchorElement).href === href;
+              if (tag === "BUTTON") {
+                return active.textContent === href;
               }
               return true;
             },
-            { tag: triggerTag, href: triggerHref }
+            { tag: triggerTag, href: triggerText }
           ),
         {
           timeout: 5_000,
@@ -93,10 +105,11 @@ test.describe("Focus trap — AppCommandPalette", () => {
   test("open dialog has the required ARIA contract (role, aria-modal, labelled)", async ({
     page,
   }) => {
-    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    await expectAuthenticatedShellUrl(page, "/dashboard");
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expectAuthenticatedShellUrl(page, "/profile");
+    await expectWorkspaceChromeReady(page);
 
-    await page.keyboard.press("Control+K");
+    await openCommandPaletteWithShortcut(page);
 
     const dialog = page.getByRole("dialog", { name: "Go to page" });
     await expect(dialog).toBeVisible({ timeout: 10_000 });

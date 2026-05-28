@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { PUBLIC_ROUTES } from "./helpers/routes";
+import { clearClientAuthState } from "./helpers/storage";
 
 const axeRoutes = process.env.CI
   ? PUBLIC_ROUTES.filter((path) => !path.startsWith("/safe-predict"))
@@ -45,7 +46,9 @@ test.describe("Accessibility (axe)", () => {
 
   test("submit flow entry (redirects if unauthenticated) has no critical or serious issues", async ({
     page,
+    context,
   }) => {
+    await clearClientAuthState(page, context);
     await page.goto("/submit");
     await page.waitForLoadState("networkidle");
     const { violations } = await new AxeBuilder({ page }).disableRules(["color-contrast"]).analyze();

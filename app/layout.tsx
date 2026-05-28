@@ -6,6 +6,8 @@ import Script from "next/script";
 import { APP_BRAND, productSentence } from "@/lib/appBrand";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",

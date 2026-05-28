@@ -12,7 +12,7 @@ test.describe("Documents", () => {
     await page.goto("/documents", { waitUntil: "domcontentloaded" });
     await expectAuthenticatedShellUrl(page, "/documents");
     await expect(
-      page.getByRole("heading", { name: /Find what you need faster|Open completed company documents/i })
+      page.getByRole("heading", { name: /Documents|Document Control Register/i }).first()
     ).toBeVisible({ timeout: 25_000 });
   });
 

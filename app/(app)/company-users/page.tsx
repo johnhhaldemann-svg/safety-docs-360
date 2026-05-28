@@ -24,6 +24,7 @@ import {
   type ImportRowError,
   validateEmployeeImportRows,
 } from "@/lib/companyOnboardingImport";
+import { readExcelObjects } from "@/lib/excelRows";
 import {
   ActivityFeed,
   appButtonPrimaryClassName,
@@ -1486,15 +1487,9 @@ export default function CompanyUsersPage() {
     setTrackedRosterRowErrors([]);
 
     try {
-      const XLSX = await import("xlsx");
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const firstSheet = workbook.SheetNames[0];
-      if (!firstSheet) throw new Error("The uploaded file does not contain a worksheet.");
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet], {
-        defval: "",
-        raw: false,
-      });
+      const rawRows = await readExcelObjects(buffer);
+      if (!rawRows.length) throw new Error("The uploaded file does not contain any rows.");
       const rows = normalizeRowsArray(rawRows);
       const validation = validateEmployeeImportRows(rows);
       if (rows.length === 0) {
