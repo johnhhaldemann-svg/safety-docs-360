@@ -107,6 +107,8 @@ export type AiKnowledgeGraphSummary = {
   edgeCount: number;
   dataSourceCount: number;
   highRiskNodeCount: number;
+  documentNodeCount?: number;
+  sharedLibraryNodeCount?: number;
   lowConfidenceCount: number;
   unreviewedRelationshipCount: number;
   pendingReviewCount: number;
@@ -129,6 +131,8 @@ export type AiKnowledgeGraphPayload = {
   fallbackReason?: string | null;
   companySpecificNodeCount?: number;
   companySpecificEdgeCount?: number;
+  companyDocumentNodeCount?: number;
+  sharedLibraryNodeCount?: number;
 };
 
 export type AiKnowledgeMapFilters = {

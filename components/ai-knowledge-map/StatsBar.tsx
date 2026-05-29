@@ -7,11 +7,13 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
     { label: "Connections", value: summary.edgeCount, icon: GitBranch },
     { label: "Data sources", value: summary.dataSourceCount, icon: Activity },
     { label: "High risk", value: summary.highRiskNodeCount, icon: ShieldAlert },
+    { label: "Documents", value: summary.documentNodeCount ?? 0, icon: Database },
+    { label: "Library", value: summary.sharedLibraryNodeCount ?? 0, icon: Activity },
     { label: "Low confidence", value: summary.lowConfidenceCount, icon: ShieldAlert },
     { label: "Last updated", value: summary.latestUpdate ? new Date(summary.latestUpdate).toLocaleTimeString() : new Date(generatedAt).toLocaleTimeString(), icon: Clock },
   ];
   return (
-    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-950/78 p-3 shadow-2xl backdrop-blur md:grid-cols-3 xl:grid-cols-6">
+    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-950/78 p-3 shadow-2xl backdrop-blur md:grid-cols-4 xl:grid-cols-8">
       {stats.map((stat) => (
         <div key={stat.label} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">

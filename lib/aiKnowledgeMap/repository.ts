@@ -41,6 +41,7 @@ const ALL_COMPANIES_SCOPE = "all";
 const FALLBACK_NODE_THRESHOLD = 8;
 const FALLBACK_EDGE_THRESHOLD = 10;
 const FALLBACK_REASON = "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data.";
+const SHARED_LIBRARY_REASON = "Showing approved shared Knowledge Library guidance alongside company-specific reviewed memory.";
 
 function isMissingKnowledgeMapTable(error?: DbError | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -241,6 +242,8 @@ function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies
     edgeCount: edges.length,
     dataSourceCount: new Set(nodes.map((node) => node.sourceTable)).size,
     highRiskNodeCount: nodes.filter((node) => node.riskLevel === "high" || node.riskLevel === "critical").length,
+    documentNodeCount: nodes.filter((node) => node.nodeType === "document").length,
+    sharedLibraryNodeCount: nodes.filter((node) => node.metadata.sharedLibrary === true).length,
     lowConfidenceCount: edges.filter((edge) => edge.confidenceScore < 0.55).length,
     unreviewedRelationshipCount: edges.filter((edge) => edge.validationStatus === "unreviewed" || edge.validationStatus === "pending_review" || edge.validationStatus === "needs_review").length,
     pendingReviewCount: edges.filter((edge) => edge.validationStatus === "pending_review" || edge.validationStatus === "needs_review" || edge.validationStatus === "unreviewed").length,
@@ -260,6 +263,64 @@ function fallbackRiskScore(level: AiKnowledgeRiskLevel) {
   if (level === "moderate") return 55;
   if (level === "low") return 25;
   return null;
+}
+
+function sharedLibraryNode(params: {
+  index: number;
+  selectedCompanyId: string;
+  sourceTable: "approved_knowledge" | "documents";
+  sourceId: string;
+  title: string;
+  category: string;
+  description: string;
+  sourceUrl: string | null;
+  sourceDocument: string | null;
+  riskLevel?: AiKnowledgeRiskLevel;
+  confidenceScore?: number;
+  metadata?: Record<string, unknown>;
+}) {
+  const riskLevel = params.riskLevel ?? normalizeRiskLevel([params.title, params.category, params.description].join(" "));
+  const vectorCoordinates = vectorCoordinatesForNode({
+    sourceTable: params.sourceTable,
+    sourceId: params.sourceId,
+    type: "document",
+    riskLevel,
+  });
+  return {
+    id: `shared-library-${params.sourceTable}-${params.sourceId}`,
+    companyId: null,
+    jobsiteId: null,
+    projectId: null,
+    sourceTable: params.sourceTable,
+    sourceId: params.sourceId,
+    sourceRecordId: params.sourceId,
+    title: cleanFallbackText(params.title, 220) || "Approved Knowledge Library guidance",
+    nodeType: "document",
+    type: "document",
+    category: cleanFallbackText(params.category, 120) || "knowledge library",
+    description: cleanFallbackText(params.description, 1_400),
+    semanticSummary: cleanFallbackText(`${params.title}. ${params.description}`, 1_800),
+    project: null,
+    trade: null,
+    riskLevel,
+    riskScore: fallbackRiskScore(riskLevel),
+    sourceUrl: params.sourceUrl,
+    sourceDocument: params.sourceDocument,
+    metadata: {
+      ...params.metadata,
+      sharedLibrary: true,
+      notCompanySpecific: true,
+      selectedCompanyId: params.selectedCompanyId,
+      safetyUse: "approved shared knowledge library guidance",
+    },
+    vectorStatus: "indexed",
+    vectorCoordinates,
+    confidenceScore: params.confidenceScore ?? 0.78,
+    validationStatus: "approved",
+    createdByType: "system",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } satisfies AiKnowledgeNode;
 }
 
 function fallbackNode(params: {
@@ -356,6 +417,25 @@ function fallbackEdgeIds(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[]) {
       label: cleanFallbackText(item.label, 180),
       detail: cleanFallbackText(item.detail, 500),
     })),
+  }));
+}
+
+function generatedVisibleEdgeIds(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], params: { prefix: string; metadata: Record<string, unknown> }) {
+  const idByKey = new Map(nodes.map((node) => [sourceKey(node.sourceTable, node.sourceId), node.id]));
+  return edges.map((edge, index) => ({
+    ...edge,
+    id: `${params.prefix}-${index + 1}`,
+    companyId: null,
+    sourceNodeId: idByKey.get(edge.fromNodeKey ?? "") ?? edge.fromNodeId,
+    targetNodeId: idByKey.get(edge.toNodeKey ?? "") ?? edge.toNodeId,
+    fromNodeId: idByKey.get(edge.fromNodeKey ?? "") ?? edge.fromNodeId,
+    toNodeId: idByKey.get(edge.toNodeKey ?? "") ?? edge.toNodeId,
+    validationStatus: "approved" as const,
+    createdByType: "system" as const,
+    metadata: {
+      ...edge.metadata,
+      ...params.metadata,
+    },
   }));
 }
 
@@ -891,6 +971,89 @@ export async function buildFallbackKnowledgeGraph(client: DbClient, selectedComp
   return { nodes: filteredNodes, edges, warnings };
 }
 
+export async function buildSharedKnowledgeLibraryGraph(client: DbClient, selectedCompanyId: string, filters: AiKnowledgeMapFilters = {}) {
+  const warnings: string[] = [];
+  const nodes: AiKnowledgeNode[] = [];
+
+  try {
+    const { data, error } = (await client
+      .from("approved_knowledge")
+      .select("id, topic, knowledge_title, approved_summary, source_url, source_title, source_type, required_control_type, regulation_reference, quality_score, review_status, is_active, updated_at")
+      .is("company_id", null)
+      .eq("is_active", true)
+      .neq("review_status", "archived")
+      .order("updated_at", { ascending: false })
+      .limit(24)) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) warnings.push(error.message ?? "Shared approved knowledge library unavailable.");
+    (data ?? []).forEach((row, index) => {
+      const sourceId = cleanFallbackText(row.id, 120);
+      if (!sourceId) return;
+      const title = cleanFallbackText(row.knowledge_title ?? row.topic ?? "Approved safety guidance", 220);
+      const summary = cleanFallbackText(row.approved_summary ?? row.topic ?? "", 1_400);
+      nodes.push(sharedLibraryNode({
+        index: index + 1,
+        selectedCompanyId,
+        sourceTable: "approved_knowledge",
+        sourceId,
+        title,
+        category: cleanFallbackText(row.required_control_type ?? row.source_type ?? "knowledge library", 120),
+        description: `${summary} This is approved shared Knowledge Library guidance and is not company-specific evidence.`,
+        sourceUrl: cleanFallbackText(row.source_url, 800) || null,
+        sourceDocument: cleanFallbackText(row.source_title ?? row.source_url, 800) || null,
+        riskLevel: normalizeRiskLevel([title, summary].join(" ")),
+        confidenceScore: Math.max(0.58, Math.min(0.94, Number(row.quality_score ?? 78) / 100)),
+        metadata: {
+          sharedLibrarySource: "approved_knowledge",
+          reviewStatus: cleanFallbackText(row.review_status, 60),
+          regulationReference: cleanFallbackText(row.regulation_reference, 160) || null,
+        },
+      }));
+    });
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Shared approved knowledge library unavailable.");
+  }
+
+  try {
+    const { data, error } = (await client
+      .from("documents")
+      .select("id, document_title, document_type, category, notes, status, final_file_path, updated_at, company_id")
+      .is("company_id", null)
+      .in("status", ["approved", "final", "published", "complete"])
+      .order("updated_at", { ascending: false })
+      .limit(16)) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) warnings.push(error.message ?? "Shared approved document library unavailable.");
+    (data ?? []).forEach((row, index) => {
+      const sourceId = cleanFallbackText(row.id, 120);
+      if (!sourceId) return;
+      const title = cleanFallbackText(row.document_title ?? row.document_type ?? "Approved SafetyDocs360 document", 220);
+      const notes = cleanFallbackText(row.notes ?? row.category ?? row.document_type ?? "", 1_200);
+      nodes.push(sharedLibraryNode({
+        index: index + 1,
+        selectedCompanyId,
+        sourceTable: "documents",
+        sourceId,
+        title,
+        category: cleanFallbackText(row.category ?? row.document_type ?? "knowledge library", 120),
+        description: `${notes || "Approved shared SafetyDocs360 document available as Knowledge Library guidance."} This shared item is not company-specific evidence.`,
+        sourceUrl: null,
+        sourceDocument: cleanFallbackText(row.final_file_path, 800) || null,
+        riskLevel: normalizeRiskLevel([title, notes].join(" ")),
+        confidenceScore: 0.78,
+        metadata: {
+          sharedLibrarySource: "global_document",
+          originalStatus: cleanFallbackText(row.status, 80),
+        },
+      }));
+    });
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Shared approved document library unavailable.");
+  }
+
+  const dedupedNodes = Array.from(new Map(nodes.map((node) => [`${node.sourceTable}:${node.sourceId}`, node])).values()).slice(0, 36);
+  const filteredNodes = filterNodes(dedupedNodes, filters);
+  return { nodes: filteredNodes, warnings };
+}
+
 export async function getKnowledgeGraphPayload(client: DbClient | null, filters: AiKnowledgeMapFilters = {}): Promise<AiKnowledgeGraphPayload> {
   if (!client) return buildDemoKnowledgeGraph();
   const warnings: string[] = [];
@@ -908,13 +1071,45 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     throw new Error(nodeResult.error.message ?? "Failed to load knowledge nodes.");
   }
   const rawNodes = (nodeResult.data ?? []).map(camelNode);
-  let nodes = filterNodes(rawNodes, filters);
+  const displayableRawNodes = rawNodes.filter((node) => node.nodeType !== "document" || node.validationStatus === "approved");
+  let nodes = filterNodes(displayableRawNodes, filters);
   const visibleNodeIds = new Set(nodes.map((node) => node.id).filter(Boolean));
   const edgeQuery = client.from("ai_knowledge_edges").select("*").limit(900);
   const edgeResult = (await (viewingAllCompanies ? edgeQuery : edgeQuery.eq("company_id", selectedCompanyId))) as QueryResult<Array<Record<string, unknown>>>;
   if (edgeResult.error) throw new Error(edgeResult.error.message ?? "Failed to load knowledge edges.");
   const rawEdges = (edgeResult.data ?? []).map(camelEdge);
   let edges = rawEdges.filter((edge) => visibleNodeIds.has(edge.sourceNodeId) && visibleNodeIds.has(edge.targetNodeId));
+  const companyDocumentNodeCount = rawNodes.filter((node) => node.validationStatus === "approved" && node.nodeType === "document" && node.metadata.sharedLibrary !== true && node.metadata.fallback !== true).length;
+  const sharedLibraryGraph = await buildSharedKnowledgeLibraryGraph(client, selectedCompanyId, filters);
+  if (sharedLibraryGraph.nodes.length > 0) {
+    const existingIds = new Set(nodes.map((node) => node.id).filter(Boolean));
+    const sharedNodes = sharedLibraryGraph.nodes.filter((node) => !existingIds.has(node.id));
+    if (sharedNodes.length > 0) {
+      nodes = [...nodes, ...sharedNodes];
+      const visibleNodes = nodes.filter((node) => node.id);
+      const sharedIds = new Set(sharedNodes.map((node) => node.id).filter(Boolean));
+      const visibleIds = new Set(visibleNodes.map((node) => node.id).filter(Boolean));
+      const sharedEdges = generatedVisibleEdgeIds(
+        visibleNodes,
+        generateKnowledgeRelationships(visibleNodes, { maxEdges: 140 }),
+        {
+          prefix: "shared-library-edge",
+          metadata: {
+            sharedLibrary: true,
+            notCompanySpecific: true,
+            sourceTable: "approved_knowledge",
+            reason: SHARED_LIBRARY_REASON,
+          },
+        },
+      ).filter((edge) =>
+        visibleIds.has(edge.sourceNodeId)
+        && visibleIds.has(edge.targetNodeId)
+        && (sharedIds.has(edge.sourceNodeId) || sharedIds.has(edge.targetNodeId)),
+      ).slice(0, 120);
+      edges = [...edges, ...sharedEdges];
+    }
+  }
+  warnings.push(...sharedLibraryGraph.warnings.slice(0, 3));
   const approvedCompanyNodeCount = viewingAllCompanies ? rawNodes.filter((node) => node.validationStatus === "approved").length : rawNodes.filter((node) => node.validationStatus === "approved" && node.companyId === selectedCompanyId).length;
   const approvedCompanyEdgeCount = viewingAllCompanies ? rawEdges.filter((edge) => edge.validationStatus === "approved").length : rawEdges.filter((edge) => edge.validationStatus === "approved" && edge.companyId === selectedCompanyId).length;
   let fallback = false;
@@ -963,6 +1158,8 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     fallbackReason,
     companySpecificNodeCount: approvedCompanyNodeCount,
     companySpecificEdgeCount: approvedCompanyEdgeCount,
+    companyDocumentNodeCount,
+    sharedLibraryNodeCount: nodes.filter((node) => node.metadata.sharedLibrary === true).length,
   };
 }
 

@@ -26,7 +26,10 @@ export function SelectedNodePanel({
   const tone = riskTone(node.riskLevel);
   const byId = new Map(nodes.map((item) => [item.id, item]));
   const isFallback = node.metadata.fallback === true;
-  const companyName = isFallback ? "General fallback guidance" : companies.find((company) => company.id === node.companyId)?.name ?? node.companyId ?? "All companies";
+  const isSharedLibrary = node.metadata.sharedLibrary === true;
+  const isCompanyDocument = !isFallback && !isSharedLibrary && node.nodeType === "document";
+  const memoryLabel = isFallback ? "General fallback guidance" : isSharedLibrary ? "Shared approved library guidance" : isCompanyDocument ? "Company document memory" : "Company graph memory";
+  const companyName = isFallback || isSharedLibrary ? memoryLabel : companies.find((company) => company.id === node.companyId)?.name ?? node.companyId ?? "All companies";
   const related = edges.filter((edge) => edge.sourceNodeId === node.id || edge.targetNodeId === node.id || edge.fromNodeId === node.id || edge.toNodeId === node.id).slice(0, 10);
   const trend = node.riskLevel === "critical" || node.riskLevel === "high" ? "Increasing attention" : "Stable";
 
@@ -46,9 +49,10 @@ export function SelectedNodePanel({
         <Row label="Trend" value={trend} />
         <Row label="Confidence" value={`${Math.round((node.confidenceScore ?? 0.72) * 100)}%`} />
         <Row label="Validation" value={node.validationStatus.replace(/_/g, " ")} badgeClass={validationTone(node.validationStatus)} />
-        {isFallback ? <Row label="Fallback" value="Not company-specific" /> : null}
+        <Row label="Memory layer" value={memoryLabel} badgeClass={isSharedLibrary ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : isFallback ? "border-amber-300/25 bg-amber-300/10 text-amber-100" : undefined} />
+        {isFallback || isSharedLibrary ? <Row label="Company-specific" value="No, approved general guidance" /> : null}
         <Row label="Company" value={companyName} />
-        <Row label="Source" value={isFallback ? String(node.metadata.fallbackSource ?? "approved fallback") : `${node.sourceTable}:${node.sourceId}`} />
+        <Row label="Source" value={isFallback ? String(node.metadata.fallbackSource ?? "approved fallback") : isSharedLibrary ? String(node.metadata.sharedLibrarySource ?? node.sourceTable) : `${node.sourceTable}:${node.sourceId}`} />
         <Row label="Project" value={node.project ?? "All projects"} />
         <Row label="Trade" value={node.trade ?? "All trades"} />
       </dl>

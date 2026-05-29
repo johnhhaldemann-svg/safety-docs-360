@@ -30,6 +30,8 @@ export async function GET(request: Request) {
     fallbackReason: payload.fallbackReason,
     companySpecificNodeCount: payload.companySpecificNodeCount,
     companySpecificEdgeCount: payload.companySpecificEdgeCount,
+    companyDocumentNodeCount: payload.companyDocumentNodeCount,
+    sharedLibraryNodeCount: payload.sharedLibraryNodeCount,
     warnings: payload.warnings,
     generatedAt: payload.generatedAt,
   });
