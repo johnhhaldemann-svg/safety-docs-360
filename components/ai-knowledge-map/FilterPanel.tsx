@@ -8,6 +8,7 @@ const savedViews: Array<{ label: string; filters: Partial<AiKnowledgeMapFilters>
   { label: "Permit to Work Flow", filters: { sourceType: "permit", category: "all", riskLevel: "all", query: "" } },
   { label: "Incident Hotspots", filters: { sourceType: "incident", category: "all", riskLevel: "all", query: "" } },
   { label: "Training Gaps", filters: { sourceType: "training", category: "all", riskLevel: "all", query: "gap" } },
+  { label: "Knowledge Library", filters: { sourceType: "document", category: "all", riskLevel: "all", query: "" } },
 ];
 const riskLevels = ["all", "critical", "high", "moderate", "low", "unknown"] as const;
 const sourceTypes = ["all", "permit", "task", "hazard", "control", "training", "incident", "risk_record", "document", "observation", "corrective_action"] as const;

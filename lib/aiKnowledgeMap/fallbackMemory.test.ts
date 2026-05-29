@@ -108,6 +108,62 @@ const globalKnowledge = {
 };
 
 describe("real-data fallback knowledge graph", () => {
+  it("shows approved company document memory and hides unapproved document graph rows", async () => {
+    const payload = await getKnowledgeGraphPayload(fakeClient({
+      companies: [{ id: "company-1", name: "Company One" }],
+      ai_knowledge_nodes: [
+        approvedNode("approved-doc", {
+          source_table: "documents",
+          source_id: "approved-doc",
+          source_record_id: "approved-doc",
+          title: "Approved hot work procedure",
+          node_type: "document",
+          type: "document",
+          category: "document",
+          description: "Approved company document memory for hot work.",
+          semantic_summary: "Approved company document memory for hot work.",
+        }),
+        approvedNode("pending-doc", {
+          source_table: "documents",
+          source_id: "pending-doc",
+          source_record_id: "pending-doc",
+          title: "Pending document candidate",
+          node_type: "document",
+          type: "document",
+          category: "document",
+          validation_status: "pending_review",
+        }),
+      ],
+      ai_knowledge_edges: [],
+      ai_vector_memory: [{ node_id: "approved-doc", company_id: "company-1", status: "indexed" }],
+      ai_knowledge_ingest_candidates: [{ id: "candidate-1", validation_status: "pending_review", title: "Pending document candidate" }],
+      approved_knowledge: [],
+      documents: [],
+    }) as never, { companyId: "company-1", sourceType: "document" });
+
+    expect(payload.nodes.some((node) => node.id === "approved-doc")).toBe(true);
+    expect(payload.nodes.some((node) => node.id === "pending-doc")).toBe(false);
+    expect(payload.companyDocumentNodeCount).toBe(1);
+  });
+
+  it("adds approved shared Knowledge Library guidance even when fallback is disabled", async () => {
+    const nodes = Array.from({ length: 8 }, (_, index) => approvedNode(`node-${index + 1}`));
+    const edges = Array.from({ length: 10 }, (_, index) => approvedEdge(`edge-${index + 1}`, nodes[index % nodes.length].id, nodes[(index + 1) % nodes.length].id));
+    const payload = await getKnowledgeGraphPayload(fakeClient({
+      companies: [{ id: "company-1", name: "Company One" }],
+      ai_knowledge_nodes: nodes,
+      ai_knowledge_edges: edges,
+      ai_vector_memory: nodes.map((node) => ({ node_id: node.id, company_id: "company-1", status: "indexed" })),
+      approved_knowledge: [globalKnowledge],
+      documents: [],
+    }) as never, { companyId: "company-1", sourceType: "document" });
+
+    expect(payload.fallback).toBe(false);
+    expect(payload.sharedLibraryNodeCount).toBeGreaterThan(0);
+    expect(payload.nodes.some((node) => node.metadata.sharedLibrary === true && node.metadata.notCompanySpecific === true)).toBe(true);
+    expect(payload.nodes.every((node) => node.nodeType === "document")).toBe(true);
+  });
+
   it("returns approved fallback data for a new company without company-specific graph memory", async () => {
     const payload = await getKnowledgeGraphPayload(fakeClient({
       companies: [{ id: "new-company", name: "New Company" }],
@@ -120,8 +176,8 @@ describe("real-data fallback knowledge graph", () => {
 
     expect(payload.fallback).toBe(true);
     expect(payload.nodes.length).toBeGreaterThan(0);
-    expect(payload.nodes.every((node) => node.metadata.fallback === true)).toBe(true);
-    expect(payload.nodes.every((node) => node.sourceId.startsWith("fallback-"))).toBe(true);
+    expect(payload.nodes.some((node) => node.metadata.fallback === true)).toBe(true);
+    expect(payload.nodes.some((node) => node.sourceId.startsWith("fallback-"))).toBe(true);
     expect(payload.nodes.every((node) => node.sourceUrl === null)).toBe(true);
     expect(payload.fallbackReason).toContain("approved fallback safety intelligence");
   });

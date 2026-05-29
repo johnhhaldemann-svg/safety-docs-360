@@ -11,6 +11,7 @@ import { MapControls, type MapCommand } from "@/components/ai-knowledge-map/MapC
 import { RelationshipValidationPanel } from "@/components/ai-knowledge-map/RelationshipValidationPanel";
 import { SelectedNodePanel } from "@/components/ai-knowledge-map/SelectedNodePanel";
 import { StatsBar } from "@/components/ai-knowledge-map/StatsBar";
+import { TrustedLearningInputsPanel } from "@/components/ai-knowledge-map/TrustedLearningInputsPanel";
 import type { AiKnowledgeEdge, AiKnowledgeGraphPayload, AiKnowledgeMapFilters, AiKnowledgeNode } from "@/lib/aiKnowledgeMap/types";
 
 type AuthMeResponse = {
@@ -22,6 +23,8 @@ const EMPTY_SUMMARY = {
   edgeCount: 0,
   dataSourceCount: 0,
   highRiskNodeCount: 0,
+  documentNodeCount: 0,
+  sharedLibraryNodeCount: 0,
   lowConfidenceCount: 0,
   unreviewedRelationshipCount: 0,
   pendingReviewCount: 0,
@@ -44,6 +47,8 @@ const EMPTY_GRAPH: AiKnowledgeGraphPayload = {
   fallbackReason: null,
   companySpecificNodeCount: 0,
   companySpecificEdgeCount: 0,
+  companyDocumentNodeCount: 0,
+  sharedLibraryNodeCount: 0,
 };
 
 export function KnowledgeMapPage() {
@@ -98,6 +103,8 @@ export function KnowledgeMapPage() {
         fallbackReason: nodesBody?.fallbackReason ?? summaryBody?.fallbackReason ?? null,
         companySpecificNodeCount: nodesBody?.companySpecificNodeCount ?? summaryBody?.companySpecificNodeCount ?? 0,
         companySpecificEdgeCount: edgesBody?.companySpecificEdgeCount ?? summaryBody?.companySpecificEdgeCount ?? 0,
+        companyDocumentNodeCount: nodesBody?.companyDocumentNodeCount ?? summaryBody?.companyDocumentNodeCount ?? 0,
+        sharedLibraryNodeCount: nodesBody?.sharedLibraryNodeCount ?? summaryBody?.sharedLibraryNodeCount ?? 0,
       };
       setGraph(payload);
       setFilters((current) => ({ ...current, companyId: payload.selectedCompanyId ?? current.companyId }));
@@ -298,6 +305,7 @@ export function KnowledgeMapPage() {
             {error ? <Banner tone="red" text={error} /> : null}
             {graph.demo ? <Banner tone="amber" text="Demo mode is showing safe sample records. Rebuild a live company index to use live safety records." /> : null}
             {graph.fallback ? <Banner tone="amber" text={graph.fallbackReason ?? "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data."} /> : null}
+            {(graph.sharedLibraryNodeCount ?? 0) > 0 ? <Banner tone="green" text={`Knowledge Library layer active: ${graph.sharedLibraryNodeCount} approved shared document guidance node${graph.sharedLibraryNodeCount === 1 ? "" : "s"} visible with ${graph.companyDocumentNodeCount ?? 0} approved company document node${(graph.companyDocumentNodeCount ?? 0) === 1 ? "" : "s"}.`} /> : null}
             {graph.warnings.slice(0, 2).map((warning) => <Banner key={warning} tone="amber" text={warning} />)}
           </div>
         ) : null}
@@ -319,6 +327,7 @@ export function KnowledgeMapPage() {
           </section>
           <section className="flex min-h-0 flex-col gap-4">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
+            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
             <CandidateReviewPanel companyId={graph.selectedCompanyId} />
             <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status) => void validate(edge, status)} />
             <LowConfidenceQueue edges={graph.edges} />
