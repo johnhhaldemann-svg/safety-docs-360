@@ -31,6 +31,11 @@ import {
   fieldEvidenceSignalsFromRecommendations,
   type AiSafetyFieldEvidenceRecommendationRow,
 } from "@/lib/aiSafetyFieldEvidence";
+import {
+  retrieveTrustedKnowledgeGraphMemory,
+  trustedGraphMemoryAsPredictiveItems,
+} from "@/lib/aiKnowledgeMap/trustedMemory";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -199,6 +204,40 @@ function fieldEvidenceRowsForScope(
   });
 }
 
+function trustedGraphSearchQuery(input: {
+  scheduleItems: PredictiveRiskScheduleItemRow[];
+  permits: PredictiveRiskPermitRow[];
+  incidents: PredictiveRiskIncidentRow[];
+  observations: BehaviorRiskObservationRow[];
+  trainingGaps?: BehaviorRiskTrainingGapRow[];
+}) {
+  const parts = [
+    ...input.scheduleItems.flatMap((item) => [
+      item.title,
+      item.trade,
+      item.work_area,
+      item.risk_level,
+      ...(item.hazard_categories ?? []),
+      ...(item.permit_triggers ?? []),
+      ...(item.required_controls ?? []),
+    ]),
+    ...input.permits.flatMap((permit) => [permit.title, permit.permit_type, permit.category, permit.severity]),
+    ...input.incidents.flatMap((incident) => [incident.title, incident.category, incident.severity]),
+    ...input.observations.flatMap((observation) => [
+      observation.category,
+      observation.hazard_category_code,
+      observation.subcategory,
+      observation.description,
+      observation.severity,
+    ]),
+    ...(input.trainingGaps ?? []).flatMap((gap) => [gap.requirement, gap.status]),
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+
+  return [...new Set(parts)].slice(0, 40).join(" ");
+}
+
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_view_analytics", "can_view_all_company_data", "can_view_dashboards"],
@@ -346,6 +385,27 @@ export async function POST(request: Request) {
   const fieldEvidenceSignals = fieldEvidenceSignalsFromRecommendations(
     fieldEvidenceRowsForScope(fieldEvidenceRes.error ? [] : fieldEvidenceRes.data ?? [], scopeOptions),
   );
+  const trustedGraphQuery = trustedGraphSearchQuery({
+    scheduleItems,
+    permits: permitsRes.data ?? [],
+    incidents: incidentsRes.data ?? [],
+    observations,
+    trainingGaps,
+  });
+  const trustedGraphClient = createSupabaseAdminClient();
+  const trustedGraphMemory =
+    trustedGraphClient && trustedGraphQuery
+      ? await retrieveTrustedKnowledgeGraphMemory(trustedGraphClient, {
+          companyId,
+          jobsiteId: requestedJobsiteId,
+          query: trustedGraphQuery,
+          topK: 8,
+        })
+      : { items: [], method: "unavailable" as const, warnings: ["Approved knowledge graph memory was unavailable for this run."] };
+  const memoryItems = [
+    ...(memoryItemsRes.error ? [] : memoryItemsRes.data ?? []),
+    ...trustedGraphMemoryAsPredictiveItems(trustedGraphMemory.items),
+  ];
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
     companyId,
@@ -368,7 +428,7 @@ export async function POST(request: Request) {
     observations,
     trainingGaps,
     weatherAlerts: weatherAlertsRes.error ? undefined : weatherAlertsRes.data ?? [],
-    memoryItems: memoryItemsRes.error ? undefined : memoryItemsRes.data ?? [],
+    memoryItems,
     fieldEvidenceSignals,
     riskMitigations: mitigationsRes.error ? [] : mitigationsRes.data ?? [],
   });
@@ -395,6 +455,7 @@ export async function POST(request: Request) {
       insertedCount: 0,
       skippedDuplicateCount: predictiveRisk.aiSafetyActionQueue.items.length,
       existingActionCount: existingSourceKeys.size,
+      trustedGraphMemoryCount: trustedGraphMemory.items.length,
       actionQueue: predictiveRisk.aiSafetyActionQueue,
       recommendations: [],
     });
@@ -440,6 +501,7 @@ export async function POST(request: Request) {
     insertedCount: inserted.length,
     skippedDuplicateCount: predictiveRisk.aiSafetyActionQueue.items.length - inserted.length,
     existingActionCount: existingSourceKeys.size,
+    trustedGraphMemoryCount: trustedGraphMemory.items.length,
     actionQueue: predictiveRisk.aiSafetyActionQueue,
     recommendations: inserted,
   });

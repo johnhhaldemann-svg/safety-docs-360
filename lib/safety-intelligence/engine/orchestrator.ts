@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { buildPreventionLogicResult } from "@/lib/safety-intelligence/engine/preventionLogic";
 import { buildSafetyMemorySnapshot } from "@/lib/safety-intelligence/engine/memorySnapshot";
@@ -79,15 +80,36 @@ export async function buildSmartSafetyAiReviewContext(params: {
   });
 
   let ragMemoryExcerpts: AiReviewContext["ragMemoryExcerpts"] = null;
+  if (params.supabase) {
+    const q = synthesizeRagQuery(params.input, bucket);
+    if (q.length >= 8) {
+      const graph = await retrieveTrustedKnowledgeGraphMemory(params.supabase, {
+        companyId: params.input.companyId,
+        jobsiteId: params.input.jobsiteId ?? null,
+        query: q,
+        topK: 5,
+      }).catch(() => ({ items: [], method: "none" as const, warnings: [] }));
+      if (graph.items.length > 0) {
+        stages.push("trusted_graph_memory");
+        ragMemoryExcerpts = graph.items.map((item) => ({
+          title: `Approved graph: ${item.title}`,
+          excerpt: truncateExcerpt(item.excerpt, 480),
+        }));
+      }
+    }
+  }
   if (isSafetyIntelligenceRagEnabled() && params.supabase) {
     const q = synthesizeRagQuery(params.input, bucket);
     if (q.length >= 8) {
       stages.push("rag_memory");
       const { chunks } = await retrieveMemoryForQuery(params.supabase, params.input.companyId, q, { topK: 5 });
-      ragMemoryExcerpts = chunks.map((c) => ({
-        title: c.title?.trim() || "Memory",
-        excerpt: truncateExcerpt(c.body ?? "", 480),
-      }));
+      ragMemoryExcerpts = [
+        ...(ragMemoryExcerpts ?? []),
+        ...chunks.map((c) => ({
+          title: c.title?.trim() || "Memory",
+          excerpt: truncateExcerpt(c.body ?? "", 480),
+        })),
+      ];
     }
   }
 
@@ -146,6 +168,27 @@ export async function attachSmartSafetyEngineLayers(params: {
   });
 
   let ragMemoryExcerpts = params.context.ragMemoryExcerpts ?? null;
+  if (params.supabase) {
+    const q = synthesizeRagQuery(params.primaryInput, params.primaryBucket);
+    if (q.length >= 8) {
+      const graph = await retrieveTrustedKnowledgeGraphMemory(params.supabase, {
+        companyId: params.primaryInput.companyId,
+        jobsiteId: params.primaryInput.jobsiteId ?? null,
+        query: q,
+        topK: 5,
+      }).catch(() => ({ items: [], method: "none" as const, warnings: [] }));
+      if (graph.items.length > 0) {
+        stages.push("trusted_graph_memory");
+        ragMemoryExcerpts = [
+          ...(ragMemoryExcerpts ?? []),
+          ...graph.items.map((item) => ({
+            title: `Approved graph: ${item.title}`,
+            excerpt: truncateExcerpt(item.excerpt, 480),
+          })),
+        ];
+      }
+    }
+  }
   if (isSafetyIntelligenceRagEnabled() && params.supabase) {
     const q = synthesizeRagQuery(params.primaryInput, params.primaryBucket);
     if (q.length >= 8) {
@@ -156,10 +199,13 @@ export async function attachSmartSafetyEngineLayers(params: {
         q,
         { topK: 5 }
       );
-      ragMemoryExcerpts = chunks.map((c) => ({
-        title: c.title?.trim() || "Memory",
-        excerpt: truncateExcerpt(c.body ?? "", 480),
-      }));
+      ragMemoryExcerpts = [
+        ...(ragMemoryExcerpts ?? []),
+        ...chunks.map((c) => ({
+          title: c.title?.trim() || "Memory",
+          excerpt: truncateExcerpt(c.body ?? "", 480),
+        })),
+      ];
     }
   }
 

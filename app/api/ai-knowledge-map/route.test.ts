@@ -35,14 +35,29 @@ vi.mock("@/lib/aiKnowledgeMap/repository", () => ({
   recalculateKnowledgeRelationships: vi.fn(async () => ({ ok: true, companyId: "company-1", insertedOrUpdatedEdges: 3, generatedAt: "2026-05-28T00:00:00.000Z" })),
   updateKnowledgeRelationshipValidation: vi.fn(async () => ({ ok: true, edge: { id: "edge-1" }, reviewedAt: "2026-05-28T00:00:00.000Z" })),
   saveKnowledgeMapView: vi.fn(async () => ({ ok: true, view: { id: "view-1" } })),
+  listKnowledgeIngestCandidates: vi.fn(async () => ({ candidates: [{ id: "candidate-1", title: "Hot Work Permit" }], count: 1 })),
+  getKnowledgeIngestCandidate: vi.fn(async () => ({ candidate: { id: "candidate-1", title: "Hot Work Permit" } })),
+  reviewKnowledgeIngestCandidates: vi.fn(async () => ({ ok: true, reviewed: 1, promoted: 1, errors: [] })),
+  promoteApprovedKnowledgeCandidates: vi.fn(async () => ({ ok: true, promoted: 1, skipped: 0, errors: [] })),
 }));
 
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
-import { rebuildKnowledgeIndex, recalculateKnowledgeRelationships, updateKnowledgeRelationshipValidation } from "@/lib/aiKnowledgeMap/repository";
+import {
+  rebuildKnowledgeIndex,
+  recalculateKnowledgeRelationships,
+  updateKnowledgeRelationshipValidation,
+  listKnowledgeIngestCandidates,
+  reviewKnowledgeIngestCandidates,
+  promoteApprovedKnowledgeCandidates,
+} from "@/lib/aiKnowledgeMap/repository";
 import * as nodesRoute from "./nodes/route";
 import * as rebuildRoute from "./rebuild-index/route";
 import * as recalculateRoute from "./recalculate-risk-connections/route";
 import * as validateRoute from "./validate-relationship/route";
+import * as candidatesRoute from "./candidates/route";
+import * as approveCandidateRoute from "./approve-candidate/route";
+import * as rejectCandidateRoute from "./reject-candidate/route";
+import * as promoteApprovedRoute from "./promote-approved/route";
 
 const mockedAuthorize = vi.mocked(authorizeSuperadminAiEngineRequest);
 
@@ -78,6 +93,25 @@ describe("/api/ai-knowledge-map", () => {
     expect(rebuildKnowledgeIndex).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ companyId: "company-1", actorUserId: "super-1", generateEmbeddings: true }));
     expect(recalculateKnowledgeRelationships).toHaveBeenCalledWith(expect.anything(), { companyId: "company-1", actorUserId: "super-1" });
     expect(updateKnowledgeRelationshipValidation).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ edgeId: "edge-1", status: "approved", actorUserId: "super-1" }));
+  });
+
+  it("keeps candidate review APIs Super Admin-only", async () => {
+    deny();
+    await expect(candidatesRoute.GET(new Request("https://example.com/api/ai-knowledge-map/candidates?companyId=company-1"))).resolves.toMatchObject({ status: 403 });
+    await expect(approveCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/approve-candidate", { method: "POST", body: JSON.stringify({ candidateId: "candidate-1" }) }))).resolves.toMatchObject({ status: 403 });
+  });
+
+  it("allows Super Admin candidate review and promotion", async () => {
+    allow();
+    await expect(candidatesRoute.GET(new Request("https://example.com/api/ai-knowledge-map/candidates?companyId=company-1&status=pending_review"))).resolves.toMatchObject({ status: 200 });
+    await expect(approveCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/approve-candidate", { method: "POST", body: JSON.stringify({ candidateId: "candidate-1" }) }))).resolves.toMatchObject({ status: 200 });
+    await expect(rejectCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/reject-candidate", { method: "POST", body: JSON.stringify({ candidateIds: ["candidate-2"], status: "incorrect" }) }))).resolves.toMatchObject({ status: 200 });
+    await expect(promoteApprovedRoute.POST(new Request("https://example.com/api/ai-knowledge-map/promote-approved", { method: "POST", body: JSON.stringify({ companyId: "company-1", limit: 25 }) }))).resolves.toMatchObject({ status: 200 });
+
+    expect(listKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ companyId: "company-1", status: "pending_review" }));
+    expect(reviewKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ candidateIds: ["candidate-1"], status: "approved", actorUserId: "super-1", promoteApproved: true }));
+    expect(reviewKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ candidateIds: ["candidate-2"], status: "incorrect", actorUserId: "super-1", promoteApproved: false }));
+    expect(promoteApprovedKnowledgeCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ companyId: "company-1", limit: 25, actorUserId: "super-1" }));
   });
 
   it("validates required management request fields", async () => {

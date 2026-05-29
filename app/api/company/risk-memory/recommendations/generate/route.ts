@@ -11,6 +11,8 @@ import {
   createCompanyNotification,
   listCompanyNotificationRecipients,
 } from "@/lib/companyNotifications";
+import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -20,6 +22,46 @@ function canManage(role: string) {
 
 function isMissingTable(message?: string | null) {
   return (message ?? "").toLowerCase().includes("company_risk_ai_recommendations");
+}
+
+function graphPatternQuery(ctx: Awaited<ReturnType<typeof buildRiskMemoryStructuredContext>>) {
+  if (!ctx) return "approved safety graph risk patterns controls incidents permits training";
+  const terms = [
+    ctx.aggregatedWithBaseline?.band ?? ctx.aggregated.band,
+    ...ctx.topScopes.map((scope) => scope.code),
+    ...ctx.topHazards.map((hazard) => hazard.code),
+    ...ctx.topLocationAreas.map((area) => area.label),
+    ...ctx.topLocationGrids.map((grid) => grid.label),
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  return terms.length > 0
+    ? `approved safety graph risk patterns ${terms.slice(0, 20).join(" ")}`
+    : "approved safety graph risk patterns controls incidents permits training";
+}
+
+function buildApprovedGraphPatternDrafts(
+  graphMemory: Awaited<ReturnType<typeof retrieveTrustedKnowledgeGraphMemory>>["items"],
+): RiskRecommendationDraft[] {
+  if (graphMemory.length === 0) return [];
+  const relationshipCount = graphMemory.reduce((sum, item) => sum + item.relationshipReasons.length, 0);
+  const titles = graphMemory
+    .slice(0, 3)
+    .map((item) => item.title)
+    .filter(Boolean)
+    .join(", ");
+  return [
+    {
+      kind: "approved_graph_pattern",
+      title: "Review approved knowledge graph risk pattern",
+      body:
+        `Approved graph memory found ${graphMemory.length} reviewed safety node(s)` +
+        (relationshipCount > 0 ? ` and ${relationshipCount} approved relationship(s)` : "") +
+        (titles ? ` tied to current risk patterns: ${titles}.` : ".") +
+        " Use these reviewed links as supporting evidence when assigning controls, training checks, and follow-up actions.",
+      confidence: Math.min(0.82, 0.62 + graphMemory.length * 0.03),
+    },
+  ];
 }
 
 export async function POST(request: Request) {
@@ -57,6 +99,15 @@ export async function POST(request: Request) {
     days,
     jobsiteId,
   });
+  const trustedGraphClient = createSupabaseAdminClient();
+  const trustedGraphMemory = trustedGraphClient
+    ? await retrieveTrustedKnowledgeGraphMemory(trustedGraphClient, {
+        companyId: companyScope.companyId,
+        jobsiteId,
+        query: graphPatternQuery(ctx),
+        topK: 8,
+      })
+    : { items: [], method: "unavailable" as const, warnings: ["Approved knowledge graph memory was unavailable for this run."] };
 
   const combined: RiskRecommendationDraft[] = [];
 
@@ -79,6 +130,7 @@ export async function POST(request: Request) {
   if (mode === "rules" || mode === "both") {
     combined.push(...buildRuleBasedRiskRecommendations(ctx));
   }
+  combined.push(...buildApprovedGraphPatternDrafts(trustedGraphMemory.items));
 
   const seen = new Set<string>();
   const drafts = combined.filter((d) => {
@@ -100,8 +152,9 @@ export async function POST(request: Request) {
         band: ctx.aggregatedWithBaseline?.band ?? ctx.aggregated.band,
         score: ctx.aggregatedWithBaseline?.score ?? ctx.aggregated.score,
         mode,
+        trustedGraphMemoryCount: trustedGraphMemory.items.length,
       }
-    : { mode };
+    : { mode, trustedGraphMemoryCount: trustedGraphMemory.items.length };
 
   const rows = drafts.map((d) => {
     const actionDraft = enrichRiskActionDraft({
@@ -135,7 +188,20 @@ export async function POST(request: Request) {
       verification_required: actionDraft.verificationRequired,
       mitigation_state: actionDraft.mitigationState,
       risk_reduction_points: actionDraft.riskReductionPoints,
-      evidence_summary: { evidenceRefs: [] },
+      evidence_summary: {
+        evidenceRefs: [],
+        trustedGraphMemory:
+          d.kind === "approved_graph_pattern"
+            ? trustedGraphMemory.items.slice(0, 5).map((item) => ({
+                nodeId: item.nodeId,
+                title: item.title,
+                sourceTable: item.sourceTable,
+                sourceId: item.sourceId,
+                confidenceScore: item.confidenceScore,
+                relationshipReasons: item.relationshipReasons,
+              }))
+            : [],
+      },
     };
   });
 
@@ -185,5 +251,6 @@ export async function POST(request: Request) {
     created: recommendations.length,
     recommendations,
     mode,
+    trustedGraphMemoryCount: trustedGraphMemory.items.length,
   });
 }
