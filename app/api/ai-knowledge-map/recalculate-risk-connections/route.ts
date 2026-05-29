@@ -1,0 +1,24 @@
+import { NextResponse } from "next/server";
+import { recalculateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/repository";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+
+export const runtime = "nodejs";
+
+export async function POST(request: Request) {
+  const auth = await authorizeSuperadminAiEngineRequest(request);
+  if ("error" in auth) return auth.error;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return NextResponse.json({ error: "Service role client is required for AI Knowledge Map recalculation." }, { status: 500 });
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const companyId = typeof body?.companyId === "string" && body.companyId.trim() ? body.companyId.trim() : null;
+  if (!companyId) return NextResponse.json({ error: "companyId is required." }, { status: 400 });
+
+  const result = await recalculateKnowledgeRelationships(admin, {
+    companyId,
+    actorUserId: auth.user.id,
+  });
+  return NextResponse.json(result);
+}
