@@ -219,4 +219,11 @@ export type TrustedKnowledgeGraphMemoryItem = {
   confidenceScore: number;
   relationshipReasons: string[];
   evidence: AiKnowledgeEvidence[];
+  similarity?: number | null;
 };
+
+export type TrustedKnowledgeGraphMemoryMethod =
+  | "approved_graph_semantic"
+  | "approved_graph_keyword"
+  | "approved_graph_with_fallback"
+  | "none";
