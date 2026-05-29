@@ -122,8 +122,8 @@ export function KnowledgeMapPage() {
   }, [load]);
 
   async function runRebuild(generateEmbeddings: boolean) {
-    if (!graph.selectedCompanyId) {
-      setError("Select a live company before rebuilding the AI Knowledge Map.");
+    if (!graph.selectedCompanyId || graph.selectedCompanyId === "all") {
+      setError("Select one company before rebuilding the AI Knowledge Map. All-company view is read-only for rebuild safety.");
       return;
     }
     setWorking(generateEmbeddings ? "Embedding rebuild" : "Rebuild");
@@ -147,7 +147,10 @@ export function KnowledgeMapPage() {
   }
 
   async function recalculate() {
-    if (!graph.selectedCompanyId) return;
+    if (!graph.selectedCompanyId || graph.selectedCompanyId === "all") {
+      setError("Select one company before recalculating relationships. All-company view is read-only for recalculation safety.");
+      return;
+    }
     setWorking("Recalculate");
     setError(null);
     setMessage(null);
@@ -266,7 +269,7 @@ export function KnowledgeMapPage() {
             <LegendBar />
           </section>
           <section className="flex min-h-0 flex-col gap-4">
-            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} onValidate={(edge, status) => void validate(edge, status)} />
+            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
             <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status) => void validate(edge, status)} />
             <LowConfidenceQueue edges={graph.edges} />
           </section>

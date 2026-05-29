@@ -7,11 +7,13 @@ export function SelectedNodePanel({
   node,
   edges,
   nodes,
+  companies,
   onValidate,
 }: {
   node: AiKnowledgeNode | null;
   edges: AiKnowledgeEdge[];
   nodes: AiKnowledgeNode[];
+  companies: Array<{ id: string; name: string }>;
   onValidate: (edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect") => void;
 }) {
   if (!node) {
@@ -23,6 +25,7 @@ export function SelectedNodePanel({
   }
   const tone = riskTone(node.riskLevel);
   const byId = new Map(nodes.map((item) => [item.id, item]));
+  const companyName = companies.find((company) => company.id === node.companyId)?.name ?? node.companyId ?? "All companies";
   const related = edges.filter((edge) => edge.sourceNodeId === node.id || edge.targetNodeId === node.id || edge.fromNodeId === node.id || edge.toNodeId === node.id).slice(0, 10);
   const trend = node.riskLevel === "critical" || node.riskLevel === "high" ? "Increasing attention" : "Stable";
 
@@ -42,6 +45,7 @@ export function SelectedNodePanel({
         <Row label="Trend" value={trend} />
         <Row label="Confidence" value={`${Math.round((node.confidenceScore ?? 0.72) * 100)}%`} />
         <Row label="Validation" value={node.validationStatus.replace(/_/g, " ")} badgeClass={validationTone(node.validationStatus)} />
+        <Row label="Company" value={companyName} />
         <Row label="Source" value={`${node.sourceTable}:${node.sourceId}`} />
         <Row label="Project" value={node.project ?? "All projects"} />
         <Row label="Trade" value={node.trade ?? "All trades"} />

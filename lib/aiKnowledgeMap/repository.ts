@@ -32,6 +32,8 @@ const SOURCE_TABLES = [
   "company_risk_ai_recommendations",
 ] as const;
 
+const ALL_COMPANIES_SCOPE = "all";
+
 function isMissingKnowledgeMapTable(error?: DbError | null) {
   const message = (error?.message ?? "").toLowerCase();
   return message.includes("ai_knowledge") || message.includes("ai_vector_memory") || message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find");
@@ -200,6 +202,18 @@ async function countSourceRowsForCompany(client: DbClient, companyId: string) {
   return counts.reduce((total, count) => total + count, 0);
 }
 
+async function countSourceRowsForAllCompanies(client: DbClient) {
+  const counts = await Promise.all(SOURCE_TABLES.map(async (table) => {
+    try {
+      const { count, error } = (await client.from(table).select("id", { count: "exact", head: true })) as QueryResult<unknown> & { count?: number | null };
+      return error ? 0 : count ?? 0;
+    } catch {
+      return 0;
+    }
+  }));
+  return counts.reduce((total, count) => total + count, 0);
+}
+
 async function pickInitialCompanyId(client: DbClient, companies: Array<{ id: string; name: string }>) {
   for (const company of companies.slice(0, 15)) {
     const sourceCount = await countSourceRowsForCompany(client, company.id);
@@ -358,17 +372,21 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
   const warnings: string[] = [];
   const companiesResult = await listCompanies(client);
   if (companiesResult.warning) warnings.push(companiesResult.warning);
-  const selectedCompanyId = filters.companyId || await pickInitialCompanyId(client, companiesResult.companies);
+  const requestedCompanyId = filters.companyId?.trim() || null;
+  const viewingAllCompanies = requestedCompanyId === ALL_COMPANIES_SCOPE;
+  const selectedCompanyId = viewingAllCompanies ? ALL_COMPANIES_SCOPE : requestedCompanyId || await pickInitialCompanyId(client, companiesResult.companies);
   if (!selectedCompanyId) return { ...buildDemoKnowledgeGraph(), companies: [], selectedCompanyId: null, warnings: ["No companies are available for indexing."], demo: true };
 
-  const nodeResult = (await client.from("ai_knowledge_nodes").select("*").eq("company_id", selectedCompanyId).limit(600)) as QueryResult<Array<Record<string, unknown>>>;
+  const nodeQuery = client.from("ai_knowledge_nodes").select("*").limit(600);
+  const nodeResult = (await (viewingAllCompanies ? nodeQuery : nodeQuery.eq("company_id", selectedCompanyId))) as QueryResult<Array<Record<string, unknown>>>;
   if (nodeResult.error) {
     if (isMissingKnowledgeMapTable(nodeResult.error)) return buildDemoKnowledgeGraph();
     throw new Error(nodeResult.error.message ?? "Failed to load knowledge nodes.");
   }
   let nodes = filterNodes((nodeResult.data ?? []).map(camelNode), filters);
   const visibleNodeIds = new Set(nodes.map((node) => node.id).filter(Boolean));
-  const edgeResult = (await client.from("ai_knowledge_edges").select("*").eq("company_id", selectedCompanyId).limit(900)) as QueryResult<Array<Record<string, unknown>>>;
+  const edgeQuery = client.from("ai_knowledge_edges").select("*").limit(900);
+  const edgeResult = (await (viewingAllCompanies ? edgeQuery : edgeQuery.eq("company_id", selectedCompanyId))) as QueryResult<Array<Record<string, unknown>>>;
   if (edgeResult.error) throw new Error(edgeResult.error.message ?? "Failed to load knowledge edges.");
   let edges = (edgeResult.data ?? []).map(camelEdge).filter((edge) => visibleNodeIds.has(edge.sourceNodeId) && visibleNodeIds.has(edge.targetNodeId));
   if (nodes.length > 500) {
@@ -377,12 +395,13 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     edges = edges.filter((edge) => sampledIds.has(edge.sourceNodeId) && sampledIds.has(edge.targetNodeId)).slice(0, 700);
     warnings.push("Performance-safe sampling limited the visible map to 500 nodes.");
   }
-  const vectorResult = (await client.from("ai_vector_memory").select("id,status").eq("company_id", selectedCompanyId).limit(1000)) as QueryResult<Array<Record<string, unknown>>>;
+  const vectorQuery = client.from("ai_vector_memory").select("id,status").limit(1000);
+  const vectorResult = (await (viewingAllCompanies ? vectorQuery : vectorQuery.eq("company_id", selectedCompanyId))) as QueryResult<Array<Record<string, unknown>>>;
   if (vectorResult.error && !isMissingKnowledgeMapTable(vectorResult.error)) warnings.push(vectorResult.error.message ?? "Vector memory unavailable.");
   if (nodes.length === 0) {
-    const sourceCount = await countSourceRowsForCompany(client, selectedCompanyId);
+    const sourceCount = viewingAllCompanies ? await countSourceRowsForAllCompanies(client) : await countSourceRowsForCompany(client, selectedCompanyId);
     if (sourceCount > 0) {
-      warnings.push(`This company has ${sourceCount} source safety records, but no AI Knowledge Map index yet. Click Rebuild index to create live nodes and relationships.`);
+      warnings.push(`${viewingAllCompanies ? "These companies have" : "This company has"} ${sourceCount} source safety records, but no AI Knowledge Map index yet. Select one company and click Rebuild index to create live nodes and relationships.`);
     }
   }
   const validationQueue = edges.filter((edge) => edge.validationStatus !== "approved" || edge.confidenceScore < 0.55).sort((left, right) => left.confidenceScore - right.confidenceScore).slice(0, 30);
