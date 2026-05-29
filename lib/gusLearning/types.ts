@@ -155,6 +155,17 @@ export type GusCitationSnippet = {
   qualityScore: number;
 };
 
+export type GusGraphCitationSnippet = {
+  graphMemoryId: string;
+  nodeId: string;
+  title: string;
+  excerpt: string;
+  sourceTable: string;
+  sourceId: string;
+  riskLevel: string;
+  confidenceScore: number;
+};
+
 export type GusAnswerStatement = {
   classification: GusRequiredControlType;
   text: string;
@@ -183,6 +194,7 @@ export type GusLearningAnswer = {
       qualityScore: number;
     }>;
   citationSnippets: GusCitationSnippet[];
+  graphCitationSnippets?: GusGraphCitationSnippet[];
   statements: GusAnswerStatement[];
   qualitySignals: GusQualitySignals;
   unsupported: boolean;

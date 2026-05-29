@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import type { CompanyMemoryItemRow } from "@/lib/companyMemory/types";
+import type { TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
 import type {
   ApprovedKnowledgeRow,
   GusCitationSnippet,
   GusLearningAnswer,
+  GusGraphCitationSnippet,
   GusQualitySignals,
   GusRequiredControlType,
 } from "@/lib/gusLearning/types";
@@ -121,6 +123,19 @@ function citationSnippet(row: ApprovedKnowledgeRow): GusCitationSnippet {
   };
 }
 
+function graphCitationSnippet(item: TrustedKnowledgeGraphMemoryItem): GusGraphCitationSnippet {
+  return {
+    graphMemoryId: item.id,
+    nodeId: item.nodeId,
+    title: item.title,
+    excerpt: clean(item.excerpt, 700),
+    sourceTable: item.sourceTable,
+    sourceId: item.sourceId,
+    riskLevel: item.riskLevel,
+    confidenceScore: item.confidenceScore,
+  };
+}
+
 function qualitySignals(rows: ApprovedKnowledgeRow[], now = new Date()): GusQualitySignals {
   if (!rows.length) {
     return {
@@ -163,6 +178,7 @@ export function buildVerifiedSafetyAnswer(params: {
   projectId?: string | null;
   knowledge: ApprovedKnowledgeRow[];
   uploadedDocumentMatches?: CompanyMemoryItemRow[];
+  graphMemoryMatches?: TrustedKnowledgeGraphMemoryItem[];
   now?: Date;
 }): GusLearningAnswer {
   const ranked = rankApprovedKnowledge(params.knowledge, params.projectId, params.now).slice(0, 8);
@@ -170,6 +186,10 @@ export function buildVerifiedSafetyAnswer(params: {
   const current = ranked.filter((row) => !isExpired(row, params.now));
   const usable = current.length ? current : ranked;
   const uploadedDocs = (params.uploadedDocumentMatches ?? []).filter((row) => row.source === "document_upload").slice(0, 3);
+  const graphMemory = (params.graphMemoryMatches ?? []).slice(0, 4);
+  const graphBasis = graphMemory.length
+    ? graphMemory.map((item) => `- ${item.title}: ${clean(item.excerpt, 260)} (${item.sourceTable}:${item.sourceId})`).join("\n")
+    : "- None found.";
 
   if (usable.length === 0) {
     const text = [
@@ -182,6 +202,8 @@ export function buildVerifiedSafetyAnswer(params: {
       "- Site-specific: None found.",
       "- Manufacturer: None found.",
       "- Best practice: None found.",
+      "- Approved Knowledge Graph:",
+      graphBasis,
       "",
       "Confidence:",
       "Low",
@@ -191,16 +213,20 @@ export function buildVerifiedSafetyAnswer(params: {
       uploadedDocs.length
         ? `Uploaded project documents were found (${uploadedDocs.map((doc) => doc.title).join(", ")}), but they are not approved knowledge records and cannot create official requirements by themselves.`
         : "No approved knowledge record matched this question.",
+      graphMemory.length
+        ? "Approved graph memory may describe related company records and risk context, but no approved requirement source matched this question."
+        : null,
       "",
       "Recommended Action:",
       "Route this question to a qualified safety professional or company admin for source review before using it as official guidance.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     return {
       answerId: answerId(params.question, []),
       text,
       confidence: "Low",
       citations: [],
       citationSnippets: [],
+      graphCitationSnippets: graphMemory.map(graphCitationSnippet),
       statements: [],
       qualitySignals: qualitySignals([]),
       unsupported: true,
@@ -222,6 +248,9 @@ export function buildVerifiedSafetyAnswer(params: {
     uploadedDocs.length
       ? `Uploaded project documents may add context (${uploadedDocs.map((doc) => doc.title).join(", ")}), but only approved knowledge records are treated as verified safety knowledge.`
       : null,
+    graphMemory.length
+      ? "Approved Knowledge Graph records add company-specific context, relationships, and risk history; they do not override current law, procedures, competent-person review, or site conditions."
+      : null,
     "Gus cannot approve work, guarantee compliance, or replace the competent person, qualified person, AHJ, or company safety professional.",
   ].filter(Boolean);
 
@@ -231,6 +260,8 @@ export function buildVerifiedSafetyAnswer(params: {
     "",
     "Source Basis:",
     sourceBasis(usable),
+    "- Approved Knowledge Graph:",
+    graphBasis,
     "",
     "Confidence:",
     confidenceFor(usable),
@@ -256,6 +287,7 @@ export function buildVerifiedSafetyAnswer(params: {
       qualityScore: Math.round(Number(row.quality_score || calculateKnowledgeQualityScore(row, params.now))),
     })),
     citationSnippets: usable.map(citationSnippet),
+    graphCitationSnippets: graphMemory.map(graphCitationSnippet),
     statements,
     qualitySignals: qualitySignals(usable, params.now),
     unsupported: false,

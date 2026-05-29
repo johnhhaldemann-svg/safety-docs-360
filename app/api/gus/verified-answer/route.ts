@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
+import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory";
 import { buildVerifiedSafetyAnswer, canAskGusVerifiedQuestions, recordGusAnswerAudit, retrieveApprovedKnowledge } from "@/lib/gusLearning";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
@@ -46,12 +47,19 @@ export async function POST(request: Request) {
     chunks: [],
     method: "none" as const,
   }));
+  const graphMemory = await retrieveTrustedKnowledgeGraphMemory(db, {
+    companyId,
+    projectId,
+    query: question,
+    topK: 4,
+  }).catch(() => ({ items: [], method: "none" as const, warnings: ["Approved graph memory unavailable."] }));
   const answer = buildVerifiedSafetyAnswer({
     question,
     companyId,
     projectId,
     knowledge: knowledge.items,
     uploadedDocumentMatches: memory.chunks,
+    graphMemoryMatches: graphMemory.items,
   });
   const selectedKnowledgeIds = answer.citations.map((citation) => citation.knowledgeId);
   const selected = new Set(selectedKnowledgeIds);
@@ -70,6 +78,9 @@ export async function POST(request: Request) {
       approvedKnowledgeMethod: knowledge.method,
       uploadedDocumentMethod: memory.method,
       uploadedDocumentCount: memory.chunks.length,
+      trustedGraphMethod: graphMemory.method,
+      trustedGraphCount: graphMemory.items.length,
+      trustedGraphWarnings: graphMemory.warnings,
     },
     citationSnippets: answer.citationSnippets,
     qualitySignals: answer.qualitySignals,
@@ -81,6 +92,7 @@ export async function POST(request: Request) {
     retrieval: {
       approvedKnowledge: knowledge.method,
       uploadedDocuments: memory.method,
+      trustedGraph: graphMemory.method,
     },
     retrievalTrace: audit.ok ? audit.audit.retrieval_trace : knowledge.trace ?? {},
     qualitySignals: answer.qualitySignals,

@@ -7,6 +7,9 @@ import type {
   AiKnowledgeEdge,
   AiKnowledgeGraphPayload,
   AiKnowledgeGraphSummary,
+  AiKnowledgeIngestBatch,
+  AiKnowledgeIngestCandidate,
+  AiKnowledgeCandidateStatus,
   AiKnowledgeMapFilters,
   AiKnowledgeNode,
   AiKnowledgeRebuildResult,
@@ -148,6 +151,51 @@ function camelEdge(row: Record<string, unknown>): AiKnowledgeEdge {
   };
 }
 
+function camelBatch(row: Record<string, unknown>): AiKnowledgeIngestBatch {
+  return {
+    id: String(row.id ?? ""),
+    companyId: typeof row.company_id === "string" ? row.company_id : null,
+    batchType: String(row.batch_type ?? "rebuild_index"),
+    status: String(row.status ?? "pending_review"),
+    sourceCounts: row.source_counts && typeof row.source_counts === "object" && !Array.isArray(row.source_counts) ? (row.source_counts as Record<string, number>) : {},
+    candidateCounts: row.candidate_counts && typeof row.candidate_counts === "object" && !Array.isArray(row.candidate_counts) ? (row.candidate_counts as Record<string, number>) : {},
+    warnings: Array.isArray(row.warnings) ? row.warnings.map(String) : [],
+    createdAt: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : undefined,
+  };
+}
+
+function camelCandidate(row: Record<string, unknown>): AiKnowledgeIngestCandidate {
+  return {
+    id: String(row.id ?? ""),
+    batchId: typeof row.batch_id === "string" ? row.batch_id : null,
+    companyId: typeof row.company_id === "string" ? row.company_id : null,
+    candidateType: String(row.candidate_type ?? "failed_source") as AiKnowledgeIngestCandidate["candidateType"],
+    sourceTable: typeof row.source_table === "string" ? row.source_table : null,
+    sourceId: typeof row.source_id === "string" ? row.source_id : null,
+    sourceRecordId: typeof row.source_record_id === "string" ? row.source_record_id : null,
+    sourceNodeKey: typeof row.source_node_key === "string" ? row.source_node_key : null,
+    targetNodeKey: typeof row.target_node_key === "string" ? row.target_node_key : null,
+    relationshipType: typeof row.relationship_type === "string" ? row.relationship_type as AiKnowledgeIngestCandidate["relationshipType"] : null,
+    title: String(row.title ?? "Knowledge candidate"),
+    semanticSummary: typeof row.semantic_summary === "string" ? row.semantic_summary : null,
+    reason: typeof row.reason === "string" ? row.reason : null,
+    sourceEvidence: Array.isArray(row.source_evidence) ? (row.source_evidence as AiKnowledgeIngestCandidate["sourceEvidence"]) : [],
+    proposedPayload: row.proposed_payload && typeof row.proposed_payload === "object" && !Array.isArray(row.proposed_payload) ? (row.proposed_payload as Record<string, unknown>) : {},
+    confidenceScore: row.confidence_score == null ? null : Number(row.confidence_score),
+    validationStatus: String(row.validation_status ?? "pending_review") as AiKnowledgeCandidateStatus,
+    reviewedBy: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    reviewNote: typeof row.review_note === "string" ? row.review_note : null,
+    promotedNodeId: typeof row.promoted_node_id === "string" ? row.promoted_node_id : null,
+    promotedEdgeId: typeof row.promoted_edge_id === "string" ? row.promoted_edge_id : null,
+    promotedAt: typeof row.promoted_at === "string" ? row.promoted_at : null,
+    metadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? (row.metadata as Record<string, unknown>) : {},
+    createdAt: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
+    updatedAt: typeof row.updated_at === "string" ? row.updated_at : undefined,
+  };
+}
+
 function textMatches(node: AiKnowledgeNode, query: string) {
   if (!query) return true;
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -238,6 +286,71 @@ async function fetchSourceRows(client: DbClient, companyId: string, limitPerTabl
   return { rowsByTable, warnings };
 }
 
+function countRowsByTable(rowsByTable: Map<string, AiKnowledgeSourceRow[]>) {
+  return Object.fromEntries(Array.from(rowsByTable.entries()).map(([table, rows]) => [table, rows.length])) as Record<string, number>;
+}
+
+async function createIngestBatch(client: DbClient, input: { companyId: string; actorUserId?: string | null; sourceCounts: Record<string, number>; candidateCounts: Record<string, number>; warnings: string[] }) {
+  const { data, error } = (await client.from("ai_knowledge_ingest_batches").insert({
+    company_id: input.companyId,
+    batch_type: "rebuild_index",
+    status: "pending_review",
+    source_counts: input.sourceCounts,
+    candidate_counts: input.candidateCounts,
+    warnings: input.warnings,
+    created_by: input.actorUserId ?? null,
+    created_by_type: input.actorUserId ? "user" : "system",
+  }).select("*").single()) as QueryResult<Record<string, unknown>>;
+  if (error) throw new Error(error.message ?? "Failed to create AI knowledge ingest batch.");
+  return camelBatch(data ?? {});
+}
+
+function nodeCandidateRow(batchId: string, node: AiKnowledgeNode) {
+  return {
+    batch_id: batchId,
+    company_id: node.companyId,
+    candidate_type: "node",
+    source_table: node.sourceTable,
+    source_id: node.sourceId,
+    source_record_id: node.sourceRecordId,
+    source_node_key: sourceKey(node.sourceTable, node.sourceId),
+    title: node.title,
+    semantic_summary: node.semanticSummary,
+    proposed_payload: node,
+    confidence_score: node.confidenceScore,
+    validation_status: "pending_review",
+    metadata: { category: node.category, nodeType: node.nodeType, riskLevel: node.riskLevel },
+    created_by_type: "system",
+  };
+}
+
+function edgeCandidateRow(batchId: string, companyId: string, edge: AiKnowledgeEdge) {
+  return {
+    batch_id: batchId,
+    company_id: companyId,
+    candidate_type: "edge",
+    source_node_key: edge.fromNodeKey ?? null,
+    target_node_key: edge.toNodeKey ?? null,
+    relationship_type: edge.relationshipType,
+    title: edge.relationshipType.replace(/_/g, " "),
+    semantic_summary: edge.reason,
+    reason: edge.reason,
+    source_evidence: edge.sourceEvidence,
+    proposed_payload: edge,
+    confidence_score: edge.confidenceScore,
+    validation_status: "pending_review",
+    metadata: edge.metadata,
+    created_by_type: edge.createdByType,
+  };
+}
+
+async function insertCandidates(client: DbClient, rows: Array<Record<string, unknown>>) {
+  if (rows.length === 0) return [] as AiKnowledgeIngestCandidate[];
+  const { data, error } = (await client.from("ai_knowledge_ingest_candidates").insert(rows).select("*")) as QueryResult<Array<Record<string, unknown>>>;
+  if (error) throw new Error(error.message ?? "Failed to create AI knowledge review candidates.");
+  return (data ?? []).map(camelCandidate);
+}
+
 async function upsertNodes(client: DbClient, nodes: AiKnowledgeNode[]) {
   if (nodes.length === 0) return [] as AiKnowledgeNode[];
   const { data, error } = (await client.from("ai_knowledge_nodes").upsert(nodes.map(snakeNode), { onConflict: "company_id,source_table,source_id" }).select("*")) as QueryResult<Array<Record<string, unknown>>>;
@@ -326,11 +439,57 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
   const generatedAt = new Date().toISOString();
   const { rowsByTable, warnings } = await fetchSourceRows(client, params.companyId, params.limitPerTable ?? 80);
   const normalizedNodes = Array.from(rowsByTable.entries()).flatMap(([table, rows]) => normalizeSourceRowsToKnowledgeNodes(table, rows));
-  const nodes = await upsertNodes(client, normalizedNodes);
-  const vector = await upsertVectorMemory(client, { nodes, generateEmbeddings: Boolean(params.generateEmbeddings), maxEmbeddingAttempts: params.maxEmbeddingAttempts ?? 24 });
-  const edges = await upsertEdges(client, generateKnowledgeRelationships(nodes), nodes);
-  await logEngineEvent(client, { companyId: params.companyId, eventType: "knowledge_index_rebuilt", description: `AI Knowledge Map rebuilt ${nodes.length} nodes and ${edges.length} relationships.`, metadata: { warnings, generateEmbeddings: Boolean(params.generateEmbeddings) }, createdBy: params.actorUserId }).catch(() => undefined);
-  return { ok: true, companyId: params.companyId, insertedOrUpdatedNodes: nodes.length, insertedOrUpdatedEdges: edges.length, vectorRows: vector.vectorRows, embeddingAttempts: vector.embeddingAttempts, warnings, generatedAt };
+  const relationshipCandidates = generateKnowledgeRelationships(normalizedNodes);
+  const candidateCounts = {
+    nodes: normalizedNodes.length,
+    edges: relationshipCandidates.length,
+    failedSources: warnings.length,
+  };
+  const batch = await createIngestBatch(client, {
+    companyId: params.companyId,
+    actorUserId: params.actorUserId,
+    sourceCounts: countRowsByTable(rowsByTable),
+    candidateCounts,
+    warnings,
+  });
+  const candidates = await insertCandidates(client, [
+    ...normalizedNodes.map((node) => nodeCandidateRow(batch.id, node)),
+    ...relationshipCandidates.map((edge) => edgeCandidateRow(batch.id, params.companyId, edge)),
+    ...warnings.map((warning) => ({
+      batch_id: batch.id,
+      company_id: params.companyId,
+      candidate_type: "failed_source",
+      title: "Failed source table match",
+      reason: warning,
+      semantic_summary: warning,
+      proposed_payload: { warning },
+      validation_status: "failed",
+      metadata: { warning },
+      created_by_type: "system",
+    })),
+  ]);
+  await logEngineEvent(client, {
+    companyId: params.companyId,
+    eventType: "knowledge_candidates_created",
+    description: `AI Knowledge Map created ${candidates.length} review candidates. Trusted graph memory was not changed.`,
+    metadata: { batchId: batch.id, candidateCounts, generateEmbeddings: Boolean(params.generateEmbeddings) },
+    createdBy: params.actorUserId,
+  }).catch(() => undefined);
+  return {
+    ok: true,
+    companyId: params.companyId,
+    batchId: batch.id,
+    insertedOrUpdatedNodes: 0,
+    insertedOrUpdatedEdges: 0,
+    vectorRows: 0,
+    embeddingAttempts: 0,
+    candidateNodes: normalizedNodes.length,
+    candidateEdges: relationshipCandidates.length,
+    failedSourceCandidates: warnings.length,
+    reviewRequiredCount: candidates.filter((candidate) => candidate.validationStatus === "pending_review").length,
+    warnings,
+    generatedAt,
+  };
 }
 
 export async function recalculateKnowledgeRelationships(client: DbClient, params: { companyId: string; actorUserId?: string | null }) {
@@ -365,6 +524,142 @@ export async function updateKnowledgeRelationshipValidation(client: DbClient, pa
     metadata: { relationshipType: edge.relationshipType },
   });
   return { ok: true, edge, reviewedAt };
+}
+
+export async function listKnowledgeIngestCandidates(client: DbClient, params: { companyId?: string | null; status?: AiKnowledgeCandidateStatus | "all" | null; candidateType?: AiKnowledgeIngestCandidate["candidateType"] | "all" | null; batchId?: string | null; limit?: number }) {
+  let query = client.from("ai_knowledge_ingest_candidates").select("*").order("created_at", { ascending: false }).limit(Math.min(Math.max(params.limit ?? 100, 1), 500));
+  if (params.companyId && params.companyId !== "all") query = query.eq("company_id", params.companyId);
+  if (params.status && params.status !== "all") query = query.eq("validation_status", params.status);
+  if (params.candidateType && params.candidateType !== "all") query = query.eq("candidate_type", params.candidateType);
+  if (params.batchId) query = query.eq("batch_id", params.batchId);
+  const { data, error } = (await query) as QueryResult<Array<Record<string, unknown>>>;
+  if (error) throw new Error(error.message ?? "Failed to load AI knowledge review candidates.");
+  return { ok: true, candidates: (data ?? []).map(camelCandidate) };
+}
+
+export async function getKnowledgeIngestCandidate(client: DbClient, candidateId: string) {
+  const { data, error } = (await client.from("ai_knowledge_ingest_candidates").select("*").eq("id", candidateId).single()) as QueryResult<Record<string, unknown>>;
+  if (error) throw new Error(error.message ?? "Failed to load AI knowledge review candidate.");
+  return { ok: true, candidate: camelCandidate(data ?? {}) };
+}
+
+async function findPromotedNodeId(client: DbClient, companyId: string | null, key: string | null) {
+  if (!key) return null;
+  const [sourceTable, sourceId] = key.split(":", 2);
+  if (!sourceTable || !sourceId) return null;
+  let query = client.from("ai_knowledge_nodes").select("id").eq("source_table", sourceTable).eq("source_id", sourceId).eq("validation_status", "approved").limit(1);
+  if (companyId) query = query.eq("company_id", companyId);
+  const { data, error } = (await query) as QueryResult<Array<Record<string, unknown>>>;
+  if (error) return null;
+  return typeof data?.[0]?.id === "string" ? data[0].id : null;
+}
+
+function candidateNodePayload(candidate: AiKnowledgeIngestCandidate): AiKnowledgeNode | null {
+  const payload = candidate.proposedPayload;
+  if (!payload.sourceTable || !payload.sourceId || !payload.title) return null;
+  return payload as unknown as AiKnowledgeNode;
+}
+
+function candidateEdgePayload(candidate: AiKnowledgeIngestCandidate): AiKnowledgeEdge | null {
+  const payload = candidate.proposedPayload;
+  if (!payload.relationshipType) return null;
+  return payload as unknown as AiKnowledgeEdge;
+}
+
+async function promoteNodeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+  const node = candidateNodePayload(candidate);
+  if (!node) throw new Error("Candidate does not contain a valid node payload.");
+  const [promoted] = await upsertNodes(client, [{ ...node, validationStatus: "approved", confidenceScore: node.confidenceScore ?? candidate.confidenceScore ?? 0.72 }]);
+  if (!promoted?.id) throw new Error("Node candidate could not be promoted.");
+  await upsertVectorMemory(client, { nodes: [promoted], generateEmbeddings: false, maxEmbeddingAttempts: 0 });
+  return { nodeId: promoted.id, edgeId: null as string | null };
+}
+
+async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+  const edge = candidateEdgePayload(candidate);
+  if (!edge) throw new Error("Candidate does not contain a valid edge payload.");
+  const sourceNodeId = await findPromotedNodeId(client, candidate.companyId, candidate.sourceNodeKey ?? edge.fromNodeKey ?? null);
+  const targetNodeId = await findPromotedNodeId(client, candidate.companyId, candidate.targetNodeKey ?? edge.toNodeKey ?? null);
+  if (!sourceNodeId || !targetNodeId) throw new Error("Approve and promote related node candidates before promoting this relationship.");
+  const [promoted] = await upsertEdges(client, [{
+    ...edge,
+    companyId: candidate.companyId,
+    sourceNodeId,
+    targetNodeId,
+    fromNodeId: sourceNodeId,
+    toNodeId: targetNodeId,
+    validationStatus: "approved",
+    confidenceScore: edge.confidenceScore ?? candidate.confidenceScore ?? 0.65,
+  }], []);
+  if (!promoted?.id) throw new Error("Relationship candidate could not be promoted.");
+  return { nodeId: null as string | null, edgeId: promoted.id };
+}
+
+async function promoteCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+  if (candidate.validationStatus === "promoted") return { nodeId: candidate.promotedNodeId, edgeId: candidate.promotedEdgeId };
+  if (candidate.candidateType === "node") return promoteNodeCandidate(client, candidate);
+  if (candidate.candidateType === "edge") return promoteEdgeCandidate(client, candidate);
+  throw new Error("Failed source candidates cannot be promoted.");
+}
+
+export async function reviewKnowledgeIngestCandidates(client: DbClient, params: { candidateIds: string[]; status: Exclude<AiKnowledgeCandidateStatus, "pending_review" | "failed">; reason: string; actorUserId: string; promoteApproved?: boolean }) {
+  const reviewedAt = new Date().toISOString();
+  const results: AiKnowledgeIngestCandidate[] = [];
+  const errors: Array<{ candidateId: string; error: string }> = [];
+  for (const candidateId of params.candidateIds) {
+    try {
+      const loaded = await getKnowledgeIngestCandidate(client, candidateId);
+      let candidate = loaded.candidate;
+      const { data, error } = (await client.from("ai_knowledge_ingest_candidates").update({
+        validation_status: params.status,
+        review_note: params.reason,
+        reviewed_by: params.actorUserId,
+        reviewed_at: reviewedAt,
+      }).eq("id", candidateId).select("*").single()) as QueryResult<Record<string, unknown>>;
+      if (error) throw new Error(error.message ?? "Failed to update candidate review status.");
+      candidate = camelCandidate(data ?? {});
+      if (params.status === "approved" && params.promoteApproved !== false) {
+        const promoted = await promoteCandidate(client, candidate);
+        const promotedAt = new Date().toISOString();
+        const update = await client.from("ai_knowledge_ingest_candidates").update({
+          validation_status: "promoted",
+          promoted_node_id: promoted.nodeId,
+          promoted_edge_id: promoted.edgeId,
+          promoted_at: promotedAt,
+        }).eq("id", candidate.id).select("*").single() as QueryResult<Record<string, unknown>>;
+        if (update.error) throw new Error(update.error.message ?? "Failed to mark candidate promoted.");
+        candidate = camelCandidate(update.data ?? {});
+        await logEngineEvent(client, {
+          companyId: candidate.companyId,
+          eventType: "knowledge_candidate_promoted",
+          description: `AI Knowledge candidate ${candidate.id} was promoted to trusted memory.`,
+          metadata: { candidateType: candidate.candidateType, promotedNodeId: promoted.nodeId, promotedEdgeId: promoted.edgeId },
+          createdBy: params.actorUserId,
+        }).catch(() => undefined);
+      } else {
+        await logEngineEvent(client, {
+          companyId: candidate.companyId,
+          eventType: "knowledge_candidate_reviewed",
+          description: `AI Knowledge candidate ${candidate.id} was marked ${params.status}.`,
+          metadata: { candidateType: candidate.candidateType, reason: params.reason },
+          createdBy: params.actorUserId,
+        }).catch(() => undefined);
+      }
+      results.push(candidate);
+    } catch (error) {
+      errors.push({ candidateId, error: error instanceof Error ? error.message : "Review failed." });
+    }
+  }
+  return { ok: errors.length === 0, reviewed: results, errors };
+}
+
+export async function promoteApprovedKnowledgeCandidates(client: DbClient, params: { companyId?: string | null; batchId?: string | null; actorUserId: string; limit?: number }) {
+  const listed = await listKnowledgeIngestCandidates(client, { companyId: params.companyId, batchId: params.batchId, status: "approved", limit: params.limit ?? 100 });
+  const nodeIds = listed.candidates.filter((candidate) => candidate.candidateType === "node").map((candidate) => candidate.id);
+  const edgeIds = listed.candidates.filter((candidate) => candidate.candidateType === "edge").map((candidate) => candidate.id);
+  const first = await reviewKnowledgeIngestCandidates(client, { candidateIds: nodeIds, status: "approved", reason: "Promoted approved node candidate to trusted graph memory.", actorUserId: params.actorUserId, promoteApproved: true });
+  const second = await reviewKnowledgeIngestCandidates(client, { candidateIds: edgeIds, status: "approved", reason: "Promoted approved relationship candidate to trusted graph memory.", actorUserId: params.actorUserId, promoteApproved: true });
+  return { ok: first.ok && second.ok, promoted: [...first.reviewed, ...second.reviewed], errors: [...first.errors, ...second.errors] };
 }
 
 export async function getKnowledgeGraphPayload(client: DbClient | null, filters: AiKnowledgeMapFilters = {}): Promise<AiKnowledgeGraphPayload> {

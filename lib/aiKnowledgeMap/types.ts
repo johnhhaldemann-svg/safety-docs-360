@@ -22,6 +22,8 @@ export const AI_KNOWLEDGE_RELATIONSHIP_TYPES = [
 export type AiKnowledgeRelationshipType = (typeof AI_KNOWLEDGE_RELATIONSHIP_TYPES)[number];
 export type AiKnowledgeRiskLevel = "unknown" | "low" | "moderate" | "high" | "critical";
 export type AiKnowledgeValidationStatus = "unreviewed" | "pending_review" | "approved" | "rejected" | "incorrect" | "needs_review";
+export type AiKnowledgeCandidateStatus = "pending_review" | "approved" | "rejected" | "incorrect" | "promoted" | "failed";
+export type AiKnowledgeCandidateType = "node" | "edge" | "failed_source";
 export type AiKnowledgeCreatorType = "system" | "user" | "ai";
 export type AiKnowledgeVectorStatus = "pending" | "indexed" | "failed" | "fallback";
 
@@ -141,10 +143,72 @@ export type AiKnowledgeSourceRow = Record<string, unknown>;
 export type AiKnowledgeRebuildResult = {
   ok: boolean;
   companyId: string | null;
+  batchId?: string | null;
   insertedOrUpdatedNodes: number;
   insertedOrUpdatedEdges: number;
   vectorRows: number;
   embeddingAttempts: number;
+  candidateNodes?: number;
+  candidateEdges?: number;
+  failedSourceCandidates?: number;
+  reviewRequiredCount?: number;
   warnings: string[];
   generatedAt: string;
+};
+
+export type AiKnowledgeIngestBatch = {
+  id: string;
+  companyId: string | null;
+  batchType: string;
+  status: string;
+  sourceCounts: Record<string, number>;
+  candidateCounts: Record<string, number>;
+  warnings: string[];
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type AiKnowledgeIngestCandidate = {
+  id: string;
+  batchId: string | null;
+  companyId: string | null;
+  candidateType: AiKnowledgeCandidateType;
+  sourceTable: string | null;
+  sourceId: string | null;
+  sourceRecordId: string | null;
+  sourceNodeKey: string | null;
+  targetNodeKey: string | null;
+  relationshipType: AiKnowledgeRelationshipType | null;
+  title: string;
+  semanticSummary: string | null;
+  reason: string | null;
+  sourceEvidence: AiKnowledgeEvidence[];
+  proposedPayload: Record<string, unknown>;
+  confidenceScore: number | null;
+  validationStatus: AiKnowledgeCandidateStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  promotedNodeId: string | null;
+  promotedEdgeId: string | null;
+  promotedAt: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type TrustedKnowledgeGraphMemoryItem = {
+  id: string;
+  nodeId: string;
+  companyId: string | null;
+  title: string;
+  excerpt: string;
+  sourceTable: string;
+  sourceId: string;
+  category: string;
+  nodeType: AiKnowledgeNodeType;
+  riskLevel: AiKnowledgeRiskLevel;
+  confidenceScore: number;
+  relationshipReasons: string[];
+  evidence: AiKnowledgeEvidence[];
 };

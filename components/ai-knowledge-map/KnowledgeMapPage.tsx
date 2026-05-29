@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Bell, BrainCircuit, Gauge, LayoutDashboard, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
+import { CandidateReviewPanel } from "@/components/ai-knowledge-map/CandidateReviewPanel";
 import { FilterPanel } from "@/components/ai-knowledge-map/FilterPanel";
 import { GlobeCanvas } from "@/components/ai-knowledge-map/GlobeCanvas";
 import { LegendBar } from "@/components/ai-knowledge-map/LegendBar";
@@ -135,9 +136,13 @@ export function KnowledgeMapPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: graph.selectedCompanyId, generateEmbeddings, limitPerTable: 80, maxEmbeddingAttempts: generateEmbeddings ? 24 : 1 }),
       });
-      const body = await response.json().catch(() => null) as { error?: string; insertedOrUpdatedNodes?: number; insertedOrUpdatedEdges?: number } | null;
+      const body = await response.json().catch(() => null) as { error?: string; insertedOrUpdatedNodes?: number; insertedOrUpdatedEdges?: number; candidateNodes?: number; candidateEdges?: number; reviewRequiredCount?: number } | null;
       if (!response.ok) throw new Error(body?.error ?? "Rebuild failed.");
-      setMessage(`Rebuilt ${body?.insertedOrUpdatedNodes ?? 0} nodes and ${body?.insertedOrUpdatedEdges ?? 0} relationships.`);
+      if ((body?.reviewRequiredCount ?? 0) > 0) {
+        setMessage(`Created ${body?.candidateNodes ?? 0} node candidates and ${body?.candidateEdges ?? 0} relationship candidates for Human Review.`);
+      } else {
+        setMessage(`Rebuilt ${body?.insertedOrUpdatedNodes ?? 0} nodes and ${body?.insertedOrUpdatedEdges ?? 0} relationships.`);
+      }
       await load(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Rebuild failed.");
@@ -270,6 +275,7 @@ export function KnowledgeMapPage() {
           </section>
           <section className="flex min-h-0 flex-col gap-4">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
+            <CandidateReviewPanel companyId={graph.selectedCompanyId} />
             <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status) => void validate(edge, status)} />
             <LowConfidenceQueue edges={graph.edges} />
           </section>
