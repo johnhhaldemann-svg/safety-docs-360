@@ -316,6 +316,7 @@ function nodeCandidateRow(batchId: string, node: AiKnowledgeNode) {
     source_node_key: sourceKey(node.sourceTable, node.sourceId),
     title: node.title,
     semantic_summary: node.semanticSummary,
+    source_evidence: [],
     proposed_payload: node,
     confidence_score: node.confidenceScore,
     validation_status: "pending_review",
@@ -325,6 +326,7 @@ function nodeCandidateRow(batchId: string, node: AiKnowledgeNode) {
 }
 
 function edgeCandidateRow(batchId: string, companyId: string, edge: AiKnowledgeEdge) {
+  const sourceEvidence = Array.isArray(edge.sourceEvidence) ? edge.sourceEvidence : [];
   return {
     batch_id: batchId,
     company_id: companyId,
@@ -335,7 +337,7 @@ function edgeCandidateRow(batchId: string, companyId: string, edge: AiKnowledgeE
     title: edge.relationshipType.replace(/_/g, " "),
     semantic_summary: edge.reason,
     reason: edge.reason,
-    source_evidence: edge.sourceEvidence,
+    source_evidence: sourceEvidence,
     proposed_payload: edge,
     confidence_score: edge.confidenceScore,
     validation_status: "pending_review",
@@ -462,6 +464,7 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
       title: "Failed source table match",
       reason: warning,
       semantic_summary: warning,
+      source_evidence: [],
       proposed_payload: { warning },
       validation_status: "failed",
       metadata: { warning },
