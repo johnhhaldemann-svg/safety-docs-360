@@ -26,6 +26,10 @@ export async function GET(request: Request) {
     selectedCompanyId: payload.selectedCompanyId,
     nodes: payload.nodes,
     demo: payload.demo,
+    fallback: payload.fallback,
+    fallbackReason: payload.fallbackReason,
+    companySpecificNodeCount: payload.companySpecificNodeCount,
+    companySpecificEdgeCount: payload.companySpecificEdgeCount,
     warnings: payload.warnings,
     generatedAt: payload.generatedAt,
   });

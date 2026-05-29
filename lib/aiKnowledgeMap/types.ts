@@ -125,6 +125,10 @@ export type AiKnowledgeGraphPayload = {
   generatedAt: string;
   warnings: string[];
   demo: boolean;
+  fallback?: boolean;
+  fallbackReason?: string | null;
+  companySpecificNodeCount?: number;
+  companySpecificEdgeCount?: number;
 };
 
 export type AiKnowledgeMapFilters = {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildFallbackKnowledgeGraph } from "@/lib/aiKnowledgeMap/repository";
 import type { AiKnowledgeEvidence, AiKnowledgeNodeType, AiKnowledgeRiskLevel, TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
 
 type DbClient = Pick<SupabaseClient, "from">;
@@ -35,7 +36,7 @@ function excerpt(row: Record<string, unknown>, reasons: string[]) {
 export async function retrieveTrustedKnowledgeGraphMemory(
   client: DbClient | null,
   params: { companyId: string; query: string; projectId?: string | null; jobsiteId?: string | null; topK?: number }
-): Promise<{ items: TrustedKnowledgeGraphMemoryItem[]; method: "approved_graph_keyword" | "none"; warnings: string[] }> {
+): Promise<{ items: TrustedKnowledgeGraphMemoryItem[]; method: "approved_graph_keyword" | "approved_graph_with_fallback" | "none"; warnings: string[] }> {
   if (!client || !params.companyId || !params.query.trim()) return { items: [], method: "none", warnings: [] };
   const limit = Math.min(Math.max(params.topK ?? 6, 1), 12);
   const qTokens = tokens(params.query);
@@ -53,7 +54,6 @@ export async function retrieveTrustedKnowledgeGraphMemory(
   if (nodeError) return { items: [], method: "none", warnings: [nodeError.message ?? "Approved graph nodes unavailable."] };
 
   const selectedNodes = (nodeRows ?? []).filter((row) => matches(row, qTokens)).slice(0, limit);
-  if (selectedNodes.length === 0) return { items: [], method: "none", warnings: [] };
 
   const nodeIds = selectedNodes.map((row) => String(row.id ?? "")).filter(Boolean);
   const { data: edgeRows } = (await client
@@ -71,13 +71,17 @@ export async function retrieveTrustedKnowledgeGraphMemory(
     edgesBySource.set(id, [...(edgesBySource.get(id) ?? []), edge]);
   }
 
-  const { data: memoryRows } = (await client
-    .from("ai_vector_memory")
-    .select("node_id,status")
-    .eq("company_id", params.companyId)
-    .in("node_id", nodeIds)
-    .in("status", ["indexed", "fallback"])
-    .limit(nodeIds.length)) as QueryResult<Array<Record<string, unknown>>>;
+  let memoryRows: Array<Record<string, unknown>> = [];
+  if (nodeIds.length > 0) {
+    const memoryResult = (await client
+      .from("ai_vector_memory")
+      .select("node_id,status")
+      .eq("company_id", params.companyId)
+      .in("node_id", nodeIds)
+      .in("status", ["indexed", "fallback"])
+      .limit(nodeIds.length)) as QueryResult<Array<Record<string, unknown>>>;
+    memoryRows = memoryResult.data ?? [];
+  }
   const trustedMemoryNodeIds = new Set((memoryRows ?? []).map((row) => String(row.node_id ?? "")).filter(Boolean));
 
   const items = selectedNodes
@@ -103,7 +107,50 @@ export async function retrieveTrustedKnowledgeGraphMemory(
       };
     });
 
-  return { items, method: items.length > 0 ? "approved_graph_keyword" : "none", warnings: [] };
+  const warnings: string[] = [];
+  if (items.length < limit) {
+    const fallbackGraph = await buildFallbackKnowledgeGraph(client, params.companyId, {
+      query: params.query,
+      sourceType: "all",
+      riskLevel: "all",
+    }).catch((error) => {
+      warnings.push(error instanceof Error ? error.message : "Approved fallback graph memory unavailable.");
+      return { nodes: [], edges: [], warnings: [] };
+    });
+    warnings.push(...fallbackGraph.warnings);
+    const edgeReasonsByNode = new Map<string, string[]>();
+    for (const edge of fallbackGraph.edges) {
+      const reason = clean(edge.reason, 220);
+      if (!reason) continue;
+      const sourceId = edge.sourceNodeId ?? edge.fromNodeId ?? "";
+      const targetId = edge.targetNodeId ?? edge.toNodeId ?? "";
+      if (sourceId) edgeReasonsByNode.set(sourceId, [...(edgeReasonsByNode.get(sourceId) ?? []), reason]);
+      if (targetId) edgeReasonsByNode.set(targetId, [...(edgeReasonsByNode.get(targetId) ?? []), reason]);
+    }
+    const fallbackItems = fallbackGraph.nodes.slice(0, limit - items.length).map((node): TrustedKnowledgeGraphMemoryItem => ({
+      id: `fallback:${node.id ?? node.sourceId}`,
+      nodeId: node.id ?? node.sourceId,
+      companyId: null,
+      title: clean(node.title, 180) || "General approved fallback guidance",
+      excerpt: clean(`General approved fallback guidance, not company-specific evidence: ${node.semanticSummary || node.description}`, 900),
+      sourceTable: node.sourceTable,
+      sourceId: node.sourceId,
+      category: node.category,
+      nodeType: node.nodeType,
+      riskLevel: node.riskLevel,
+      confidenceScore: node.confidenceScore ?? 0.68,
+      relationshipReasons: edgeReasonsByNode.get(node.id ?? "") ?? [],
+      evidence: [{
+        sourceTable: "ai_fallback_memory",
+        sourceRecordId: "approved-fallback",
+        label: "General approved fallback guidance",
+        detail: "This fallback memory is approved, anonymized, and not specific to the selected company.",
+      }],
+    }));
+    items.push(...fallbackItems);
+  }
+
+  return { items, method: items.length > 0 ? (items.some((item) => item.id.startsWith("fallback:")) ? "approved_graph_with_fallback" : "approved_graph_keyword") : "none", warnings };
 }
 
 export function trustedGraphMemoryAsPredictiveItems(items: TrustedKnowledgeGraphMemoryItem[]) {

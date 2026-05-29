@@ -25,6 +25,10 @@ export async function GET(request: Request) {
     edges: payload.edges,
     validationQueue: payload.validationQueue,
     demo: payload.demo,
+    fallback: payload.fallback,
+    fallbackReason: payload.fallbackReason,
+    companySpecificNodeCount: payload.companySpecificNodeCount,
+    companySpecificEdgeCount: payload.companySpecificEdgeCount,
     warnings: payload.warnings,
     generatedAt: payload.generatedAt,
   });
