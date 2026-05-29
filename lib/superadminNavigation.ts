@@ -108,6 +108,15 @@ export const superadminToolGroups: SuperadminNavSection[] = [
     audience: "admin",
     items: [
       {
+        href: "/super-admin/ai-knowledge-map",
+        label: "AI Knowledge Map",
+        short: "KM",
+        description: "Explore semantic safety nodes, vector coordinates, relationship reasons, and validation queues.",
+        keywords: ["ai", "knowledge", "map", "vector", "semantic", "relationships", "validation", "graph", "safety"],
+        primaryActionLabel: "Open map",
+        audience: "admin",
+      },
+      {
         href: "/superadmin/ai-engine",
         label: "AI Engine Operations",
         short: "AI",
