@@ -3,7 +3,12 @@
 import { Filter, Search } from "lucide-react";
 import type { AiKnowledgeMapFilters, AiKnowledgeNode } from "@/lib/aiKnowledgeMap/types";
 
-const savedViews = ["High Risk Work Activities", "Permit to Work Flow", "Incident Hotspots", "Training Gaps"];
+const savedViews: Array<{ label: string; filters: Partial<AiKnowledgeMapFilters> }> = [
+  { label: "High Risk Work Activities", filters: { riskLevel: "high", sourceType: "all", category: "all", query: "" } },
+  { label: "Permit to Work Flow", filters: { sourceType: "permit", category: "all", riskLevel: "all", query: "" } },
+  { label: "Incident Hotspots", filters: { sourceType: "incident", category: "all", riskLevel: "all", query: "" } },
+  { label: "Training Gaps", filters: { sourceType: "training", category: "all", riskLevel: "all", query: "gap" } },
+];
 const riskLevels = ["all", "critical", "high", "moderate", "low", "unknown"] as const;
 const sourceTypes = ["all", "permit", "task", "hazard", "control", "training", "incident", "risk_record", "document", "observation", "corrective_action"] as const;
 
@@ -18,11 +23,17 @@ export function FilterPanel({
   filters: AiKnowledgeMapFilters;
   nodes: AiKnowledgeNode[];
   onChange: (filters: AiKnowledgeMapFilters) => void;
-  onApply: () => void;
+  onApply: (filters: AiKnowledgeMapFilters) => void;
 }) {
   const projects = Array.from(new Set(nodes.map((node) => node.project).filter(Boolean))).sort() as string[];
   const categories = Array.from(new Set(nodes.map((node) => node.category).filter(Boolean))).sort();
   const trades = Array.from(new Set(nodes.map((node) => node.trade).filter(Boolean))).sort() as string[];
+  const update = (patch: Partial<AiKnowledgeMapFilters>) => onChange({ ...filters, ...patch });
+  const applySavedView = (viewFilters: Partial<AiKnowledgeMapFilters>) => {
+    const nextFilters = { ...filters, ...viewFilters };
+    onChange(nextFilters);
+    onApply(nextFilters);
+  };
 
   return (
     <aside className="flex min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
@@ -34,7 +45,7 @@ export function FilterPanel({
         <Search className="h-4 w-4 text-slate-500" />
         <input
           value={filters.query ?? ""}
-          onChange={(event) => onChange({ ...filters, query: event.target.value })}
+          onChange={(event) => update({ query: event.target.value })}
           className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-500"
           placeholder="Search knowledge map"
         />
@@ -43,16 +54,16 @@ export function FilterPanel({
         <CompanySelect
           companies={companies}
           value={filters.companyId ?? ""}
-          onChange={(companyId) => onChange({ ...filters, companyId: companyId || undefined, project: "all", trade: "all" })}
+          onChange={(companyId) => update({ companyId: companyId || undefined, project: "all", trade: "all" })}
         />
-        <Select label="Project" value={filters.project ?? "all"} onChange={(project) => onChange({ ...filters, project })} options={["all", ...projects]} />
-        <Select label="Category" value={filters.category ?? "all"} onChange={(category) => onChange({ ...filters, category })} options={["all", ...categories]} />
-        <Select label="Risk level" value={filters.riskLevel ?? "all"} onChange={(riskLevel) => onChange({ ...filters, riskLevel: riskLevel as AiKnowledgeMapFilters["riskLevel"] })} options={[...riskLevels]} />
-        <Select label="Date range" value={filters.dateRange ?? "all"} onChange={(dateRange) => onChange({ ...filters, dateRange })} options={["all", "last 7 days", "last 30 days", "last 90 days", "this year"]} />
-        <Select label="Trade" value={filters.trade ?? "all"} onChange={(trade) => onChange({ ...filters, trade })} options={["all", ...trades]} />
-        <Select label="Source type" value={filters.sourceType ?? "all"} onChange={(sourceType) => onChange({ ...filters, sourceType: sourceType as AiKnowledgeMapFilters["sourceType"] })} options={[...sourceTypes]} />
+        <Select label="Project" value={filters.project ?? "all"} onChange={(project) => update({ project })} options={["all", ...projects]} />
+        <Select label="Category" value={filters.category ?? "all"} onChange={(category) => update({ category })} options={["all", ...categories]} />
+        <Select label="Risk level" value={filters.riskLevel ?? "all"} onChange={(riskLevel) => update({ riskLevel: riskLevel as AiKnowledgeMapFilters["riskLevel"] })} options={[...riskLevels]} />
+        <Select label="Date range" value={filters.dateRange ?? "all"} onChange={(dateRange) => update({ dateRange })} options={["all", "last 7 days", "last 30 days", "last 90 days", "this year"]} />
+        <Select label="Trade" value={filters.trade ?? "all"} onChange={(trade) => update({ trade })} options={["all", ...trades]} />
+        <Select label="Source type" value={filters.sourceType ?? "all"} onChange={(sourceType) => update({ sourceType: sourceType as AiKnowledgeMapFilters["sourceType"] })} options={[...sourceTypes]} />
       </div>
-      <button type="button" onClick={onApply} className="mt-4 rounded-lg bg-sky-400 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-sky-300">
+      <button type="button" onClick={() => onApply(filters)} className="mt-4 rounded-lg bg-sky-400 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-sky-300">
         Apply filters
       </button>
       <div className="mt-5">
@@ -60,12 +71,12 @@ export function FilterPanel({
         <div className="mt-2 space-y-2">
           {savedViews.map((view) => (
             <button
-              key={view}
+              key={view.label}
               type="button"
-              onClick={() => onChange({ ...filters, query: view })}
+              onClick={() => applySavedView(view.filters)}
               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-left text-xs font-bold text-slate-200 hover:bg-white/[0.08]"
             >
-              {view}
+              {view.label}
             </button>
           ))}
         </div>

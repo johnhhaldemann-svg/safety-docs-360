@@ -229,6 +229,11 @@ export function KnowledgeMapPage() {
     setCommand((current) => ({ id: current.id + 1, value }));
   }
 
+  function applyFilters(nextFilters: AiKnowledgeMapFilters) {
+    setFilters(nextFilters);
+    void load(nextFilters);
+  }
+
   function selectNode(node: AiKnowledgeNode) {
     setSelectedNodeId(node.id ?? null);
   }
@@ -288,7 +293,7 @@ export function KnowledgeMapPage() {
         ) : null}
 
         <main className="grid min-h-[680px] flex-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-          <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={() => void load(filters)} />
+          <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={applyFilters} />
           <section className="flex min-w-0 flex-col gap-3">
             <div className="relative">
               {loading ? (

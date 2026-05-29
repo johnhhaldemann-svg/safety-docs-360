@@ -203,6 +203,18 @@ function textMatches(node: AiKnowledgeNode, query: string) {
   return tokens.every((token) => haystack.includes(token));
 }
 
+function dateMatches(node: AiKnowledgeNode, dateRange?: string | null) {
+  if (!dateRange || dateRange === "all") return true;
+  const updatedAt = Date.parse(node.updatedAt ?? node.createdAt ?? "");
+  if (!Number.isFinite(updatedAt)) return false;
+  const now = Date.now();
+  if (dateRange === "last 7 days") return updatedAt >= now - 7 * 24 * 60 * 60 * 1000;
+  if (dateRange === "last 30 days") return updatedAt >= now - 30 * 24 * 60 * 60 * 1000;
+  if (dateRange === "last 90 days") return updatedAt >= now - 90 * 24 * 60 * 60 * 1000;
+  if (dateRange === "this year") return new Date(updatedAt).getFullYear() === new Date(now).getFullYear();
+  return true;
+}
+
 function filterNodes(nodes: AiKnowledgeNode[], filters: AiKnowledgeMapFilters) {
   const q = (filters.query ?? "").trim();
   return nodes.filter((node) => {
@@ -212,6 +224,7 @@ function filterNodes(nodes: AiKnowledgeNode[], filters: AiKnowledgeMapFilters) {
     if (filters.project && filters.project !== "all" && node.project !== filters.project) return false;
     if (filters.trade && filters.trade !== "all" && node.trade !== filters.trade) return false;
     if (filters.category && filters.category !== "all" && node.category !== filters.category) return false;
+    if (!dateMatches(node, filters.dateRange)) return false;
     return true;
   });
 }
