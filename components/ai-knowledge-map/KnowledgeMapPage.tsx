@@ -11,6 +11,7 @@ import { MapControls, type MapCommand } from "@/components/ai-knowledge-map/MapC
 import { RelationshipValidationPanel } from "@/components/ai-knowledge-map/RelationshipValidationPanel";
 import { SelectedNodePanel } from "@/components/ai-knowledge-map/SelectedNodePanel";
 import { StatsBar } from "@/components/ai-knowledge-map/StatsBar";
+import { TrustedLearningInputsPanel } from "@/components/ai-knowledge-map/TrustedLearningInputsPanel";
 import type { AiKnowledgeEdge, AiKnowledgeGraphPayload, AiKnowledgeMapFilters, AiKnowledgeNode } from "@/lib/aiKnowledgeMap/types";
 
 type AuthMeResponse = {
@@ -326,6 +327,7 @@ export function KnowledgeMapPage() {
           </section>
           <section className="flex min-h-0 flex-col gap-4">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
+            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
             <CandidateReviewPanel companyId={graph.selectedCompanyId} />
             <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status) => void validate(edge, status)} />
             <LowConfidenceQueue edges={graph.edges} />
