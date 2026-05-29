@@ -8,11 +8,13 @@ const riskLevels = ["all", "critical", "high", "moderate", "low", "unknown"] as 
 const sourceTypes = ["all", "permit", "task", "hazard", "control", "training", "incident", "risk_record", "document", "observation", "corrective_action"] as const;
 
 export function FilterPanel({
+  companies,
   filters,
   nodes,
   onChange,
   onApply,
 }: {
+  companies: Array<{ id: string; name: string }>;
   filters: AiKnowledgeMapFilters;
   nodes: AiKnowledgeNode[];
   onChange: (filters: AiKnowledgeMapFilters) => void;
@@ -38,6 +40,11 @@ export function FilterPanel({
         />
       </label>
       <div className="mt-4 space-y-3 text-xs font-bold text-slate-300">
+        <CompanySelect
+          companies={companies}
+          value={filters.companyId ?? ""}
+          onChange={(companyId) => onChange({ ...filters, companyId: companyId || undefined, project: "all", trade: "all" })}
+        />
         <Select label="Project" value={filters.project ?? "all"} onChange={(project) => onChange({ ...filters, project })} options={["all", ...projects]} />
         <Select label="Category" value={filters.category ?? "all"} onChange={(category) => onChange({ ...filters, category })} options={["all", ...categories]} />
         <Select label="Risk level" value={filters.riskLevel ?? "all"} onChange={(riskLevel) => onChange({ ...filters, riskLevel: riskLevel as AiKnowledgeMapFilters["riskLevel"] })} options={[...riskLevels]} />
@@ -64,6 +71,19 @@ export function FilterPanel({
         </div>
       </div>
     </aside>
+  );
+}
+
+function CompanySelect({ companies, value, onChange }: { companies: Array<{ id: string; name: string }>; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] uppercase tracking-[0.12em] text-slate-500">Company</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none">
+        {companies.map((company) => (
+          <option key={company.id} value={company.id}>{company.name}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
