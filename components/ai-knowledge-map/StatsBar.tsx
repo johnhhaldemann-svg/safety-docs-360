@@ -1,4 +1,4 @@
-import { Activity, GitBranch, ShieldAlert, Database, Clock } from "lucide-react";
+import { Activity, GitBranch, ShieldAlert, Database, Clock, CheckCircle2, XCircle, Link2Off, Percent } from "lucide-react";
 import type { AiKnowledgeGraphSummary } from "@/lib/aiKnowledgeMap/types";
 
 export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSummary; generatedAt: string }) {
@@ -7,9 +7,17 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
     { label: "Connections", value: summary.edgeCount, icon: GitBranch },
     { label: "Data sources", value: summary.dataSourceCount, icon: Activity },
     { label: "High risk", value: summary.highRiskNodeCount, icon: ShieldAlert },
+    { label: "Suggested", value: summary.suggestedRelationshipCount ?? 0, icon: Activity },
+    { label: "Human approved", value: summary.humanApprovedRelationshipCount ?? 0, icon: CheckCircle2 },
+    { label: "Rejected", value: summary.rejectedRelationshipCount ?? 0, icon: XCircle },
+    { label: "Unlinked risk", value: summary.unlinkedHighRiskNodeCount ?? 0, icon: Link2Off },
+    { label: "Low confidence", value: summary.lowConfidenceCount, icon: ShieldAlert },
+    { label: "Avg confidence", value: `${Math.round((summary.averageConfidence ?? 0) * 100)}%`, icon: Percent },
+    { label: "Approval rate", value: `${Math.round((summary.relationshipApprovalRate ?? 0) * 100)}%`, icon: CheckCircle2 },
+    { label: "False positive", value: `${Math.round((summary.falsePositiveRate ?? 0) * 100)}%`, icon: XCircle },
+    { label: "Missed link", value: `${Math.round((summary.missedLinkRate ?? 0) * 100)}%`, icon: Link2Off },
     { label: "Documents", value: summary.documentNodeCount ?? 0, icon: Database },
     { label: "Library", value: summary.sharedLibraryNodeCount ?? 0, icon: Activity },
-    { label: "Low confidence", value: summary.lowConfidenceCount, icon: ShieldAlert },
     { label: "Last updated", value: summary.latestUpdate ? new Date(summary.latestUpdate).toLocaleTimeString() : new Date(generatedAt).toLocaleTimeString(), icon: Clock },
   ];
   return (

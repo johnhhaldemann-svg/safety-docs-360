@@ -1,6 +1,7 @@
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ConnectionLine } from "@/components/ai-knowledge-map/ConnectionLine";
 import { nodeTypeLabel, riskTone, validationTone } from "@/components/ai-knowledge-map/mapTheme";
+import { suggestPotentialRelationshipsForNode } from "@/lib/aiKnowledgeMap/relationships";
 import type { AiKnowledgeEdge, AiKnowledgeNode } from "@/lib/aiKnowledgeMap/types";
 
 export function SelectedNodePanel({
@@ -31,6 +32,18 @@ export function SelectedNodePanel({
   const memoryLabel = isFallback ? "General fallback guidance" : isSharedLibrary ? "Shared approved library guidance" : isCompanyDocument ? "Company document memory" : "Company graph memory";
   const companyName = isFallback || isSharedLibrary ? memoryLabel : companies.find((company) => company.id === node.companyId)?.name ?? node.companyId ?? "All companies";
   const related = edges.filter((edge) => edge.sourceNodeId === node.id || edge.targetNodeId === node.id || edge.fromNodeId === node.id || edge.toNodeId === node.id).slice(0, 10);
+  const approvedRelationships = related.filter((edge) => edge.validationStatus === "approved");
+  const suggestedRelationships = related.filter((edge) => edge.validationStatus !== "approved");
+  const potentialRelationships = related.length === 0 ? suggestPotentialRelationshipsForNode(node, nodes) : [];
+  const recommendedControls = related
+    .filter((edge) => edge.relationshipType.includes("control") || edge.relationshipType === "required_control")
+    .map((edge) => edge.reason)
+    .slice(0, 3);
+  const connectedRisks = related
+    .filter((edge) => edge.relationshipType.includes("risk") || edge.relationshipType === "repeat_trend" || edge.relationshipType === "predictive_risk_signal" || edge.relationshipType === "related_hazard")
+    .map((edge) => edge.reason)
+    .slice(0, 3);
+  const hasHighRisk = node.riskLevel === "critical" || node.riskLevel === "high" || (node.riskScore ?? 0) >= 65;
   const trend = node.riskLevel === "critical" || node.riskLevel === "high" ? "Increasing attention" : "Stable";
 
   return (
@@ -64,17 +77,46 @@ export function SelectedNodePanel({
         View full details
       </a>
       <div className="mt-5 min-h-0 overflow-auto">
+        <InsightSection
+          title="Node summary"
+          items={[
+            node.semanticSummary || node.description || node.title,
+            `AI interpretation: ${node.nodeType} memory from ${node.sourceTable} with ${node.riskLevel} risk context.`,
+          ]}
+        />
+        <InsightSection
+          title="Connected risks"
+          items={connectedRisks.length > 0 ? connectedRisks : [hasHighRisk ? "High-risk node needs confirmed relationships, controls, and follow-up." : "No approved risk connections are visible yet."]}
+        />
+        <InsightSection
+          title="Recommended controls"
+          items={recommendedControls.length > 0 ? recommendedControls : [potentialRelationships.some((item) => item.relationshipType === "required_control") ? "Potential control relationship exists but needs Human Review approval." : "No control recommendation has been approved for this node yet."]}
+        />
+        <InsightSection
+          title="Predictive risk impact"
+          items={[related.some((edge) => edge.relationshipType === "repeat_trend" || edge.relationshipType === "predictive_risk_signal") ? "This node contributes to trend or predictive-risk review." : hasHighRisk ? "Potential predictive-risk signal until relationships are reviewed." : "No predictive-risk signal confirmed yet."]}
+        />
+        <InsightSection
+          title="Required follow-up"
+          items={[approvedRelationships.length === 0 && potentialRelationships.length > 0 ? "Review suggested relationships before this node is treated as trusted connected memory." : hasHighRisk ? "Confirm controls, training, and corrective actions are connected and current." : "Continue normal review cadence."]}
+        />
+        <InsightSection
+          title="Learning impact"
+          items={["Approving accurate relationships increases confidence for similar future matches. Rejecting or marking incorrect lowers confidence for similar signals."]}
+        />
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-sky-300" />
           <h3 className="text-sm font-black text-white">Why it connects</h3>
         </div>
         <div className="mt-3 space-y-3">
+          {approvedRelationships.length > 0 ? <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-200">Approved relationships</p> : null}
           {related.map((edge) => {
             const otherId = edge.sourceNodeId === node.id || edge.fromNodeId === node.id ? edge.targetNodeId ?? edge.toNodeId : edge.sourceNodeId ?? edge.fromNodeId;
             const other = byId.get(otherId);
             return (
               <div key={edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}-${edge.relationshipType}`} className="space-y-2">
                 <ConnectionLine edge={edge} />
+                {edge.evidenceText ? <p className="rounded-md border border-white/10 bg-white/[0.03] p-2 text-[11px] font-semibold leading-5 text-slate-400">Evidence: {edge.evidenceText}</p> : null}
                 {other ? <p className="text-[11px] font-semibold text-slate-500">Related record: {other.title}</p> : null}
                 {edge.createdByType === "ai" || edge.validationStatus !== "approved" ? (
                   <div className="grid grid-cols-3 gap-2">
@@ -86,10 +128,41 @@ export function SelectedNodePanel({
               </div>
             );
           })}
-          {related.length === 0 ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm font-semibold text-amber-100">No relationships generated for this node yet.</p> : null}
+          {suggestedRelationships.length > 0 ? <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-200">Suggested relationships need review: {suggestedRelationships.length}</p> : null}
+          {related.length === 0 && potentialRelationships.length > 0 ? (
+            <div className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3">
+              <p className="text-sm font-black text-amber-100">Potential relationships found but not yet approved.</p>
+              <div className="mt-3 space-y-2">
+                {potentialRelationships.map((suggestion) => (
+                  <div key={`${suggestion.relationshipType}-${suggestion.label}`} className="rounded-md border border-amber-200/20 bg-black/10 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black text-amber-50">{suggestion.label}</p>
+                      <span className="rounded border border-amber-200/25 px-2 py-0.5 text-[10px] font-black text-amber-100">{Math.round(suggestion.confidenceScore * 100)}%</span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-amber-100/90">{suggestion.reason}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-amber-100/70">{suggestion.evidenceText}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {related.length === 0 && potentialRelationships.length === 0 ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm font-semibold text-amber-100">No relationships generated for this node yet.</p> : null}
         </div>
       </div>
     </aside>
+  );
+}
+
+function InsightSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <section className="mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+      <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{title}</h3>
+      <div className="mt-2 space-y-1.5">
+        {items.filter(Boolean).map((item) => (
+          <p key={item} className="text-xs leading-5 text-slate-300">{item}</p>
+        ))}
+      </div>
+    </section>
   );
 }
 

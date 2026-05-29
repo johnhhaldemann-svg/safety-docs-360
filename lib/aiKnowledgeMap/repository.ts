@@ -127,12 +127,25 @@ function snakeEdge(edge: AiKnowledgeEdge) {
     relationship_strength: edge.relationshipStrength,
     strength_score: edge.strengthScore,
     reason: edge.reason,
+    evidence_text: edge.evidenceText ?? edge.metadata.evidenceText ?? null,
     source_evidence: edge.sourceEvidence,
     confidence_score: edge.confidenceScore,
     validation_status: edge.validationStatus,
+    status: edge.relationshipStatus ?? edge.metadata.relationshipStatus ?? relationshipReviewStatusFor(edge.validationStatus),
     created_by_type: edge.createdByType,
+    created_by: edge.createdBy ?? null,
+    reviewed_by: edge.reviewedBy ?? null,
+    reviewed_at: edge.reviewedAt ?? null,
     metadata: edge.metadata,
   };
+}
+
+function relationshipReviewStatusFor(status: AiKnowledgeValidationStatus) {
+  if (status === "approved") return "human_approved";
+  if (status === "rejected" || status === "incorrect") return "rejected";
+  if (status === "needs_review") return "needs_more_data";
+  if (status === "unreviewed") return "draft";
+  return "suggested";
 }
 
 function camelEdge(row: Record<string, unknown>): AiKnowledgeEdge {
@@ -147,10 +160,15 @@ function camelEdge(row: Record<string, unknown>): AiKnowledgeEdge {
     relationshipStrength: Number(row.relationship_strength ?? row.strength_score ?? 0),
     strengthScore: Number(row.strength_score ?? row.relationship_strength ?? 0),
     reason: String(row.reason ?? ""),
+    evidenceText: typeof row.evidence_text === "string" ? row.evidence_text : typeof (row.metadata as Record<string, unknown> | undefined)?.evidenceText === "string" ? String((row.metadata as Record<string, unknown>).evidenceText) : null,
     sourceEvidence: Array.isArray(row.source_evidence) ? (row.source_evidence as AiKnowledgeEdge["sourceEvidence"]) : [],
     confidenceScore: Number(row.confidence_score ?? 0.5),
     validationStatus: String(row.validation_status ?? "unreviewed") as AiKnowledgeValidationStatus,
+    relationshipStatus: String(row.status ?? (row.metadata as Record<string, unknown> | undefined)?.relationshipStatus ?? relationshipReviewStatusFor(String(row.validation_status ?? "unreviewed") as AiKnowledgeValidationStatus)) as AiKnowledgeEdge["relationshipStatus"],
     createdByType: String(row.created_by_type ?? "system") as AiKnowledgeEdge["createdByType"],
+    createdBy: typeof row.created_by === "string" ? row.created_by : null,
+    reviewedBy: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    reviewedAt: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
     metadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? (row.metadata as Record<string, unknown>) : {},
     createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : undefined,
@@ -235,8 +253,58 @@ function filterNodes(nodes: AiKnowledgeNode[], filters: AiKnowledgeMapFilters) {
   });
 }
 
+const CONTROL_RELATIONSHIPS = new Set(["hazard_mitigated_by_control", "required_control", "risk_reduced_by_control"]);
+const ACTION_SOURCE_RELATIONSHIPS = new Set(["observation_created_corrective_action", "corrective_action_required", "corrective_action_closes_hazard"]);
+const TRAINING_REASON_RELATIONSHIPS = new Set(["training_required_for_task", "required_training", "user_training_gap_affects_task", "risk_increased_by_training_gap"]);
+const PERMIT_TASK_RELATIONSHIPS = new Set(["permit_required_for_task", "permit_related", "jsa_related"]);
+
+function nodeHasAnyEdge(node: AiKnowledgeNode, edges: AiKnowledgeEdge[]) {
+  return edges.some((edge) => edge.sourceNodeId === node.id || edge.targetNodeId === node.id || edge.fromNodeId === node.id || edge.toNodeId === node.id);
+}
+
+function nodeHasRelationship(node: AiKnowledgeNode, edges: AiKnowledgeEdge[], relationshipTypes: Set<string>) {
+  return edges.some((edge) =>
+    relationshipTypes.has(edge.relationshipType)
+    && (edge.sourceNodeId === node.id || edge.targetNodeId === node.id || edge.fromNodeId === node.id || edge.toNodeId === node.id),
+  );
+}
+
+function detectKnowledgeGraphHealth(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[]) {
+  const approvedEdges = edges.filter((edge) => edge.validationStatus === "approved");
+  const warnings: string[] = [];
+  const unlinkedHighRiskNodes = nodes.filter((node) =>
+    (node.riskLevel === "high" || node.riskLevel === "critical" || (node.riskScore ?? 0) >= 65)
+    && !nodeHasAnyEdge(node, edges),
+  );
+
+  const approvedIncidentGaps = nodes.filter((node) => node.nodeType === "incident" && node.validationStatus === "approved" && !nodeHasAnyEdge(node, approvedEdges));
+  const hazardControlGaps = nodes.filter((node) => node.nodeType === "hazard" && !nodeHasRelationship(node, approvedEdges, CONTROL_RELATIONSHIPS));
+  const correctiveActionGaps = nodes.filter((node) => node.nodeType === "corrective_action" && !nodeHasRelationship(node, approvedEdges, ACTION_SOURCE_RELATIONSHIPS));
+  const trainingReasonGaps = nodes.filter((node) => node.nodeType === "training" && !nodeHasRelationship(node, approvedEdges, TRAINING_REASON_RELATIONSHIPS));
+  const permitTaskGaps = nodes.filter((node) => node.nodeType === "permit" && !nodeHasRelationship(node, approvedEdges, PERMIT_TASK_RELATIONSHIPS));
+
+  if (approvedIncidentGaps.length > 0) warnings.push(`${approvedIncidentGaps.length} approved incident node(s) have no approved relationships.`);
+  if (hazardControlGaps.length > 0) warnings.push(`${hazardControlGaps.length} hazard node(s) have no approved control relationship.`);
+  if (correctiveActionGaps.length > 0) warnings.push(`${correctiveActionGaps.length} corrective action node(s) have no approved source hazard, incident, or observation.`);
+  if (trainingReasonGaps.length > 0) warnings.push(`${trainingReasonGaps.length} training node(s) have no approved task, risk, or source reason.`);
+  if (permitTaskGaps.length > 0) warnings.push(`${permitTaskGaps.length} permit node(s) have no approved task/JSA relationship.`);
+  if (unlinkedHighRiskNodes.length > 0) warnings.push(`${unlinkedHighRiskNodes.length} high-risk node(s) are currently unlinked.`);
+
+  return {
+    warnings,
+    unlinkedHighRiskNodeCount: unlinkedHighRiskNodes.length,
+    missedLinkRate: nodes.length === 0 ? 0 : Number((unlinkedHighRiskNodes.length / nodes.length).toFixed(3)),
+  };
+}
+
 function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies: Array<{ id: string; name: string }>, vectorRows = 0): AiKnowledgeGraphSummary {
   const latestUpdate = [...nodes.map((node) => node.updatedAt), ...edges.map((edge) => edge.updatedAt)].filter(Boolean).sort().at(-1) ?? null;
+  const suggested = edges.filter((edge) => edge.relationshipStatus === "suggested" || edge.validationStatus === "pending_review" || edge.validationStatus === "needs_review");
+  const approved = edges.filter((edge) => edge.validationStatus === "approved");
+  const rejected = edges.filter((edge) => edge.validationStatus === "rejected" || edge.validationStatus === "incorrect" || edge.relationshipStatus === "rejected");
+  const reviewed = approved.length + rejected.length;
+  const averageConfidence = edges.length === 0 ? 0 : Number((edges.reduce((total, edge) => total + edge.confidenceScore, 0) / edges.length).toFixed(3));
+  const health = detectKnowledgeGraphHealth(nodes, edges);
   return {
     nodeCount: nodes.length,
     edgeCount: edges.length,
@@ -249,6 +317,14 @@ function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies
     pendingReviewCount: edges.filter((edge) => edge.validationStatus === "pending_review" || edge.validationStatus === "needs_review" || edge.validationStatus === "unreviewed").length,
     indexedVectorCount: vectorRows,
     companyCount: companies.length,
+    suggestedRelationshipCount: suggested.length,
+    humanApprovedRelationshipCount: approved.length,
+    rejectedRelationshipCount: rejected.length,
+    unlinkedHighRiskNodeCount: health.unlinkedHighRiskNodeCount,
+    averageConfidence,
+    relationshipApprovalRate: reviewed === 0 ? 0 : Number((approved.length / reviewed).toFixed(3)),
+    falsePositiveRate: reviewed === 0 ? 0 : Number((rejected.length / reviewed).toFixed(3)),
+    missedLinkRate: health.missedLinkRate,
     latestUpdate,
   };
 }
@@ -548,7 +624,12 @@ function edgeCandidateRow(batchId: string, companyId: string, edge: AiKnowledgeE
     proposed_payload: edge,
     confidence_score: edge.confidenceScore,
     validation_status: "pending_review",
-    metadata: edge.metadata,
+    metadata: {
+      ...edge.metadata,
+      evidenceText: edge.evidenceText ?? edge.metadata.evidenceText ?? null,
+      relationshipStatus: edge.relationshipStatus ?? edge.metadata.relationshipStatus ?? "suggested",
+      signalKeys: Array.isArray(edge.metadata.signalKeys) ? edge.metadata.signalKeys : [],
+    },
     created_by_type: edge.createdByType,
   };
 }
@@ -644,11 +725,42 @@ async function logEngineEvent(client: DbClient, input: { companyId: string | nul
   });
 }
 
+async function loadRelationshipFeedbackProfile(client: DbClient, companyId: string | null) {
+  const approved = new Set<string>();
+  const rejected = new Set<string>();
+  try {
+    let query = client
+      .from("ai_engine_validation_logs")
+      .select("new_status,validation_status,metadata")
+      .in("target_type", ["edge", "candidate"])
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (companyId) query = query.eq("company_id", companyId);
+    const { data, error } = (await query) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) return { approved, rejected };
+    for (const row of data ?? []) {
+      const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {};
+      const status = String(row.new_status ?? row.validation_status ?? "");
+      const relationshipType = typeof metadata.relationshipType === "string" ? metadata.relationshipType : null;
+      const keys = Array.isArray(metadata.signalKeys) ? metadata.signalKeys.map(String) : [];
+      const finalKeys = keys.length > 0 ? keys : relationshipType ? [`${relationshipType}:manual_review`] : [];
+      for (const key of finalKeys) {
+        if (status === "approved" || status === "promoted") approved.add(key);
+        if (status === "rejected" || status === "incorrect") rejected.add(key);
+      }
+    }
+  } catch {
+    return { approved, rejected };
+  }
+  return { approved, rejected };
+}
+
 export async function rebuildKnowledgeIndex(client: DbClient, params: { companyId: string; actorUserId?: string | null; limitPerTable?: number; generateEmbeddings?: boolean; maxEmbeddingAttempts?: number }): Promise<AiKnowledgeRebuildResult> {
   const generatedAt = new Date().toISOString();
   const { rowsByTable, warnings } = await fetchSourceRows(client, params.companyId, params.limitPerTable ?? 80);
   const normalizedNodes = Array.from(rowsByTable.entries()).flatMap(([table, rows]) => normalizeSourceRowsToKnowledgeNodes(table, rows));
-  const relationshipCandidates = generateKnowledgeRelationships(normalizedNodes);
+  const feedback = await loadRelationshipFeedbackProfile(client, params.companyId);
+  const relationshipCandidates = generateKnowledgeRelationships(normalizedNodes, { feedback });
   const candidateCounts = {
     nodes: normalizedNodes.length,
     edges: relationshipCandidates.length,
@@ -706,18 +818,88 @@ export async function recalculateKnowledgeRelationships(client: DbClient, params
   const { data, error } = (await client.from("ai_knowledge_nodes").select("*").eq("company_id", params.companyId).limit(500)) as QueryResult<Array<Record<string, unknown>>>;
   if (error) throw new Error(error.message ?? "Failed to load knowledge nodes.");
   const nodes = (data ?? []).map(camelNode);
-  const edges = await upsertEdges(client, generateKnowledgeRelationships(nodes), nodes);
+  const feedback = await loadRelationshipFeedbackProfile(client, params.companyId);
+  const edges = await upsertEdges(client, generateKnowledgeRelationships(nodes, { feedback }), nodes);
   await logEngineEvent(client, { companyId: params.companyId, eventType: "knowledge_relationships_recalculated", description: `AI Knowledge Map recalculated ${edges.length} relationships.`, metadata: { edgeCount: edges.length }, createdBy: params.actorUserId }).catch(() => undefined);
   return { ok: true, companyId: params.companyId, insertedOrUpdatedEdges: edges.length, generatedAt: new Date().toISOString() };
+}
+
+async function recalculateGraphRiskFromRelationships(client: DbClient, companyId: string | null, actorUserId?: string | null) {
+  if (!companyId) return;
+  const [nodesResult, edgesResult] = await Promise.all([
+    client.from("ai_knowledge_nodes").select("*").eq("company_id", companyId).limit(600) as unknown as Promise<QueryResult<Array<Record<string, unknown>>>>,
+    client.from("ai_knowledge_edges").select("*").eq("company_id", companyId).eq("validation_status", "approved").limit(900) as unknown as Promise<QueryResult<Array<Record<string, unknown>>>>,
+  ]);
+  if (nodesResult.error || edgesResult.error) return;
+  const nodes = (nodesResult.data ?? []).map(camelNode);
+  const edges = (edgesResult.data ?? []).map(camelEdge);
+  const approvedByNode = new Map<string, AiKnowledgeEdge[]>();
+  for (const edge of edges) {
+    for (const id of [edge.sourceNodeId, edge.targetNodeId, edge.fromNodeId, edge.toNodeId].filter(Boolean) as string[]) {
+      approvedByNode.set(id, [...(approvedByNode.get(id) ?? []), edge]);
+    }
+  }
+
+  const updates = nodes.map((node) => {
+    if (!node.id) return null;
+    const related = approvedByNode.get(node.id) ?? [];
+    const maxRelationshipConfidence = related.reduce((max, edge) => Math.max(max, edge.confidenceScore), 0);
+    const riskInfluence = Math.min(12, related.length * 2 + (maxRelationshipConfidence >= 0.8 ? 3 : 0));
+    const previousRisk = node.metadata.relationshipRisk && typeof node.metadata.relationshipRisk === "object" && !Array.isArray(node.metadata.relationshipRisk) ? node.metadata.relationshipRisk as Record<string, unknown> : {};
+    const baselineRiskScore = typeof previousRisk.baselineRiskScore === "number" ? previousRisk.baselineRiskScore : node.riskScore;
+    const nextRiskScore = baselineRiskScore == null ? null : Math.min(100, Math.max(baselineRiskScore, baselineRiskScore + riskInfluence));
+    const metadata = {
+      ...node.metadata,
+      relationshipRisk: {
+        baselineRiskScore,
+        approvedRelationshipCount: related.length,
+        riskInfluence,
+        maxRelationshipConfidence: Number(maxRelationshipConfidence.toFixed(3)),
+        lastRecalculatedAt: new Date().toISOString(),
+      },
+    };
+    return client.from("ai_knowledge_nodes").update({ risk_score: nextRiskScore, metadata }).eq("id", node.id);
+  }).filter(Boolean) as Array<PromiseLike<unknown>>;
+
+  await Promise.allSettled(updates);
+  const projectRiskScores = summarizeGroupRisk(nodes, "project");
+  const tradeRiskScores = summarizeGroupRisk(nodes, "trade");
+  const categoryTrends = summarizeGroupRisk(nodes, "category");
+  await logEngineEvent(client, {
+    companyId,
+    eventType: "knowledge_relationship_risk_recalculated",
+    description: "AI Knowledge Map recalculated node, project, trade, category, and forecast relationship risk influence.",
+    metadata: {
+      approvedRelationshipCount: edges.length,
+      projectRiskScores,
+      tradeRiskScores,
+      categoryTrends,
+      predictiveForecastImpact: edges.filter((edge) => edge.relationshipType === "predictive_risk_signal" || edge.relationshipType === "repeat_trend").length,
+    },
+    createdBy: actorUserId,
+  }).catch(() => undefined);
+}
+
+function summarizeGroupRisk(nodes: AiKnowledgeNode[], field: "project" | "trade" | "category") {
+  const groups = new Map<string, number[]>();
+  for (const node of nodes) {
+    const key = field === "category" ? node.category : node[field] ?? "Unassigned";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)?.push(node.riskScore ?? 0);
+  }
+  return Object.fromEntries(Array.from(groups.entries()).map(([key, scores]) => [key, Math.round(scores.reduce((total, score) => total + score, 0) / Math.max(1, scores.length))]));
 }
 
 export async function updateKnowledgeRelationshipValidation(client: DbClient, params: { edgeId: string; status: Exclude<AiKnowledgeValidationStatus, "pending_review" | "needs_review" | "unreviewed">; reason: string; actorUserId: string }) {
   const previous = (await client.from("ai_knowledge_edges").select("*").eq("id", params.edgeId).single()) as QueryResult<Record<string, unknown>>;
   const previousStatus = previous.data ? String(previous.data.validation_status ?? "unreviewed") : null;
+  const previousEdge = previous.data ? camelEdge(previous.data) : null;
   const reviewedAt = new Date().toISOString();
-  const { data, error } = (await client.from("ai_knowledge_edges").update({ validation_status: params.status, reviewed_by: params.actorUserId, reviewed_at: reviewedAt }).eq("id", params.edgeId).select("*").single()) as QueryResult<Record<string, unknown>>;
+  const reviewStatus = params.status === "approved" ? "human_approved" : "rejected";
+  const { data, error } = (await client.from("ai_knowledge_edges").update({ validation_status: params.status, status: reviewStatus, reviewed_by: params.actorUserId, reviewed_at: reviewedAt }).eq("id", params.edgeId).select("*").single()) as QueryResult<Record<string, unknown>>;
   if (error) throw new Error(error.message ?? "Failed to update relationship validation.");
   const edge = camelEdge(data ?? {});
+  const signalKeys = Array.isArray(previousEdge?.metadata.signalKeys) ? previousEdge.metadata.signalKeys.map(String) : [];
   await client.from("ai_engine_validation_logs").insert({
     target_type: "edge",
     target_id: params.edgeId,
@@ -731,8 +913,13 @@ export async function updateKnowledgeRelationshipValidation(client: DbClient, pa
     reason: params.reason,
     reviewed_by: params.actorUserId,
     created_by: params.actorUserId,
-    metadata: { relationshipType: edge.relationshipType },
+    metadata: {
+      relationshipType: edge.relationshipType,
+      signalKeys,
+      learningImpact: params.status === "approved" ? "Future similar relationships receive a small confidence increase." : "Future similar relationships receive a confidence reduction.",
+    },
   });
+  await recalculateGraphRiskFromRelationships(client, edge.companyId, params.actorUserId).catch(() => undefined);
   return { ok: true, edge, reviewedAt };
 }
 
@@ -799,6 +986,7 @@ async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeInge
     fromNodeId: sourceNodeId,
     toNodeId: targetNodeId,
     validationStatus: "approved",
+    relationshipStatus: "human_approved",
     confidenceScore: edge.confidenceScore ?? candidate.confidenceScore ?? 0.65,
   }], []);
   if (!promoted?.id) throw new Error("Relationship candidate could not be promoted.");
@@ -843,17 +1031,56 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
           companyId: candidate.companyId,
           eventType: "knowledge_candidate_promoted",
           description: `AI Knowledge candidate ${candidate.id} was promoted to trusted memory.`,
-          metadata: { candidateType: candidate.candidateType, promotedNodeId: promoted.nodeId, promotedEdgeId: promoted.edgeId },
+          metadata: {
+            candidateType: candidate.candidateType,
+            promotedNodeId: promoted.nodeId,
+            promotedEdgeId: promoted.edgeId,
+            relationshipType: candidate.relationshipType,
+            signalKeys: Array.isArray(candidate.metadata.signalKeys) ? candidate.metadata.signalKeys : [],
+            learningImpact: candidate.candidateType === "edge" ? "Approved relationship candidates increase future confidence for similar signals." : undefined,
+          },
           createdBy: params.actorUserId,
         }).catch(() => undefined);
+        if (candidate.candidateType === "edge") await recalculateGraphRiskFromRelationships(client, candidate.companyId, params.actorUserId).catch(() => undefined);
       } else {
         await logEngineEvent(client, {
           companyId: candidate.companyId,
           eventType: "knowledge_candidate_reviewed",
           description: `AI Knowledge candidate ${candidate.id} was marked ${params.status}.`,
-          metadata: { candidateType: candidate.candidateType, reason: params.reason },
+          metadata: {
+            candidateType: candidate.candidateType,
+            reason: params.reason,
+            relationshipType: candidate.relationshipType,
+            signalKeys: Array.isArray(candidate.metadata.signalKeys) ? candidate.metadata.signalKeys : [],
+            learningImpact: candidate.candidateType === "edge" && (params.status === "rejected" || params.status === "incorrect")
+              ? "Rejected relationship candidates reduce future confidence for similar signals."
+              : undefined,
+          },
           createdBy: params.actorUserId,
         }).catch(() => undefined);
+      }
+      if (candidate.candidateType === "edge") {
+        try {
+          await client.from("ai_engine_validation_logs").insert({
+            target_type: "candidate",
+            target_id: candidate.id,
+            company_id: candidate.companyId,
+            validation_action: params.status === "approved" ? "approve_candidate" : params.status === "incorrect" ? "mark_candidate_incorrect" : "reject_candidate",
+            validation_note: params.reason,
+            previous_status: "pending_review",
+            new_status: params.status,
+            validation_status: params.status,
+            reason: params.reason,
+            reviewed_by: params.actorUserId,
+            created_by: params.actorUserId,
+            metadata: {
+              relationshipType: candidate.relationshipType,
+              signalKeys: Array.isArray(candidate.metadata.signalKeys) ? candidate.metadata.signalKeys : [],
+            },
+          });
+        } catch {
+          // Feedback logs should never block the human review action.
+        }
       }
       results.push(candidate);
     } catch (error) {
@@ -1143,6 +1370,7 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
       warnings.push(`${viewingAllCompanies ? "These companies have" : "This company has"} ${sourceCount} source safety records, but no AI Knowledge Map index yet. Select one company and click Rebuild index to create live nodes and relationships.`);
     }
   }
+  warnings.push(...detectKnowledgeGraphHealth(nodes, edges).warnings);
   const validationQueue = edges.filter((edge) => edge.validationStatus !== "approved" || edge.confidenceScore < 0.55).sort((left, right) => left.confidenceScore - right.confidenceScore).slice(0, 30);
   return {
     companies: companiesResult.companies,

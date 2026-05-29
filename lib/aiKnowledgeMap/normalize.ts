@@ -46,6 +46,35 @@ function riskScoreForLevel(level: AiKnowledgeRiskLevel, explicit: unknown) {
   return null;
 }
 
+function minimumRiskScoreForRecord(table: string, row: AiKnowledgeSourceRow, summary: string) {
+  const haystack = compactSummary([
+    summary,
+    row.severity,
+    row.incident_type,
+    row.injury_type,
+    row.treatment_type,
+    row.medical_treatment,
+    row.recordable,
+    row.sif_potential,
+    row.stop_work_status,
+    row.status,
+    row.category,
+    row.hazard_category_code,
+  ]).toLowerCase();
+
+  if (table === "company_incidents") {
+    if (haystack.includes("serious") || haystack.includes("sif") || haystack.includes("high potential") || haystack.includes("critical")) return 80;
+    if (haystack.includes("recordable") || haystack.includes("osha recordable") || haystack.includes("lost time")) return 65;
+    if (haystack.includes("first aid") || haystack.includes("first-aid")) return 45;
+    if (haystack.includes("near miss") || haystack.includes("near-miss") || haystack.includes("nearmiss")) return 25;
+    return 35;
+  }
+
+  if (table === "company_sor_records") return 5;
+  if (table === "company_hazards") return 15;
+  return 0;
+}
+
 function hashString(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -148,6 +177,9 @@ export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledg
     row.match_keywords,
   ]);
   const vectorCoordinates = vectorCoordinatesForNode({ sourceTable: table, sourceId, type, riskLevel });
+  const baseRiskScore = riskScoreForLevel(riskLevel, row.risk_score ?? row.score);
+  const minimumRiskScore = minimumRiskScoreForRecord(table, row, semanticSummary);
+  const riskScore = baseRiskScore == null ? (minimumRiskScore > 0 ? minimumRiskScore : null) : Math.max(baseRiskScore, minimumRiskScore);
 
   return {
     companyId,
@@ -164,13 +196,14 @@ export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledg
     project: nullableText(row.project ?? row.project_name),
     trade: nullableText(row.trade ?? row.apply_trades),
     riskLevel,
-    riskScore: riskScoreForLevel(riskLevel, row.risk_score ?? row.score),
+    riskScore,
     sourceUrl: nullableText(row.source_url ?? row.final_file_path ?? row.file_name),
     sourceDocument: nullableText(row.final_file_path ?? row.file_name ?? row.source_url),
     metadata: {
       source: "rebuild-index",
       originalStatus: nullableText(row.status),
       originalCategory: nullableText(row.category),
+      minimumRiskScore,
       rawMetadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {},
     },
     semanticSummary: semanticSummary || title,

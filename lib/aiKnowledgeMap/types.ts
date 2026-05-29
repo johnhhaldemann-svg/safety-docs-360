@@ -17,6 +17,20 @@ export const AI_KNOWLEDGE_RELATIONSHIP_TYPES = [
   "control_required_by_document",
   "user_training_gap_affects_task",
   "project_contains_risk_cluster",
+  "caused_by",
+  "related_hazard",
+  "required_control",
+  "required_training",
+  "corrective_action_required",
+  "permit_related",
+  "jsa_related",
+  "repeat_trend",
+  "predictive_risk_signal",
+  "body_part_related",
+  "equipment_related",
+  "trade_related",
+  "project_related",
+  "document_reference",
 ] as const;
 
 export type AiKnowledgeRelationshipType = (typeof AI_KNOWLEDGE_RELATIONSHIP_TYPES)[number];
@@ -26,6 +40,7 @@ export type AiKnowledgeCandidateStatus = "pending_review" | "approved" | "reject
 export type AiKnowledgeCandidateType = "node" | "edge" | "failed_source";
 export type AiKnowledgeCreatorType = "system" | "user" | "ai";
 export type AiKnowledgeVectorStatus = "pending" | "indexed" | "failed" | "fallback";
+export type AiKnowledgeRelationshipReviewStatus = "draft" | "suggested" | "auto_linked" | "human_approved" | "rejected" | "needs_more_data";
 
 export type AiKnowledgeNodeType =
   | "permit"
@@ -93,13 +108,29 @@ export type AiKnowledgeEdge = {
   relationshipStrength: number;
   strengthScore: number;
   reason: string;
+  evidenceText?: string | null;
   sourceEvidence: AiKnowledgeEvidence[];
   confidenceScore: number;
   validationStatus: AiKnowledgeValidationStatus;
+  relationshipStatus?: AiKnowledgeRelationshipReviewStatus;
   createdByType: AiKnowledgeCreatorType;
+  createdBy?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
   metadata: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type AiKnowledgeRelationshipSuggestion = {
+  relationshipType: AiKnowledgeRelationshipType;
+  label: string;
+  confidenceScore: number;
+  reason: string;
+  evidenceText: string;
+  status: AiKnowledgeRelationshipReviewStatus;
+  createdBy: AiKnowledgeCreatorType;
+  targetTitle?: string | null;
 };
 
 export type AiKnowledgeGraphSummary = {
@@ -114,6 +145,14 @@ export type AiKnowledgeGraphSummary = {
   pendingReviewCount: number;
   indexedVectorCount: number;
   companyCount: number;
+  suggestedRelationshipCount?: number;
+  humanApprovedRelationshipCount?: number;
+  rejectedRelationshipCount?: number;
+  unlinkedHighRiskNodeCount?: number;
+  averageConfidence?: number;
+  relationshipApprovalRate?: number;
+  falsePositiveRate?: number;
+  missedLinkRate?: number;
   latestUpdate: string | null;
 };
 

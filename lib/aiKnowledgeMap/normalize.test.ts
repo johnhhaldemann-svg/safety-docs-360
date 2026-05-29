@@ -56,4 +56,33 @@ describe("AI Knowledge Map normalization", () => {
     expect(nodes).toHaveLength(1);
     expect(sourceKey(nodes[0].sourceTable, nodes[0].sourceId)).toBe("company_controls:control-1");
   });
+
+  it("applies minimum risk scores for incidents, observations, and hazards", () => {
+    expect(normalizeSourceRowToKnowledgeNode("company_incidents", {
+      id: "incident-no-aid",
+      company_id: "company-1",
+      title: "Trip",
+      description: "Tripped on cord landed on knee no medical aid needed.",
+      risk_score: 0,
+    })?.riskScore).toBe(35);
+    expect(normalizeSourceRowToKnowledgeNode("company_incidents", {
+      id: "incident-first-aid",
+      company_id: "company-1",
+      title: "Hand cut",
+      description: "First aid provided for hand cut.",
+      risk_score: 0,
+    })?.riskScore).toBe(45);
+    expect(normalizeSourceRowToKnowledgeNode("company_sor_records", {
+      id: "observation-2",
+      company_id: "company-1",
+      description: "Housekeeping observation.",
+      risk_score: 0,
+    })?.riskScore).toBe(5);
+    expect(normalizeSourceRowToKnowledgeNode("company_hazards", {
+      id: "hazard-2",
+      company_id: "company-1",
+      name: "Open edge",
+      risk_score: 0,
+    })?.riskScore).toBe(15);
+  });
 });
