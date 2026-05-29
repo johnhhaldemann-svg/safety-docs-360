@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/training-expiration-notifications",
       "schedule": "45 6 * * *"
+    },
+    {
+      "path": "/api/cron/ai-knowledge-learning-check",
+      "schedule": "0 0,11,12,23 * * *"
     }
   ]
 }

@@ -176,6 +176,31 @@ export function KnowledgeMapPage() {
     }
   }
 
+  async function runLearningCheck() {
+    if (!graph.selectedCompanyId || graph.selectedCompanyId === "all") {
+      setError("Select one company before running a learning check. All-company view is read-only for learning changes.");
+      return;
+    }
+    setWorking("Learning check");
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/ai-knowledge-map/learning-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: graph.selectedCompanyId, maxDocuments: 16, maxInternetSources: 6 }),
+      });
+      const body = await response.json().catch(() => null) as { error?: string; candidatesCreated?: number; documentsChecked?: number; internetSourcesChecked?: number; failedSources?: number } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Learning check failed.");
+      setMessage(`Learning check queued ${body?.candidatesCreated ?? 0} candidates from ${body?.documentsChecked ?? 0} documents and ${body?.internetSourcesChecked ?? 0} approved internet sources. Failed sources: ${body?.failedSources ?? 0}.`);
+      await load(filters);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Learning check failed.");
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function validate(edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect") {
     if (!edge.id || edge.id.startsWith("demo-edge")) {
       setMessage("Demo relationships show the validation flow. Rebuild a live company index to save review decisions.");
@@ -241,6 +266,10 @@ export function KnowledgeMapPage() {
             <button type="button" onClick={() => void runRebuild(true)} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-sm font-black text-sky-100 hover:bg-sky-300/16 disabled:opacity-60">
               {working === "Embedding rebuild" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
               Rebuild + embeddings
+            </button>
+            <button type="button" onClick={() => void runLearningCheck()} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-sm font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
+              {working === "Learning check" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
+              Run Learning Check
             </button>
             <button type="button" onClick={() => void recalculate()} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-slate-100 hover:bg-white/[0.09] disabled:opacity-60">
               {working === "Recalculate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gauge className="h-4 w-4" />}

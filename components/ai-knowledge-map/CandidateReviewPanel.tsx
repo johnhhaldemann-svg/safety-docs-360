@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, XCircle } from "lucide-react";
 import type { AiKnowledgeIngestCandidate } from "@/lib/aiKnowledgeMap/types";
 
 type CandidateResponse = {
@@ -9,8 +9,24 @@ type CandidateResponse = {
   error?: string;
 };
 
+type LearningBatch = {
+  id: string;
+  status: string;
+  sourceCounts: Record<string, number>;
+  candidateCounts: Record<string, number>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+type BatchResponse = {
+  batches?: LearningBatch[];
+  error?: string;
+};
+
 export function CandidateReviewPanel({ companyId }: { companyId: string | null }) {
   const [candidates, setCandidates] = useState<AiKnowledgeIngestCandidate[]>([]);
+  const [failedSources, setFailedSources] = useState<AiKnowledgeIngestCandidate[]>([]);
+  const [batches, setBatches] = useState<LearningBatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -20,10 +36,20 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
     try {
       const params = new URLSearchParams({ status: "pending_review", limit: "12" });
       if (companyId && companyId !== "all") params.set("companyId", companyId);
-      const response = await fetch(`/api/ai-knowledge-map/candidates?${params.toString()}`);
-      const body = await response.json().catch(() => null) as CandidateResponse | null;
-      setCandidates(response.ok ? body?.candidates ?? [] : []);
-      setMessage(response.ok ? null : body?.error ?? "Candidate queue unavailable.");
+      const failedParams = new URLSearchParams({ status: "failed", candidateType: "failed_source", limit: "5" });
+      if (companyId && companyId !== "all") failedParams.set("companyId", companyId);
+      const [candidateResponse, batchResponse] = await Promise.all([
+        fetch(`/api/ai-knowledge-map/candidates?${params.toString()}`),
+        fetch(`/api/ai-knowledge-map/learning-check?${params.toString()}`),
+      ]);
+      const failedResponse = await fetch(`/api/ai-knowledge-map/candidates?${failedParams.toString()}`);
+      const candidateBody = await candidateResponse.json().catch(() => null) as CandidateResponse | null;
+      const batchBody = await batchResponse.json().catch(() => null) as BatchResponse | null;
+      const failedBody = await failedResponse.json().catch(() => null) as CandidateResponse | null;
+      setCandidates(candidateResponse.ok ? candidateBody?.candidates ?? [] : []);
+      setBatches(batchResponse.ok ? batchBody?.batches ?? [] : []);
+      setFailedSources(failedResponse.ok ? failedBody?.candidates ?? [] : []);
+      setMessage(candidateResponse.ok && batchResponse.ok && failedResponse.ok ? null : candidateBody?.error ?? batchBody?.error ?? failedBody?.error ?? "Candidate queue unavailable.");
     } finally {
       setLoading(false);
     }
@@ -69,12 +95,31 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-sky-300" /> : null}
       </div>
       {message ? <p className="mt-3 rounded-lg border border-sky-300/20 bg-sky-300/10 p-2 text-xs font-bold text-sky-100">{message}</p> : null}
+      {batches.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
+          <div className="flex items-center gap-2">
+            <Clock3 className="h-3.5 w-3.5 text-sky-300" />
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Learning check history</p>
+          </div>
+          <div className="mt-2 space-y-2">
+            {batches.slice(0, 3).map((batch) => (
+              <div key={batch.id} className="grid grid-cols-[1fr_auto] gap-3 text-xs font-semibold text-slate-400">
+                <span>{new Date(batch.createdAt).toLocaleString()}</span>
+                <span className="font-black text-slate-200">{Number(batch.candidateCounts.totalCandidates ?? 0)} candidates</span>
+                <span className="col-span-2 text-[11px] text-slate-500">
+                  {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {String(batch.metadata.runSlot ?? "manual")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3 space-y-3">
         {candidates.map((candidate) => (
           <div key={candidate.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{candidate.candidateType}</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{candidateSourceLabel(candidate)}</p>
                 <p className="truncate text-sm font-black text-white">{candidate.title}</p>
               </div>
               <span className="rounded-md border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-[10px] font-black text-amber-100">pending</span>
@@ -97,6 +142,28 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
         ))}
         {!loading && candidates.length === 0 ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold text-emerald-100">No pending candidates in this view.</p> : null}
       </div>
+      {failedSources.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-red-300/20 bg-red-300/10 p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-red-100">Failed sources</p>
+          <div className="mt-2 space-y-2">
+            {failedSources.map((candidate) => (
+              <div key={candidate.id} className="text-xs font-semibold text-red-50">
+                <p className="font-black">{candidate.title}</p>
+                <p className="mt-1 line-clamp-2 text-red-100/80">{candidate.reason ?? candidate.semanticSummary ?? "Source could not be read."}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
+}
+
+function candidateSourceLabel(candidate: AiKnowledgeIngestCandidate) {
+  const sourceKind = typeof candidate.metadata.sourceKind === "string" ? candidate.metadata.sourceKind : null;
+  if (sourceKind === "document") return "document";
+  if (sourceKind === "internet_source") return "internet source";
+  if (candidate.candidateType === "edge") return "relationship";
+  if (candidate.candidateType === "failed_source") return "failed source";
+  return candidate.candidateType;
 }
