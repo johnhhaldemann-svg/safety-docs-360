@@ -40,6 +40,10 @@ const EMPTY_GRAPH: AiKnowledgeGraphPayload = {
   generatedAt: new Date(0).toISOString(),
   warnings: [],
   demo: true,
+  fallback: false,
+  fallbackReason: null,
+  companySpecificNodeCount: 0,
+  companySpecificEdgeCount: 0,
 };
 
 export function KnowledgeMapPage() {
@@ -68,6 +72,7 @@ export function KnowledgeMapPage() {
       if (nextFilters.riskLevel && nextFilters.riskLevel !== "all") params.set("riskLevel", nextFilters.riskLevel);
       if (nextFilters.trade && nextFilters.trade !== "all") params.set("trade", nextFilters.trade);
       if (nextFilters.sourceType && nextFilters.sourceType !== "all") params.set("sourceType", nextFilters.sourceType);
+      if (nextFilters.dateRange && nextFilters.dateRange !== "all") params.set("dateRange", nextFilters.dateRange);
       const [nodesResponse, edgesResponse, summaryResponse] = await Promise.all([
         fetch(`/api/ai-knowledge-map/nodes?${params.toString()}`),
         fetch(`/api/ai-knowledge-map/edges?${params.toString()}`),
@@ -89,6 +94,10 @@ export function KnowledgeMapPage() {
         generatedAt: summaryBody?.generatedAt ?? nodesBody?.generatedAt ?? new Date().toISOString(),
         warnings: [...(nodesBody?.warnings ?? []), ...(edgesBody?.warnings ?? []), ...(summaryBody?.warnings ?? [])],
         demo: Boolean(nodesBody?.demo || edgesBody?.demo || summaryBody?.demo),
+        fallback: Boolean(nodesBody?.fallback || edgesBody?.fallback || summaryBody?.fallback),
+        fallbackReason: nodesBody?.fallbackReason ?? summaryBody?.fallbackReason ?? null,
+        companySpecificNodeCount: nodesBody?.companySpecificNodeCount ?? summaryBody?.companySpecificNodeCount ?? 0,
+        companySpecificEdgeCount: edgesBody?.companySpecificEdgeCount ?? summaryBody?.companySpecificEdgeCount ?? 0,
       };
       setGraph(payload);
       setFilters((current) => ({ ...current, companyId: payload.selectedCompanyId ?? current.companyId }));
@@ -288,6 +297,7 @@ export function KnowledgeMapPage() {
             {message ? <Banner tone="green" text={message} /> : null}
             {error ? <Banner tone="red" text={error} /> : null}
             {graph.demo ? <Banner tone="amber" text="Demo mode is showing safe sample records. Rebuild a live company index to use live safety records." /> : null}
+            {graph.fallback ? <Banner tone="amber" text={graph.fallbackReason ?? "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data."} /> : null}
             {graph.warnings.slice(0, 2).map((warning) => <Banner key={warning} tone="amber" text={warning} />)}
           </div>
         ) : null}

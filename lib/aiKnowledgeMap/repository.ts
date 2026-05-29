@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requestAiEmbedding } from "@/lib/ai/embeddings";
 import { buildDemoKnowledgeGraph } from "@/lib/aiKnowledgeMap/demo";
-import { normalizeSourceRowsToKnowledgeNodes, sourceKey } from "@/lib/aiKnowledgeMap/normalize";
+import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
 import type {
   AiKnowledgeEdge,
@@ -12,7 +12,9 @@ import type {
   AiKnowledgeCandidateStatus,
   AiKnowledgeMapFilters,
   AiKnowledgeNode,
+  AiKnowledgeNodeType,
   AiKnowledgeRebuildResult,
+  AiKnowledgeRiskLevel,
   AiKnowledgeSourceRow,
   AiKnowledgeValidationStatus,
 } from "@/lib/aiKnowledgeMap/types";
@@ -36,6 +38,9 @@ const SOURCE_TABLES = [
 ] as const;
 
 const ALL_COMPANIES_SCOPE = "all";
+const FALLBACK_NODE_THRESHOLD = 8;
+const FALLBACK_EDGE_THRESHOLD = 10;
+const FALLBACK_REASON = "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data.";
 
 function isMissingKnowledgeMapTable(error?: DbError | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -243,6 +248,115 @@ function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies
     companyCount: companies.length,
     latestUpdate,
   };
+}
+
+function cleanFallbackText(value: unknown, max = 800) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function fallbackRiskScore(level: AiKnowledgeRiskLevel) {
+  if (level === "critical") return 92;
+  if (level === "high") return 78;
+  if (level === "moderate") return 55;
+  if (level === "low") return 25;
+  return null;
+}
+
+function fallbackNode(params: {
+  index: number;
+  selectedCompanyId: string;
+  fallbackSource: "global_document" | "approved_knowledge" | "cross_company_pattern";
+  title: string;
+  nodeType: AiKnowledgeNodeType;
+  category: string;
+  description: string;
+  riskLevel?: AiKnowledgeRiskLevel;
+  confidenceScore?: number;
+}) {
+  const riskLevel = params.riskLevel ?? normalizeRiskLevel([params.title, params.category, params.description].join(" "));
+  const sourceId = `fallback-${params.fallbackSource}-${params.index}`;
+  const vectorCoordinates = vectorCoordinatesForNode({
+    sourceTable: "ai_fallback_memory",
+    sourceId,
+    type: params.nodeType,
+    riskLevel,
+  });
+  return {
+    id: `fallback-node-${params.fallbackSource}-${params.index}`,
+    companyId: null,
+    jobsiteId: null,
+    projectId: null,
+    sourceTable: "ai_fallback_memory",
+    sourceId,
+    sourceRecordId: sourceId,
+    title: cleanFallbackText(params.title, 180) || "Fallback safety intelligence",
+    nodeType: params.nodeType,
+    type: params.nodeType,
+    category: cleanFallbackText(params.category, 120) || "fallback",
+    description: cleanFallbackText(params.description, 1_200),
+    semanticSummary: cleanFallbackText(`${params.title}. ${params.description}`, 1_600),
+    project: null,
+    trade: null,
+    riskLevel,
+    riskScore: fallbackRiskScore(riskLevel),
+    sourceUrl: null,
+    sourceDocument: null,
+    metadata: {
+      fallback: true,
+      fallbackSource: params.fallbackSource,
+      notCompanySpecific: true,
+      selectedCompanyId: params.selectedCompanyId,
+      safetyUse: "general approved fallback guidance",
+    },
+    vectorStatus: "fallback",
+    vectorCoordinates,
+    confidenceScore: params.confidenceScore ?? 0.7,
+    validationStatus: "approved",
+    createdByType: "system",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } satisfies AiKnowledgeNode;
+}
+
+function genericPatternTitle(row: Record<string, unknown>, index: number) {
+  const type = cleanFallbackText(row.node_type ?? row.type ?? "risk_record", 60).replace(/_/g, " ");
+  const category = cleanFallbackText(row.category ?? "safety pattern", 80);
+  const risk = cleanFallbackText(row.risk_level ?? "reviewed", 40);
+  return `Approved ${risk} ${type} pattern: ${category || `pattern ${index}`}`;
+}
+
+function genericPatternDescription(row: Record<string, unknown>) {
+  const type = cleanFallbackText(row.node_type ?? row.type ?? "record", 60).replace(/_/g, " ");
+  const category = cleanFallbackText(row.category ?? "safety", 80);
+  const risk = cleanFallbackText(row.risk_level ?? "unknown", 40);
+  return `Anonymized cross-company ${type} pattern for ${category}. This is general fallback guidance based only on approved graph memory and is not evidence from the selected company. Treat it as a prompt for review until company-specific records are approved. Risk level: ${risk}.`;
+}
+
+function fallbackEdgeIds(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[]) {
+  const idByKey = new Map(nodes.map((node) => [sourceKey(node.sourceTable, node.sourceId), node.id]));
+  return edges.map((edge, index) => ({
+    ...edge,
+    id: `fallback-edge-${index + 1}`,
+    companyId: null,
+    sourceNodeId: idByKey.get(edge.fromNodeKey ?? "") ?? edge.fromNodeId,
+    targetNodeId: idByKey.get(edge.toNodeKey ?? "") ?? edge.toNodeId,
+    fromNodeId: idByKey.get(edge.fromNodeKey ?? "") ?? edge.fromNodeId,
+    toNodeId: idByKey.get(edge.toNodeKey ?? "") ?? edge.toNodeId,
+    validationStatus: "approved" as const,
+    createdByType: "system" as const,
+    metadata: {
+      ...edge.metadata,
+      fallback: true,
+      notCompanySpecific: true,
+      fallbackSource: "generated_fallback_relationship",
+    },
+    sourceEvidence: edge.sourceEvidence.map((item) => ({
+      sourceTable: "ai_fallback_memory",
+      sourceRecordId: "approved-fallback",
+      label: cleanFallbackText(item.label, 180),
+      detail: cleanFallbackText(item.detail, 500),
+    })),
+  }));
 }
 
 async function listCompanies(client: DbClient) {
@@ -678,6 +792,105 @@ export async function promoteApprovedKnowledgeCandidates(client: DbClient, param
   return { ok: first.ok && second.ok, promoted: [...first.reviewed, ...second.reviewed], errors: [...first.errors, ...second.errors] };
 }
 
+export async function buildFallbackKnowledgeGraph(client: DbClient, selectedCompanyId: string, filters: AiKnowledgeMapFilters = {}) {
+  const warnings: string[] = [];
+  const nodes: AiKnowledgeNode[] = [];
+
+  try {
+    const { data, error } = (await client
+      .from("approved_knowledge")
+      .select("*")
+      .is("company_id", null)
+      .eq("is_active", true)
+      .neq("review_status", "archived")
+      .order("updated_at", { ascending: false })
+      .limit(16)) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) warnings.push(error.message ?? "Global approved knowledge fallback unavailable.");
+    (data ?? []).forEach((row, index) => {
+      const title = cleanFallbackText(row.knowledge_title ?? row.topic ?? "Approved safety guidance", 180);
+      const summary = cleanFallbackText(row.approved_summary ?? row.topic ?? "", 1_200);
+      nodes.push(fallbackNode({
+        index: index + 1,
+        selectedCompanyId,
+        fallbackSource: "approved_knowledge",
+        title,
+        nodeType: "document",
+        category: cleanFallbackText(row.required_control_type ?? row.source_type ?? "approved knowledge", 120),
+        description: `${summary} This is globally approved fallback guidance and is not company-specific evidence.`,
+        riskLevel: normalizeRiskLevel([title, summary].join(" ")),
+        confidenceScore: Math.max(0.58, Math.min(0.92, Number(row.quality_score ?? 72) / 100)),
+      }));
+    });
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Global approved knowledge fallback unavailable.");
+  }
+
+  try {
+    const { data, error } = (await client
+      .from("documents")
+      .select("id, document_title, document_type, category, notes, status, final_file_path, updated_at, company_id")
+      .is("company_id", null)
+      .eq("status", "approved")
+      .order("updated_at", { ascending: false })
+      .limit(10)) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) warnings.push(error.message ?? "Global document fallback unavailable.");
+    (data ?? []).forEach((row, index) => {
+      const title = cleanFallbackText(row.document_title ?? row.document_type ?? "Approved SafetyDocs360 document", 180);
+      const notes = cleanFallbackText(row.notes ?? row.category ?? row.document_type ?? "", 1_000);
+      nodes.push(fallbackNode({
+        index: index + 1,
+        selectedCompanyId,
+        fallbackSource: "global_document",
+        title,
+        nodeType: "document",
+        category: cleanFallbackText(row.category ?? row.document_type ?? "global document", 120),
+        description: `${notes || "Approved/final SafetyDocs360 document available as general fallback safety context."} This fallback does not expose a source file or customer record.`,
+        riskLevel: normalizeRiskLevel([title, notes].join(" ")),
+        confidenceScore: 0.76,
+      }));
+    });
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Global document fallback unavailable.");
+  }
+
+  try {
+    const { data, error } = (await client
+      .from("ai_knowledge_nodes")
+      .select("id, company_id, title, node_type, type, category, description, semantic_summary, risk_level, confidence_score")
+      .neq("company_id", selectedCompanyId)
+      .eq("validation_status", "approved")
+      .order("updated_at", { ascending: false })
+      .limit(24)) as QueryResult<Array<Record<string, unknown>>>;
+    if (error) warnings.push(error.message ?? "Cross-company fallback patterns unavailable.");
+    (data ?? []).forEach((row, index) => {
+      const nodeType = String(row.node_type ?? row.type ?? "risk_record") as AiKnowledgeNodeType;
+      const safeType = ["permit", "task", "hazard", "control", "training", "incident", "observation", "corrective_action", "document", "risk_record"].includes(nodeType) ? nodeType : "risk_record";
+      nodes.push(fallbackNode({
+        index: index + 1,
+        selectedCompanyId,
+        fallbackSource: "cross_company_pattern",
+        title: genericPatternTitle(row, index + 1),
+        nodeType: safeType,
+        category: cleanFallbackText(row.category ?? safeType, 120),
+        description: genericPatternDescription(row),
+        riskLevel: normalizeRiskLevel(row.risk_level),
+        confidenceScore: Math.max(0.55, Math.min(0.86, Number(row.confidence_score ?? 0.68))),
+      }));
+    });
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : "Cross-company fallback patterns unavailable.");
+  }
+
+  const dedupedNodes = Array.from(new Map(nodes.map((node) => [`${node.title}:${node.category}:${node.nodeType}`, node])).values()).slice(0, 36);
+  const filteredNodes = filterNodes(dedupedNodes, filters);
+  const visibleIds = new Set(filteredNodes.map((node) => node.id).filter(Boolean));
+  const edges = fallbackEdgeIds(filteredNodes, generateKnowledgeRelationships(filteredNodes, { maxEdges: 90 }))
+    .filter((edge) => visibleIds.has(edge.sourceNodeId) && visibleIds.has(edge.targetNodeId))
+    .slice(0, 90);
+
+  return { nodes: filteredNodes, edges, warnings };
+}
+
 export async function getKnowledgeGraphPayload(client: DbClient | null, filters: AiKnowledgeMapFilters = {}): Promise<AiKnowledgeGraphPayload> {
   if (!client) return buildDemoKnowledgeGraph();
   const warnings: string[] = [];
@@ -694,12 +907,32 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     if (isMissingKnowledgeMapTable(nodeResult.error)) return buildDemoKnowledgeGraph();
     throw new Error(nodeResult.error.message ?? "Failed to load knowledge nodes.");
   }
-  let nodes = filterNodes((nodeResult.data ?? []).map(camelNode), filters);
+  const rawNodes = (nodeResult.data ?? []).map(camelNode);
+  let nodes = filterNodes(rawNodes, filters);
   const visibleNodeIds = new Set(nodes.map((node) => node.id).filter(Boolean));
   const edgeQuery = client.from("ai_knowledge_edges").select("*").limit(900);
   const edgeResult = (await (viewingAllCompanies ? edgeQuery : edgeQuery.eq("company_id", selectedCompanyId))) as QueryResult<Array<Record<string, unknown>>>;
   if (edgeResult.error) throw new Error(edgeResult.error.message ?? "Failed to load knowledge edges.");
-  let edges = (edgeResult.data ?? []).map(camelEdge).filter((edge) => visibleNodeIds.has(edge.sourceNodeId) && visibleNodeIds.has(edge.targetNodeId));
+  const rawEdges = (edgeResult.data ?? []).map(camelEdge);
+  let edges = rawEdges.filter((edge) => visibleNodeIds.has(edge.sourceNodeId) && visibleNodeIds.has(edge.targetNodeId));
+  const approvedCompanyNodeCount = viewingAllCompanies ? rawNodes.filter((node) => node.validationStatus === "approved").length : rawNodes.filter((node) => node.validationStatus === "approved" && node.companyId === selectedCompanyId).length;
+  const approvedCompanyEdgeCount = viewingAllCompanies ? rawEdges.filter((edge) => edge.validationStatus === "approved").length : rawEdges.filter((edge) => edge.validationStatus === "approved" && edge.companyId === selectedCompanyId).length;
+  let fallback = false;
+  let fallbackReason: string | null = null;
+  if (!viewingAllCompanies && (approvedCompanyNodeCount < FALLBACK_NODE_THRESHOLD || approvedCompanyEdgeCount < FALLBACK_EDGE_THRESHOLD)) {
+    const fallbackGraph = await buildFallbackKnowledgeGraph(client, selectedCompanyId, filters);
+    if (fallbackGraph.nodes.length > 0) {
+      const existingIds = new Set(nodes.map((node) => node.id).filter(Boolean));
+      const fallbackNodes = fallbackGraph.nodes.filter((node) => !existingIds.has(node.id));
+      const fallbackNodeIds = new Set(fallbackNodes.map((node) => node.id).filter(Boolean));
+      nodes = [...nodes, ...fallbackNodes];
+      edges = [...edges, ...fallbackGraph.edges.filter((edge) => fallbackNodeIds.has(edge.sourceNodeId) && fallbackNodeIds.has(edge.targetNodeId))];
+      fallback = true;
+      fallbackReason = FALLBACK_REASON;
+      warnings.push(FALLBACK_REASON);
+    }
+    warnings.push(...fallbackGraph.warnings.slice(0, 3));
+  }
   if (nodes.length > 500) {
     nodes = nodes.slice(0, 500);
     const sampledIds = new Set(nodes.map((node) => node.id).filter(Boolean));
@@ -726,6 +959,10 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     generatedAt: new Date().toISOString(),
     warnings,
     demo: false,
+    fallback,
+    fallbackReason,
+    companySpecificNodeCount: approvedCompanyNodeCount,
+    companySpecificEdgeCount: approvedCompanyEdgeCount,
   };
 }
 
