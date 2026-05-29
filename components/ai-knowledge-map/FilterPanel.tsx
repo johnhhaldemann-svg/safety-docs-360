@@ -79,6 +79,7 @@ function CompanySelect({ companies, value, onChange }: { companies: Array<{ id: 
     <label className="block">
       <span className="mb-1 block text-[11px] uppercase tracking-[0.12em] text-slate-500">Company</span>
       <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none">
+        <option value="all">All companies</option>
         {companies.map((company) => (
           <option key={company.id} value={company.id}>{company.name}</option>
         ))}
