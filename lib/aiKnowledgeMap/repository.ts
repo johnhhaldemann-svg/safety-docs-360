@@ -1,8 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requestAiEmbedding } from "@/lib/ai/embeddings";
 import { buildDemoKnowledgeGraph } from "@/lib/aiKnowledgeMap/demo";
+import {
+  assertActiveKnowledgeCompany,
+  assertAiKnowledgeCooldown,
+  assertAiKnowledgeWritesEnabled,
+  hasMeaningfulReviewReason,
+  isAiKnowledgeEmbeddingDisabled,
+  requireConcreteCompanyId,
+} from "@/lib/aiKnowledgeMap/guardrails";
 import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
+import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE } from "@/lib/aiKnowledgeMap/learningCheck";
+import { isLearningNodeVisibleOnMap, LEARNING_REVIEW_REQUIRED_BANNER } from "@/lib/aiKnowledgeMap/reviewGate";
 import type {
   AiKnowledgeEdge,
   AiKnowledgeGraphPayload,
@@ -21,7 +31,7 @@ import type {
 
 type DbClient = Pick<SupabaseClient, "from">;
 type DbError = { message?: string | null };
-type QueryResult<T> = { data: T | null; error: DbError | null };
+type QueryResult<T> = { data: T | null; error: DbError | null; count?: number | null };
 
 const SOURCE_TABLES = [
   "company_permits",
@@ -251,6 +261,35 @@ function filterNodes(nodes: AiKnowledgeNode[], filters: AiKnowledgeMapFilters) {
     if (!dateMatches(node, filters.dateRange)) return false;
     return true;
   });
+}
+
+async function countPendingLearningReview(client: DbClient, selectedCompanyId: string | null) {
+  try {
+    let batchQuery = client
+      .from("ai_knowledge_ingest_batches")
+      .select("id")
+      .eq("batch_type", AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (selectedCompanyId && selectedCompanyId !== ALL_COMPANIES_SCOPE) batchQuery = batchQuery.eq("company_id", selectedCompanyId);
+    const batchResult = (await batchQuery) as QueryResult<Array<Record<string, unknown>>>;
+    const batchIds = (batchResult.data ?? []).map((row) => String(row.id ?? "")).filter(Boolean);
+    if (batchResult.error || batchIds.length === 0) return { pendingLearningCandidateCount: 0, pendingLearningBatchCount: 0 };
+
+    let candidateQuery = client
+      .from("ai_knowledge_ingest_candidates")
+      .select("id", { count: "exact", head: true })
+      .eq("validation_status", "pending_review")
+      .in("batch_id", batchIds);
+    if (selectedCompanyId && selectedCompanyId !== ALL_COMPANIES_SCOPE) candidateQuery = candidateQuery.eq("company_id", selectedCompanyId);
+    const candidateResult = (await candidateQuery) as QueryResult<unknown>;
+    return {
+      pendingLearningCandidateCount: candidateResult.count ?? 0,
+      pendingLearningBatchCount: batchIds.length,
+    };
+  } catch {
+    return { pendingLearningCandidateCount: 0, pendingLearningBatchCount: 0 };
+  }
 }
 
 const CONTROL_RELATIONSHIPS = new Set(["hazard_mitigated_by_control", "required_control", "risk_reduced_by_control"]);
@@ -573,14 +612,15 @@ function countRowsByTable(rowsByTable: Map<string, AiKnowledgeSourceRow[]>) {
   return Object.fromEntries(Array.from(rowsByTable.entries()).map(([table, rows]) => [table, rows.length])) as Record<string, number>;
 }
 
-async function createIngestBatch(client: DbClient, input: { companyId: string; actorUserId?: string | null; sourceCounts: Record<string, number>; candidateCounts: Record<string, number>; warnings: string[] }) {
+async function createIngestBatch(client: DbClient, input: { companyId: string; actorUserId?: string | null; sourceCounts: Record<string, number>; candidateCounts: Record<string, number>; warnings: string[]; batchType?: string; metadata?: Record<string, unknown> }) {
   const { data, error } = (await client.from("ai_knowledge_ingest_batches").insert({
     company_id: input.companyId,
-    batch_type: "rebuild_index",
+    batch_type: input.batchType ?? "rebuild_index",
     status: "pending_review",
     source_counts: input.sourceCounts,
     candidate_counts: input.candidateCounts,
     warnings: input.warnings,
+    metadata: input.metadata ?? {},
     created_by: input.actorUserId ?? null,
     created_by_type: input.actorUserId ? "user" : "system",
   }).select("*").single()) as QueryResult<Record<string, unknown>>;
@@ -589,6 +629,12 @@ async function createIngestBatch(client: DbClient, input: { companyId: string; a
 }
 
 function nodeCandidateRow(batchId: string, node: AiKnowledgeNode) {
+  const evidence = [{
+    sourceTable: node.sourceTable,
+    sourceRecordId: node.sourceRecordId || node.sourceId,
+    label: node.title,
+    detail: node.semanticSummary || node.description || node.title,
+  }];
   return {
     batch_id: batchId,
     company_id: node.companyId,
@@ -599,11 +645,20 @@ function nodeCandidateRow(batchId: string, node: AiKnowledgeNode) {
     source_node_key: sourceKey(node.sourceTable, node.sourceId),
     title: node.title,
     semantic_summary: node.semanticSummary,
-    source_evidence: [],
+    source_evidence: evidence,
     proposed_payload: node,
     confidence_score: node.confidenceScore,
     validation_status: "pending_review",
-    metadata: { category: node.category, nodeType: node.nodeType, riskLevel: node.riskLevel },
+    metadata: {
+      category: node.category,
+      nodeType: node.nodeType,
+      riskLevel: node.riskLevel,
+      evidenceText: node.semanticSummary || node.description || node.title,
+      sourceEvidence: evidence,
+      requiresHumanReview: true,
+      trustedMemoryWrite: false,
+      doesNotProveCompliance: true,
+    },
     created_by_type: "system",
   };
 }
@@ -627,6 +682,10 @@ function edgeCandidateRow(batchId: string, companyId: string, edge: AiKnowledgeE
     metadata: {
       ...edge.metadata,
       evidenceText: edge.evidenceText ?? edge.metadata.evidenceText ?? null,
+      sourceEvidence,
+      requiresHumanReview: true,
+      trustedMemoryWrite: false,
+      doesNotProveCompliance: true,
       relationshipStatus: edge.relationshipStatus ?? edge.metadata.relationshipStatus ?? "suggested",
       signalKeys: Array.isArray(edge.metadata.signalKeys) ? edge.metadata.signalKeys : [],
     },
@@ -674,7 +733,7 @@ async function upsertVectorMemory(client: DbClient, params: { nodes: AiKnowledge
       error_message: null as string | null,
       indexed_at: new Date().toISOString(),
     };
-    if (params.generateEmbeddings && embeddingAttempts < params.maxEmbeddingAttempts) {
+    if (params.generateEmbeddings && !isAiKnowledgeEmbeddingDisabled() && embeddingAttempts < params.maxEmbeddingAttempts) {
       embeddingAttempts += 1;
       try {
         const embedding = await requestAiEmbedding({ input: retrievalText, surface: "superadmin.ai-knowledge-map.embedding" });
@@ -756,8 +815,11 @@ async function loadRelationshipFeedbackProfile(client: DbClient, companyId: stri
 }
 
 export async function rebuildKnowledgeIndex(client: DbClient, params: { companyId: string; actorUserId?: string | null; limitPerTable?: number; generateEmbeddings?: boolean; maxEmbeddingAttempts?: number }): Promise<AiKnowledgeRebuildResult> {
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map rebuild");
+  const companyId = await assertActiveKnowledgeCompany(client, requireConcreteCompanyId(params.companyId));
+  await assertAiKnowledgeCooldown(client, { companyId, eventType: "knowledge_candidates_created", cooldownMinutes: 10, action: "AI Knowledge Map rebuild" });
   const generatedAt = new Date().toISOString();
-  const { rowsByTable, warnings } = await fetchSourceRows(client, params.companyId, params.limitPerTable ?? 80);
+  const { rowsByTable, warnings } = await fetchSourceRows(client, companyId, params.limitPerTable ?? 80);
   const normalizedNodes = Array.from(rowsByTable.entries()).flatMap(([table, rows]) => normalizeSourceRowsToKnowledgeNodes(table, rows));
   const feedback = await loadRelationshipFeedbackProfile(client, params.companyId);
   const relationshipCandidates = generateKnowledgeRelationships(normalizedNodes, { feedback });
@@ -767,7 +829,7 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
     failedSources: warnings.length,
   };
   const batch = await createIngestBatch(client, {
-    companyId: params.companyId,
+    companyId,
     actorUserId: params.actorUserId,
     sourceCounts: countRowsByTable(rowsByTable),
     candidateCounts,
@@ -775,10 +837,10 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
   });
   const candidates = await insertCandidates(client, [
     ...normalizedNodes.map((node) => nodeCandidateRow(batch.id, node)),
-    ...relationshipCandidates.map((edge) => edgeCandidateRow(batch.id, params.companyId, edge)),
+    ...relationshipCandidates.map((edge) => edgeCandidateRow(batch.id, companyId, edge)),
     ...warnings.map((warning) => ({
       batch_id: batch.id,
-      company_id: params.companyId,
+      company_id: companyId,
       candidate_type: "failed_source",
       title: "Failed source table match",
       reason: warning,
@@ -791,7 +853,7 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
     })),
   ]);
   await logEngineEvent(client, {
-    companyId: params.companyId,
+    companyId,
     eventType: "knowledge_candidates_created",
     description: `AI Knowledge Map created ${candidates.length} review candidates. Trusted graph memory was not changed.`,
     metadata: { batchId: batch.id, candidateCounts, generateEmbeddings: Boolean(params.generateEmbeddings) },
@@ -799,7 +861,7 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
   }).catch(() => undefined);
   return {
     ok: true,
-    companyId: params.companyId,
+    companyId,
     batchId: batch.id,
     insertedOrUpdatedNodes: 0,
     insertedOrUpdatedEdges: 0,
@@ -815,13 +877,32 @@ export async function rebuildKnowledgeIndex(client: DbClient, params: { companyI
 }
 
 export async function recalculateKnowledgeRelationships(client: DbClient, params: { companyId: string; actorUserId?: string | null }) {
-  const { data, error } = (await client.from("ai_knowledge_nodes").select("*").eq("company_id", params.companyId).limit(500)) as QueryResult<Array<Record<string, unknown>>>;
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map relationship recalculation");
+  const companyId = await assertActiveKnowledgeCompany(client, requireConcreteCompanyId(params.companyId));
+  await assertAiKnowledgeCooldown(client, { companyId, eventType: "knowledge_relationship_candidates_created", cooldownMinutes: 10, action: "AI Knowledge Map relationship recalculation" });
+  const { data, error } = (await client.from("ai_knowledge_nodes").select("*").eq("company_id", companyId).limit(500)) as QueryResult<Array<Record<string, unknown>>>;
   if (error) throw new Error(error.message ?? "Failed to load knowledge nodes.");
   const nodes = (data ?? []).map(camelNode);
   const feedback = await loadRelationshipFeedbackProfile(client, params.companyId);
-  const edges = await upsertEdges(client, generateKnowledgeRelationships(nodes, { feedback }), nodes);
-  await logEngineEvent(client, { companyId: params.companyId, eventType: "knowledge_relationships_recalculated", description: `AI Knowledge Map recalculated ${edges.length} relationships.`, metadata: { edgeCount: edges.length }, createdBy: params.actorUserId }).catch(() => undefined);
-  return { ok: true, companyId: params.companyId, insertedOrUpdatedEdges: edges.length, generatedAt: new Date().toISOString() };
+  const relationshipCandidates = generateKnowledgeRelationships(nodes, { feedback });
+  const batch = await createIngestBatch(client, {
+    companyId,
+    actorUserId: params.actorUserId,
+    sourceCounts: { approvedNodes: nodes.length },
+    candidateCounts: { edges: relationshipCandidates.length },
+    warnings: [],
+    batchType: "relationship_recalculation",
+    metadata: { trustedMemoryWrite: false, requiresHumanReview: true },
+  });
+  const candidates = await insertCandidates(client, relationshipCandidates.map((edge) => edgeCandidateRow(batch.id, companyId, edge)));
+  await logEngineEvent(client, {
+    companyId,
+    eventType: "knowledge_relationship_candidates_created",
+    description: `AI Knowledge Map recalculated ${candidates.length} relationship candidates for Human Review. Trusted graph memory was not changed.`,
+    metadata: { batchId: batch.id, candidateEdges: candidates.length, trustedMemoryWrite: false, requiresHumanReview: true },
+    createdBy: params.actorUserId,
+  }).catch(() => undefined);
+  return { ok: true, companyId, batchId: batch.id, insertedOrUpdatedEdges: 0, candidateEdges: candidates.length, reviewRequiredCount: candidates.length, generatedAt: new Date().toISOString() };
 }
 
 async function recalculateGraphRiskFromRelationships(client: DbClient, companyId: string | null, actorUserId?: string | null) {
@@ -891,8 +972,14 @@ function summarizeGroupRisk(nodes: AiKnowledgeNode[], field: "project" | "trade"
 }
 
 export async function updateKnowledgeRelationshipValidation(client: DbClient, params: { edgeId: string; status: Exclude<AiKnowledgeValidationStatus, "pending_review" | "needs_review" | "unreviewed">; reason: string; actorUserId: string }) {
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map relationship review");
+  if ((params.status === "rejected" || params.status === "incorrect") && !hasMeaningfulReviewReason(params.reason)) {
+    throw new Error("Rejecting or marking incorrect requires a meaningful review reason.");
+  }
   const previous = (await client.from("ai_knowledge_edges").select("*").eq("id", params.edgeId).single()) as QueryResult<Record<string, unknown>>;
   const previousStatus = previous.data ? String(previous.data.validation_status ?? "unreviewed") : null;
+  if (previousStatus === "approved" && params.status !== "approved") throw new Error("Approved relationships require an explicit rollback flow before changing trust status.");
+  if ((previousStatus === "rejected" || previousStatus === "incorrect") && params.status !== previousStatus) throw new Error("Rejected or incorrect relationships require a deliberate reopen flow before another review.");
   const previousEdge = previous.data ? camelEdge(previous.data) : null;
   const reviewedAt = new Date().toISOString();
   const reviewStatus = params.status === "approved" ? "human_approved" : "rejected";
@@ -963,6 +1050,57 @@ function candidateEdgePayload(candidate: AiKnowledgeIngestCandidate): AiKnowledg
   return payload as unknown as AiKnowledgeEdge;
 }
 
+function candidateRiskLevel(candidate: AiKnowledgeIngestCandidate) {
+  const payloadRisk = typeof candidate.proposedPayload.riskLevel === "string" ? candidate.proposedPayload.riskLevel : null;
+  const metadataRisk = typeof candidate.metadata.riskLevel === "string" ? candidate.metadata.riskLevel : null;
+  return String(payloadRisk ?? metadataRisk ?? "unknown").toLowerCase();
+}
+
+function candidateRequiresSecondApproval(candidate: AiKnowledgeIngestCandidate) {
+  return candidateRiskLevel(candidate) === "critical";
+}
+
+function evidenceEntries(candidate: AiKnowledgeIngestCandidate) {
+  const metadataEvidence = Array.isArray(candidate.metadata.sourceEvidence) ? candidate.metadata.sourceEvidence as unknown[] : [];
+  return candidate.sourceEvidence.length > 0 ? candidate.sourceEvidence : metadataEvidence;
+}
+
+function hasTrustedPromotionEvidence(candidate: AiKnowledgeIngestCandidate) {
+  const evidence = evidenceEntries(candidate);
+  const sourceTable = candidate.sourceTable || (typeof candidate.proposedPayload.sourceTable === "string" ? candidate.proposedPayload.sourceTable : null);
+  const sourceId = candidate.sourceId || (typeof candidate.proposedPayload.sourceId === "string" ? candidate.proposedPayload.sourceId : null);
+  const evidenceText = typeof candidate.metadata.evidenceText === "string" ? candidate.metadata.evidenceText : candidate.semanticSummary;
+  return Boolean(
+    sourceTable
+    && sourceId
+    && candidate.title
+    && candidate.reason
+    && evidenceText
+    && evidence.some((item) => {
+      const entry = item as Record<string, unknown>;
+      return typeof entry.sourceTable === "string"
+        && typeof entry.sourceRecordId === "string"
+        && typeof entry.label === "string"
+        && typeof entry.detail === "string"
+        && entry.detail.trim().length > 0;
+    }),
+  );
+}
+
+function assertCandidateReviewAllowed(candidate: AiKnowledgeIngestCandidate, params: { status: "approved" | "rejected" | "incorrect"; reason: string; actorUserId: string }) {
+  if (candidate.validationStatus === "failed" && params.status === "approved") throw new Error("Failed source candidates cannot be approved.");
+  if (candidate.validationStatus === "promoted") throw new Error("Promoted candidates cannot be reviewed again.");
+  if ((candidate.validationStatus === "rejected" || candidate.validationStatus === "incorrect") && params.status !== candidate.validationStatus) {
+    throw new Error("Rejected or incorrect candidates require a deliberate reopen flow before another review.");
+  }
+  if ((params.status === "rejected" || params.status === "incorrect") && !hasMeaningfulReviewReason(params.reason)) {
+    throw new Error("Rejecting or marking incorrect requires a meaningful review reason.");
+  }
+  if (params.status === "approved" && candidate.validationStatus === "approved" && candidate.reviewedBy === params.actorUserId && candidateRequiresSecondApproval(candidate)) {
+    throw new Error("Critical-risk memory requires a second Super Admin approval by a different reviewer.");
+  }
+}
+
 async function promoteNodeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
   const node = candidateNodePayload(candidate);
   if (!node) throw new Error("Candidate does not contain a valid node payload.");
@@ -995,32 +1133,33 @@ async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeInge
 
 async function promoteCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
   if (candidate.validationStatus === "promoted") return { nodeId: candidate.promotedNodeId, edgeId: candidate.promotedEdgeId };
+  if (!hasTrustedPromotionEvidence(candidate)) throw new Error("Candidate needs evidence text, source table, source ID, source label, and a human-readable reason before promotion.");
   if (candidate.candidateType === "node") return promoteNodeCandidate(client, candidate);
   if (candidate.candidateType === "edge") return promoteEdgeCandidate(client, candidate);
   throw new Error("Failed source candidates cannot be promoted.");
 }
 
-export async function reviewKnowledgeIngestCandidates(client: DbClient, params: { candidateIds: string[]; status: Exclude<AiKnowledgeCandidateStatus, "pending_review" | "failed">; reason: string; actorUserId: string; promoteApproved?: boolean }) {
+export async function reviewKnowledgeIngestCandidates(client: DbClient, params: { candidateIds: string[]; status: "approved" | "rejected" | "incorrect"; reason: string; actorUserId: string; promoteApproved?: boolean }) {
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map candidate review");
   const reviewedAt = new Date().toISOString();
   const results: AiKnowledgeIngestCandidate[] = [];
   const errors: Array<{ candidateId: string; error: string }> = [];
   for (const candidateId of params.candidateIds) {
     try {
       const loaded = await getKnowledgeIngestCandidate(client, candidateId);
+      const previousStatus = loaded.candidate.validationStatus;
+      assertCandidateReviewAllowed(loaded.candidate, params);
       let candidate = loaded.candidate;
-      const { data, error } = (await client.from("ai_knowledge_ingest_candidates").update({
-        validation_status: params.status,
-        review_note: params.reason,
-        reviewed_by: params.actorUserId,
-        reviewed_at: reviewedAt,
-      }).eq("id", candidateId).select("*").single()) as QueryResult<Record<string, unknown>>;
-      if (error) throw new Error(error.message ?? "Failed to update candidate review status.");
-      candidate = camelCandidate(data ?? {});
-      if (params.status === "approved" && params.promoteApproved !== false) {
-        const promoted = await promoteCandidate(client, candidate);
+      const needsSecondReview = candidateRequiresSecondApproval(candidate);
+      const firstCriticalApproval = params.status === "approved" && params.promoteApproved !== false && needsSecondReview && candidate.validationStatus !== "approved";
+      if (params.status === "approved" && params.promoteApproved !== false && !firstCriticalApproval) {
+        const promoted = await promoteCandidate(client, { ...candidate, validationStatus: "approved", reviewedBy: params.actorUserId, reviewedAt, reviewNote: params.reason });
         const promotedAt = new Date().toISOString();
         const update = await client.from("ai_knowledge_ingest_candidates").update({
           validation_status: "promoted",
+          review_note: params.reason,
+          reviewed_by: params.actorUserId,
+          reviewed_at: reviewedAt,
           promoted_node_id: promoted.nodeId,
           promoted_edge_id: promoted.edgeId,
           promoted_at: promotedAt,
@@ -1043,10 +1182,20 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
         }).catch(() => undefined);
         if (candidate.candidateType === "edge") await recalculateGraphRiskFromRelationships(client, candidate.companyId, params.actorUserId).catch(() => undefined);
       } else {
+        const { data, error } = (await client.from("ai_knowledge_ingest_candidates").update({
+          validation_status: params.status,
+          review_note: params.reason,
+          reviewed_by: params.actorUserId,
+          reviewed_at: reviewedAt,
+        }).eq("id", candidateId).select("*").single()) as QueryResult<Record<string, unknown>>;
+        if (error) throw new Error(error.message ?? "Failed to update candidate review status.");
+        candidate = camelCandidate(data ?? {});
         await logEngineEvent(client, {
           companyId: candidate.companyId,
           eventType: "knowledge_candidate_reviewed",
-          description: `AI Knowledge candidate ${candidate.id} was marked ${params.status}.`,
+          description: firstCriticalApproval
+            ? `AI Knowledge candidate ${candidate.id} received first critical-risk approval and still requires a second Super Admin approval.`
+            : `AI Knowledge candidate ${candidate.id} was marked ${params.status}.`,
           metadata: {
             candidateType: candidate.candidateType,
             reason: params.reason,
@@ -1054,7 +1203,7 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
             signalKeys: Array.isArray(candidate.metadata.signalKeys) ? candidate.metadata.signalKeys : [],
             learningImpact: candidate.candidateType === "edge" && (params.status === "rejected" || params.status === "incorrect")
               ? "Rejected relationship candidates reduce future confidence for similar signals."
-              : undefined,
+              : firstCriticalApproval ? "Critical-risk memory is not trusted until a second Super Admin approval promotes it." : undefined,
           },
           createdBy: params.actorUserId,
         }).catch(() => undefined);
@@ -1067,7 +1216,7 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
             company_id: candidate.companyId,
             validation_action: params.status === "approved" ? "approve_candidate" : params.status === "incorrect" ? "mark_candidate_incorrect" : "reject_candidate",
             validation_note: params.reason,
-            previous_status: "pending_review",
+            previous_status: previousStatus,
             new_status: params.status,
             validation_status: params.status,
             reason: params.reason,
@@ -1091,12 +1240,48 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
 }
 
 export async function promoteApprovedKnowledgeCandidates(client: DbClient, params: { companyId?: string | null; batchId?: string | null; actorUserId: string; limit?: number }) {
-  const listed = await listKnowledgeIngestCandidates(client, { companyId: params.companyId, batchId: params.batchId, status: "approved", limit: params.limit ?? 100 });
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map approved candidate promotion");
+  const companyId = params.companyId ? await assertActiveKnowledgeCompany(client, requireConcreteCompanyId(params.companyId)) : params.companyId;
+  const listed = await listKnowledgeIngestCandidates(client, { companyId, batchId: params.batchId, status: "approved", limit: params.limit ?? 100 });
   const nodeIds = listed.candidates.filter((candidate) => candidate.candidateType === "node").map((candidate) => candidate.id);
   const edgeIds = listed.candidates.filter((candidate) => candidate.candidateType === "edge").map((candidate) => candidate.id);
   const first = await reviewKnowledgeIngestCandidates(client, { candidateIds: nodeIds, status: "approved", reason: "Promoted approved node candidate to trusted graph memory.", actorUserId: params.actorUserId, promoteApproved: true });
   const second = await reviewKnowledgeIngestCandidates(client, { candidateIds: edgeIds, status: "approved", reason: "Promoted approved relationship candidate to trusted graph memory.", actorUserId: params.actorUserId, promoteApproved: true });
   return { ok: first.ok && second.ok, promoted: [...first.reviewed, ...second.reviewed], errors: [...first.errors, ...second.errors] };
+}
+
+export async function archiveTrustedKnowledgeMemory(client: DbClient, params: { targetType: "node" | "edge"; targetId: string; reason: string; actorUserId: string }) {
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map trusted memory rollback");
+  if (!hasMeaningfulReviewReason(params.reason)) throw new Error("Archiving trusted memory requires a meaningful reason.");
+  const table = params.targetType === "edge" ? "ai_knowledge_edges" : "ai_knowledge_nodes";
+  const previous = (await client.from(table).select("*").eq("id", params.targetId).single()) as QueryResult<Record<string, unknown>>;
+  if (previous.error || !previous.data) throw new Error(previous.error?.message ?? "Trusted memory item was not found.");
+  const metadata = previous.data.metadata && typeof previous.data.metadata === "object" && !Array.isArray(previous.data.metadata)
+    ? previous.data.metadata as Record<string, unknown>
+    : {};
+  const archivedAt = new Date().toISOString();
+  const patch: Record<string, unknown> = {
+    validation_status: "rejected",
+    metadata: {
+      ...metadata,
+      archivedFromTrustedMemory: true,
+      archivedAt,
+      archiveReason: params.reason,
+      archivedBy: params.actorUserId,
+    },
+  };
+  if (params.targetType === "edge") patch.status = "rejected";
+  const { data, error } = (await client.from(table).update(patch).eq("id", params.targetId).select("*").single()) as QueryResult<Record<string, unknown>>;
+  if (error) throw new Error(error.message ?? "Failed to archive trusted AI memory.");
+  const companyId = typeof data?.company_id === "string" ? data.company_id : null;
+  await logEngineEvent(client, {
+    companyId,
+    eventType: "trusted_memory_archived",
+    description: `Super Admin archived AI Knowledge ${params.targetType} trusted memory.`,
+    metadata: { targetType: params.targetType, targetId: params.targetId, reason: params.reason },
+    createdBy: params.actorUserId,
+  }).catch(() => undefined);
+  return { ok: true, targetType: params.targetType, targetId: params.targetId, archivedAt };
 }
 
 export async function buildFallbackKnowledgeGraph(client: DbClient, selectedCompanyId: string, filters: AiKnowledgeMapFilters = {}) {
@@ -1298,7 +1483,8 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     throw new Error(nodeResult.error.message ?? "Failed to load knowledge nodes.");
   }
   const rawNodes = (nodeResult.data ?? []).map(camelNode);
-  const displayableRawNodes = rawNodes.filter((node) => node.nodeType !== "document" || node.validationStatus === "approved");
+  const learningReview = await countPendingLearningReview(client, selectedCompanyId);
+  const displayableRawNodes = rawNodes.filter((node) => isLearningNodeVisibleOnMap(node) && (node.nodeType !== "document" || node.validationStatus === "approved"));
   let nodes = filterNodes(displayableRawNodes, filters);
   const visibleNodeIds = new Set(nodes.map((node) => node.id).filter(Boolean));
   const edgeQuery = client.from("ai_knowledge_edges").select("*").limit(900);
@@ -1370,6 +1556,9 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
       warnings.push(`${viewingAllCompanies ? "These companies have" : "This company has"} ${sourceCount} source safety records, but no AI Knowledge Map index yet. Select one company and click Rebuild index to create live nodes and relationships.`);
     }
   }
+  if (learningReview.pendingLearningCandidateCount > 0) {
+    warnings.push(`${LEARNING_REVIEW_REQUIRED_BANNER} ${learningReview.pendingLearningCandidateCount} learned item${learningReview.pendingLearningCandidateCount === 1 ? "" : "s"} waiting.`);
+  }
   warnings.push(...detectKnowledgeGraphHealth(nodes, edges).warnings);
   const validationQueue = edges.filter((edge) => edge.validationStatus !== "approved" || edge.confidenceScore < 0.55).sort((left, right) => left.confidenceScore - right.confidenceScore).slice(0, 30);
   return {
@@ -1388,6 +1577,8 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     companySpecificEdgeCount: approvedCompanyEdgeCount,
     companyDocumentNodeCount,
     sharedLibraryNodeCount: nodes.filter((node) => node.metadata.sharedLibrary === true).length,
+    pendingLearningCandidateCount: learningReview.pendingLearningCandidateCount,
+    pendingLearningBatchCount: learningReview.pendingLearningBatchCount,
   };
 }
 

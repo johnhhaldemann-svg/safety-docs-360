@@ -172,6 +172,8 @@ export type AiKnowledgeGraphPayload = {
   companySpecificEdgeCount?: number;
   companyDocumentNodeCount?: number;
   sharedLibraryNodeCount?: number;
+  pendingLearningCandidateCount?: number;
+  pendingLearningBatchCount?: number;
 };
 
 export type AiKnowledgeMapFilters = {

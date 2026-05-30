@@ -49,6 +49,8 @@ const EMPTY_GRAPH: AiKnowledgeGraphPayload = {
   companySpecificEdgeCount: 0,
   companyDocumentNodeCount: 0,
   sharedLibraryNodeCount: 0,
+  pendingLearningCandidateCount: 0,
+  pendingLearningBatchCount: 0,
 };
 
 export function KnowledgeMapPage() {
@@ -105,6 +107,8 @@ export function KnowledgeMapPage() {
         companySpecificEdgeCount: edgesBody?.companySpecificEdgeCount ?? summaryBody?.companySpecificEdgeCount ?? 0,
         companyDocumentNodeCount: nodesBody?.companyDocumentNodeCount ?? summaryBody?.companyDocumentNodeCount ?? 0,
         sharedLibraryNodeCount: nodesBody?.sharedLibraryNodeCount ?? summaryBody?.sharedLibraryNodeCount ?? 0,
+        pendingLearningCandidateCount: nodesBody?.pendingLearningCandidateCount ?? summaryBody?.pendingLearningCandidateCount ?? 0,
+        pendingLearningBatchCount: nodesBody?.pendingLearningBatchCount ?? summaryBody?.pendingLearningBatchCount ?? 0,
       };
       setGraph(payload);
       setFilters((current) => ({ ...current, companyId: payload.selectedCompanyId ?? current.companyId }));
@@ -222,13 +226,20 @@ export function KnowledgeMapPage() {
       setMessage("Demo relationships show the validation flow. Rebuild a live company index to save review decisions.");
       return;
     }
+    const reason = status === "approved"
+      ? `Super Admin reviewed ${edge.relationshipType} in AI Knowledge Map.`
+      : window.prompt(`Enter the reason this relationship is ${status}:`, "")?.trim();
+    if (!reason) {
+      setError(`${status === "incorrect" ? "Incorrect" : "Reject"} review requires a reason.`);
+      return;
+    }
     setWorking(`Mark ${status}`);
     setError(null);
     try {
       const response = await fetch("/api/ai-knowledge-map/validate-relationship", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ edgeId: edge.id, status, reason: `Super Admin reviewed ${edge.relationshipType} in AI Knowledge Map.` }),
+        body: JSON.stringify({ edgeId: edge.id, status, reason }),
       });
       const body = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(body?.error ?? "Validation update failed.");
@@ -305,6 +316,7 @@ export function KnowledgeMapPage() {
             {error ? <Banner tone="red" text={error} /> : null}
             {graph.demo ? <Banner tone="amber" text="Demo mode is showing safe sample records. Rebuild a live company index to use live safety records." /> : null}
             {graph.fallback ? <Banner tone="amber" text={graph.fallbackReason ?? "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data."} /> : null}
+            {(graph.pendingLearningCandidateCount ?? 0) > 0 ? <Banner tone="amber" text={`AI learned new information. Human Review required before it enters the map. ${graph.pendingLearningCandidateCount} learned item${graph.pendingLearningCandidateCount === 1 ? "" : "s"} waiting.`} /> : null}
             {(graph.sharedLibraryNodeCount ?? 0) > 0 ? <Banner tone="green" text={`Knowledge Library layer active: ${graph.sharedLibraryNodeCount} approved shared document guidance node${graph.sharedLibraryNodeCount === 1 ? "" : "s"} visible with ${graph.companyDocumentNodeCount ?? 0} approved company document node${(graph.companyDocumentNodeCount ?? 0) === 1 ? "" : "s"}.`} /> : null}
             {graph.warnings.slice(0, 2).map((warning) => <Banner key={warning} tone="amber" text={warning} />)}
           </div>
