@@ -18,12 +18,16 @@ export type Jobsite = {
   id: string;
   name: string;
   status?: string | null;
+  audit_customer_id?: string | null;
+  audit_customer_location_id?: string | null;
   customer_company_name?: string | null;
+  customer_report_email?: string | null;
 };
 
 export type MobileCompany = {
   id: string;
   name: string;
+  auditCustomerId?: string | null;
   jobsites: Jobsite[];
 };
 
