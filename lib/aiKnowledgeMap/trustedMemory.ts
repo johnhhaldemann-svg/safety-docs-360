@@ -1,9 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildFallbackKnowledgeGraph } from "@/lib/aiKnowledgeMap/repository";
-import type { AiKnowledgeEvidence, AiKnowledgeNodeType, AiKnowledgeRiskLevel, TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
+import type {
+  AiKnowledgeEvidence,
+  AiKnowledgeNodeType,
+  AiKnowledgeRiskLevel,
+  TrustedKnowledgeGraphMemoryItem,
+  TrustedKnowledgeGraphMemoryMethod,
+} from "@/lib/aiKnowledgeMap/types";
+import { requestAiEmbedding } from "@/lib/ai/embeddings";
 
-type DbClient = Pick<SupabaseClient, "from">;
+type DbClient = Pick<SupabaseClient, "from"> & Partial<Pick<SupabaseClient, "rpc">>;
 type QueryResult<T> = { data: T | null; error: { message?: string | null } | null };
+type TrustedKnowledgeGraphMemoryResult = {
+  items: TrustedKnowledgeGraphMemoryItem[];
+  method: TrustedKnowledgeGraphMemoryMethod;
+  warnings: string[];
+};
 
 function clean(value: unknown, max = 700) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -33,33 +45,21 @@ function excerpt(row: Record<string, unknown>, reasons: string[]) {
   return clean(`${base} Related approved graph reasons: ${reasons.slice(0, 3).join(" ")}`, 900);
 }
 
-export async function retrieveTrustedKnowledgeGraphMemory(
-  client: DbClient | null,
-  params: { companyId: string; query: string; projectId?: string | null; jobsiteId?: string | null; topK?: number }
-): Promise<{ items: TrustedKnowledgeGraphMemoryItem[]; method: "approved_graph_keyword" | "approved_graph_with_fallback" | "none"; warnings: string[] }> {
-  if (!client || !params.companyId || !params.query.trim()) return { items: [], method: "none", warnings: [] };
-  const limit = Math.min(Math.max(params.topK ?? 6, 1), 12);
-  const qTokens = tokens(params.query);
+function isUuid(value: string | null | undefined) {
+  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
+}
 
-  let nodeQuery = client
-    .from("ai_knowledge_nodes")
-    .select("*")
-    .eq("company_id", params.companyId)
-    .eq("validation_status", "approved")
-    .limit(160);
-  if (params.projectId) nodeQuery = nodeQuery.eq("project_id", params.projectId);
-  if (params.jobsiteId) nodeQuery = nodeQuery.eq("jobsite_id", params.jobsiteId);
+function evidenceFromEdge(edge: Record<string, unknown>): AiKnowledgeEvidence[] {
+  if (Array.isArray(edge.source_evidence)) return edge.source_evidence as AiKnowledgeEvidence[];
+  return [];
+}
 
-  const { data: nodeRows, error: nodeError } = (await nodeQuery) as QueryResult<Array<Record<string, unknown>>>;
-  if (nodeError) return { items: [], method: "none", warnings: [nodeError.message ?? "Approved graph nodes unavailable."] };
-
-  const selectedNodes = (nodeRows ?? []).filter((row) => matches(row, qTokens)).slice(0, limit);
-
-  const nodeIds = selectedNodes.map((row) => String(row.id ?? "")).filter(Boolean);
+async function loadApprovedEdges(client: DbClient, companyId: string, nodeIds: string[]) {
+  if (nodeIds.length === 0) return new Map<string, Array<Record<string, unknown>>>();
   const { data: edgeRows } = (await client
     .from("ai_knowledge_edges")
     .select("*")
-    .eq("company_id", params.companyId)
+    .eq("company_id", companyId)
     .eq("validation_status", "approved")
     .in("source_node_id", nodeIds)
     .limit(80)) as QueryResult<Array<Record<string, unknown>>>;
@@ -70,44 +70,115 @@ export async function retrieveTrustedKnowledgeGraphMemory(
     if (!id) continue;
     edgesBySource.set(id, [...(edgesBySource.get(id) ?? []), edge]);
   }
+  return edgesBySource;
+}
 
-  let memoryRows: Array<Record<string, unknown>> = [];
-  if (nodeIds.length > 0) {
-    const memoryResult = (await client
-      .from("ai_vector_memory")
-      .select("node_id,status")
-      .eq("company_id", params.companyId)
-      .in("node_id", nodeIds)
-      .in("status", ["indexed", "fallback"])
-      .limit(nodeIds.length)) as QueryResult<Array<Record<string, unknown>>>;
-    memoryRows = memoryResult.data ?? [];
-  }
-  const trustedMemoryNodeIds = new Set((memoryRows ?? []).map((row) => String(row.node_id ?? "")).filter(Boolean));
+function rowsToItems(rows: Array<Record<string, unknown>>, edgesBySource: Map<string, Array<Record<string, unknown>>>) {
+  return rows.map((row): TrustedKnowledgeGraphMemoryItem => {
+    const nodeId = String(row.id ?? "");
+    const edges = edgesBySource.get(nodeId) ?? [];
+    const relationshipReasons = edges.map((edge) => clean(edge.reason, 220)).filter(Boolean);
+    return {
+      id: `graph:${nodeId}`,
+      nodeId,
+      companyId: typeof row.company_id === "string" ? row.company_id : null,
+      title: clean(row.title, 180) || "Approved graph memory",
+      excerpt: excerpt(row, relationshipReasons),
+      sourceTable: String(row.source_table ?? ""),
+      sourceId: String(row.source_id ?? ""),
+      category: String(row.category ?? "Knowledge Graph"),
+      nodeType: String(row.node_type ?? row.type ?? "document") as AiKnowledgeNodeType,
+      riskLevel: String(row.risk_level ?? "unknown") as AiKnowledgeRiskLevel,
+      confidenceScore: Number(row.confidence_score ?? 0.72),
+      relationshipReasons,
+      evidence: edges.flatMap(evidenceFromEdge).slice(0, 6),
+      similarity: typeof row.similarity === "number" ? row.similarity : null,
+    };
+  });
+}
 
-  const items = selectedNodes
-    .filter((row) => trustedMemoryNodeIds.has(String(row.id ?? "")))
-    .map((row): TrustedKnowledgeGraphMemoryItem => {
-      const nodeId = String(row.id ?? "");
-      const edges = edgesBySource.get(nodeId) ?? [];
-      const relationshipReasons = edges.map((edge) => clean(edge.reason, 220)).filter(Boolean);
-      return {
-        id: `graph:${nodeId}`,
-        nodeId,
-        companyId: typeof row.company_id === "string" ? row.company_id : null,
-        title: clean(row.title, 180) || "Approved graph memory",
-        excerpt: excerpt(row, relationshipReasons),
-        sourceTable: String(row.source_table ?? ""),
-        sourceId: String(row.source_id ?? ""),
-        category: String(row.category ?? "Knowledge Graph"),
-        nodeType: String(row.node_type ?? row.type ?? "document") as AiKnowledgeNodeType,
-        riskLevel: String(row.risk_level ?? "unknown") as AiKnowledgeRiskLevel,
-        confidenceScore: Number(row.confidence_score ?? 0.72),
-        relationshipReasons,
-        evidence: edges.flatMap((edge) => Array.isArray(edge.source_evidence) ? edge.source_evidence as AiKnowledgeEvidence[] : []).slice(0, 6),
-      };
+async function retrieveSemanticRows(client: DbClient, params: { companyId: string; query: string; projectId?: string | null; jobsiteId?: string | null; limit: number }) {
+  if (!client.rpc) return { rows: [], warning: null as string | null };
+  if (!isUuid(params.companyId)) return { rows: [], warning: null as string | null };
+  if (params.projectId && !isUuid(params.projectId)) return { rows: [], warning: "Approved graph semantic search skipped because project scope is not a UUID." };
+  if (params.jobsiteId && !isUuid(params.jobsiteId)) return { rows: [], warning: "Approved graph semantic search skipped because jobsite scope is not a UUID." };
+
+  try {
+    const embedding = await requestAiEmbedding({
+      input: params.query,
+      surface: "trusted-knowledge-graph.retrieval",
     });
+    const result = (await client.rpc("match_ai_knowledge_graph_memory", {
+      p_company_id: params.companyId,
+      p_project_id: params.projectId ?? null,
+      p_jobsite_id: params.jobsiteId ?? null,
+      p_query_embedding: embedding.embedding,
+      p_match_count: params.limit,
+    })) as QueryResult<Array<Record<string, unknown>>>;
+    if (result.error) return { rows: [], warning: result.error.message ?? "Approved graph semantic search unavailable." };
+    return { rows: result.data ?? [], warning: null };
+  } catch (error) {
+    return {
+      rows: [],
+      warning: error instanceof Error ? `Approved graph semantic search unavailable: ${error.message}` : "Approved graph semantic search unavailable.",
+    };
+  }
+}
 
+async function retrieveKeywordRows(client: DbClient, params: { companyId: string; query: string; projectId?: string | null; jobsiteId?: string | null; limit: number }) {
+  const qTokens = tokens(params.query);
+  let nodeQuery = client
+    .from("ai_knowledge_nodes")
+    .select("*")
+    .eq("company_id", params.companyId)
+    .eq("validation_status", "approved")
+    .limit(160);
+  if (params.projectId) nodeQuery = nodeQuery.eq("project_id", params.projectId);
+  if (params.jobsiteId) nodeQuery = nodeQuery.eq("jobsite_id", params.jobsiteId);
+
+  const { data: nodeRows, error: nodeError } = (await nodeQuery) as QueryResult<Array<Record<string, unknown>>>;
+  if (nodeError) return { rows: [], warning: nodeError.message ?? "Approved graph nodes unavailable." };
+
+  const selectedNodes = (nodeRows ?? []).filter((row) => matches(row, qTokens)).slice(0, params.limit);
+  const nodeIds = selectedNodes.map((row) => String(row.id ?? "")).filter(Boolean);
+  if (nodeIds.length === 0) return { rows: [], warning: null };
+
+  const memoryResult = (await client
+    .from("ai_vector_memory")
+    .select("node_id,status")
+    .eq("company_id", params.companyId)
+    .in("node_id", nodeIds)
+    .in("status", ["indexed", "fallback"])
+    .limit(nodeIds.length)) as QueryResult<Array<Record<string, unknown>>>;
+  if (memoryResult.error) return { rows: [], warning: memoryResult.error.message ?? "Approved graph vector memory unavailable." };
+
+  const trustedMemoryNodeIds = new Set((memoryResult.data ?? []).map((row) => String(row.node_id ?? "")).filter(Boolean));
+  return { rows: selectedNodes.filter((row) => trustedMemoryNodeIds.has(String(row.id ?? ""))), warning: null };
+}
+
+export async function retrieveTrustedKnowledgeGraphMemory(
+  client: DbClient | null,
+  params: { companyId: string; query: string; projectId?: string | null; jobsiteId?: string | null; topK?: number }
+): Promise<TrustedKnowledgeGraphMemoryResult> {
+  if (!client || !params.companyId || !params.query.trim()) return { items: [], method: "none", warnings: [] };
+  const limit = Math.min(Math.max(params.topK ?? 6, 1), 12);
   const warnings: string[] = [];
+  const semantic = await retrieveSemanticRows(client, { ...params, limit });
+  if (semantic.warning) warnings.push(semantic.warning);
+
+  let sourceRows = semantic.rows;
+  let method: TrustedKnowledgeGraphMemoryMethod = sourceRows.length > 0 ? "approved_graph_semantic" : "none";
+  if (sourceRows.length === 0) {
+    const keyword = await retrieveKeywordRows(client, { ...params, limit });
+    if (keyword.warning) warnings.push(keyword.warning);
+    sourceRows = keyword.rows;
+    method = sourceRows.length > 0 ? "approved_graph_keyword" : "none";
+  }
+
+  const nodeIds = sourceRows.map((row) => String(row.id ?? "")).filter(Boolean);
+  const edgesBySource = await loadApprovedEdges(client, params.companyId, nodeIds);
+  const items = rowsToItems(sourceRows, edgesBySource);
+
   if (items.length < limit) {
     const fallbackGraph = await buildFallbackKnowledgeGraph(client, params.companyId, {
       query: params.query,
@@ -150,7 +221,27 @@ export async function retrieveTrustedKnowledgeGraphMemory(
     items.push(...fallbackItems);
   }
 
-  return { items, method: items.length > 0 ? (items.some((item) => item.id.startsWith("fallback:")) ? "approved_graph_with_fallback" : "approved_graph_keyword") : "none", warnings };
+  return {
+    items,
+    method: items.length > 0 ? (items.some((item) => item.id.startsWith("fallback:")) ? "approved_graph_with_fallback" : method) : "none",
+    warnings,
+  };
+}
+
+export function formatTrustedKnowledgeGraphExcerpts(items: TrustedKnowledgeGraphMemoryItem[], options?: { maxItems?: number; maxExcerptLength?: number }) {
+  const maxItems = Math.min(Math.max(options?.maxItems ?? 5, 1), 8);
+  const maxExcerptLength = Math.min(Math.max(options?.maxExcerptLength ?? 900, 240), 1_600);
+  const selected = items.slice(0, maxItems);
+  if (selected.length === 0) return null;
+  return [
+    "--- Approved Knowledge Graph context (Human Review approved; supporting safety context only, not regulatory proof) ---",
+    ...selected.map((item, index) => {
+      const reasons = item.relationshipReasons.length > 0 ? `\nRelationship reasons: ${item.relationshipReasons.slice(0, 3).join(" | ")}` : "";
+      const evidence = item.evidence.length > 0 ? `\nEvidence: ${item.evidence.slice(0, 3).map((entry) => `${entry.label}: ${entry.detail}`).join(" | ")}` : "";
+      const scope = item.companyId ? "company-specific approved memory" : "general approved fallback guidance";
+      return `[G${index + 1}] (${scope}; ${item.sourceTable}:${item.sourceId}; confidence ${Math.round(item.confidenceScore * 100)}%) ${item.title}\n${clean(item.excerpt, maxExcerptLength)}${reasons}${evidence}`;
+    }),
+  ].join("\n\n");
 }
 
 export function trustedGraphMemoryAsPredictiveItems(items: TrustedKnowledgeGraphMemoryItem[]) {

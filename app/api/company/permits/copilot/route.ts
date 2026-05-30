@@ -112,12 +112,17 @@ export async function POST(request: Request) {
       userId: auth.user.id,
       fallbackUsed: result.fallbackUsed,
       retrieval: result.retrieval,
+      graphRetrieval: result.graphRetrieval,
+      graphMemoryCount: result.graphMemoryCount,
     });
 
     return NextResponse.json({
       suggestion: result.suggestion,
       disclaimer: result.disclaimer,
       retrieval: result.retrieval,
+      graphRetrieval: result.graphRetrieval,
+      graphMemoryCount: result.graphMemoryCount,
+      graphWarnings: result.graphWarnings,
       fallbackUsed: result.fallbackUsed,
     });
   } catch (e) {

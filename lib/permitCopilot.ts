@@ -3,6 +3,9 @@ import { requestAiResponsesText } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
 import { COMPANY_AI_ASSIST_DISCLAIMER, buildSurfaceSystemPrompt } from "@/lib/companyMemory/assist";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { formatTrustedKnowledgeGraphExcerpts, retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
+import type { TrustedKnowledgeGraphMemoryMethod } from "@/lib/aiKnowledgeMap/types";
 
 export type PermitCopilotActivityContext = {
   id: string;
@@ -331,6 +334,9 @@ export async function runPermitCopilotAssist(
   suggestion: PermitCopilotSuggestion;
   disclaimer: string;
   retrieval: "semantic" | "keyword" | "none";
+  graphRetrieval: TrustedKnowledgeGraphMemoryMethod;
+  graphMemoryCount: number;
+  graphWarnings: string[];
   fallbackUsed: boolean;
 }> {
   const topK = Math.min(Math.max(input.topK ?? 8, 1), 16);
@@ -358,6 +364,9 @@ export async function runPermitCopilotAssist(
       suggestion: fallback,
       disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
       retrieval: "none",
+      graphRetrieval: "none",
+      graphMemoryCount: 0,
+      graphWarnings: [],
       fallbackUsed: true,
     };
   }
@@ -365,6 +374,18 @@ export async function runPermitCopilotAssist(
   const { chunks, method } = await retrieveMemoryForQuery(supabase, companyId, query, {
     topK,
   });
+  const graphClient = createSupabaseAdminClient();
+  const graphMemory = graphClient
+    ? await retrieveTrustedKnowledgeGraphMemory(graphClient, {
+        companyId,
+        query,
+        topK: Math.min(topK, 6),
+      }).catch((error) => ({
+        items: [],
+        method: "none" as const,
+        warnings: [error instanceof Error ? error.message : "Approved graph memory unavailable."],
+      }))
+    : { items: [], method: "none" as const, warnings: ["Approved graph memory unavailable."] };
 
   const memoryBlock =
     chunks.length > 0
@@ -376,6 +397,9 @@ export async function runPermitCopilotAssist(
           ),
         ].join("\n\n")
       : "(No matching memory excerpts found. Answer from general construction safety knowledge and clearly label uncertainty.)";
+  const graphMemoryBlock =
+    formatTrustedKnowledgeGraphExcerpts(graphMemory.items, { maxItems: 5, maxExcerptLength: 700 }) ??
+    "(No approved Knowledge Graph context matched this permit request.)";
 
   const structured = input.structuredContext?.trim().slice(0, 12_000) || null;
   const system = [
@@ -383,6 +407,7 @@ export async function runPermitCopilotAssist(
     "Return strict JSON that matches the schema below.",
     "Suggest permit-ready field values, not a long essay.",
     "Do not invent due dates or owners. If those are missing, put them in missingInfo.",
+    "Use Approved Knowledge Graph context only as Human Review approved supporting safety context. Do not treat it as a regulation or proof of compliance by itself.",
     COMPANY_AI_ASSIST_DISCLAIMER,
   ].join("\n\n");
 
@@ -390,6 +415,7 @@ export async function runPermitCopilotAssist(
     `Surface: permits`,
     `Fallback draft:\n${JSON.stringify(fallback, null, 2)}`,
     memoryBlock,
+    graphMemoryBlock,
     structured ? `--- Structured context ---\n${structured}` : null,
     `--- User message ---\n${msg}`,
   ]
@@ -446,6 +472,9 @@ export async function runPermitCopilotAssist(
       suggestion: fallback,
       disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
       retrieval: method,
+      graphRetrieval: graphMemory.method,
+      graphMemoryCount: graphMemory.items.length,
+      graphWarnings: graphMemory.warnings,
       fallbackUsed: true,
     };
   }
@@ -456,6 +485,9 @@ export async function runPermitCopilotAssist(
       suggestion: sanitizeSuggestion(parsed, fallback),
       disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
       retrieval: method,
+      graphRetrieval: graphMemory.method,
+      graphMemoryCount: graphMemory.items.length,
+      graphWarnings: graphMemory.warnings,
       fallbackUsed: false,
     };
   } catch {
@@ -463,6 +495,9 @@ export async function runPermitCopilotAssist(
       suggestion: fallback,
       disclaimer: COMPANY_AI_ASSIST_DISCLAIMER,
       retrieval: method,
+      graphRetrieval: graphMemory.method,
+      graphMemoryCount: graphMemory.items.length,
+      graphWarnings: graphMemory.warnings,
       fallbackUsed: true,
     };
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
-import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
+import { generateKnowledgeRelationships, suggestPotentialRelationshipsForNode } from "@/lib/aiKnowledgeMap/relationships";
 import type { AiKnowledgeNode, AiKnowledgeNodeType, AiKnowledgeRelationshipType, AiKnowledgeRiskLevel } from "@/lib/aiKnowledgeMap/types";
 
 function node(params: { id: string; sourceTable: string; type: AiKnowledgeNodeType; title: string; description: string; riskLevel?: AiKnowledgeRiskLevel; companyId?: string }): AiKnowledgeNode {
@@ -68,5 +68,26 @@ describe("AI Knowledge Map relationship generation", () => {
     const permit = node({ id: "permit-1", sourceTable: "company_permits", type: "permit", title: "Hot work permit", description: "Hot work requires fire watch." });
     const control = node({ id: "control-1", sourceTable: "company_controls", type: "control", title: "Fire watch", description: "Fire watch controls hot work.", companyId: "company-2" });
     expect(generateKnowledgeRelationships([permit, control])).toHaveLength(0);
+  });
+
+  it("creates scored trip and body-part relationship candidates for obvious incident signals", () => {
+    const nodes = [
+      node({ id: "incident-1", sourceTable: "company_incidents", type: "incident", title: "Trip", description: "Tripped on cord landed on knee no medical aid needed.", riskLevel: "moderate" }),
+      node({ id: "hazard-1", sourceTable: "company_hazards", type: "hazard", title: "Housekeeping hazard", description: "Cord and cable in walkway can create trip hazards." }),
+      node({ id: "control-1", sourceTable: "company_controls", type: "control", title: "Cord management", description: "Route cords away from walkways and inspect housekeeping." }),
+      node({ id: "action-1", sourceTable: "company_corrective_actions", type: "corrective_action", title: "Remove walkway cord", description: "Corrective action to manage cords, check knee exposure, and clear walking surfaces." }),
+    ];
+
+    const edges = generateKnowledgeRelationships(nodes, { maxEdges: 40 });
+    expect(edges.map((edge) => edge.relationshipType)).toEqual(expect.arrayContaining(["related_hazard", "required_control", "corrective_action_required", "body_part_related"]));
+    expect(edges.every((edge) => edge.confidenceScore > 0 && edge.evidenceText)).toBe(true);
+    expect(edges.every((edge) => edge.relationshipStatus)).toBe(true);
+  });
+
+  it("explains potential relationships when no approved target node exists yet", () => {
+    const incident = node({ id: "incident-1", sourceTable: "company_incidents", type: "incident", title: "Trip", description: "Tripped on cord landed on knee no medical aid needed.", riskLevel: "moderate" });
+    const suggestions = suggestPotentialRelationshipsForNode(incident, [incident]);
+    expect(suggestions.map((item) => item.relationshipType)).toEqual(expect.arrayContaining(["related_hazard", "required_control", "corrective_action_required", "body_part_related", "repeat_trend"]));
+    expect(suggestions.some((item) => item.evidenceText.includes("cord"))).toBe(true);
   });
 });

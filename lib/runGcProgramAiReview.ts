@@ -11,6 +11,7 @@ import {
   gatherCompanyMemoryExcerptsForReview,
   isCompanyMemoryForReviewsEnabled,
 } from "@/lib/companyMemory/reviewMemory";
+import { formatTrustedKnowledgeGraphExcerpts, retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
 
 export type GcSiteReferenceExtractionMeta =
   | null
@@ -127,15 +128,15 @@ export async function runGcProgramDocumentAiReview(
      * same company-specific grounding the company-scoped flow does.
      */
     let companyMemoryExcerpts = options?.companyMemoryExcerpts?.trim() || null;
+    const memoryQuery = [
+      doc.document_title ?? "",
+      GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
+      additionalGcContext,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 2000);
     if (!companyMemoryExcerpts && isCompanyMemoryForReviewsEnabled() && doc.company_id) {
-      const memoryQuery = [
-        doc.document_title ?? "",
-        GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
-        additionalGcContext,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .slice(0, 2000);
       const retrieved = await gatherCompanyMemoryExcerptsForReview({
         supabase: admin,
         companyId: doc.company_id,
@@ -148,6 +149,27 @@ export async function runGcProgramDocumentAiReview(
           companyId: doc.company_id,
           method: retrieved.method,
           chunkCount: retrieved.chunkCount,
+        });
+      }
+    }
+    if (doc.company_id && memoryQuery.length >= 8) {
+      const graph = await retrieveTrustedKnowledgeGraphMemory(admin, {
+        companyId: doc.company_id,
+        query: memoryQuery,
+        topK: 5,
+      }).catch((error) => ({
+        items: [],
+        method: "none" as const,
+        warnings: [error instanceof Error ? error.message : "Approved graph memory unavailable."],
+      }));
+      const graphExcerpts = formatTrustedKnowledgeGraphExcerpts(graph.items, { maxItems: 5, maxExcerptLength: 900 });
+      if (graphExcerpts) {
+        companyMemoryExcerpts = [companyMemoryExcerpts, graphExcerpts].filter(Boolean).join("\n\n");
+        serverLog("info", "gc_program_ai_review_graph_memory_injected", {
+          documentId: doc.id,
+          companyId: doc.company_id,
+          method: graph.method,
+          graphMemoryCount: graph.items.length,
         });
       }
     }

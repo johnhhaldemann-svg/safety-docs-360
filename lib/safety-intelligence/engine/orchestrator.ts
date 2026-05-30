@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
 import { retrieveMemoryForQuery } from "@/lib/companyMemory/repository";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { buildPreventionLogicResult } from "@/lib/safety-intelligence/engine/preventionLogic";
 import { buildSafetyMemorySnapshot } from "@/lib/safety-intelligence/engine/memorySnapshot";
 import { buildAiReviewContext } from "@/lib/safety-intelligence/service";
@@ -83,7 +84,8 @@ export async function buildSmartSafetyAiReviewContext(params: {
   if (params.supabase) {
     const q = synthesizeRagQuery(params.input, bucket);
     if (q.length >= 8) {
-      const graph = await retrieveTrustedKnowledgeGraphMemory(params.supabase, {
+      const graphClient = createSupabaseAdminClient() ?? params.supabase;
+      const graph = await retrieveTrustedKnowledgeGraphMemory(graphClient, {
         companyId: params.input.companyId,
         jobsiteId: params.input.jobsiteId ?? null,
         query: q,
@@ -171,7 +173,8 @@ export async function attachSmartSafetyEngineLayers(params: {
   if (params.supabase) {
     const q = synthesizeRagQuery(params.primaryInput, params.primaryBucket);
     if (q.length >= 8) {
-      const graph = await retrieveTrustedKnowledgeGraphMemory(params.supabase, {
+      const graphClient = createSupabaseAdminClient() ?? params.supabase;
+      const graph = await retrieveTrustedKnowledgeGraphMemory(graphClient, {
         companyId: params.primaryInput.companyId,
         jobsiteId: params.primaryInput.jobsiteId ?? null,
         query: q,
