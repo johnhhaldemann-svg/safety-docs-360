@@ -36,7 +36,7 @@ export const AI_KNOWLEDGE_RELATIONSHIP_TYPES = [
 export type AiKnowledgeRelationshipType = (typeof AI_KNOWLEDGE_RELATIONSHIP_TYPES)[number];
 export type AiKnowledgeRiskLevel = "unknown" | "low" | "moderate" | "high" | "critical";
 export type AiKnowledgeValidationStatus = "unreviewed" | "pending_review" | "approved" | "rejected" | "incorrect" | "needs_review";
-export type AiKnowledgeCandidateStatus = "pending_review" | "approved" | "rejected" | "incorrect" | "promoted" | "failed";
+export type AiKnowledgeCandidateStatus = "pending_review" | "pending_second_approval" | "approved" | "rejected" | "incorrect" | "promoted" | "failed";
 export type AiKnowledgeCandidateType = "node" | "edge" | "failed_source";
 export type AiKnowledgeCreatorType = "system" | "user" | "ai";
 export type AiKnowledgeVectorStatus = "pending" | "indexed" | "failed" | "fallback";
@@ -172,6 +172,8 @@ export type AiKnowledgeGraphPayload = {
   companySpecificEdgeCount?: number;
   companyDocumentNodeCount?: number;
   sharedLibraryNodeCount?: number;
+  pendingLearningCandidateCount?: number;
+  pendingLearningBatchCount?: number;
 };
 
 export type AiKnowledgeMapFilters = {
@@ -244,6 +246,48 @@ export type AiKnowledgeIngestCandidate = {
   updatedAt?: string;
 };
 
+export type AiKnowledgeProvenanceCertificate = {
+  certificateVersion: 1;
+  sourceTable: string | null;
+  sourceId: string | null;
+  sourceRecordId: string | null;
+  candidateId: string;
+  batchId: string | null;
+  candidateType: AiKnowledgeCandidateType;
+  relationshipType: AiKnowledgeRelationshipType | null;
+  reviewerIds: string[];
+  firstApprovedBy: string | null;
+  firstApprovedAt: string | null;
+  secondApprovedBy: string | null;
+  secondApprovedAt: string | null;
+  promotedAt: string;
+  evidenceSummary: string[];
+  confidenceScore: number | null;
+  riskLevel: AiKnowledgeRiskLevel | string | null;
+  sourceHash: string | null;
+  documentHash: string | null;
+  reviewDueAt: string;
+  safetyUse: string;
+  complianceProof: false;
+};
+
+export type AiKnowledgePromotionPreview = {
+  candidateId: string;
+  candidateType: AiKnowledgeCandidateType;
+  willCreateNode: boolean;
+  willCreateEdge: boolean;
+  willCreateVectorMemory: boolean;
+  affectedSurfaces: string[];
+  relationshipImpact: string | null;
+  dependencyWarnings: string[];
+  confidenceScore: number | null;
+  riskLevel: AiKnowledgeRiskLevel | string | null;
+  requiresSecondApproval: boolean;
+  firstApprovalComplete: boolean;
+  reviewDueAt: string;
+  provenancePreview: AiKnowledgeProvenanceCertificate;
+};
+
 export type TrustedKnowledgeGraphMemoryItem = {
   id: string;
   nodeId: string;
@@ -259,6 +303,9 @@ export type TrustedKnowledgeGraphMemoryItem = {
   relationshipReasons: string[];
   evidence: AiKnowledgeEvidence[];
   similarity?: number | null;
+  provenanceCertificate?: AiKnowledgeProvenanceCertificate | null;
+  reviewDueAt?: string | null;
+  isStale?: boolean;
 };
 
 export type TrustedKnowledgeGraphMemoryMethod =

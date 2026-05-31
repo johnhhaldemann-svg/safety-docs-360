@@ -2,7 +2,8 @@ import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ConnectionLine } from "@/components/ai-knowledge-map/ConnectionLine";
 import { nodeTypeLabel, riskTone, validationTone } from "@/components/ai-knowledge-map/mapTheme";
 import { suggestPotentialRelationshipsForNode } from "@/lib/aiKnowledgeMap/relationships";
-import type { AiKnowledgeEdge, AiKnowledgeNode } from "@/lib/aiKnowledgeMap/types";
+import { isTrustedMemoryStale } from "@/lib/aiKnowledgeMap/reviewGate";
+import type { AiKnowledgeEdge, AiKnowledgeNode, AiKnowledgeProvenanceCertificate } from "@/lib/aiKnowledgeMap/types";
 
 export function SelectedNodePanel({
   node,
@@ -15,7 +16,7 @@ export function SelectedNodePanel({
   edges: AiKnowledgeEdge[];
   nodes: AiKnowledgeNode[];
   companies: Array<{ id: string; name: string }>;
-  onValidate: (edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect") => void;
+  onValidate: (edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect", reason?: string) => void;
 }) {
   if (!node) {
     return (
@@ -45,6 +46,9 @@ export function SelectedNodePanel({
     .slice(0, 3);
   const hasHighRisk = node.riskLevel === "critical" || node.riskLevel === "high" || (node.riskScore ?? 0) >= 65;
   const trend = node.riskLevel === "critical" || node.riskLevel === "high" ? "Increasing attention" : "Stable";
+  const provenance = provenanceCertificate(node.metadata);
+  const reviewDueAt = text(node.metadata.reviewDueAt) ?? provenance?.reviewDueAt ?? null;
+  const stale = isTrustedMemoryStale(node.metadata);
 
   return (
     <aside className="flex min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
@@ -56,6 +60,9 @@ export function SelectedNodePanel({
         <span className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-black ${tone.border} ${tone.bg} ${tone.text}`}>{tone.label}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-300">{node.description || node.semanticSummary}</p>
+      <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs font-bold text-amber-100">
+        This AI Knowledge Map item does not prove compliance. Confirm source records, site conditions, and required controls before relying on it.
+      </p>
       <dl className="mt-4 grid gap-2 text-xs text-slate-300">
         <Row label="Category" value={node.category} />
         <Row label="Risk score" value={node.riskScore == null ? "Not scored" : String(node.riskScore)} />
@@ -63,6 +70,7 @@ export function SelectedNodePanel({
         <Row label="Confidence" value={`${Math.round((node.confidenceScore ?? 0.72) * 100)}%`} />
         <Row label="Validation" value={node.validationStatus.replace(/_/g, " ")} badgeClass={validationTone(node.validationStatus)} />
         <Row label="Memory layer" value={memoryLabel} badgeClass={isSharedLibrary ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : isFallback ? "border-amber-300/25 bg-amber-300/10 text-amber-100" : undefined} />
+        {reviewDueAt ? <Row label="Review due" value={new Date(reviewDueAt).toLocaleDateString()} badgeClass={stale ? "border-red-300/25 bg-red-300/10 text-red-100" : undefined} /> : null}
         {isFallback || isSharedLibrary ? <Row label="Company-specific" value="No, approved general guidance" /> : null}
         <Row label="Company" value={companyName} />
         <Row label="Source" value={isFallback ? String(node.metadata.fallbackSource ?? "approved fallback") : isSharedLibrary ? String(node.metadata.sharedLibrarySource ?? node.sourceTable) : `${node.sourceTable}:${node.sourceId}`} />
@@ -104,6 +112,17 @@ export function SelectedNodePanel({
           title="Learning impact"
           items={["Approving accurate relationships increases confidence for similar future matches. Rejecting or marking incorrect lowers confidence for similar signals."]}
         />
+        {provenance ? (
+          <section className="mb-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
+            <h3 className="text-xs font-black uppercase tracking-[0.12em] text-emerald-100">Provenance certificate</h3>
+            <div className="mt-2 space-y-1.5 text-xs leading-5 text-emerald-50/90">
+              <p>Promoted from candidate {provenance.candidateId} by {provenance.reviewerIds.length} reviewer{provenance.reviewerIds.length === 1 ? "" : "s"}.</p>
+              <p>Source: {provenance.sourceTable ?? "unknown"}:{provenance.sourceId ?? "unknown"}; compliance proof: no.</p>
+              <p>Use: {provenance.safetyUse}. Review due {new Date(provenance.reviewDueAt).toLocaleDateString()}.</p>
+              {stale ? <p className="font-black text-red-100">This trusted memory is stale and needs Super Admin review before being treated as current.</p> : null}
+            </div>
+          </section>
+        ) : null}
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-sky-300" />
           <h3 className="text-sm font-black text-white">Why it connects</h3>
@@ -151,6 +170,17 @@ export function SelectedNodePanel({
       </div>
     </aside>
   );
+}
+
+function provenanceCertificate(metadata: Record<string, unknown>) {
+  const certificate = metadata.provenanceCertificate;
+  return certificate && typeof certificate === "object" && !Array.isArray(certificate)
+    ? certificate as AiKnowledgeProvenanceCertificate
+    : null;
+}
+
+function text(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function InsightSection({ title, items }: { title: string; items: string[] }) {

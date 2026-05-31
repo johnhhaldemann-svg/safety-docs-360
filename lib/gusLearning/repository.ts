@@ -21,6 +21,7 @@ import type {
   ResearchQueueRow,
 } from "@/lib/gusLearning/types";
 import { normalizeDomain } from "@/lib/gusLearning/sourceValidation";
+import { validateApprovedSourceUrl } from "@/lib/aiKnowledgeMap/sourceSafety";
 import { serverLog } from "@/lib/serverLog";
 
 export type GusLearningDb = Pick<SupabaseClient, "from" | "rpc">;
@@ -172,6 +173,8 @@ export async function createApprovedSource(
   } catch {
     return { ok: false as const, error: "source_url must be a valid URL." };
   }
+  const safety = validateApprovedSourceUrl({ sourceUrl, domain: input.domain || url.hostname });
+  if (!safety.ok) return { ok: false as const, error: safety.reason };
   const domain = normalizeDomain(input.domain || url.hostname);
   const row = {
     company_id: input.companyId,

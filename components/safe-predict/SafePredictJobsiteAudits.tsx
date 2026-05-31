@@ -40,6 +40,12 @@ type AuditCompany = {
   status?: string | null;
 };
 
+type AuditCustomerOption = {
+  id: string;
+  name: string;
+  companyId: string;
+};
+
 type AuditListRow = {
   id: string;
   company_id?: string | null;
@@ -81,6 +87,7 @@ type SubmitResponse = {
 
 type Draft = {
   companyId: string;
+  auditCustomerId: string;
   jobsiteId: string;
   auditDate: string;
   auditors: string;
@@ -95,6 +102,7 @@ type Draft = {
 function emptyDraft(): Draft {
   return {
     companyId: "",
+    auditCustomerId: "",
     jobsiteId: "",
     auditDate: new Date().toISOString().slice(0, 10),
     auditors: "",
@@ -117,6 +125,7 @@ function loadDraft(): Draft {
     if (!parsed || typeof parsed !== "object") return fallback;
     return {
       companyId: typeof parsed.companyId === "string" ? parsed.companyId : fallback.companyId,
+      auditCustomerId: typeof parsed.auditCustomerId === "string" ? parsed.auditCustomerId : fallback.auditCustomerId,
       jobsiteId: typeof parsed.jobsiteId === "string" ? parsed.jobsiteId : fallback.jobsiteId,
       auditDate: typeof parsed.auditDate === "string" ? parsed.auditDate : fallback.auditDate,
       auditors: typeof parsed.auditors === "string" ? parsed.auditors : fallback.auditors,
@@ -143,6 +152,13 @@ function formatStatus(status?: string | null) {
   return (status || "submitted").replaceAll("_", " ");
 }
 
+function getAuditCustomerOptionId(jobsite: Jobsite) {
+  if (jobsite.audit_customer_id) return `audit-customer:${jobsite.audit_customer_id}`;
+  const customerName = (jobsite.customer_company_name || "").trim().toLowerCase();
+  if (customerName) return `jobsite-customer:${jobsite.company_id ?? "unknown"}:${customerName}`;
+  return `workspace-company:${jobsite.company_id ?? "unknown"}`;
+}
+
 async function getAccessToken() {
   const {
     data: { session },
@@ -154,6 +170,7 @@ async function getAccessToken() {
 export function SafePredictJobsiteAudits() {
   const tradeOptions = AUDIT_SYSTEM_BLUEPRINT.audit_system.audit_header.trade_scope_being_audited;
   const [companyId, setCompanyId] = useState("");
+  const [auditCustomerId, setAuditCustomerId] = useState("");
   const [jobsiteId, setJobsiteId] = useState("");
   const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [auditors, setAuditors] = useState("");
@@ -176,6 +193,7 @@ export function SafePredictJobsiteAudits() {
   useEffect(() => deferEffect(() => {
     const draft = loadDraft();
     setCompanyId(draft.companyId);
+    setAuditCustomerId(draft.auditCustomerId);
     setJobsiteId(draft.jobsiteId);
     setAuditDate(draft.auditDate);
     setAuditors(draft.auditors);
@@ -190,6 +208,7 @@ export function SafePredictJobsiteAudits() {
   useEffect(() => {
     const draft: Draft = {
       companyId,
+      auditCustomerId,
       jobsiteId,
       auditDate,
       auditors,
@@ -201,7 +220,7 @@ export function SafePredictJobsiteAudits() {
       photoCounts,
     };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [auditDate, auditors, companyId, hoursBilled, jobsiteId, notes, notesMap, photoCounts, selectedTrade, statusMap]);
+  }, [auditCustomerId, auditDate, auditors, companyId, hoursBilled, jobsiteId, notes, notesMap, photoCounts, selectedTrade, statusMap]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -219,11 +238,14 @@ export function SafePredictJobsiteAudits() {
       if (!contextRes.ok) throw new Error(contextData?.error || contextData?.warning || "Failed to load audit setup.");
 
       const nextCompanies = contextData?.companies ?? [];
+      const nextJobsites = contextData?.jobsites ?? [];
       const effectiveCompanyId = nextCompanies.some((company) => company.id === companyId)
         ? companyId
-        : nextCompanies.length === 1
-          ? nextCompanies[0].id
-          : "";
+          : nextCompanies.length === 1
+            ? nextCompanies[0].id
+            : Array.from(new Set(nextJobsites.map((jobsite) => jobsite.company_id).filter(Boolean))).length === 1
+              ? String(nextJobsites.find((jobsite) => jobsite.company_id)?.company_id)
+              : "";
       const auditsUrl = effectiveCompanyId
         ? `/api/company/field-audits?companyId=${encodeURIComponent(effectiveCompanyId)}`
         : "/api/company/field-audits";
@@ -234,7 +256,7 @@ export function SafePredictJobsiteAudits() {
       if (!auditsRes.ok) throw new Error(auditsData?.error || auditsData?.warning || "Failed to load recent audits.");
 
       setCompanies(nextCompanies);
-      setJobsites(contextData?.jobsites ?? []);
+      setJobsites(nextJobsites);
       setAudits(auditsData?.audits ?? []);
       if (effectiveCompanyId && effectiveCompanyId !== companyId) {
         setCompanyId(effectiveCompanyId);
@@ -251,15 +273,45 @@ export function SafePredictJobsiteAudits() {
     void loadData();
   }), [loadData]);
 
-  const selectedCompany = companies.find((company) => company.id === companyId);
+  const companyOptions = useMemo(() => {
+    if (companies.length > 0) return companies;
+    const uniqueCompanyIds = [...new Set(jobsites.map((jobsite) => jobsite.company_id).filter(Boolean))];
+    return uniqueCompanyIds.map((id) => ({
+      id: String(id),
+      name: `Company ${String(id).slice(0, 8)}`,
+      status: "active",
+      report_email: null,
+    }));
+  }, [companies, jobsites]);
+  const selectedCompany = companyOptions.find((company) => company.id === companyId);
+  const auditCustomerOptions = useMemo<AuditCustomerOption[]>(() => {
+    const optionMap = new Map<string, AuditCustomerOption>();
+    for (const jobsite of jobsites) {
+      if (String(jobsite.status ?? "").toLowerCase() !== "active") continue;
+      const optionId = getAuditCustomerOptionId(jobsite);
+      if (optionMap.has(optionId)) continue;
+      const workspaceCompany = companyOptions.find((company) => company.id === jobsite.company_id);
+      optionMap.set(optionId, {
+        id: optionId,
+        name: jobsite.customer_company_name?.trim() || workspaceCompany?.name || "Company jobsites",
+        companyId: jobsite.company_id ?? "",
+      });
+    }
+    return [...optionMap.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }, [companyOptions, jobsites]);
+  const selectedAuditCustomer = auditCustomerOptions.find((option) => option.id === auditCustomerId);
   const filteredJobsites = useMemo(
     () =>
-      companyId
-        ? jobsites.filter((jobsite) => jobsite.company_id === companyId && String(jobsite.status ?? "").toLowerCase() === "active")
-        : [],
-    [companyId, jobsites]
+      jobsites.filter((jobsite) => {
+        if (String(jobsite.status ?? "").toLowerCase() !== "active") return false;
+        if (auditCustomerId) return getAuditCustomerOptionId(jobsite) === auditCustomerId;
+        if (companyId) return jobsite.company_id === companyId;
+        return true;
+      }),
+    [auditCustomerId, companyId, jobsites]
   );
   const selectedJobsite = jobsites.find((jobsite) => jobsite.id === jobsiteId);
+  const effectiveCompany = selectedCompany ?? companyOptions.find((company) => company.id === selectedJobsite?.company_id);
   const normalized = useMemo(
     () => normalizeFieldAuditPayload({ selectedTrade, statusMap, notesMap, photoCounts }),
     [notesMap, photoCounts, selectedTrade, statusMap]
@@ -267,11 +319,11 @@ export function SafePredictJobsiteAudits() {
   const score = normalized.scoreSummary;
 
   useEffect(() => deferEffect(() => {
-    if (!jobsiteId || !companyId) return;
+    if (!jobsiteId) return;
     if (!filteredJobsites.some((jobsite) => jobsite.id === jobsiteId)) {
       setJobsiteId("");
     }
-  }), [companyId, filteredJobsites, jobsiteId]);
+  }), [filteredJobsites, jobsiteId]);
 
   const setRowStatus = useCallback((key: string, next: "pass" | "fail" | "na" | "") => {
     setStatusMap((prev) => {
@@ -289,6 +341,7 @@ export function SafePredictJobsiteAudits() {
   function resetAuditDraft() {
     const draft = emptyDraft();
     setJobsiteId("");
+    setAuditCustomerId("");
     setAuditDate(draft.auditDate);
     setAuditors("");
     setSelectedTrade(draft.selectedTrade);
@@ -310,9 +363,10 @@ export function SafePredictJobsiteAudits() {
     setSubmitting(true);
     setMessage("");
     try {
-      if (!companyId) throw new Error("Choose a company before submitting this audit.");
       if (!jobsiteId) throw new Error("Choose an active jobsite before submitting this audit.");
       if (normalized.observations.length < 1) throw new Error("Score at least one audit item before submitting.");
+      const submitCompanyId = companyId || selectedJobsite?.company_id || "";
+      if (!submitCompanyId) throw new Error("This active jobsite is missing its company link.");
 
       const token = await getAccessToken();
       const res = await fetch("/api/company/field-audits", {
@@ -322,7 +376,7 @@ export function SafePredictJobsiteAudits() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          companyId,
+          companyId: submitCompanyId,
           jobsiteId,
           auditCustomerId: selectedJobsite?.audit_customer_id || null,
           auditCustomerLocationId: null,
@@ -465,19 +519,32 @@ export function SafePredictJobsiteAudits() {
             <SectionTitle title="Audit Setup" />
             <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr_170px_170px]">
               <SelectShell
-                label="Company"
-                value={companyId}
+                label="Company Being Audited"
+                value={auditCustomerId}
                 onChange={(value) => {
-                  setCompanyId(value);
+                  setAuditCustomerId(value);
+                  const nextCustomer = auditCustomerOptions.find((option) => option.id === value);
+                  if (nextCustomer?.companyId && nextCustomer.companyId !== companyId) {
+                    setCompanyId(nextCustomer.companyId);
+                  }
                   setJobsiteId("");
                 }}
-                options={[{ label: "Choose company", value: "" }, ...companies.map((company) => ({ label: company.name, value: company.id }))]}
+                options={[{ label: "Choose audited company", value: "" }, ...auditCustomerOptions.map((company) => ({ label: company.name, value: company.id }))]}
               />
               <SelectShell
                 label="Active jobsite"
                 value={jobsiteId}
-                onChange={setJobsiteId}
-                options={[{ label: companyId ? "Choose active jobsite" : "Choose company first", value: "" }, ...filteredJobsites.map((jobsite) => ({ label: jobsite.name, value: jobsite.id }))]}
+                onChange={(value) => {
+                  setJobsiteId(value);
+                  const nextJobsite = jobsites.find((jobsite) => jobsite.id === value);
+                  if (nextJobsite?.company_id && nextJobsite.company_id !== companyId) {
+                    setCompanyId(nextJobsite.company_id);
+                  }
+                  if (nextJobsite) {
+                    setAuditCustomerId(getAuditCustomerOptionId(nextJobsite));
+                  }
+                }}
+                options={[{ label: "Choose active jobsite", value: "" }, ...filteredJobsites.map((jobsite) => ({ label: jobsite.name, value: jobsite.id }))]}
               />
               <label className="block">
                 <span className="mb-1 block text-xs font-bold text-slate-600">Audit date</span>
@@ -556,12 +623,13 @@ export function SafePredictJobsiteAudits() {
             <div className="mt-4 grid gap-3 text-sm font-bold text-slate-700">
               <div className="rounded-lg bg-blue-50 p-3 text-blue-700">
                 <p className="text-xs uppercase tracking-wide">Company</p>
-                <p className="mt-1 text-base text-slate-950">{selectedCompany?.name ?? "Not selected"}</p>
+                <p className="mt-1 text-base text-slate-950">{selectedAuditCustomer?.name ?? "Not selected"}</p>
+                {effectiveCompany?.name ? <p className="mt-1 text-xs text-blue-700">Workspace: {effectiveCompany.name}</p> : null}
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Jobsite</p>
                 <p className="mt-1 text-base text-slate-950">{selectedJobsite?.name ?? "Not selected"}</p>
-                <p className="mt-1 text-xs text-slate-500">{selectedJobsite?.location ?? selectedJobsite?.project_number ?? "Active jobsites load after company selection."}</p>
+                <p className="mt-1 text-xs text-slate-500">{selectedJobsite?.location ?? selectedJobsite?.project_number ?? "Active jobsites load from the Jobsites page."}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg bg-emerald-50 p-3 text-emerald-700">

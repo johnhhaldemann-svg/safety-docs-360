@@ -25,6 +25,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const companyId = text(body?.companyId);
   if (!companyId) return NextResponse.json({ error: "companyId is required." }, { status: 400 });
+  if (companyId === "all") return NextResponse.json({ error: "All-company view is read-only. Select one company before rebuilding the AI Knowledge Map." }, { status: 400 });
 
   const result = await rebuildKnowledgeIndex(admin, {
     companyId,

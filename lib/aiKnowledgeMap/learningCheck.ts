@@ -3,11 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractReviewDocumentText } from "@/lib/documentReviewExtraction";
 import { isApprovedDocumentStatus } from "@/lib/documentStatus";
 import { htmlToSafetyText } from "@/lib/gusLearning/sanitize";
-import { normalizeDomain } from "@/lib/gusLearning/sourceValidation";
 import type { ApprovedSourceRow } from "@/lib/gusLearning/types";
 import { normalizeRiskLevel, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
 import { normalizeDocumentsBucketObjectPath } from "@/lib/documentsBucketPath";
 import type { AiKnowledgeEvidence, AiKnowledgeNode, AiKnowledgeRiskLevel } from "@/lib/aiKnowledgeMap/types";
+import { learningCandidateReviewMetadata } from "@/lib/aiKnowledgeMap/reviewGate";
+import {
+  assertActiveKnowledgeCompany,
+  assertAiKnowledgeCooldown,
+  assertAiKnowledgeWritesEnabled,
+  isAiKnowledgeSourceFetchDisabled,
+  requireConcreteCompanyId,
+} from "@/lib/aiKnowledgeMap/guardrails";
+import { fetchApprovedSourceText, validateApprovedSourceUrl } from "@/lib/aiKnowledgeMap/sourceSafety";
 
 type LearningDb = SupabaseClient;
 type DbError = { message?: string | null };
@@ -128,19 +136,11 @@ export function documentSafetySortScore(row: SourceRow, missingMemory = true) {
 
 export function isAllowedApprovedSourceRow(row: Pick<ApprovedSourceRow, "source_url" | "domain" | "is_active" | "trust_level">) {
   if (!row.is_active || row.trust_level === "blocked") return false;
-  let url: URL;
-  try {
-    url = new URL(row.source_url);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== "https:") return false;
-  const sourceDomain = normalizeDomain(row.domain || url.hostname);
-  const requestedDomain = normalizeDomain(url.hostname);
-  return Boolean(sourceDomain) && (requestedDomain === sourceDomain || requestedDomain.endsWith(`.${sourceDomain}`));
+  return validateApprovedSourceUrl({ sourceUrl: row.source_url, domain: row.domain }).ok;
 }
 
 export async function runAiKnowledgeLearningCheck(db: LearningDb, input: LearningCheckRunInput): Promise<LearningCheckResult> {
+  assertAiKnowledgeWritesEnabled("AI Knowledge Map learning check");
   const now = input.now ?? new Date();
   const generatedAt = now.toISOString();
   const force = input.force === true;
@@ -163,7 +163,7 @@ export async function runAiKnowledgeLearningCheck(db: LearningDb, input: Learnin
   }
 
   const companyIds = input.companyId
-    ? [input.companyId]
+    ? [await assertActiveKnowledgeCompany(db, requireConcreteCompanyId(input.companyId))]
     : await listCompanyIds(db, clamp(input.maxCompanies, DEFAULT_MAX_COMPANIES, 25));
   const batches: LearningCheckCompanyResult[] = [];
 
@@ -204,6 +204,7 @@ async function runCompanyLearningCheck(
     maxInternetSources: number;
   },
 ): Promise<LearningCheckCompanyResult> {
+  await assertAiKnowledgeCooldown(db, { companyId: input.companyId, eventType: "learning_check_completed", cooldownMinutes: 15, action: "AI learning check" });
   const warnings: string[] = [];
   const documents = await listApprovedFinalDocuments(db, input.companyId, input.maxDocuments, warnings);
   const sources = await listApprovedInternetSources(db, input.companyId, input.maxInternetSources, warnings);
@@ -227,6 +228,7 @@ async function runCompanyLearningCheck(
       internetScope: "approved_sources_allowlist_only",
       trustedMemoryWrite: false,
       requiresHumanReview: true,
+      whatAiEngineLearnedReviewRequired: true,
     },
   });
 
@@ -271,6 +273,8 @@ async function runCompanyLearningCheck(
         internetCandidates: internetCandidates.length,
         failedSourceCandidates: failedCandidates.length,
       },
+      trustedMemoryWrite: false,
+      requiresHumanReview: true,
     },
   });
 
@@ -288,11 +292,14 @@ async function runCompanyLearningCheck(
 async function listCompanyIds(db: LearningDb, maxCompanies: number) {
   const { data, error } = (await db
     .from("companies")
-    .select("id")
+    .select("id,status,is_active")
     .order("created_at", { ascending: false })
     .limit(maxCompanies)) as QueryResult<Array<Record<string, unknown>>>;
   if (error) throw new Error(error.message ?? "Could not load companies for AI learning check.");
-  return (data ?? []).map((row) => firstText(row.id)).filter((id): id is string => Boolean(id));
+  return (data ?? [])
+    .filter((row) => row.is_active !== false && ["", "active", "approved"].includes(String(row.status ?? "").toLowerCase()))
+    .map((row) => firstText(row.id))
+    .filter((id): id is string => Boolean(id));
 }
 
 async function listApprovedFinalDocuments(db: LearningDb, companyId: string, limit: number, warnings: string[]) {
@@ -368,7 +375,14 @@ async function buildDocumentCandidate(db: LearningDb, batchId: string, table: st
         sourceId,
         title,
         reason: extractionError ?? "Approved/final document has no readable text or metadata for AI learning.",
-        metadata: { sourceKind: "failed_source", failedSourceKind: "document", readStatus, document_sort_rank: sortRank },
+        metadata: learningCandidateReviewMetadata({
+          sourceKind: "failed_source",
+          learnedSummary: extractionError ?? "Approved/final document could not be read.",
+          confidenceScore: 0,
+          riskLevel: "unknown",
+          sourceDocument: filePath ?? firstText(row.file_name),
+          extra: { failedSourceKind: "document", readStatus, document_sort_rank: sortRank },
+        }),
       }),
     };
   }
@@ -378,6 +392,32 @@ async function buildDocumentCandidate(db: LearningDb, batchId: string, table: st
   const summary = deterministicSafetySummary(contentText, title);
   const riskLevel = riskLevelFromText(contentText);
   const riskScore = riskScoreFor(riskLevel);
+  const sourceEvidence = evidenceFor({
+    companyId: firstText(row.company_id),
+    jobsiteId: null,
+    projectId: null,
+    sourceTable: table,
+    sourceId,
+    sourceRecordId: sourceId,
+    title,
+    nodeType: "document",
+    type: "document",
+    category: firstText(row.category, row.document_type, "document") ?? "document",
+    description: contentText.slice(0, 2_000),
+    semanticSummary: summary,
+    project: null,
+    trade: null,
+    riskLevel,
+    riskScore,
+    sourceUrl: filePath ?? firstText(row.source_url),
+    sourceDocument: filePath ?? firstText(row.file_name),
+    metadata: {},
+    vectorStatus: "pending",
+    vectorCoordinates: vectorCoordinatesForNode({ sourceTable: table, sourceId, type: "document", riskLevel }),
+    confidenceScore: 0.74,
+    validationStatus: "pending_review",
+    createdByType: "system",
+  }, summary);
   const node = knowledgeNode({
     companyId: firstText(row.company_id),
     sourceTable: table,
@@ -390,17 +430,24 @@ async function buildDocumentCandidate(db: LearningDb, batchId: string, table: st
     riskScore,
     sourceUrl: filePath ?? firstText(row.source_url),
     sourceDocument: filePath ?? firstText(row.file_name),
-    metadata: {
+    metadata: learningCandidateReviewMetadata({
       sourceKind: "document",
-      originalStatus: firstText(row.status),
-      document_sort_rank: sortRank,
-      document_hash: documentHash,
-      chunk_count: chunks.length,
-      read_status: readStatus,
-      extraction_method: extractionMethod,
-      extraction_error: extractionError,
-      humanReviewRequired: true,
-    },
+      learnedSummary: summary,
+      sourceEvidence,
+      confidenceScore: 0.74,
+      riskLevel,
+      sourceUrl: filePath ?? firstText(row.source_url),
+      sourceDocument: filePath ?? firstText(row.file_name),
+      extra: {
+        originalStatus: firstText(row.status),
+        document_sort_rank: sortRank,
+        document_hash: documentHash,
+        chunk_count: chunks.length,
+        read_status: readStatus,
+        extraction_method: extractionMethod,
+        extraction_error: extractionError,
+      },
+    }),
   });
   return {
     kind: "node" as const,
@@ -415,7 +462,7 @@ async function buildDocumentCandidate(db: LearningDb, batchId: string, table: st
       title: node.title,
       semantic_summary: node.semanticSummary,
       reason: "Approved/final safety document was read, ranked, summarized, and queued for Super Admin review before entering trusted AI memory.",
-      source_evidence: evidenceFor(node, summary),
+      source_evidence: sourceEvidence,
       proposed_payload: node,
       confidence_score: node.confidenceScore,
       validation_status: "pending_review",
@@ -429,15 +476,15 @@ async function buildInternetSourceCandidate(batchId: string, companyId: string, 
   let bodyText = "";
   let sourceTitle = source.source_name;
   try {
-    const response = await fetch(source.source_url, {
+    if (isAiKnowledgeSourceFetchDisabled()) throw new Error("Approved source fetching is disabled.");
+    const response = await fetchApprovedSourceText(source, {
       headers: {
         accept: "text/html, text/plain;q=0.9, */*;q=0.5",
         "user-agent": "SafetyDocs360 AI Knowledge Learning Check/1.0",
       },
       signal: AbortSignal.timeout(12_000),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = (await response.text()).slice(0, 250_000);
+    const html = response.text.slice(0, 250_000);
     sourceTitle = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, " ").trim().slice(0, 240) || source.source_name;
     bodyText = htmlToSafetyText(html).slice(0, MAX_TEXT_CHARS);
   } catch (error) {
@@ -450,10 +497,15 @@ async function buildInternetSourceCandidate(batchId: string, companyId: string, 
         title: source.source_name,
         reason: `Allowlisted internet source could not be read: ${error instanceof Error ? error.message : "fetch failed"}`,
         metadata: {
-          sourceKind: "failed_source",
-          failedSourceKind: "internet_source",
-          sourceUrl: source.source_url,
-          trustLevel: source.trust_level,
+          ...learningCandidateReviewMetadata({
+            sourceKind: "failed_source",
+            learnedSummary: `Allowlisted internet source could not be read: ${error instanceof Error ? error.message : "fetch failed"}`,
+            confidenceScore: 0,
+            riskLevel: "unknown",
+            sourceUrl: source.source_url,
+            sourceDocument: source.source_name,
+            extra: { failedSourceKind: "internet_source", trustLevel: source.trust_level },
+          }),
         },
       }),
     };
@@ -468,13 +520,27 @@ async function buildInternetSourceCandidate(batchId: string, companyId: string, 
         sourceId: source.id,
         title: source.source_name,
         reason: "Allowlisted internet source returned no readable safety text.",
-        metadata: { sourceKind: "failed_source", failedSourceKind: "internet_source", sourceUrl: source.source_url },
+        metadata: learningCandidateReviewMetadata({
+          sourceKind: "failed_source",
+          learnedSummary: "Allowlisted internet source returned no readable safety text.",
+          confidenceScore: 0,
+          riskLevel: "unknown",
+          sourceUrl: source.source_url,
+          sourceDocument: source.source_name,
+          extra: { failedSourceKind: "internet_source" },
+        }),
       }),
     };
   }
 
   const summary = deterministicSafetySummary(bodyText, sourceTitle);
   const riskLevel = riskLevelFromText(bodyText);
+  const internetEvidence = [{
+    sourceTable: "approved_sources",
+    sourceRecordId: source.id,
+    label: sourceTitle,
+    detail: summary.slice(0, 700),
+  }];
   const node = knowledgeNode({
     companyId,
     sourceTable: "approved_sources",
@@ -487,19 +553,25 @@ async function buildInternetSourceCandidate(batchId: string, companyId: string, 
     riskScore: riskScoreFor(riskLevel),
     sourceUrl: source.source_url,
     sourceDocument: source.source_name,
-    metadata: {
+    metadata: learningCandidateReviewMetadata({
       sourceKind: "internet_source",
+      learnedSummary: summary,
+      sourceEvidence: internetEvidence,
+      confidenceScore: 0.66,
+      riskLevel,
       sourceUrl: source.source_url,
-      sourceDomain: source.domain,
-      sourceType: source.source_type,
-      jurisdiction: source.jurisdiction,
-      trustLevel: source.trust_level,
-      document_hash: sha256(bodyText),
-      chunk_count: chunkText(bodyText, 9_000).length,
-      read_status: "extracted",
-      humanReviewRequired: true,
-      internetGuardrail: "approved_sources_allowlist_only",
-    },
+      sourceDocument: source.source_name,
+      extra: {
+        sourceDomain: source.domain,
+        sourceType: source.source_type,
+        jurisdiction: source.jurisdiction,
+        trustLevel: source.trust_level,
+        document_hash: sha256(bodyText),
+        chunk_count: chunkText(bodyText, 9_000).length,
+        read_status: "extracted",
+        internetGuardrail: "approved_sources_allowlist_only",
+      },
+    }),
   });
 
   return {
@@ -515,7 +587,7 @@ async function buildInternetSourceCandidate(batchId: string, companyId: string, 
       title: node.title,
       semantic_summary: node.semanticSummary,
       reason: "Super Admin-approved allowlisted internet source was checked and queued for Human Review before it can support AI memory.",
-      source_evidence: evidenceFor(node, summary),
+      source_evidence: internetEvidence,
       proposed_payload: node,
       confidence_score: node.confidenceScore,
       validation_status: "pending_review",
@@ -616,7 +688,7 @@ async function alreadyQueuedOrTrusted(db: LearningDb, companyId: string, sourceT
       .eq("company_id", companyId)
       .eq("source_table", sourceTable)
       .eq("source_id", sourceId)
-      .in("validation_status", ["pending_review", "approved", "promoted"]) as unknown as Promise<QueryResult<unknown>>,
+      .in("validation_status", ["pending_review", "pending_second_approval", "approved", "promoted"]) as unknown as Promise<QueryResult<unknown>>,
   ]);
   return (trusted.count ?? 0) > 0 || (candidate.count ?? 0) > 0;
 }
@@ -680,6 +752,15 @@ function failedCandidateRow(
     metadata: Record<string, unknown>;
   },
 ) {
+  const metadata = input.metadata.requiresHumanReview === true
+    ? input.metadata
+    : learningCandidateReviewMetadata({
+      sourceKind: "failed_source",
+      learnedSummary: input.reason,
+      confidenceScore: 0,
+      riskLevel: "unknown",
+      extra: input.metadata,
+    });
   return {
     batch_id: batchId,
     company_id: input.companyId,
@@ -694,7 +775,7 @@ function failedCandidateRow(
     proposed_payload: {},
     confidence_score: 0,
     validation_status: "failed",
-    metadata: input.metadata,
+    metadata,
     created_by_type: "system",
   };
 }

@@ -8,6 +8,7 @@ import type {
   TrustedKnowledgeGraphMemoryMethod,
 } from "@/lib/aiKnowledgeMap/types";
 import { requestAiEmbedding } from "@/lib/ai/embeddings";
+import { isTrustedMemoryStale } from "@/lib/aiKnowledgeMap/reviewGate";
 
 type DbClient = Pick<SupabaseClient, "from"> & Partial<Pick<SupabaseClient, "rpc">>;
 type QueryResult<T> = { data: T | null; error: { message?: string | null } | null };
@@ -78,6 +79,11 @@ function rowsToItems(rows: Array<Record<string, unknown>>, edgesBySource: Map<st
     const nodeId = String(row.id ?? "");
     const edges = edgesBySource.get(nodeId) ?? [];
     const relationshipReasons = edges.map((edge) => clean(edge.reason, 220)).filter(Boolean);
+    const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {};
+    const certificate = metadata.provenanceCertificate && typeof metadata.provenanceCertificate === "object" && !Array.isArray(metadata.provenanceCertificate)
+      ? metadata.provenanceCertificate as TrustedKnowledgeGraphMemoryItem["provenanceCertificate"]
+      : null;
+    const reviewDueAt = typeof metadata.reviewDueAt === "string" ? metadata.reviewDueAt : certificate?.reviewDueAt ?? null;
     return {
       id: `graph:${nodeId}`,
       nodeId,
@@ -93,6 +99,9 @@ function rowsToItems(rows: Array<Record<string, unknown>>, edgesBySource: Map<st
       relationshipReasons,
       evidence: edges.flatMap(evidenceFromEdge).slice(0, 6),
       similarity: typeof row.similarity === "number" ? row.similarity : null,
+      provenanceCertificate: certificate,
+      reviewDueAt,
+      isStale: isTrustedMemoryStale(metadata),
     };
   });
 }
@@ -239,7 +248,9 @@ export function formatTrustedKnowledgeGraphExcerpts(items: TrustedKnowledgeGraph
       const reasons = item.relationshipReasons.length > 0 ? `\nRelationship reasons: ${item.relationshipReasons.slice(0, 3).join(" | ")}` : "";
       const evidence = item.evidence.length > 0 ? `\nEvidence: ${item.evidence.slice(0, 3).map((entry) => `${entry.label}: ${entry.detail}`).join(" | ")}` : "";
       const scope = item.companyId ? "company-specific approved memory" : "general approved fallback guidance";
-      return `[G${index + 1}] (${scope}; ${item.sourceTable}:${item.sourceId}; confidence ${Math.round(item.confidenceScore * 100)}%) ${item.title}\n${clean(item.excerpt, maxExcerptLength)}${reasons}${evidence}`;
+      const stale = item.isStale ? "\nStale-memory warning: this approved graph item is past its review due date and should be treated as needing Super Admin refresh before being considered current." : "";
+      const reviewDue = item.reviewDueAt ? `; review due ${item.reviewDueAt.slice(0, 10)}` : "";
+      return `[G${index + 1}] (${scope}; ${item.sourceTable}:${item.sourceId}; confidence ${Math.round(item.confidenceScore * 100)}%${reviewDue}) ${item.title}\n${clean(item.excerpt, maxExcerptLength)}${reasons}${evidence}${stale}`;
     }),
   ].join("\n\n");
 }

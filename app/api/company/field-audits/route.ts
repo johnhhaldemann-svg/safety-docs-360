@@ -286,23 +286,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Audit payload is too large." }, { status: 413 });
   }
 
-  const jobsiteId = cleanText(body.jobsiteId, 80) || null;
-  const auditCustomerId = cleanText(body.auditCustomerId, 80) || null;
-  const auditCustomerLocationId = cleanText(body.auditCustomerLocationId, 80) || null;
-  if (!jobsiteId) {
-    return NextResponse.json({ error: "Select an active jobsite before submitting this audit." }, { status: 400 });
-  }
+  let jobsiteId = cleanText(body.jobsiteId, 80) || null;
+  let auditCustomerId = cleanText(body.auditCustomerId, 80) || null;
+  let auditCustomerLocationId = cleanText(body.auditCustomerLocationId, 80) || null;
+  if (auditCustomerId?.startsWith("unlinked:")) auditCustomerId = null;
   const writeSupabase = createSupabaseAdminClient() ?? auth.supabase;
-  const jobsiteScope = await getJobsiteAccessScope({
-    supabase: writeSupabase,
-    userId: auth.user.id,
-    companyId: effectiveCompanyId,
-    role: auth.role,
-  });
-  if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
-    return NextResponse.json({ error: "You can only submit audits for assigned jobsites." }, { status: 403 });
-  }
-
   const companyCheck = await writeSupabase
     .from("companies")
     .select("id, name, status")
@@ -316,6 +304,84 @@ export async function POST(request: Request) {
   }
   if (String(companyCheck.data.status ?? "").trim().toLowerCase() === "archived") {
     return NextResponse.json({ error: "Audits cannot be submitted for an archived company." }, { status: 400 });
+  }
+
+  let auditLocationOverride: { audit_customer_id?: string | null; name?: string | null; location?: string | null } | null = null;
+  if (auditCustomerLocationId) {
+    const locationCheck = await writeSupabase
+      .from("company_audit_customer_locations")
+      .select("id, audit_customer_id, name, location")
+      .eq("company_id", effectiveCompanyId)
+      .eq("id", auditCustomerLocationId)
+      .maybeSingle();
+    if (locationCheck.error) {
+      return NextResponse.json({ error: locationCheck.error.message || "Failed to validate audit location." }, { status: 500 });
+    }
+    if (locationCheck.data) {
+      const locationCustomerId = String(locationCheck.data.audit_customer_id ?? "").trim();
+      if (auditCustomerId && locationCustomerId && locationCustomerId !== auditCustomerId) {
+        return NextResponse.json({ error: "This audit location does not belong to the selected customer." }, { status: 400 });
+      }
+      if (!auditCustomerId && locationCustomerId) auditCustomerId = locationCustomerId;
+      auditLocationOverride = locationCheck.data;
+    } else {
+      const jobsiteFromLocationId = await writeSupabase
+        .from("company_jobsites")
+        .select("id, audit_customer_id, name, location")
+        .eq("company_id", effectiveCompanyId)
+        .eq("id", auditCustomerLocationId)
+        .maybeSingle();
+      if (jobsiteFromLocationId.error) {
+        return NextResponse.json({ error: jobsiteFromLocationId.error.message || "Failed to validate audit job/location." }, { status: 500 });
+      }
+      if (!jobsiteFromLocationId.data) {
+        return NextResponse.json({ error: "Select a valid audit job/location." }, { status: 400 });
+      }
+      const jobsiteCustomerId = String(jobsiteFromLocationId.data.audit_customer_id ?? "").trim();
+      if (auditCustomerId && jobsiteCustomerId && jobsiteCustomerId !== auditCustomerId) {
+        return NextResponse.json({ error: "This audit location does not belong to the selected customer." }, { status: 400 });
+      }
+      if (!auditCustomerId && jobsiteCustomerId) auditCustomerId = jobsiteCustomerId;
+      if (!jobsiteId) jobsiteId = String(jobsiteFromLocationId.data.id ?? "") || null;
+      auditCustomerLocationId = null;
+      auditLocationOverride = {
+        audit_customer_id: jobsiteCustomerId || null,
+        name: typeof jobsiteFromLocationId.data.name === "string" ? jobsiteFromLocationId.data.name : null,
+        location: typeof jobsiteFromLocationId.data.location === "string" ? jobsiteFromLocationId.data.location : null,
+      };
+    }
+  }
+
+  if (!jobsiteId && auditLocationOverride?.name) {
+    let fallbackJobsiteQuery = writeSupabase
+      .from("company_jobsites")
+      .select("id")
+      .eq("company_id", effectiveCompanyId)
+      .eq("status", "active")
+      .eq("name", String(auditLocationOverride.name));
+    const fallbackCustomerId = String(auditLocationOverride.audit_customer_id ?? "").trim();
+    if (fallbackCustomerId) {
+      fallbackJobsiteQuery = fallbackJobsiteQuery.eq("audit_customer_id", fallbackCustomerId);
+    }
+    const fallbackJobsite = await fallbackJobsiteQuery.limit(1).maybeSingle();
+    if (fallbackJobsite.error) {
+      return NextResponse.json({ error: fallbackJobsite.error.message || "Failed to match audit location to an active jobsite." }, { status: 500 });
+    }
+    jobsiteId = fallbackJobsite.data?.id ? String(fallbackJobsite.data.id) : null;
+  }
+
+  if (!jobsiteId) {
+    return NextResponse.json({ error: "Select an active jobsite before submitting this audit." }, { status: 400 });
+  }
+
+  const jobsiteScope = await getJobsiteAccessScope({
+    supabase: writeSupabase,
+    userId: auth.user.id,
+    companyId: effectiveCompanyId,
+    role: auth.role,
+  });
+  if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
+    return NextResponse.json({ error: "You can only submit audits for assigned jobsites." }, { status: 403 });
   }
 
   const jobsiteCheck = await writeSupabase
@@ -354,24 +420,9 @@ export async function POST(request: Request) {
     }
     auditCustomerName = String(customerCheck.data.name ?? "");
   }
-  if (auditCustomerLocationId) {
-    const locationCheck = await writeSupabase
-      .from("company_audit_customer_locations")
-      .select("id, audit_customer_id, name, location")
-      .eq("company_id", effectiveCompanyId)
-      .eq("id", auditCustomerLocationId)
-      .maybeSingle();
-    if (locationCheck.error) {
-      return NextResponse.json({ error: locationCheck.error.message || "Failed to validate audit location." }, { status: 500 });
-    }
-    if (!locationCheck.data) {
-      return NextResponse.json({ error: "Select a valid audit job/location." }, { status: 400 });
-    }
-    if (auditCustomerId && locationCheck.data.audit_customer_id !== auditCustomerId) {
-      return NextResponse.json({ error: "This audit location does not belong to the selected customer." }, { status: 400 });
-    }
-    auditLocationName = String(locationCheck.data.name ?? "");
-    auditLocationAddress = typeof locationCheck.data.location === "string" ? locationCheck.data.location : null;
+  if (auditLocationOverride) {
+    auditLocationName = String(auditLocationOverride.name ?? "");
+    auditLocationAddress = typeof auditLocationOverride.location === "string" ? auditLocationOverride.location : null;
   }
 
   const auditDate = validAuditDate(body.auditDate);

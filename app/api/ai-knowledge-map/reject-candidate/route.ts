@@ -21,11 +21,15 @@ export async function POST(request: Request) {
   const ids = candidateIds(body);
   const status = body?.status === "incorrect" ? "incorrect" : "rejected";
   if (ids.length === 0) return NextResponse.json({ error: "candidateId or candidateIds is required." }, { status: 400 });
+  const reason = typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : "";
+  if (reason.replace(/\s+/g, " ").length < 12) {
+    return NextResponse.json({ error: "Rejecting or marking incorrect requires a meaningful review reason." }, { status: 400 });
+  }
 
   const result = await reviewKnowledgeIngestCandidates(admin, {
     candidateIds: ids,
     status,
-    reason: typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : `Super Admin marked candidate ${status}.`,
+    reason,
     actorUserId: auth.user.id,
     promoteApproved: false,
   });

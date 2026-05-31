@@ -22,11 +22,15 @@ export async function POST(request: Request) {
   if (!status || !REVIEW_STATUSES.has(status)) {
     return NextResponse.json({ error: "status must be approved, rejected, or incorrect." }, { status: 400 });
   }
+  const reason = typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : "";
+  if ((status === "rejected" || status === "incorrect") && reason.replace(/\s+/g, " ").length < 12) {
+    return NextResponse.json({ error: "Rejecting or marking incorrect requires a meaningful review reason." }, { status: 400 });
+  }
 
   const result = await updateKnowledgeRelationshipValidation(admin, {
     edgeId,
     status: status as Exclude<AiKnowledgeValidationStatus, "pending_review" | "needs_review" | "unreviewed">,
-    reason: typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : `Super Admin marked relationship ${status}.`,
+    reason: reason || `Super Admin marked relationship ${status}.`,
     actorUserId: auth.user.id,
   });
   return NextResponse.json(result);

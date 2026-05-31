@@ -105,7 +105,10 @@ export default function NewAuditScreen() {
   }, [selectedTemplates]);
   const mobileCompanies = useMemo(() => buildMobileCompanies(data?.mobileCompanies), [data]);
   const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? mobileCompanies[0] ?? null;
-  const companyJobsites = selectedCompany?.jobsites ?? [];
+  const companyJobsites = useMemo(
+    () => (selectedCompany?.jobsites ?? []).filter((jobsite) => String(jobsite.status ?? "").toLowerCase() === "active"),
+    [selectedCompany]
+  );
   const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? companyJobsites[0] ?? null;
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
@@ -226,10 +229,11 @@ export default function NewAuditScreen() {
         throw new Error("Corrective action is required for every failed audit item.");
       }
       const created = await createAudit({
-        auditCustomerId: selectedCompany?.id ?? null,
-        auditCustomerLocationId: selectedJobsite?.id ?? null,
+        companyId: data?.user.companyId ?? null,
+        jobsiteId: selectedJobsite?.id ?? null,
+        auditCustomerId: selectedCompany?.auditCustomerId ?? selectedJobsite?.audit_customer_id ?? null,
+        auditCustomerLocationId: selectedJobsite?.audit_customer_location_id ?? null,
         auditedCompanyName: selectedCompany?.name ?? null,
-        jobsiteId: null,
         auditDate,
         auditors,
         hoursBilled,

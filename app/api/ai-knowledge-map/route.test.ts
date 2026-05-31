@@ -32,7 +32,7 @@ vi.mock("@/lib/aiKnowledgeMap/repository", () => ({
     demo: false,
   })),
   rebuildKnowledgeIndex: vi.fn(async () => ({ ok: true, companyId: "company-1", insertedOrUpdatedNodes: 1, insertedOrUpdatedEdges: 2, vectorRows: 1, embeddingAttempts: 0, warnings: [], generatedAt: "2026-05-28T00:00:00.000Z" })),
-  recalculateKnowledgeRelationships: vi.fn(async () => ({ ok: true, companyId: "company-1", insertedOrUpdatedEdges: 3, generatedAt: "2026-05-28T00:00:00.000Z" })),
+  recalculateKnowledgeRelationships: vi.fn(async () => ({ ok: true, companyId: "company-1", insertedOrUpdatedEdges: 0, candidateEdges: 3, reviewRequiredCount: 3, generatedAt: "2026-05-28T00:00:00.000Z" })),
   updateKnowledgeRelationshipValidation: vi.fn(async () => ({ ok: true, edge: { id: "edge-1" }, reviewedAt: "2026-05-28T00:00:00.000Z" })),
   saveKnowledgeMapView: vi.fn(async () => ({ ok: true, view: { id: "view-1" } })),
   listKnowledgeIngestCandidates: vi.fn(async () => ({ candidates: [{ id: "candidate-1", title: "Hot Work Permit" }], count: 1 })),
@@ -105,12 +105,12 @@ describe("/api/ai-knowledge-map", () => {
     allow();
     await expect(candidatesRoute.GET(new Request("https://example.com/api/ai-knowledge-map/candidates?companyId=company-1&status=pending_review"))).resolves.toMatchObject({ status: 200 });
     await expect(approveCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/approve-candidate", { method: "POST", body: JSON.stringify({ candidateId: "candidate-1" }) }))).resolves.toMatchObject({ status: 200 });
-    await expect(rejectCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/reject-candidate", { method: "POST", body: JSON.stringify({ candidateIds: ["candidate-2"], status: "incorrect" }) }))).resolves.toMatchObject({ status: 200 });
+    await expect(rejectCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/reject-candidate", { method: "POST", body: JSON.stringify({ candidateIds: ["candidate-2"], status: "incorrect", reason: "Source evidence does not support this relationship." }) }))).resolves.toMatchObject({ status: 200 });
     await expect(promoteApprovedRoute.POST(new Request("https://example.com/api/ai-knowledge-map/promote-approved", { method: "POST", body: JSON.stringify({ companyId: "company-1", limit: 25 }) }))).resolves.toMatchObject({ status: 200 });
 
     expect(listKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ companyId: "company-1", status: "pending_review" }));
     expect(reviewKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ candidateIds: ["candidate-1"], status: "approved", actorUserId: "super-1", promoteApproved: true }));
-    expect(reviewKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ candidateIds: ["candidate-2"], status: "incorrect", actorUserId: "super-1", promoteApproved: false }));
+    expect(reviewKnowledgeIngestCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ candidateIds: ["candidate-2"], status: "incorrect", actorUserId: "super-1", promoteApproved: false, reason: "Source evidence does not support this relationship." }));
     expect(promoteApprovedKnowledgeCandidates).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ companyId: "company-1", limit: 25, actorUserId: "super-1" }));
   });
 
@@ -120,5 +120,18 @@ describe("/api/ai-knowledge-map", () => {
     const validate = expectResponse(await validateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/validate-relationship", { method: "POST", body: JSON.stringify({ edgeId: "edge-1", status: "pending_review" }) })));
     expect(rebuild.status).toBe(400);
     expect(validate.status).toBe(400);
+  });
+
+  it("rejects all-company write actions server-side", async () => {
+    allow();
+    await expect(rebuildRoute.POST(new Request("https://example.com/api/ai-knowledge-map/rebuild-index", { method: "POST", body: JSON.stringify({ companyId: "all" }) }))).resolves.toMatchObject({ status: 400 });
+    await expect(recalculateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/recalculate-risk-connections", { method: "POST", body: JSON.stringify({ companyId: "all" }) }))).resolves.toMatchObject({ status: 400 });
+    await expect(promoteApprovedRoute.POST(new Request("https://example.com/api/ai-knowledge-map/promote-approved", { method: "POST", body: JSON.stringify({ companyId: "all" }) }))).resolves.toMatchObject({ status: 400 });
+  });
+
+  it("requires meaningful reasons for negative review actions", async () => {
+    allow();
+    await expect(validateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/validate-relationship", { method: "POST", body: JSON.stringify({ edgeId: "edge-1", status: "rejected", reason: "bad" }) }))).resolves.toMatchObject({ status: 400 });
+    await expect(rejectCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/reject-candidate", { method: "POST", body: JSON.stringify({ candidateId: "candidate-1", status: "incorrect" }) }))).resolves.toMatchObject({ status: 400 });
   });
 });

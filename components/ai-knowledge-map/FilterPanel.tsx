@@ -51,7 +51,7 @@ export function FilterPanel({
           placeholder="Search knowledge map"
         />
       </label>
-      <div className="mt-4 space-y-3 text-xs font-bold text-slate-300">
+      <div className="mt-4 grid gap-3 text-xs font-bold text-slate-300 sm:grid-cols-2 lg:grid-cols-1">
         <CompanySelect
           companies={companies}
           value={filters.companyId ?? ""}
@@ -69,7 +69,7 @@ export function FilterPanel({
       </button>
       <div className="mt-5">
         <h3 className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Saved views</h3>
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
           {savedViews.map((view) => (
             <button
               key={view.label}

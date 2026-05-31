@@ -13,6 +13,9 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "Service role client is required for AI Knowledge Map promotion." }, { status: 500 });
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  if (body?.companyId === "all") {
+    return NextResponse.json({ error: "All-company view is read-only. Select one company before promoting trusted memory." }, { status: 400 });
+  }
   const result = await promoteApprovedKnowledgeCandidates(admin, {
     companyId: typeof body?.companyId === "string" ? body.companyId : null,
     batchId: typeof body?.batchId === "string" ? body.batchId : null,

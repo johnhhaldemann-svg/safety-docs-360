@@ -31,6 +31,8 @@ export async function GET(request: Request) {
     companySpecificEdgeCount: payload.companySpecificEdgeCount,
     companyDocumentNodeCount: payload.companyDocumentNodeCount,
     sharedLibraryNodeCount: payload.sharedLibraryNodeCount,
+    pendingLearningCandidateCount: payload.pendingLearningCandidateCount,
+    pendingLearningBatchCount: payload.pendingLearningBatchCount,
     warnings: payload.warnings,
   });
 }
