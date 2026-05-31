@@ -1,4 +1,5 @@
 import { Link } from "expo-router";
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { theme } from "@/theme";
 
@@ -15,11 +16,13 @@ export function RegisterRow({
   meta,
   badge,
   detail,
+  action,
 }: {
   title: string;
   meta: string;
   badge?: string;
   detail?: string;
+  action?: ReactNode;
 }) {
   const tone = badgeTone(badge);
   return (
@@ -35,6 +38,7 @@ export function RegisterRow({
       </View>
       <Text style={styles.meta}>{meta}</Text>
       {detail ? <Text style={styles.detail}>{detail}</Text> : null}
+      {action ? <View style={styles.rowAction}>{action}</View> : null}
     </View>
   );
 }
@@ -104,4 +108,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  rowAction: { marginTop: 2 },
 });

@@ -1,7 +1,7 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Field } from "@/components/Form";
 import { PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
@@ -60,44 +60,38 @@ function normalizedName(value?: string | null) {
 function buildMobileCompanies(data?: MobileMe) {
   const auditCustomers = data?.auditCustomers ?? [];
   const jobsites = (data?.jobsites ?? []).filter(isActiveJobsite);
-  const companies: MobileCompany[] = [];
-  const assignedJobsiteIds = new Set<string>();
+  const customersById = new Map(auditCustomers.map((customer) => [customer.id, customer]));
+  const customersByName = new Map(auditCustomers.map((customer) => [normalizedName(customer.name), customer]));
+  const groups = new Map<string, MobileCompany>();
 
-  for (const customer of auditCustomers) {
-    const customerJobsites = jobsites.filter((jobsite) => jobsite.audit_customer_id === customer.id);
-    if (customerJobsites.length < 1) continue;
-    companies.push({
-      id: customer.id,
-      name: customer.name,
-      auditCustomerId: customer.id,
-      jobsites: customerJobsites.map((jobsite) => ({
-        ...jobsite,
-        customer_company_name: customer.name,
-      })),
-    });
-    customerJobsites.forEach((jobsite) => assignedJobsiteIds.add(jobsite.id));
-  }
-
-  const unlinkedGroups = new Map<string, MobileCompany>();
   for (const jobsite of jobsites) {
-    if (assignedJobsiteIds.has(jobsite.id)) continue;
-    const groupName = jobsite.customer_company_name?.trim();
-    if (!groupName) continue;
-    const key = `unlinked:${normalizedName(groupName) || jobsite.id}`;
-    const existing = unlinkedGroups.get(key);
+    const displayedCustomerName = jobsite.customer_company_name?.trim() ?? "";
+    const matchedCustomer =
+      (displayedCustomerName ? customersByName.get(normalizedName(displayedCustomerName)) : null) ??
+      (jobsite.audit_customer_id ? customersById.get(jobsite.audit_customer_id) : null) ??
+      null;
+    const groupName = displayedCustomerName || matchedCustomer?.name?.trim() || "Company Jobsites";
+    const groupId = matchedCustomer?.id ?? `unlinked:${normalizedName(groupName) || jobsite.id}`;
+    const existing = groups.get(groupId);
+    const groupedJobsite = {
+      ...jobsite,
+      audit_customer_id: matchedCustomer?.id ?? jobsite.audit_customer_id ?? null,
+      customer_company_name: groupName,
+    };
+
     if (existing) {
-      existing.jobsites.push(jobsite);
+      existing.jobsites.push(groupedJobsite);
       continue;
     }
-    unlinkedGroups.set(key, {
-      id: key,
+    groups.set(groupId, {
+      id: groupId,
       name: groupName,
-      auditCustomerId: null,
-      jobsites: [jobsite],
+      auditCustomerId: matchedCustomer?.id ?? null,
+      jobsites: [groupedJobsite],
     });
   }
 
-  const derivedCompanies = [...companies, ...unlinkedGroups.values()].sort((left, right) => left.name.localeCompare(right.name));
+  const derivedCompanies = [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
   if (derivedCompanies.length > 0) return derivedCompanies;
   const fallbackCompanies = data?.mobileCompanies?.map((company) => ({
     ...company,
@@ -114,6 +108,8 @@ function statusButtonActiveStyle(status: AuditStatus) {
 }
 
 export default function NewAuditScreen() {
+  const params = useLocalSearchParams<{ jobsiteId?: string | string[] }>();
+  const linkedJobsiteId = Array.isArray(params.jobsiteId) ? params.jobsiteId[0] : params.jobsiteId;
   const { data } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const { data: templates = [] } = useQuery<AuditTemplate[]>({
     queryKey: ["audit-templates"],
@@ -163,6 +159,16 @@ export default function NewAuditScreen() {
     [selectedCompany]
   );
   const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? null;
+
+  useEffect(() => {
+    if (!linkedJobsiteId || mobileCompanies.length < 1) return;
+    const linkedCompany = mobileCompanies.find((company) =>
+      company.jobsites.some((jobsite) => jobsite.id === linkedJobsiteId)
+    );
+    if (!linkedCompany) return;
+    if (selectedCompanyId !== linkedCompany.id) setSelectedCompanyId(linkedCompany.id);
+    if (selectedJobsiteId !== linkedJobsiteId) setSelectedJobsiteId(linkedJobsiteId);
+  }, [linkedJobsiteId, mobileCompanies, selectedCompanyId, selectedJobsiteId]);
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
   const activeSection = combinedSections[activePage];
@@ -338,7 +344,7 @@ export default function NewAuditScreen() {
       footer={sectionNav}
     >
       <StatusBanner
-        title="AI + Admin Review"
+        title={linkedJobsiteId ? "Jobsite Audit Started" : "AI + Admin Review"}
         detail="Submitted audits are reviewed by AI for summary/corrections, then approved by a company admin before customer delivery."
         tone="info"
       />

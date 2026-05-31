@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "@/api/mobile";
 import { EmptyState, ErrorState, LoadingState } from "@/components/Enterprise";
-import { RegisterRow } from "@/components/ListPrimitives";
+import { RegisterAction, RegisterRow } from "@/components/ListPrimitives";
 import { Screen } from "@/components/Screen";
 
 export default function JobsitesScreen() {
@@ -19,6 +19,13 @@ export default function JobsitesScreen() {
           title={jobsite.name}
           meta={jobsite.customer_company_name || "Company jobsite"}
           badge={jobsite.status ?? "active"}
+          detail={jobsite.audit_customer_id ? "Linked for customer audits" : "Needs audit customer link"}
+          action={
+            <RegisterAction
+              href={{ pathname: "/audits/new", params: { jobsiteId: jobsite.id } }}
+              label="Start Audit"
+            />
+          }
         />
       ))}
     </Screen>
