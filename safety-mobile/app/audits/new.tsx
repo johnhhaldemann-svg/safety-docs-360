@@ -3,13 +3,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Field } from "@/components/Form";
-import { PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
+import { AppCard, PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { createAudit, getAuditTemplates, getMe, signAudit, uploadAuditPhoto } from "@/api/mobile";
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { theme } from "@/theme";
-import type { Jobsite, MobileCompany, MobileMe } from "@/types/mobile";
+import type { AuditCustomer, Jobsite } from "@/types/mobile";
 
 type AuditStatus = "pass" | "fail" | "na";
 
@@ -49,56 +49,18 @@ function toTitleCase(value?: string | null) {
     .join(" ");
 }
 
-function isActiveJobsite(jobsite: Jobsite) {
-  return String(jobsite.status ?? "active").toLowerCase() === "active";
-}
-
 function normalizedName(value?: string | null) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function buildMobileCompanies(data?: MobileMe) {
-  const auditCustomers = data?.auditCustomers ?? [];
-  const jobsites = (data?.jobsites ?? []).filter(isActiveJobsite);
-  const customersById = new Map(auditCustomers.map((customer) => [customer.id, customer]));
-  const customersByName = new Map(auditCustomers.map((customer) => [normalizedName(customer.name), customer]));
-  const groups = new Map<string, MobileCompany>();
-
-  for (const jobsite of jobsites) {
-    const displayedCustomerName = jobsite.customer_company_name?.trim() ?? "";
-    const matchedCustomer =
-      (displayedCustomerName ? customersByName.get(normalizedName(displayedCustomerName)) : null) ??
-      (jobsite.audit_customer_id ? customersById.get(jobsite.audit_customer_id) : null) ??
-      null;
-    const groupName = displayedCustomerName || matchedCustomer?.name?.trim() || "Company Jobsites";
-    const groupId = matchedCustomer?.id ?? `unlinked:${normalizedName(groupName) || jobsite.id}`;
-    const existing = groups.get(groupId);
-    const groupedJobsite = {
-      ...jobsite,
-      audit_customer_id: matchedCustomer?.id ?? jobsite.audit_customer_id ?? null,
-      customer_company_name: groupName,
-    };
-
-    if (existing) {
-      existing.jobsites.push(groupedJobsite);
-      continue;
-    }
-    groups.set(groupId, {
-      id: groupId,
-      name: groupName,
-      auditCustomerId: matchedCustomer?.id ?? null,
-      jobsites: [groupedJobsite],
-    });
-  }
-
-  const derivedCompanies = [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
-  if (derivedCompanies.length > 0) return derivedCompanies;
-  const fallbackCompanies = data?.mobileCompanies?.map((company) => ({
-    ...company,
-    jobsites: company.jobsites.filter(isActiveJobsite),
-  })).filter((company) => company.jobsites.length > 0);
-  if (fallbackCompanies && fallbackCompanies.length > 0) return fallbackCompanies;
-  return [];
+function auditCustomerForJobsite(jobsite?: Jobsite | null, auditCustomers?: AuditCustomer[]) {
+  if (!jobsite) return null;
+  const customers = auditCustomers ?? [];
+  return (
+    (jobsite.audit_customer_id ? customers.find((customer) => customer.id === jobsite.audit_customer_id) : null) ??
+    customers.find((customer) => normalizedName(customer.name) === normalizedName(jobsite.customer_company_name)) ??
+    null
+  );
 }
 
 function statusButtonActiveStyle(status: AuditStatus) {
@@ -118,8 +80,6 @@ export default function NewAuditScreen() {
   const [auditors, setAuditors] = useState("");
   const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [hoursBilled, setHoursBilled] = useState("");
-  const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
   const [selectedJobsiteId, setSelectedJobsiteId] = useState("");
   const [jobsitePickerOpen, setJobsitePickerOpen] = useState(false);
   const [selectedTrades, setSelectedTrades] = useState<string[]>(["general_contractor"]);
@@ -152,23 +112,21 @@ export default function NewAuditScreen() {
     }
     return [...sectionMap.values()];
   }, [selectedTemplates]);
-  const mobileCompanies = useMemo(() => buildMobileCompanies(data), [data]);
-  const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? null;
-  const companyJobsites = useMemo(
-    () => (selectedCompany?.jobsites ?? []).filter(isActiveJobsite),
-    [selectedCompany]
-  );
-  const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? null;
+  const jobsites = data?.jobsites ?? [];
+  const selectedJobsite = jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? jobsites[0] ?? null;
+  const selectedAuditCustomer = auditCustomerForJobsite(selectedJobsite, data?.auditCustomers);
+  const auditedCompanyName =
+    selectedJobsite?.customer_company_name?.trim() ||
+    selectedAuditCustomer?.name?.trim() ||
+    data?.user.companyName ||
+    "";
 
   useEffect(() => {
-    if (!linkedJobsiteId || mobileCompanies.length < 1) return;
-    const linkedCompany = mobileCompanies.find((company) =>
-      company.jobsites.some((jobsite) => jobsite.id === linkedJobsiteId)
-    );
-    if (!linkedCompany) return;
-    if (selectedCompanyId !== linkedCompany.id) setSelectedCompanyId(linkedCompany.id);
+    if (!linkedJobsiteId || jobsites.length < 1) return;
+    const linkedJobsite = jobsites.find((jobsite) => jobsite.id === linkedJobsiteId);
+    if (!linkedJobsite) return;
     if (selectedJobsiteId !== linkedJobsiteId) setSelectedJobsiteId(linkedJobsiteId);
-  }, [linkedJobsiteId, mobileCompanies, selectedCompanyId, selectedJobsiteId]);
+  }, [linkedJobsiteId, jobsites, selectedJobsiteId]);
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
   const activeSection = combinedSections[activePage];
@@ -277,8 +235,8 @@ export default function NewAuditScreen() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!selectedCompany || !selectedJobsite) {
-        throw new Error("Select the audit customer and audit job/location before submitting.");
+      if (!selectedJobsite) {
+        throw new Error("Select the jobsite before submitting.");
       }
       const missingCorrectiveActions = Object.entries(statusMap)
         .filter(([, status]) => status === "fail")
@@ -290,9 +248,9 @@ export default function NewAuditScreen() {
       const created = await createAudit({
         companyId: data?.user.companyId ?? null,
         jobsiteId: selectedJobsite?.id ?? null,
-        auditCustomerId: selectedCompany?.auditCustomerId ?? selectedJobsite?.audit_customer_id ?? null,
+        auditCustomerId: selectedAuditCustomer?.id ?? selectedJobsite?.audit_customer_id ?? null,
         auditCustomerLocationId: selectedJobsite?.audit_customer_location_id ?? null,
-        auditedCompanyName: selectedCompany?.name ?? null,
+        auditedCompanyName: auditedCompanyName || null,
         auditDate,
         auditors,
         hoursBilled,
@@ -349,41 +307,29 @@ export default function NewAuditScreen() {
         tone="info"
       />
       <View style={styles.form}>
-        <View style={styles.auditHeaderCard}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.cardKicker}>Audit Header</Text>
-              <Text style={styles.cardTitle}>Customer Location & Billing</Text>
-            </View>
-            <Text style={styles.reviewBadge}>Review Required</Text>
-          </View>
+        <AppCard title="Job Details" eyebrow="Step 1" aside={<Text style={styles.reviewBadge}>Review Required</Text>}>
           <SelectionDropdown
-            label="Company Being Audited"
-            value={selectedCompany?.name ?? "Choose audited company"}
-            open={companyPickerOpen}
-            onToggle={() => setCompanyPickerOpen((open) => !open)}
-            options={mobileCompanies.map((company) => ({ id: company.id, label: company.name }))}
-            onSelect={(id) => {
-              setSelectedCompanyId(id);
-              setSelectedJobsiteId("");
-              setCompanyPickerOpen(false);
-            }}
-          />
-          <SelectionDropdown
-            label="Audit Job / Location"
-            value={selectedCompany ? selectedJobsite?.name ?? "Choose audit job/location" : "Choose audited company first"}
+            label="Jobsite"
+            value={selectedJobsite?.name ?? "No assigned jobsite"}
             open={jobsitePickerOpen}
             onToggle={() => setJobsitePickerOpen((open) => !open)}
-            options={companyJobsites.map((jobsite) => ({ id: jobsite.id, label: jobsite.name, meta: jobsite.status ?? undefined }))}
+            options={jobsites.map((jobsite) => ({ id: jobsite.id, label: jobsite.name, meta: jobsite.status ?? undefined }))}
             onSelect={(id) => {
               setSelectedJobsiteId(id);
               setJobsitePickerOpen(false);
             }}
           />
+          <View style={styles.customerSummary}>
+            <Text style={styles.customerSummaryLabel}>Company Being Audited</Text>
+            <Text style={styles.customerSummaryValue}>{auditedCompanyName || "Not linked to customer"}</Text>
+            <Text style={styles.customerSummaryMeta}>
+              {selectedAuditCustomer?.id || selectedJobsite?.audit_customer_id ? "Linked from selected jobsite" : "Set this on the jobsite page to drive customer billing"}
+            </Text>
+          </View>
           <Field label="Audit Date" value={auditDate} onChangeText={setAuditDate} placeholder="YYYY-MM-DD" />
           <Field label="Auditor(s)" value={auditors} onChangeText={setAuditors} placeholder="Names, comma-separated" />
           <Field label="Hours Billed" value={hoursBilled} onChangeText={setHoursBilled} placeholder="0.00" keyboardType="decimal-pad" />
-        </View>
+        </AppCard>
 
         <View style={styles.auditHeaderCard}>
           <View style={styles.cardHeaderRow}>
@@ -579,6 +525,10 @@ const styles = StyleSheet.create({
   cardTitle: { color: theme.textStrong, fontSize: 17, fontWeight: "900", marginTop: 3 },
   reviewBadge: { color: theme.warning, backgroundColor: theme.warningSoft, borderRadius: 999, overflow: "hidden", paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   scopeCount: { color: theme.accent, backgroundColor: theme.accentSoft, borderRadius: 999, overflow: "hidden", paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  customerSummary: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.panelSoft, borderRadius: 9, padding: 11, gap: 2 },
+  customerSummaryLabel: { color: theme.textStrong, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4 },
+  customerSummaryValue: { color: theme.textStrong, fontSize: 15, fontWeight: "900" },
+  customerSummaryMeta: { color: theme.muted, fontSize: 11, fontWeight: "700" },
   dropdownButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
   dropdownTitle: { color: theme.textStrong, fontSize: 15, fontWeight: "900" },
   dropdownMeta: { color: theme.muted, fontSize: 12, fontWeight: "700", marginTop: 3 },
