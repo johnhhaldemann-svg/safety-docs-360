@@ -154,7 +154,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
           <button type="button" onClick={selectAllPending} className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09]">
             Select all pending
           </button>
-          <button type="button" disabled={selectedPendingIds.length === 0 || Boolean(working)} onClick={() => void reviewIds(selectedPendingIds, "approve", "selected")} className="rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
+          <button type="button" disabled={selectedPendingIds.length === 0 || Boolean(working)} onClick={() => void reviewIds(selectedPendingIds, "approve", "selected")} className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs font-black text-emerald-900 hover:bg-emerald-100 disabled:opacity-60">
             Approve selected ({selectedPendingIds.length})
           </button>
         </div>
@@ -256,9 +256,9 @@ function CandidateCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{candidateSourceLabel(candidate)}</p>
-              <p className="truncate text-sm font-black text-white">{candidate.title}</p>
+              <p className="truncate text-sm font-black text-slate-950">{candidate.title}</p>
             </div>
-            <span className={`rounded-md border px-2 py-1 text-[10px] font-black ${failed ? "border-red-300/25 bg-red-300/10 text-red-100" : "border-amber-300/25 bg-amber-300/10 text-amber-100"}`}>
+            <span className={`rounded-md border px-2 py-1 text-[10px] font-black ${failed ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
               {candidate.validationStatus.replace(/_/g, " ")}
             </span>
           </div>
@@ -302,14 +302,14 @@ function CandidateCard({
           {!failed ? (
             <>
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <button type="button" disabled={working} onClick={() => void submitReview("approve")} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
+                <button type="button" disabled={working} onClick={() => void submitReview("approve")} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs font-black text-emerald-900 hover:bg-emerald-100 disabled:opacity-60">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   {reviewState?.action === "approve" && reviewState.tone === "info" ? "Approving..." : "Approve"}
                 </button>
-                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "reject", reason: "" })} className="min-h-10 rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09] disabled:opacity-60">
+                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "reject", reason: "" })} className="min-h-10 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs font-black text-amber-900 hover:bg-amber-100 disabled:opacity-60">
                   Reject
                 </button>
-                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "incorrect", reason: "" })} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-red-400/25 bg-red-400/10 px-2 py-1.5 text-xs font-black text-red-100 hover:bg-red-400/16 disabled:opacity-60">
+                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "incorrect", reason: "" })} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-xs font-black text-red-900 hover:bg-red-100 disabled:opacity-60">
                   <XCircle className="h-3.5 w-3.5" />
                   Incorrect
                 </button>
@@ -369,7 +369,7 @@ function CandidateReasonBox({
           type="button"
           disabled={!canConfirm || working}
           onClick={onConfirm}
-          className={`min-h-10 rounded-md border px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-45 ${action === "incorrect" ? "border-red-400/25 bg-red-400/10 text-red-100 hover:bg-red-400/16" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}
+          className={`min-h-10 rounded-md border px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-45 ${action === "incorrect" ? "border-red-300 bg-red-50 text-red-900 hover:bg-red-100" : "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"}`}
         >
           Confirm {action === "incorrect" ? "Incorrect" : "Reject"}
         </button>
@@ -383,9 +383,9 @@ function CandidateReasonBox({
 }
 
 function messageTone(tone: "success" | "error" | "info") {
-  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
-  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
-  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
+  if (tone === "success") return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  if (tone === "error") return "border-red-300 bg-red-50 text-red-900";
+  return "border-sky-300 bg-sky-50 text-sky-900";
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

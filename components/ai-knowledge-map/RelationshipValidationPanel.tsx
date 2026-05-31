@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { AiKnowledgeEdge } from "@/lib/aiKnowledgeMap/types";
-import { relationshipLabel, validationTone } from "@/components/ai-knowledge-map/mapTheme";
+import { relationshipLabel } from "@/components/ai-knowledge-map/mapTheme";
 
 type ReviewStatus = "approved" | "rejected" | "incorrect";
 
@@ -50,8 +50,8 @@ export function RelationshipValidationPanel({
           return (
           <article key={edgeKey} className="relative rounded-lg border border-white/10 bg-white/[0.04] p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-black text-white">{relationshipLabel(edge.relationshipType)}</span>
-              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase ${validationTone(edge.validationStatus)}`}>{edge.validationStatus.replace(/_/g, " ")}</span>
+              <span className="text-xs font-black text-slate-950">{relationshipLabel(edge.relationshipType)}</span>
+              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase ${lightValidationTone(edge.validationStatus)}`}>{edge.validationStatus.replace(/_/g, " ")}</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-300">{edge.reason}</p>
             {edge.evidenceText ? <p className="mt-2 rounded-md border border-white/10 bg-black/10 p-2 text-[11px] font-semibold leading-5 text-slate-400">Evidence: {edge.evidenceText}</p> : null}
@@ -113,9 +113,16 @@ function reviewEdgeKey(edge: AiKnowledgeEdge) {
 }
 
 function messageTone(tone: "success" | "error" | "info") {
-  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
-  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
-  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
+  if (tone === "success") return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  if (tone === "error") return "border-red-300 bg-red-50 text-red-900";
+  return "border-sky-300 bg-sky-50 text-sky-900";
+}
+
+function lightValidationTone(status: AiKnowledgeEdge["validationStatus"]) {
+  if (status === "approved") return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  if (status === "rejected" || status === "incorrect") return "border-red-300 bg-red-50 text-red-900";
+  if (status === "needs_review") return "border-amber-300 bg-amber-50 text-amber-900";
+  return "border-sky-300 bg-sky-50 text-sky-900";
 }
 
 function ReviewButton({
@@ -130,9 +137,9 @@ function ReviewButton({
   disabled?: boolean;
 }) {
   const classes = {
-    approve: "border-emerald-300/40 bg-emerald-300/15 text-emerald-50 hover:bg-emerald-300/25",
-    reject: "border-amber-300/40 bg-amber-300/15 text-amber-50 hover:bg-amber-300/25",
-    incorrect: "border-red-300/40 bg-red-300/15 text-red-50 hover:bg-red-300/25",
+    approve: "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
+    reject: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    incorrect: "border-red-300 bg-red-50 text-red-900 hover:bg-red-100",
   };
   return (
     <button

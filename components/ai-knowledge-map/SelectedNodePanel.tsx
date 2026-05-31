@@ -171,9 +171,9 @@ export function SelectedNodePanel({
                 {activeMessage ? <p className={`rounded-md border p-2 text-[11px] font-black ${messageTone(activeMessage.tone)}`}>{activeMessage.text}</p> : null}
                 {edge.createdByType === "ai" || edge.validationStatus !== "approved" ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <ReviewButton label={activeSaving?.status === "approved" ? "Approving..." : "Approve"} disabled={Boolean(activeSaving)} onClick={() => void submitReview(edge, "approved")} />
-                    <ReviewButton label="Reject" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
-                    <ReviewButton label="Incorrect" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} danger />
+                    <ReviewButton label={activeSaving?.status === "approved" ? "Approving..." : "Approve"} tone="approve" disabled={Boolean(activeSaving)} onClick={() => void submitReview(edge, "approved")} />
+                    <ReviewButton label="Reject" tone="reject" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
+                    <ReviewButton label="Incorrect" tone="incorrect" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} />
                   </div>
                 ) : null}
                 {activeReview ? (
@@ -191,7 +191,7 @@ export function SelectedNodePanel({
                     <div className="mt-2 flex flex-wrap gap-2">
                       <ReviewButton
                         label={`Confirm ${activeReview.status === "incorrect" ? "Incorrect" : "Reject"}`}
-                        danger={activeReview.status === "incorrect"}
+                        tone={activeReview.status === "incorrect" ? "incorrect" : "reject"}
                         disabled={!canConfirm}
                         onClick={() => {
                           if (!canConfirm) return;
@@ -253,9 +253,9 @@ function reviewEdgeKey(edge: AiKnowledgeEdge) {
 }
 
 function messageTone(tone: "success" | "error" | "info") {
-  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
-  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
-  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
+  if (tone === "success") return "border-emerald-300 bg-emerald-50 text-emerald-900";
+  if (tone === "error") return "border-red-300 bg-red-50 text-red-900";
+  return "border-sky-300 bg-sky-50 text-sky-900";
 }
 
 function InsightSection({ title, items }: { title: string; items: string[] }) {
@@ -280,7 +280,12 @@ function Row({ label, value, badgeClass }: { label: string; value: string; badge
   );
 }
 
-function ReviewButton({ label, onClick, danger, disabled = false }: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
+function ReviewButton({ label, onClick, tone, disabled = false }: { label: string; onClick: () => void; tone: "approve" | "reject" | "incorrect"; disabled?: boolean }) {
+  const classes = {
+    approve: "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
+    reject: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    incorrect: "border-red-300 bg-red-50 text-red-900 hover:bg-red-100",
+  };
   return (
     <button
       type="button"
@@ -291,7 +296,7 @@ function ReviewButton({ label, onClick, danger, disabled = false }: { label: str
         event.stopPropagation();
         if (!disabled) onClick();
       }}
-      className={`min-h-10 rounded-md border px-2 py-1.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-red-400/25 bg-red-400/10 text-red-100 hover:bg-red-400/16" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}
+      className={`min-h-10 rounded-md border px-2 py-1.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-45 ${classes[tone]}`}
     >
       {label}
     </button>
