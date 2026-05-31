@@ -37,7 +37,7 @@ export function RelationshipValidationPanel({
   return (
     <section className="pointer-events-auto relative z-20 rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
       <h2 className="text-sm font-black text-white">Relationship Review</h2>
-      <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs font-bold text-amber-100">
+      <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-bold text-amber-950">
         Approved relationships support AI memory, but they do not prove compliance. Verify evidence and scope before approving.
       </p>
       <div className="mt-3 max-h-[360px] space-y-3 overflow-auto pb-3 pr-1">
@@ -96,7 +96,7 @@ export function RelationshipValidationPanel({
                     Cancel
                   </button>
                 </div>
-                {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
+                {!canConfirm ? <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
               </div>
             ) : null}
           </article>

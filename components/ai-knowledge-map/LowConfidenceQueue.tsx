@@ -12,9 +12,9 @@ export function LowConfidenceQueue({ edges }: { edges: AiKnowledgeEdge[] }) {
       </div>
       <div className="mt-3 space-y-2">
         {low.map((edge) => (
-          <div key={edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}`} className="rounded-lg border border-amber-300/18 bg-amber-300/8 p-3">
-            <p className="text-xs font-black text-amber-100">{relationshipLabel(edge.relationshipType)}</p>
-            <p className="mt-1 text-[11px] leading-5 text-slate-400">{edge.reason}</p>
+          <div key={edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}`} className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="text-xs font-black text-amber-950">{relationshipLabel(edge.relationshipType)}</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-amber-900">{edge.reason}</p>
           </div>
         ))}
         {low.length === 0 ? <p className="text-sm font-semibold text-slate-400">No low-confidence matches in this view.</p> : null}

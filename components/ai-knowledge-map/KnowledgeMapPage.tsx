@@ -372,7 +372,7 @@ function Banner({ tone, text }: { tone: "green" | "red" | "amber"; text: string 
   const classes = {
     green: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
     red: "border-red-300/25 bg-red-300/10 text-red-100",
-    amber: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+    amber: "border-amber-300 bg-amber-50 text-amber-950",
   };
   return (
     <div className={`flex items-start gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${classes[tone]}`}>

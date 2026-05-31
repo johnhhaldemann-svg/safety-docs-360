@@ -32,7 +32,7 @@ export function MapControls({
         <Search className="h-3.5 w-3.5 text-sky-300" />
         Search map
       </button>
-      <button type="button" onClick={onToggleHeatmap} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-black ${heatmap ? "border-amber-300/40 bg-amber-300/15 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}>
+      <button type="button" onClick={onToggleHeatmap} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-black ${heatmap ? "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}>
         <Thermometer className="h-3.5 w-3.5" />
         Heatmap
       </button>
