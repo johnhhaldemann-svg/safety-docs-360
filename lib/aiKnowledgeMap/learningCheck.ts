@@ -292,12 +292,12 @@ async function runCompanyLearningCheck(
 async function listCompanyIds(db: LearningDb, maxCompanies: number) {
   const { data, error } = (await db
     .from("companies")
-    .select("id,status,is_active")
+    .select("id,status")
     .order("created_at", { ascending: false })
     .limit(maxCompanies)) as QueryResult<Array<Record<string, unknown>>>;
   if (error) throw new Error(error.message ?? "Could not load companies for AI learning check.");
   return (data ?? [])
-    .filter((row) => row.is_active !== false && ["", "active", "approved"].includes(String(row.status ?? "").toLowerCase()))
+    .filter((row) => ["", "active", "approved"].includes(String(row.status ?? "").toLowerCase()))
     .map((row) => firstText(row.id))
     .filter((id): id is string => Boolean(id));
 }
