@@ -68,7 +68,7 @@
     "@supabase/supabase-js": "^2.104.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "docx": "^9.6.0",
+    "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.7.0",
     "mammoth": "^1.12.0",
