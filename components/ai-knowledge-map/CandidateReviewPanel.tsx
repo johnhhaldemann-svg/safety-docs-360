@@ -15,6 +15,7 @@ type LearningBatch = {
   status: string;
   sourceCounts: Record<string, number>;
   candidateCounts: Record<string, number>;
+  warnings: string[];
   metadata: Record<string, unknown>;
   createdAt: string;
 };
@@ -200,8 +201,11 @@ function LearningBatchHistory({ batches }: { batches: LearningBatch[] }) {
             <span>{new Date(batch.createdAt).toLocaleString()}</span>
             <span className="font-black text-slate-200">{Number(batch.candidateCounts.totalCandidates ?? 0)} candidates</span>
             <span className="col-span-2 text-[11px] text-slate-500">
-              {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {Number(batch.candidateCounts.failedSourceCandidates ?? 0)} failed, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
+              {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {Number(batch.candidateCounts.failedSourceCandidates ?? 0)} failed, {Number(batch.candidateCounts.skippedSources ?? 0)} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
             </span>
+            {batch.warnings.slice(0, 2).map((warning) => (
+              <span key={warning} className="col-span-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[11px] font-bold text-amber-100">{warning}</span>
+            ))}
           </div>
         ))}
       </div>
