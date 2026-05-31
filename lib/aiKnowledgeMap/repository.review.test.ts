@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reviewKnowledgeIngestCandidates } from "@/lib/aiKnowledgeMap/repository";
+import { reviewKnowledgeIngestCandidates, updateKnowledgeRelationshipValidation } from "@/lib/aiKnowledgeMap/repository";
 
 function highRiskCandidate(status = "pending_review", reviewedBy: string | null = null) {
   return {
@@ -151,5 +151,65 @@ describe("AI Knowledge candidate review promotion", () => {
     expect(JSON.stringify(nodeWrite?.value)).toContain("reviewer-1");
     expect(JSON.stringify(nodeWrite?.value)).toContain("reviewer-2");
     expect(client.writes.some((write) => write.table === "ai_vector_memory")).toBe(true);
+  });
+
+  it("reviews relationships without requiring optional edge status column", async () => {
+    const edge = {
+      id: "edge-1",
+      company_id: "company-1",
+      source_node_id: "node-1",
+      target_node_id: "node-2",
+      relationship_type: "required_control",
+      relationship_strength: 0.8,
+      strength_score: 0.8,
+      reason: "Incident text mentions cord trip exposure and a control is required.",
+      source_evidence: [],
+      confidence_score: 0.74,
+      validation_status: "pending_review",
+      created_by_type: "ai",
+      metadata: {},
+    };
+    const writes: Array<{ table: string; value: Record<string, unknown> }> = [];
+    const client = {
+      from(table: string) {
+        return {
+          select() {
+            const chain = {
+              eq: () => chain,
+              limit: () => chain,
+              single: async () => ({ data: edge, error: null }),
+              then: (resolve: (value: unknown) => void) => resolve({ data: [], error: null }),
+            };
+            return chain;
+          },
+          update(value: Record<string, unknown>) {
+            writes.push({ table, value });
+            return {
+              eq: () => ({
+                select: () => ({
+                  single: async () => ({ data: { ...edge, ...value }, error: null }),
+                }),
+              }),
+            };
+          },
+          insert(value: Record<string, unknown>) {
+            writes.push({ table, value });
+            return Promise.resolve({ data: value, error: null });
+          },
+        };
+      },
+    };
+
+    const result = await updateKnowledgeRelationshipValidation(client as never, {
+      edgeId: "edge-1",
+      status: "approved",
+      reason: "Approved because evidence supports the required control relationship.",
+      actorUserId: "reviewer-1",
+    });
+
+    expect(result.ok).toBe(true);
+    const edgeUpdate = writes.find((write) => write.table === "ai_knowledge_edges");
+    expect(edgeUpdate?.value).not.toHaveProperty("status");
+    expect(edgeUpdate?.value.metadata).toMatchObject({ relationshipStatus: "human_approved" });
   });
 });

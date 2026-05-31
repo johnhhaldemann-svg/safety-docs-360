@@ -150,16 +150,18 @@ function snakeEdge(edge: AiKnowledgeEdge) {
     relationship_strength: edge.relationshipStrength,
     strength_score: edge.strengthScore,
     reason: edge.reason,
-    evidence_text: edge.evidenceText ?? edge.metadata.evidenceText ?? null,
     source_evidence: edge.sourceEvidence,
     confidence_score: edge.confidenceScore,
     validation_status: edge.validationStatus,
-    status: edge.relationshipStatus ?? edge.metadata.relationshipStatus ?? relationshipReviewStatusFor(edge.validationStatus),
     created_by_type: edge.createdByType,
-    created_by: edge.createdBy ?? null,
     reviewed_by: edge.reviewedBy ?? null,
     reviewed_at: edge.reviewedAt ?? null,
-    metadata: edge.metadata,
+    metadata: {
+      ...edge.metadata,
+      evidenceText: edge.evidenceText ?? edge.metadata.evidenceText ?? null,
+      relationshipStatus: edge.relationshipStatus ?? edge.metadata.relationshipStatus ?? relationshipReviewStatusFor(edge.validationStatus),
+      createdBy: edge.createdBy ?? null,
+    },
   };
 }
 
@@ -1006,7 +1008,21 @@ export async function updateKnowledgeRelationshipValidation(client: DbClient, pa
   const previousEdge = previous.data ? camelEdge(previous.data) : null;
   const reviewedAt = new Date().toISOString();
   const reviewStatus = params.status === "approved" ? "human_approved" : "rejected";
-  const { data, error } = (await client.from("ai_knowledge_edges").update({ validation_status: params.status, status: reviewStatus, reviewed_by: params.actorUserId, reviewed_at: reviewedAt }).eq("id", params.edgeId).select("*").single()) as QueryResult<Record<string, unknown>>;
+  const metadata = previous.data?.metadata && typeof previous.data.metadata === "object" && !Array.isArray(previous.data.metadata)
+    ? previous.data.metadata as Record<string, unknown>
+    : {};
+  const { data, error } = (await client.from("ai_knowledge_edges").update({
+    validation_status: params.status,
+    reviewed_by: params.actorUserId,
+    reviewed_at: reviewedAt,
+    metadata: {
+      ...metadata,
+      relationshipStatus: reviewStatus,
+      reviewedBy: params.actorUserId,
+      reviewedAt,
+      reviewReason: params.reason,
+    },
+  }).eq("id", params.edgeId).select("*").single()) as QueryResult<Record<string, unknown>>;
   if (error) throw new Error(error.message ?? "Failed to update relationship validation.");
   const edge = camelEdge(data ?? {});
   const signalKeys = Array.isArray(previousEdge?.metadata.signalKeys) ? previousEdge.metadata.signalKeys.map(String) : [];
