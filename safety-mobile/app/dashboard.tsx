@@ -54,6 +54,11 @@ export default function DashboardScreen() {
   }
 
   if (error || !data) {
+    async function signInAgain() {
+      await clearSession();
+      router.replace("/login");
+    }
+
     return (
       <Screen title="Dashboard" subtitle="Could not load your mobile workspace.">
         <ErrorState
@@ -65,6 +70,9 @@ export default function DashboardScreen() {
           }
           onRetry={() => void refetch()}
         />
+        <Pressable onPress={signInAgain} style={styles.logout}>
+          <Text style={styles.logoutText}>Sign In Again</Text>
+        </Pressable>
       </Screen>
     );
   }
