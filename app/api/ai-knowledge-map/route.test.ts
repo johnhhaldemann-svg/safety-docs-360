@@ -148,4 +148,18 @@ describe("/api/ai-knowledge-map", () => {
     expect(response.status).toBe(400);
     expect(body.error).toContain("display-only");
   });
+
+  it("returns readable rebuild errors instead of an unhandled action failure", async () => {
+    allow();
+    vi.mocked(rebuildKnowledgeIndex).mockRejectedValueOnce(new Error("AI Knowledge Map rebuild already ran recently."));
+
+    const response = expectResponse(await rebuildRoute.POST(new Request("https://example.com/api/ai-knowledge-map/rebuild-index", {
+      method: "POST",
+      body: JSON.stringify({ companyId: "company-1" }),
+    })));
+    const body = await response.json() as { error?: string };
+
+    expect(response.status).toBe(429);
+    expect(body.error).toContain("already ran recently");
+  });
 });

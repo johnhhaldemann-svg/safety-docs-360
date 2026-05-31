@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { reviewKnowledgeIngestCandidates } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 
@@ -26,12 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Rejecting or marking incorrect requires a meaningful review reason." }, { status: 400 });
   }
 
-  const result = await reviewKnowledgeIngestCandidates(admin, {
-    candidateIds: ids,
-    status,
-    reason,
-    actorUserId: auth.user.id,
-    promoteApproved: false,
-  });
-  return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  try {
+    const result = await reviewKnowledgeIngestCandidates(admin, {
+      candidateIds: ids,
+      status,
+      reason,
+      actorUserId: auth.user.id,
+      promoteApproved: false,
+    });
+    return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Candidate review failed.");
+  }
 }

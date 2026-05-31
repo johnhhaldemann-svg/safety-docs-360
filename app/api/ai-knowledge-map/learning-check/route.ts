@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE, runAiKnowledgeLearningCheck } from "@/lib/aiKnowledgeMap/learningCheck";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -79,13 +80,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select one company before running a manual AI learning check. All-company view is read-only." }, { status: 400 });
   }
 
-  const result = await runAiKnowledgeLearningCheck(admin, {
-    trigger: "manual",
-    force: true,
-    companyId,
-    actorUserId: auth.user.id,
-    maxDocuments: positiveInteger(body?.maxDocuments, 16, 75),
-    maxInternetSources: positiveInteger(body?.maxInternetSources, 6, 25),
-  });
-  return NextResponse.json(result, { status: 201 });
+  try {
+    const result = await runAiKnowledgeLearningCheck(admin, {
+      trigger: "manual",
+      force: true,
+      companyId,
+      actorUserId: auth.user.id,
+      maxDocuments: positiveInteger(body?.maxDocuments, 16, 75),
+      maxInternetSources: positiveInteger(body?.maxInternetSources, 6, 25),
+    });
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Learning check failed.");
+  }
 }

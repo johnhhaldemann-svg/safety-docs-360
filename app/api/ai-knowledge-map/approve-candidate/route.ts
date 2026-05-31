@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { reviewKnowledgeIngestCandidates } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 
@@ -21,12 +22,16 @@ export async function POST(request: Request) {
   const ids = candidateIds(body);
   if (ids.length === 0) return NextResponse.json({ error: "candidateId or candidateIds is required." }, { status: 400 });
 
-  const result = await reviewKnowledgeIngestCandidates(admin, {
-    candidateIds: ids,
-    status: "approved",
-    reason: typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : "Super Admin approved candidate for trusted graph memory.",
-    actorUserId: auth.user.id,
-    promoteApproved: body?.promoteApproved !== false,
-  });
-  return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  try {
+    const result = await reviewKnowledgeIngestCandidates(admin, {
+      candidateIds: ids,
+      status: "approved",
+      reason: typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : "Super Admin approved candidate for trusted graph memory.",
+      actorUserId: auth.user.id,
+      promoteApproved: body?.promoteApproved !== false,
+    });
+    return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Candidate approval failed.");
+  }
 }
