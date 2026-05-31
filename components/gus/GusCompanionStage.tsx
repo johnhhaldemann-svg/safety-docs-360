@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity, Brain, ClipboardCheck, Rocket } from "lucide-react";
-import { GusBotFigure } from "@/components/gus/GusSmartBot";
+import { GusVideoAvatar } from "@/components/gus/GusSmartBot";
 import type { GusDecision } from "@/lib/gus/gusTypes";
 
 type GusCompanionStageProps = {
@@ -24,7 +24,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
         <div className="flex items-center gap-3">
           <div className="relative grid h-20 w-20 shrink-0 place-items-center">
             <div className="absolute inset-2 rounded-full border border-red-200/70 bg-red-100/20 blur-sm" />
-            <GusBotFigure state={decision.botState} compact />
+            <GusVideoAvatar state={decision.botState} compact />
           </div>
           <div className="min-w-0 flex-1">
             <p className="inline-flex rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-red-600 shadow-[0_8px_20px_rgba(239,68,68,0.12)]">
@@ -102,7 +102,7 @@ export function GusCompanionStage({ decision, onPlan, onDismiss, compact = false
         </div>
         <div className="absolute left-10 top-14 h-44 w-44 rounded-full border border-red-200/70 bg-red-100/20 blur-sm" />
         <div className="relative flex justify-center pt-12">
-          <GusBotFigure state={decision.botState} hero />
+          <GusVideoAvatar state={decision.botState} hero />
         </div>
       </div>
 

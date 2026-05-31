@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, PointerEvent } from "react";
+import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
 import { ClipboardList, MessageCircle, VolumeX, X } from "lucide-react";
 import type { GusDecision, GusBotState } from "@/lib/gus/gusTypes";
 
@@ -32,6 +32,26 @@ function botToneClasses(state: GusBotState) {
 function shortMessage(message: string) {
   const firstSentence = message.split(/(?<=[.!?])\s+/)[0] ?? message;
   return firstSentence.length > 96 ? `${firstSentence.slice(0, 93).trim()}...` : firstSentence;
+}
+
+export const GUS_VIDEO_AVATAR_SOURCES = ["/gus/gus-interaction-a.mp4", "/gus/gus-interaction-b.mp4"] as const;
+export const GUS_VIDEO_AVATAR_SWITCH_INTERVAL_MS = 30_000;
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(query.matches);
+    updatePreference();
+
+    query.addEventListener("change", updatePreference);
+    return () => query.removeEventListener("change", updatePreference);
+  }, []);
+
+  return prefersReducedMotion;
 }
 
 function GusBotMotionStyles() {
@@ -158,6 +178,47 @@ export function GusBotFigure({ state, compact = false, hero = false }: { state: 
   );
 }
 
+export function GusVideoAvatar({ state, compact = false, hero = false }: { state: GusBotState; compact?: boolean; hero?: boolean }) {
+  const [videoIndex, setVideoIndex] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const size = hero ? "h-64 w-52 rounded-[2rem]" : compact ? "h-14 w-12 rounded-[0.95rem]" : "h-24 w-20 rounded-[1.4rem]";
+  const glow = state === "warning" ? "from-red-500 via-amber-400 to-blue-600" : botToneClasses(state);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const intervalId = window.setInterval(() => {
+      setVideoIndex((current) => (current + 1) % GUS_VIDEO_AVATAR_SOURCES.length);
+    }, GUS_VIDEO_AVATAR_SWITCH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [prefersReducedMotion]);
+
+  if (prefersReducedMotion) {
+    return <GusBotFigure state={state} compact={compact} hero={hero} />;
+  }
+
+  const source = GUS_VIDEO_AVATAR_SOURCES[videoIndex];
+
+  return (
+    <span className={`relative grid ${size} shrink-0 place-items-center overflow-visible`} aria-hidden="true">
+      <span className={`absolute inset-0 rounded-[inherit] bg-gradient-to-br ${glow} opacity-[0.18] blur-md`} />
+      <span className="absolute bottom-0 h-2 w-3/4 rounded-full bg-slate-900/10 blur-sm" />
+      <video
+        key={source}
+        className="relative z-10 h-full w-full rounded-[inherit] border border-white/80 bg-white object-cover shadow-[0_10px_24px_rgba(15,23,42,0.18)]"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      >
+        <source src={source} type="video/mp4" />
+      </video>
+    </span>
+  );
+}
+
 export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, onDismiss }: GusSmartBotProps) {
   const attention = attentionClasses(decision.attentionLevel);
   const shouldPulse = decision.attentionLevel === "high" || decision.attentionLevel === "critical";
@@ -208,7 +269,7 @@ export function GusSmartBot({ decision, open, muted, compact, onOpen, onPlan, on
           aria-label={open ? "Gus AI Safety Coach is open" : "Open Gus AI Safety Coach"}
           title="Open Gus AI Safety Coach"
         >
-          <GusBotFigure state={muted ? "muted" : decision.botState} compact={compact} />
+          <GusVideoAvatar state={muted ? "muted" : decision.botState} compact={compact} />
         </button>
         <div className="absolute -left-2 -top-3 z-20 flex -translate-x-full gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-[0_10px_24px_rgba(15,23,42,0.14)] max-sm:hidden">
           <button

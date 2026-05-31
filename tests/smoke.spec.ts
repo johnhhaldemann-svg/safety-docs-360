@@ -17,6 +17,11 @@ test.describe("PR smoke", () => {
     await page.goto("/login", { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Secure Access", { exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Access Workspace" })).toBeVisible();
+    await expect(page.locator('video source[src="/brand/safepredict-login-loop.mp4"]')).toHaveCount(1);
+
+    const videoResponse = await page.request.get("/brand/safepredict-login-loop.mp4");
+    expect(videoResponse.ok()).toBeTruthy();
+    expect(videoResponse.headers()["content-type"]).toContain("video/mp4");
   });
 
   const protectedRoutes = [
