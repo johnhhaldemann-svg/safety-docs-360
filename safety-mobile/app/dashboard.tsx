@@ -1,5 +1,6 @@
 import { router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getApiErrorStatus, getFriendlyApiError } from "@/api/client";
@@ -31,6 +32,7 @@ function formatTime(value?: string) {
 }
 
 export default function DashboardScreen() {
+  const queryClient = useQueryClient();
   const { data, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ["me"], queryFn: getMe });
   const status = getApiErrorStatus(error);
 
@@ -43,6 +45,11 @@ export default function DashboardScreen() {
   async function logout() {
     await clearSession();
     router.replace("/login");
+  }
+
+  async function syncWorkspace() {
+    await queryClient.invalidateQueries();
+    await refetch();
   }
 
   if (isLoading) {
@@ -83,7 +90,19 @@ export default function DashboardScreen() {
     <Screen
       title="Dashboard"
       subtitle={data.user.companyName || data.user.team || "Mobile field workspace"}
-      headerAside={<Text style={styles.syncPill}>Synced {formatTime(data.dashboard.lastSyncAt)}</Text>}
+      headerAside={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sync workspace"
+          onPress={syncWorkspace}
+          disabled={isRefetching}
+          style={[styles.syncButton, isRefetching ? styles.syncButtonDisabled : null]}
+        >
+          <Ionicons name="refresh" size={13} color={theme.accent} />
+          <Text style={styles.syncText}>{isRefetching ? "Syncing" : "Sync"}</Text>
+          <Text style={styles.syncTime}>{formatTime(data.dashboard.lastSyncAt)}</Text>
+        </Pressable>
+      }
     >
       <StatusBanner
         title="Ready For Field Work"
@@ -181,17 +200,26 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  syncPill: {
-    color: theme.accent,
+  syncButton: {
     backgroundColor: theme.accentSoft,
     borderRadius: 999,
-    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(15, 118, 110, 0.24)",
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    minHeight: 30,
+  },
+  syncButtonDisabled: { opacity: 0.65 },
+  syncText: {
+    color: theme.accent,
     fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
   },
+  syncTime: { color: theme.accent, fontSize: 10, fontWeight: "800" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stack: { gap: 10 },
   activityRow: {
