@@ -9,7 +9,7 @@ import { createAudit, getAuditTemplates, getMe, signAudit, uploadAuditPhoto } fr
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { theme } from "@/theme";
-import type { MobileCompany } from "@/types/mobile";
+import type { Jobsite, MobileCompany, MobileMe } from "@/types/mobile";
 
 type AuditStatus = "pass" | "fail" | "na";
 
@@ -49,8 +49,61 @@ function toTitleCase(value?: string | null) {
     .join(" ");
 }
 
-function buildMobileCompanies(companies?: MobileCompany[]) {
-  if (companies && companies.length > 0) return companies;
+function isActiveJobsite(jobsite: Jobsite) {
+  return String(jobsite.status ?? "active").toLowerCase() === "active";
+}
+
+function normalizedName(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function buildMobileCompanies(data?: MobileMe) {
+  const auditCustomers = data?.auditCustomers ?? [];
+  const jobsites = (data?.jobsites ?? []).filter(isActiveJobsite);
+  const companies: MobileCompany[] = [];
+  const assignedJobsiteIds = new Set<string>();
+
+  for (const customer of auditCustomers) {
+    const customerJobsites = jobsites.filter((jobsite) => jobsite.audit_customer_id === customer.id);
+    if (customerJobsites.length < 1) continue;
+    companies.push({
+      id: customer.id,
+      name: customer.name,
+      auditCustomerId: customer.id,
+      jobsites: customerJobsites.map((jobsite) => ({
+        ...jobsite,
+        customer_company_name: customer.name,
+      })),
+    });
+    customerJobsites.forEach((jobsite) => assignedJobsiteIds.add(jobsite.id));
+  }
+
+  const unlinkedGroups = new Map<string, MobileCompany>();
+  for (const jobsite of jobsites) {
+    if (assignedJobsiteIds.has(jobsite.id)) continue;
+    const groupName = jobsite.customer_company_name?.trim();
+    if (!groupName) continue;
+    const key = `unlinked:${normalizedName(groupName) || jobsite.id}`;
+    const existing = unlinkedGroups.get(key);
+    if (existing) {
+      existing.jobsites.push(jobsite);
+      continue;
+    }
+    unlinkedGroups.set(key, {
+      id: key,
+      name: groupName,
+      auditCustomerId: null,
+      jobsites: [jobsite],
+    });
+  }
+
+  const derivedCompanies = [...companies, ...unlinkedGroups.values()].sort((left, right) => left.name.localeCompare(right.name));
+  if (derivedCompanies.length > 0) return derivedCompanies;
+  const fallbackCompanies = data?.mobileCompanies?.map((company) => ({
+    ...company,
+    jobsites: company.jobsites.filter(isActiveJobsite),
+  })).filter((company) => company.jobsites.length > 0);
+  if (fallbackCompanies && fallbackCompanies.length > 0) return fallbackCompanies;
   return [];
 }
 
@@ -103,13 +156,13 @@ export default function NewAuditScreen() {
     }
     return [...sectionMap.values()];
   }, [selectedTemplates]);
-  const mobileCompanies = useMemo(() => buildMobileCompanies(data?.mobileCompanies), [data]);
-  const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? mobileCompanies[0] ?? null;
+  const mobileCompanies = useMemo(() => buildMobileCompanies(data), [data]);
+  const selectedCompany = mobileCompanies.find((company) => company.id === selectedCompanyId) ?? null;
   const companyJobsites = useMemo(
-    () => (selectedCompany?.jobsites ?? []).filter((jobsite) => String(jobsite.status ?? "").toLowerCase() === "active"),
+    () => (selectedCompany?.jobsites ?? []).filter(isActiveJobsite),
     [selectedCompany]
   );
-  const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? companyJobsites[0] ?? null;
+  const selectedJobsite = companyJobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? null;
   const sectionCount = combinedSections.length;
   const activePage = Math.min(sectionPage, Math.max(combinedSections.length - 1, 0));
   const activeSection = combinedSections[activePage];
@@ -300,7 +353,7 @@ export default function NewAuditScreen() {
           </View>
           <SelectionDropdown
             label="Company Being Audited"
-            value={selectedCompany?.name ?? "No company available"}
+            value={selectedCompany?.name ?? "Choose audited company"}
             open={companyPickerOpen}
             onToggle={() => setCompanyPickerOpen((open) => !open)}
             options={mobileCompanies.map((company) => ({ id: company.id, label: company.name }))}
@@ -312,7 +365,7 @@ export default function NewAuditScreen() {
           />
           <SelectionDropdown
             label="Audit Job / Location"
-            value={selectedJobsite?.name ?? "No audit location"}
+            value={selectedCompany ? selectedJobsite?.name ?? "Choose audit job/location" : "Choose audited company first"}
             open={jobsitePickerOpen}
             onToggle={() => setJobsitePickerOpen((open) => !open)}
             options={companyJobsites.map((jobsite) => ({ id: jobsite.id, label: jobsite.name, meta: jobsite.status ?? undefined }))}
