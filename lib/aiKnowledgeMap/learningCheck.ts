@@ -237,17 +237,27 @@ async function runCompanyLearningCheck(
     const table = String(row.__source_table ?? "documents");
     const sourceId = firstText(row.id);
     if (!sourceId) continue;
-    if (await alreadyQueuedOrTrusted(db, input.companyId, table, sourceId)) continue;
+    if (await alreadyQueuedOrTrusted(db, input.companyId, table, sourceId)) {
+      warnings.push(`${table}:${sourceId} already has pending or trusted AI memory.`);
+      continue;
+    }
     const built = await buildDocumentCandidate(db, batch.id, table, row, index + 1);
     if (built.kind === "failed") failedCandidates.push(built.row);
     else documentCandidates.push(built.row);
   }
 
   for (const source of sources) {
-    if (await alreadyQueuedOrTrusted(db, input.companyId, "approved_sources", source.id)) continue;
+    if (await alreadyQueuedOrTrusted(db, input.companyId, "approved_sources", source.id)) {
+      warnings.push(`approved_sources:${source.id} already has pending or trusted AI memory.`);
+      continue;
+    }
     const built = await buildInternetSourceCandidate(batch.id, input.companyId, source);
     if (built.kind === "failed") failedCandidates.push(built.row);
     else internetCandidates.push(built.row);
+  }
+
+  if (documents.length + sources.length > 0 && documentCandidates.length + internetCandidates.length + failedCandidates.length === 0) {
+    failedCandidates.push(noNewLearningCandidate(batch.id, input.companyId, { documentsChecked: documents.length, internetSourcesChecked: sources.length, warnings }));
   }
 
   const allCandidates = [...documentCandidates, ...internetCandidates, ...failedCandidates];
@@ -257,7 +267,8 @@ async function runCompanyLearningCheck(
     internetCandidates: internetCandidates.length,
     failedSourceCandidates: failedCandidates.length,
     totalCandidates: inserted.length,
-  });
+    skippedSources: warnings.filter((warning) => warning.includes("already has pending or trusted AI memory")).length,
+  }, warnings);
   await logLearningEvent(db, {
     eventType: "learning_check_completed",
     companyId: input.companyId,
@@ -272,6 +283,7 @@ async function runCompanyLearningCheck(
         documentCandidates: documentCandidates.length,
         internetCandidates: internetCandidates.length,
         failedSourceCandidates: failedCandidates.length,
+        skippedSources: warnings.filter((warning) => warning.includes("already has pending or trusted AI memory")).length,
       },
       trustedMemoryWrite: false,
       requiresHumanReview: true,
@@ -287,6 +299,34 @@ async function runCompanyLearningCheck(
     failedSources: failedCandidates.length,
     warnings,
   };
+}
+
+function noNewLearningCandidate(
+  batchId: string,
+  companyId: string,
+  input: { documentsChecked: number; internetSourcesChecked: number; warnings: string[] },
+) {
+  const reason = "Learning check found approved inputs, but no new approvable memory was created. The sources may already be queued, already trusted, or need a more specific readable page URL.";
+  return failedCandidateRow(batchId, {
+    companyId,
+    sourceTable: "ai_knowledge_learning_check",
+    sourceId: batchId,
+    title: "No new learning candidates created",
+    reason,
+    metadata: learningCandidateReviewMetadata({
+      sourceKind: "failed_source",
+      learnedSummary: reason,
+      confidenceScore: 0,
+      riskLevel: "unknown",
+      extra: {
+        failedSourceKind: "no_new_learning",
+        documentsChecked: input.documentsChecked,
+        internetSourcesChecked: input.internetSourcesChecked,
+        warnings: input.warnings.slice(0, 10),
+        recommendedAction: "Check existing Human Review candidates or add a specific approved safety page/document URL, then run Learning Check again.",
+      },
+    }),
+  });
 }
 
 async function listCompanyIds(db: LearningDb, maxCompanies: number) {
@@ -643,11 +683,12 @@ async function createLearningBatch(
   return { id: data.id };
 }
 
-async function updateLearningBatchCounts(db: LearningDb, batchId: string, candidateCounts: Record<string, number>) {
+async function updateLearningBatchCounts(db: LearningDb, batchId: string, candidateCounts: Record<string, number>, warnings: string[]) {
   await db
     .from("ai_knowledge_ingest_batches")
     .update({
       candidate_counts: candidateCounts,
+      warnings,
       status: "pending_review",
       updated_at: new Date().toISOString(),
     })
