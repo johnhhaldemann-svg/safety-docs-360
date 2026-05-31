@@ -34,7 +34,7 @@ const GROUPS = [
 
 const REVIEW_VISIBLE_STATUSES = new Set(["pending_review", "pending_second_approval", "approved"]);
 
-export function CandidateReviewPanel({ companyId }: { companyId: string | null }) {
+export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId: string | null; refreshKey?: number }) {
   const [candidates, setCandidates] = useState<AiKnowledgeIngestCandidate[]>([]);
   const [failedSources, setFailedSources] = useState<AiKnowledgeIngestCandidate[]>([]);
   const [batches, setBatches] = useState<LearningBatch[]>([]);
@@ -80,10 +80,10 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
   }, [companyId]);
 
   useEffect(() => {
-    // Candidate review is server-owned state; refresh when the selected company scope changes.
+    // Candidate review is server-owned state; refresh when the selected company scope or parent action changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   async function review(candidate: AiKnowledgeIngestCandidate, action: "approve" | "reject" | "incorrect", reason?: string) {
     return reviewIds([candidate.id], action, candidate.candidateType, reason);
@@ -149,7 +149,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
         Trusted memory suggestions do not prove compliance. Verify source evidence, scope, and controls before approval.
       </p>
       {message ? <p className="mt-3 rounded-lg border border-sky-300/20 bg-sky-300/10 p-2 text-xs font-bold text-sky-100">{message}</p> : null}
-      {batches.length > 0 ? <LearningBatchHistory batches={batches} /> : null}
+      {batches.length > 0 ? <LearningBatchHistory batches={batches} candidates={[...candidates, ...failedSources]} /> : null}
       {pendingIds.length > 0 ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={selectAllPending} className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09]">
@@ -188,7 +188,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
   );
 }
 
-function LearningBatchHistory({ batches }: { batches: LearningBatch[] }) {
+function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[]; candidates: AiKnowledgeIngestCandidate[] }) {
   return (
     <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
       <div className="flex items-center gap-2">
@@ -196,21 +196,34 @@ function LearningBatchHistory({ batches }: { batches: LearningBatch[] }) {
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Learning check history</p>
       </div>
       <div className="mt-2 space-y-2">
-        {batches.slice(0, 4).map((batch) => (
-          <div key={batch.id} className="grid grid-cols-[1fr_auto] gap-3 text-xs font-semibold text-slate-400">
-            <span>{new Date(batch.createdAt).toLocaleString()}</span>
-            <span className="font-black text-slate-200">{Number(batch.candidateCounts.totalCandidates ?? 0)} candidates</span>
-            <span className="col-span-2 text-[11px] text-slate-500">
-              {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {Number(batch.candidateCounts.failedSourceCandidates ?? 0)} failed, {Number(batch.candidateCounts.skippedSources ?? 0)} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
-            </span>
-            {batch.warnings.slice(0, 2).map((warning) => (
-              <span key={warning} className="col-span-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[11px] font-bold text-amber-100">{warning}</span>
-            ))}
-          </div>
-        ))}
+        {batches.slice(0, 4).map((batch) => {
+          const counts = countBatchCandidatesForDisplay(batch, candidates);
+          return (
+            <div key={batch.id} className="grid grid-cols-[1fr_auto] gap-3 text-xs font-semibold text-slate-400">
+              <span>{new Date(batch.createdAt).toLocaleString()}</span>
+              <span className="font-black text-slate-200">{counts.totalCandidates} candidates</span>
+              <span className="col-span-2 text-[11px] text-slate-500">
+                {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {counts.failedSourceCandidates} failed, {counts.skippedSources} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
+              </span>
+              {batch.warnings.slice(0, 2).map((warning) => (
+                <span key={warning} className="col-span-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[11px] font-bold text-amber-100">{warning}</span>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
+}
+
+export function countBatchCandidatesForDisplay(batch: Pick<LearningBatch, "id" | "candidateCounts">, candidates: Array<Pick<AiKnowledgeIngestCandidate, "batchId" | "candidateType">>) {
+  const actualCandidates = candidates.filter((candidate) => candidate.batchId === batch.id);
+  const actualFailedSources = actualCandidates.filter((candidate) => candidate.candidateType === "failed_source").length;
+  return {
+    totalCandidates: Math.max(Number(batch.candidateCounts.totalCandidates ?? 0), actualCandidates.length),
+    failedSourceCandidates: Math.max(Number(batch.candidateCounts.failedSourceCandidates ?? 0), actualFailedSources),
+    skippedSources: Number(batch.candidateCounts.skippedSources ?? 0),
+  };
 }
 
 function CandidateCard({

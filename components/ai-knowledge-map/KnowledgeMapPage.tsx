@@ -64,6 +64,7 @@ export function KnowledgeMapPage() {
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
 
   const selectedNode = useMemo(() => graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0] ?? null, [graph.nodes, selectedNodeId]);
 
@@ -163,6 +164,7 @@ export function KnowledgeMapPage() {
       } else {
         setMessage(`Rebuilt ${body?.insertedOrUpdatedNodes ?? 0} nodes and ${body?.insertedOrUpdatedEdges ?? 0} relationships.`);
       }
+      setReviewRefreshKey((key) => key + 1);
       await load(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Rebuild failed.");
@@ -188,6 +190,7 @@ export function KnowledgeMapPage() {
       const body = await response.json().catch(() => null) as { error?: string; insertedOrUpdatedEdges?: number } | null;
       if (!response.ok) throw new Error(body?.error ?? "Recalculation failed.");
       setMessage(`Recalculated ${body?.insertedOrUpdatedEdges ?? 0} relationships.`);
+      setReviewRefreshKey((key) => key + 1);
       await load(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Recalculation failed.");
@@ -213,6 +216,7 @@ export function KnowledgeMapPage() {
       const body = await response.json().catch(() => null) as { error?: string; candidatesCreated?: number; documentsChecked?: number; internetSourcesChecked?: number; failedSources?: number } | null;
       if (!response.ok) throw new Error(body?.error ?? "Learning check failed.");
       setMessage(`Learning check queued ${body?.candidatesCreated ?? 0} candidates from ${body?.documentsChecked ?? 0} documents and ${body?.internetSourcesChecked ?? 0} approved internet sources. Failed sources: ${body?.failedSources ?? 0}.`);
+      setReviewRefreshKey((key) => key + 1);
       await load(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Learning check failed.");
@@ -341,8 +345,11 @@ export function KnowledgeMapPage() {
           </section>
           <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:flex 2xl:max-h-[calc(100vh-2rem)] 2xl:flex-col 2xl:overflow-y-auto 2xl:pr-1">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
-            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
-            <CandidateReviewPanel companyId={graph.selectedCompanyId} />
+            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
+              setReviewRefreshKey((key) => key + 1);
+              void load(filters);
+            }} />
+            <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
             <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
             <LowConfidenceQueue edges={graph.edges} />
           </section>
