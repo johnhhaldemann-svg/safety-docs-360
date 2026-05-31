@@ -84,15 +84,15 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
     void load();
   }, [load]);
 
-  async function review(candidate: AiKnowledgeIngestCandidate, action: "approve" | "reject" | "incorrect") {
-    await reviewIds([candidate.id], action, candidate.candidateType);
+  async function review(candidate: AiKnowledgeIngestCandidate, action: "approve" | "reject" | "incorrect", reason?: string) {
+    await reviewIds([candidate.id], action, candidate.candidateType, reason);
   }
 
-  async function reviewIds(candidateIds: string[], action: "approve" | "reject" | "incorrect", label = "selected") {
+  async function reviewIds(candidateIds: string[], action: "approve" | "reject" | "incorrect", label = "selected", reasonOverride?: string) {
     if (candidateIds.length === 0) return;
-    const reason = action === "approve"
+    const reason = reasonOverride?.trim() || (action === "approve"
       ? `Super Admin approved ${label} learned AI candidate(s) for trusted graph memory.`
-      : window.prompt(`Enter the reason this learned candidate is ${action}:`, "")?.trim();
+      : "");
     if (!reason) {
       setMessage(`${action === "incorrect" ? "Incorrect" : "Reject"} review requires a reason.`);
       return;
@@ -173,7 +173,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
                   selected={selectedIds.has(candidate.id)}
                   working={Boolean(working)}
                   onToggle={() => toggle(candidate.id)}
-                  onReview={(action) => void review(candidate, action)}
+                  onReview={(action, reason) => void review(candidate, action, reason)}
                 />
               ))}
             </div>
@@ -218,8 +218,9 @@ function CandidateCard({
   selected: boolean;
   working: boolean;
   onToggle: () => void;
-  onReview: (action: "approve" | "reject" | "incorrect") => void;
+  onReview: (action: "approve" | "reject" | "incorrect", reason?: string) => void;
 }) {
+  const [pendingReview, setPendingReview] = useState<{ action: "reject" | "incorrect"; reason: string } | null>(null);
   const metadata = candidate.metadata;
   const preview = buildCandidatePromotionPreview(candidate);
   const learnedSummary = text(metadata.learnedSummary) ?? candidate.semanticSummary ?? candidate.reason ?? "Candidate needs review.";
@@ -284,23 +285,86 @@ function CandidateCard({
             </div>
           ) : null}
           {!failed ? (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <button type="button" disabled={working} onClick={() => onReview("approve")} className="inline-flex items-center justify-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Approve
-              </button>
-              <button type="button" disabled={working} onClick={() => onReview("reject")} className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09] disabled:opacity-60">
-                Reject
-              </button>
-              <button type="button" disabled={working} onClick={() => onReview("incorrect")} className="inline-flex items-center justify-center gap-1 rounded-md border border-red-400/25 bg-red-400/10 px-2 py-1.5 text-xs font-black text-red-100 hover:bg-red-400/16 disabled:opacity-60">
-                <XCircle className="h-3.5 w-3.5" />
-                Incorrect
-              </button>
-            </div>
+            <>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button type="button" disabled={working} onClick={() => onReview("approve")} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Approve
+                </button>
+                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "reject", reason: "" })} className="min-h-10 rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09] disabled:opacity-60">
+                  Reject
+                </button>
+                <button type="button" disabled={working} onClick={() => setPendingReview({ action: "incorrect", reason: "" })} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-red-400/25 bg-red-400/10 px-2 py-1.5 text-xs font-black text-red-100 hover:bg-red-400/16 disabled:opacity-60">
+                  <XCircle className="h-3.5 w-3.5" />
+                  Incorrect
+                </button>
+              </div>
+              {pendingReview ? (
+                <CandidateReasonBox
+                  action={pendingReview.action}
+                  reason={pendingReview.reason}
+                  working={working}
+                  onReasonChange={(reason) => setPendingReview({ ...pendingReview, reason })}
+                  onCancel={() => setPendingReview(null)}
+                  onConfirm={() => {
+                    const reason = pendingReview.reason.replace(/\s+/g, " ").trim();
+                    if (reason.length < 12) return;
+                    onReview(pendingReview.action, reason);
+                    setPendingReview(null);
+                  }}
+                />
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
     </article>
+  );
+}
+
+function CandidateReasonBox({
+  action,
+  reason,
+  working,
+  onReasonChange,
+  onCancel,
+  onConfirm,
+}: {
+  action: "reject" | "incorrect";
+  reason: string;
+  working: boolean;
+  onReasonChange: (reason: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const canConfirm = reason.replace(/\s+/g, " ").trim().length >= 12;
+  return (
+    <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3">
+      <label className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-300" htmlFor={`candidate-review-${action}`}>
+        Reason for marking {action}
+      </label>
+      <textarea
+        id={`candidate-review-${action}`}
+        value={reason}
+        onChange={(event) => onReasonChange(event.target.value)}
+        className="mt-2 min-h-20 w-full resize-y rounded-md border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-sky-300/50"
+        placeholder="Example: This learned item should not be trusted because the evidence is incomplete or out of scope."
+      />
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={!canConfirm || working}
+          onClick={onConfirm}
+          className={`min-h-10 rounded-md border px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-45 ${action === "incorrect" ? "border-red-400/25 bg-red-400/10 text-red-100 hover:bg-red-400/16" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}
+        >
+          Confirm {action === "incorrect" ? "Incorrect" : "Reject"}
+        </button>
+        <button type="button" onClick={onCancel} className="min-h-10 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-black text-slate-200 hover:bg-white/[0.08]">
+          Cancel
+        </button>
+      </div>
+      {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
+    </div>
   );
 }
 
