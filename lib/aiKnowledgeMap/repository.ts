@@ -67,6 +67,10 @@ function isMissingKnowledgeMapTable(error?: DbError | null) {
   return message.includes("ai_knowledge") || message.includes("ai_vector_memory") || message.includes("schema cache") || message.includes("does not exist") || message.includes("could not find");
 }
 
+function isPersistedKnowledgeEdge(edge: AiKnowledgeEdge) {
+  return typeof edge.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(edge.id);
+}
+
 function snakeNode(node: AiKnowledgeNode) {
   return {
     company_id: node.companyId,
@@ -993,6 +997,9 @@ export async function updateKnowledgeRelationshipValidation(client: DbClient, pa
     throw new Error("Rejecting or marking incorrect requires a meaningful review reason.");
   }
   const previous = (await client.from("ai_knowledge_edges").select("*").eq("id", params.edgeId).single()) as QueryResult<Record<string, unknown>>;
+  if (previous.error || !previous.data) {
+    throw new Error("This relationship is display-only or no longer exists in trusted graph memory. Review the matching Human Review candidate before it can be approved.");
+  }
   const previousStatus = previous.data ? String(previous.data.validation_status ?? "unreviewed") : null;
   if (previousStatus === "approved" && params.status !== "approved") throw new Error("Approved relationships require an explicit rollback flow before changing trust status.");
   if ((previousStatus === "rejected" || previousStatus === "incorrect") && params.status !== previousStatus) throw new Error("Rejected or incorrect relationships require a deliberate reopen flow before another review.");
@@ -1620,7 +1627,7 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
     warnings.push(`${LEARNING_REVIEW_REQUIRED_BANNER} ${learningReview.pendingLearningCandidateCount} learned item${learningReview.pendingLearningCandidateCount === 1 ? "" : "s"} waiting.`);
   }
   warnings.push(...detectKnowledgeGraphHealth(nodes, edges).warnings);
-  const validationQueue = edges.filter((edge) => edge.validationStatus !== "approved" || edge.confidenceScore < 0.55).sort((left, right) => left.confidenceScore - right.confidenceScore).slice(0, 30);
+  const validationQueue = edges.filter((edge) => isPersistedKnowledgeEdge(edge) && (edge.validationStatus !== "approved" || edge.confidenceScore < 0.55)).sort((left, right) => left.confidenceScore - right.confidenceScore).slice(0, 30);
   return {
     companies: companiesResult.companies,
     selectedCompanyId,

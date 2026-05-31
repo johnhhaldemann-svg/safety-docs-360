@@ -134,4 +134,18 @@ describe("/api/ai-knowledge-map", () => {
     await expect(validateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/validate-relationship", { method: "POST", body: JSON.stringify({ edgeId: "edge-1", status: "rejected", reason: "bad" }) }))).resolves.toMatchObject({ status: 400 });
     await expect(rejectCandidateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/reject-candidate", { method: "POST", body: JSON.stringify({ candidateId: "candidate-1", status: "incorrect" }) }))).resolves.toMatchObject({ status: 400 });
   });
+
+  it("returns readable validation errors when a relationship cannot be saved", async () => {
+    allow();
+    vi.mocked(updateKnowledgeRelationshipValidation).mockRejectedValueOnce(new Error("This relationship is display-only or no longer exists in trusted graph memory."));
+
+    const response = expectResponse(await validateRoute.POST(new Request("https://example.com/api/ai-knowledge-map/validate-relationship", {
+      method: "POST",
+      body: JSON.stringify({ edgeId: "generated-edge-1", status: "approved" }),
+    })));
+    const body = await response.json() as { error?: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain("display-only");
+  });
 });
