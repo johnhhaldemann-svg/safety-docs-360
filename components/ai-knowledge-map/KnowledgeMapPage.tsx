@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Bell, BrainCircuit, Gauge, LayoutDashboard, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
+import { BrainHealthCard } from "@/components/ai-knowledge-map/BrainHealthCard";
 import { CandidateReviewPanel } from "@/components/ai-knowledge-map/CandidateReviewPanel";
 import { FilterPanel } from "@/components/ai-knowledge-map/FilterPanel";
 import { GlobeCanvas } from "@/components/ai-knowledge-map/GlobeCanvas";
@@ -345,6 +346,7 @@ export function KnowledgeMapPage() {
           </section>
           <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:flex 2xl:max-h-[calc(100vh-2rem)] 2xl:flex-col 2xl:overflow-y-auto 2xl:pr-1">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
+            <BrainHealthCard summary={graph.summary} />
             <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
               setReviewRefreshKey((key) => key + 1);
               void load(filters);

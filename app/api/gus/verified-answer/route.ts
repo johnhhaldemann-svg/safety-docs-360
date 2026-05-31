@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCompanyScope } from "@/lib/companyScope";
-import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
-import { retrieveMemoryForQuery } from "@/lib/companyMemory";
+import { retrieveAiEngineBrainContext } from "@/lib/aiEngine/brain";
 import { buildVerifiedSafetyAnswer, canAskGusVerifiedQuestions, recordGusAnswerAudit, retrieveApprovedKnowledge } from "@/lib/gusLearning";
 import { authorizeRequest, isAdminRole } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
@@ -43,23 +42,33 @@ export async function POST(request: Request) {
   });
   if (!knowledge.ok) return NextResponse.json({ error: knowledge.error }, { status: 500 });
 
-  const memory = await retrieveMemoryForQuery(auth.supabase, companyId, question, { topK: 4 }).catch(() => ({
-    chunks: [],
-    method: "none" as const,
-  }));
-  const graphMemory = await retrieveTrustedKnowledgeGraphMemory(db, {
+  const brain = await retrieveAiEngineBrainContext({
+    surface: "gus.verified_answer",
+    adminClient: db,
+    userClient: auth.supabase,
     companyId,
     projectId,
     query: question,
+    includeLegacyMemory: true,
     topK: 4,
-  }).catch(() => ({ items: [], method: "none" as const, warnings: ["Approved graph memory unavailable."] }));
+    legacyTopK: 4,
+  }).catch(() => ({
+    items: [],
+    legacyItems: [],
+    method: "none" as const,
+    warnings: ["AI Engine brain memory unavailable."],
+    graphMemoryCount: 0,
+    legacyMemoryCount: 0,
+    fallbackMemoryCount: 0,
+    provenance: null,
+  }));
   const answer = buildVerifiedSafetyAnswer({
     question,
     companyId,
     projectId,
     knowledge: knowledge.items,
-    uploadedDocumentMatches: memory.chunks,
-    graphMemoryMatches: graphMemory.items,
+    uploadedDocumentMatches: brain.legacyItems,
+    graphMemoryMatches: brain.items,
   });
   const selectedKnowledgeIds = answer.citations.map((citation) => citation.knowledgeId);
   const selected = new Set(selectedKnowledgeIds);
@@ -76,11 +85,13 @@ export async function POST(request: Request) {
     retrievalTrace: {
       ...(knowledge.trace ?? {}),
       approvedKnowledgeMethod: knowledge.method,
-      uploadedDocumentMethod: memory.method,
-      uploadedDocumentCount: memory.chunks.length,
-      trustedGraphMethod: graphMemory.method,
-      trustedGraphCount: graphMemory.items.length,
-      trustedGraphWarnings: graphMemory.warnings,
+      aiEngineBrainMethod: brain.method,
+      uploadedDocumentMethod: brain.provenance?.legacyMethod ?? "none",
+      uploadedDocumentCount: brain.legacyMemoryCount,
+      trustedGraphMethod: brain.provenance?.graphMethod ?? "none",
+      trustedGraphCount: brain.graphMemoryCount,
+      trustedGraphWarnings: brain.warnings,
+      aiEngineBrainProvenance: brain.provenance,
     },
     citationSnippets: answer.citationSnippets,
     qualitySignals: answer.qualitySignals,
@@ -91,8 +102,8 @@ export async function POST(request: Request) {
     answerAuditId: audit.ok ? audit.audit.id : null,
     retrieval: {
       approvedKnowledge: knowledge.method,
-      uploadedDocuments: memory.method,
-      trustedGraph: graphMemory.method,
+      uploadedDocuments: brain.provenance?.legacyMethod ?? "none",
+      trustedGraph: brain.method,
     },
     retrievalTrace: audit.ok ? audit.audit.retrieval_trace : knowledge.trace ?? {},
     qualitySignals: answer.qualitySignals,
