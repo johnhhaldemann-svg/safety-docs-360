@@ -347,7 +347,7 @@ function CandidateReasonBox({
         id={`candidate-review-${action}`}
         value={reason}
         onChange={(event) => onReasonChange(event.target.value)}
-        className="mt-2 min-h-20 w-full resize-y rounded-md border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-sky-300/50"
+        className="mt-2 min-h-20 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
         placeholder="Example: This learned item should not be trusted because the evidence is incomplete or out of scope."
       />
       <div className="mt-2 flex flex-wrap gap-2">
