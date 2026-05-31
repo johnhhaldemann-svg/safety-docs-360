@@ -224,14 +224,14 @@ export function KnowledgeMapPage() {
   async function validate(edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect", reasonOverride?: string) {
     if (!edge.id || edge.id.startsWith("demo-edge")) {
       setMessage("Demo relationships show the validation flow. Rebuild a live company index to save review decisions.");
-      return;
+      return false;
     }
     const reason = reasonOverride?.trim() || (status === "approved"
       ? `Super Admin reviewed ${edge.relationshipType} in AI Knowledge Map.`
       : "");
     if (!reason) {
       setError(`${status === "incorrect" ? "Incorrect" : "Reject"} review requires a meaningful reason.`);
-      return;
+      return false;
     }
     setWorking(`Mark ${status}`);
     setError(null);
@@ -245,8 +245,10 @@ export function KnowledgeMapPage() {
       if (!response.ok) throw new Error(body?.error ?? "Validation update failed.");
       setMessage(`Relationship marked ${status}.`);
       await load(filters);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Validation update failed.");
+      return false;
     } finally {
       setWorking(null);
     }
@@ -338,10 +340,10 @@ export function KnowledgeMapPage() {
             <LegendBar />
           </section>
           <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:col-span-1 2xl:flex 2xl:flex-col">
-            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
+            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
             <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
             <CandidateReviewPanel companyId={graph.selectedCompanyId} />
-            <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status) => void validate(edge, status)} />
+            <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
             <LowConfidenceQueue edges={graph.edges} />
           </section>
         </main>
