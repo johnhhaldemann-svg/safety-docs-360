@@ -35,7 +35,7 @@ export function hasMeaningfulReviewReason(reason: string | null | undefined) {
 export async function assertActiveKnowledgeCompany(client: DbClient, companyId: string) {
   const query = client
     .from("companies")
-    .select("id,status,is_active")
+    .select("id,status")
     .eq("id", companyId)
     .limit(1);
   const result = typeof (query as { maybeSingle?: unknown }).maybeSingle === "function"
@@ -46,7 +46,6 @@ export async function assertActiveKnowledgeCompany(client: DbClient, companyId: 
   const data = result.data;
   const company = Array.isArray(data) ? data[0] : data;
   if (!company) throw new Error("Company was not found for AI Knowledge memory.");
-  if (company.is_active === false) throw new Error("AI Knowledge memory cannot be changed for an inactive company.");
   const status = String(company.status ?? "active").toLowerCase();
   if (status && !["active", "approved"].includes(status)) throw new Error("AI Knowledge memory cannot be changed for an inactive or archived company.");
   return String(company.id ?? companyId);
