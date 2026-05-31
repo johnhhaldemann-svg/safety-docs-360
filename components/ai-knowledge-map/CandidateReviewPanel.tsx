@@ -85,17 +85,17 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
   }, [load]);
 
   async function review(candidate: AiKnowledgeIngestCandidate, action: "approve" | "reject" | "incorrect", reason?: string) {
-    await reviewIds([candidate.id], action, candidate.candidateType, reason);
+    return reviewIds([candidate.id], action, candidate.candidateType, reason);
   }
 
   async function reviewIds(candidateIds: string[], action: "approve" | "reject" | "incorrect", label = "selected", reasonOverride?: string) {
-    if (candidateIds.length === 0) return;
+    if (candidateIds.length === 0) return false;
     const reason = reasonOverride?.trim() || (action === "approve"
       ? `Super Admin approved ${label} learned AI candidate(s) for trusted graph memory.`
       : "");
     if (!reason) {
       setMessage(`${action === "incorrect" ? "Incorrect" : "Reject"} review requires a reason.`);
-      return;
+      return false;
     }
     setWorking(`${action}:${candidateIds.join(",")}`);
     setMessage(null);
@@ -113,8 +113,10 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
       if (!response.ok && response.status !== 207) throw new Error(body?.errors?.[0]?.error ?? "Review failed.");
       setMessage(action === "approve" ? "Approved learned candidates were promoted when dependencies were ready." : `Learned candidates marked ${action}.`);
       await load();
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Review failed.");
+      return false;
     } finally {
       setWorking(null);
     }
@@ -173,7 +175,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
                   selected={selectedIds.has(candidate.id)}
                   working={Boolean(working)}
                   onToggle={() => toggle(candidate.id)}
-                  onReview={(action, reason) => void review(candidate, action, reason)}
+                  onReview={(action, reason) => review(candidate, action, reason)}
                 />
               ))}
             </div>
@@ -218,9 +220,10 @@ function CandidateCard({
   selected: boolean;
   working: boolean;
   onToggle: () => void;
-  onReview: (action: "approve" | "reject" | "incorrect", reason?: string) => void;
+  onReview: (action: "approve" | "reject" | "incorrect", reason?: string) => Promise<boolean> | boolean;
 }) {
   const [pendingReview, setPendingReview] = useState<{ action: "reject" | "incorrect"; reason: string } | null>(null);
+  const [reviewState, setReviewState] = useState<{ action: "approve" | "reject" | "incorrect"; tone: "success" | "error" | "info"; text: string } | null>(null);
   const metadata = candidate.metadata;
   const preview = buildCandidatePromotionPreview(candidate);
   const learnedSummary = text(metadata.learnedSummary) ?? candidate.semanticSummary ?? candidate.reason ?? "Candidate needs review.";
@@ -232,6 +235,17 @@ function CandidateCard({
   const failed = candidate.candidateType === "failed_source";
   const highRiskSecondApproval = candidateRequiresSecondApproval(candidate);
   const waitingSecondApproval = candidate.validationStatus === "pending_second_approval";
+
+  async function submitReview(action: "approve" | "reject" | "incorrect", reason?: string) {
+    setReviewState({ action, tone: "info", text: action === "approve" ? "Approving learned candidate..." : "Saving learned candidate review..." });
+    const ok = await onReview(action, reason);
+    setReviewState({
+      action,
+      tone: ok === false ? "error" : "success",
+      text: ok === false ? "Review could not be saved. Check the Human Review message for details." : action === "approve" ? "Approval saved. Promotion will happen when review rules and dependencies are satisfied." : `Candidate marked ${action}.`,
+    });
+    if (ok !== false) setPendingReview(null);
+  }
   return (
     <article className={`rounded-lg border p-3 ${failed ? "border-red-300/20 bg-red-300/10" : "border-white/10 bg-white/[0.04]"}`}>
       <div className="flex items-start gap-2">
@@ -284,12 +298,13 @@ function CandidateCard({
               ))}
             </div>
           ) : null}
+          {reviewState ? <p className={`mt-3 rounded-md border p-2 text-[11px] font-black ${messageTone(reviewState.tone)}`}>{reviewState.text}</p> : null}
           {!failed ? (
             <>
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <button type="button" disabled={working} onClick={() => onReview("approve")} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
+                <button type="button" disabled={working} onClick={() => void submitReview("approve")} className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-300/10 px-2 py-1.5 text-xs font-black text-emerald-100 hover:bg-emerald-300/16 disabled:opacity-60">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Approve
+                  {reviewState?.action === "approve" && reviewState.tone === "info" ? "Approving..." : "Approve"}
                 </button>
                 <button type="button" disabled={working} onClick={() => setPendingReview({ action: "reject", reason: "" })} className="min-h-10 rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09] disabled:opacity-60">
                   Reject
@@ -309,8 +324,7 @@ function CandidateCard({
                   onConfirm={() => {
                     const reason = pendingReview.reason.replace(/\s+/g, " ").trim();
                     if (reason.length < 12) return;
-                    onReview(pendingReview.action, reason);
-                    setPendingReview(null);
+                    void submitReview(pendingReview.action, reason);
                   }}
                 />
               ) : null}
@@ -366,6 +380,12 @@ function CandidateReasonBox({
       {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
     </div>
   );
+}
+
+function messageTone(tone: "success" | "error" | "info") {
+  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
+  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
+  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

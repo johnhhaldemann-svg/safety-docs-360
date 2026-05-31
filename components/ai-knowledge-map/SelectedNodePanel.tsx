@@ -21,9 +21,11 @@ export function SelectedNodePanel({
   edges: AiKnowledgeEdge[];
   nodes: AiKnowledgeNode[];
   companies: Array<{ id: string; name: string }>;
-  onValidate: (edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) => void;
+  onValidate: (edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) => Promise<boolean> | boolean;
 }) {
   const [pendingReview, setPendingReview] = useState<{ edgeKey: string; status: Exclude<ReviewStatus, "approved">; reason: string } | null>(null);
+  const [reviewing, setReviewing] = useState<{ edgeKey: string; status: ReviewStatus } | null>(null);
+  const [localMessage, setLocalMessage] = useState<{ edgeKey: string; tone: "success" | "error" | "info"; text: string } | null>(null);
 
   if (!node) {
     return (
@@ -56,6 +58,23 @@ export function SelectedNodePanel({
   const provenance = provenanceCertificate(node.metadata);
   const reviewDueAt = text(node.metadata.reviewDueAt) ?? provenance?.reviewDueAt ?? null;
   const stale = isTrustedMemoryStale(node.metadata);
+
+  async function submitReview(edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) {
+    const edgeKey = reviewEdgeKey(edge);
+    setReviewing({ edgeKey, status });
+    setLocalMessage({ edgeKey, tone: "info", text: status === "approved" ? "Approving relationship..." : "Saving relationship review..." });
+    try {
+      const ok = await onValidate(edge, status, reason);
+      setLocalMessage({
+        edgeKey,
+        tone: ok === false ? "error" : "success",
+        text: ok === false ? "Review could not be saved. Check the page message for details." : `Relationship ${status.replace(/_/g, " ")} saved.`,
+      });
+      if (ok !== false) setPendingReview(null);
+    } finally {
+      setReviewing(null);
+    }
+  }
 
   return (
     <aside className="flex min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
@@ -139,6 +158,8 @@ export function SelectedNodePanel({
           {related.map((edge) => {
             const edgeKey = reviewEdgeKey(edge);
             const activeReview = pendingReview?.edgeKey === edgeKey ? pendingReview : null;
+            const activeMessage = localMessage?.edgeKey === edgeKey ? localMessage : null;
+            const activeSaving = reviewing?.edgeKey === edgeKey ? reviewing : null;
             const canConfirm = activeReview ? activeReview.reason.replace(/\s+/g, " ").trim().length >= 12 : false;
             const otherId = edge.sourceNodeId === node.id || edge.fromNodeId === node.id ? edge.targetNodeId ?? edge.toNodeId : edge.sourceNodeId ?? edge.fromNodeId;
             const other = byId.get(otherId);
@@ -147,11 +168,12 @@ export function SelectedNodePanel({
                 <ConnectionLine edge={edge} />
                 {edge.evidenceText ? <p className="rounded-md border border-white/10 bg-white/[0.03] p-2 text-[11px] font-semibold leading-5 text-slate-400">Evidence: {edge.evidenceText}</p> : null}
                 {other ? <p className="text-[11px] font-semibold text-slate-500">Related record: {other.title}</p> : null}
+                {activeMessage ? <p className={`rounded-md border p-2 text-[11px] font-black ${messageTone(activeMessage.tone)}`}>{activeMessage.text}</p> : null}
                 {edge.createdByType === "ai" || edge.validationStatus !== "approved" ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <ReviewButton label="Approve" onClick={() => onValidate(edge, "approved")} />
-                    <ReviewButton label="Reject" onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
-                    <ReviewButton label="Incorrect" onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} danger />
+                    <ReviewButton label={activeSaving?.status === "approved" ? "Approving..." : "Approve"} disabled={Boolean(activeSaving)} onClick={() => void submitReview(edge, "approved")} />
+                    <ReviewButton label="Reject" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
+                    <ReviewButton label="Incorrect" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} danger />
                   </div>
                 ) : null}
                 {activeReview ? (
@@ -173,8 +195,7 @@ export function SelectedNodePanel({
                         disabled={!canConfirm}
                         onClick={() => {
                           if (!canConfirm) return;
-                          onValidate(edge, activeReview.status, activeReview.reason.trim());
-                          setPendingReview(null);
+                          void submitReview(edge, activeReview.status, activeReview.reason.trim());
                         }}
                       />
                       <button
@@ -229,6 +250,12 @@ function text(value: unknown) {
 
 function reviewEdgeKey(edge: AiKnowledgeEdge) {
   return edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}-${edge.relationshipType}`;
+}
+
+function messageTone(tone: "success" | "error" | "info") {
+  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
+  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
+  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
 }
 
 function InsightSection({ title, items }: { title: string; items: string[] }) {

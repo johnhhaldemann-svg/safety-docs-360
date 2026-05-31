@@ -11,9 +11,28 @@ export function RelationshipValidationPanel({
   onValidate,
 }: {
   edges: AiKnowledgeEdge[];
-  onValidate: (edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) => void;
+  onValidate: (edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) => Promise<boolean> | boolean;
 }) {
   const [pendingReview, setPendingReview] = useState<{ edgeKey: string; status: Exclude<ReviewStatus, "approved">; reason: string } | null>(null);
+  const [reviewing, setReviewing] = useState<{ edgeKey: string; status: ReviewStatus } | null>(null);
+  const [localMessage, setLocalMessage] = useState<{ edgeKey: string; tone: "success" | "error" | "info"; text: string } | null>(null);
+
+  async function submitReview(edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) {
+    const edgeKey = reviewEdgeKey(edge);
+    setReviewing({ edgeKey, status });
+    setLocalMessage({ edgeKey, tone: "info", text: status === "approved" ? "Approving relationship..." : "Saving relationship review..." });
+    try {
+      const ok = await onValidate(edge, status, reason);
+      setLocalMessage({
+        edgeKey,
+        tone: ok === false ? "error" : "success",
+        text: ok === false ? "Review could not be saved. Check the page message for details." : `Relationship ${status.replace(/_/g, " ")} saved.`,
+      });
+      if (ok !== false) setPendingReview(null);
+    } finally {
+      setReviewing(null);
+    }
+  }
 
   return (
     <section className="pointer-events-auto relative z-20 rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
@@ -25,6 +44,8 @@ export function RelationshipValidationPanel({
         {edges.slice(0, 8).map((edge) => {
           const edgeKey = reviewEdgeKey(edge);
           const activeReview = pendingReview?.edgeKey === edgeKey ? pendingReview : null;
+          const activeMessage = localMessage?.edgeKey === edgeKey ? localMessage : null;
+          const activeSaving = reviewing?.edgeKey === edgeKey ? reviewing : null;
           const canConfirm = activeReview ? activeReview.reason.replace(/\s+/g, " ").trim().length >= 12 : false;
           return (
           <article key={edgeKey} className="relative rounded-lg border border-white/10 bg-white/[0.04] p-3">
@@ -39,10 +60,11 @@ export function RelationshipValidationPanel({
                 This relationship is display-only until it is saved as a review candidate with a database ID.
               </p>
             ) : null}
+            {activeMessage ? <p className={`mt-3 rounded-md border p-2 text-[11px] font-black ${messageTone(activeMessage.tone)}`}>{activeMessage.text}</p> : null}
             <div className="relative z-10 mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <ReviewButton label="Approve" tone="approve" onClick={() => onValidate(edge, "approved")} />
-              <ReviewButton label="Reject" tone="reject" onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
-              <ReviewButton label="Incorrect" tone="incorrect" onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} />
+              <ReviewButton label={activeSaving?.status === "approved" ? "Approving..." : "Approve"} tone="approve" disabled={Boolean(activeSaving)} onClick={() => void submitReview(edge, "approved")} />
+              <ReviewButton label="Reject" tone="reject" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
+              <ReviewButton label="Incorrect" tone="incorrect" disabled={Boolean(activeSaving)} onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} />
             </div>
             {activeReview ? (
               <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3">
@@ -63,8 +85,7 @@ export function RelationshipValidationPanel({
                     disabled={!canConfirm}
                     onClick={() => {
                       if (!canConfirm) return;
-                      onValidate(edge, activeReview.status, activeReview.reason.trim());
-                      setPendingReview(null);
+                      void submitReview(edge, activeReview.status, activeReview.reason.trim());
                     }}
                   />
                   <button
@@ -89,6 +110,12 @@ export function RelationshipValidationPanel({
 
 function reviewEdgeKey(edge: AiKnowledgeEdge) {
   return edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}-${edge.relationshipType}`;
+}
+
+function messageTone(tone: "success" | "error" | "info") {
+  if (tone === "success") return "border-emerald-300/25 bg-emerald-300/10 text-emerald-100";
+  if (tone === "error") return "border-red-300/25 bg-red-300/10 text-red-100";
+  return "border-sky-300/25 bg-sky-300/10 text-sky-100";
 }
 
 function ReviewButton({
