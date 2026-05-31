@@ -20,6 +20,8 @@ import { Screen } from "@/components/Screen";
 import type { MobileFeature } from "@/types/mobile";
 import { theme } from "@/theme";
 
+const MOBILE_RELEASE_LABEL = "Build 9 sync";
+
 function featureEnabled(features: MobileFeature[], feature: MobileFeature) {
   return features.includes(feature);
 }
@@ -67,7 +69,22 @@ export default function DashboardScreen() {
     }
 
     return (
-      <Screen title="Dashboard" subtitle="Could not load your mobile workspace.">
+      <Screen
+        title="Dashboard"
+        subtitle="Could not load your mobile workspace."
+        headerAside={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sync workspace"
+            onPress={() => void refetch()}
+            disabled={isRefetching}
+            style={[styles.syncButton, isRefetching ? styles.syncButtonDisabled : null]}
+          >
+            <Ionicons name="refresh" size={13} color={theme.accent} />
+            <Text style={styles.syncText}>{isRefetching ? "Syncing" : "Sync"}</Text>
+          </Pressable>
+        }
+      >
         <ErrorState
           title={status === 401 ? "Session Expired" : "Workspace Not Loaded"}
           detail={
@@ -80,6 +97,7 @@ export default function DashboardScreen() {
         <Pressable onPress={signInAgain} style={styles.logout}>
           <Text style={styles.logoutText}>Sign In Again</Text>
         </Pressable>
+        <Text style={styles.releaseText}>{MOBILE_RELEASE_LABEL}</Text>
       </Screen>
     );
   }
@@ -106,7 +124,7 @@ export default function DashboardScreen() {
     >
       <StatusBanner
         title="Ready For Field Work"
-        detail="Online sync is active. JSAs, field issues, and audits submit back to the platform for review."
+        detail={`Online sync is active. JSAs, field issues, and audits submit back to the platform for review. ${MOBILE_RELEASE_LABEL}.`}
         tone="success"
       />
 
@@ -220,6 +238,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   syncTime: { color: theme.accent, fontSize: 10, fontWeight: "800" },
+  releaseText: { color: theme.muted, fontSize: 11, fontWeight: "800", textAlign: "center" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stack: { gap: 10 },
   activityRow: {
