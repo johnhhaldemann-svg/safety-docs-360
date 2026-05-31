@@ -11,8 +11,8 @@ import {
   createCompanyNotification,
   listCompanyNotificationRecipients,
 } from "@/lib/companyNotifications";
-import { retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { retrieveAiEngineBrainContext } from "@/lib/aiEngine/brain";
+import type { TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
 
 export const runtime = "nodejs";
 
@@ -41,7 +41,7 @@ function graphPatternQuery(ctx: Awaited<ReturnType<typeof buildRiskMemoryStructu
 }
 
 function buildApprovedGraphPatternDrafts(
-  graphMemory: Awaited<ReturnType<typeof retrieveTrustedKnowledgeGraphMemory>>["items"],
+  graphMemory: TrustedKnowledgeGraphMemoryItem[],
 ): RiskRecommendationDraft[] {
   if (graphMemory.length === 0) return [];
   const relationshipCount = graphMemory.reduce((sum, item) => sum + item.relationshipReasons.length, 0);
@@ -99,15 +99,21 @@ export async function POST(request: Request) {
     days,
     jobsiteId,
   });
-  const trustedGraphClient = createSupabaseAdminClient();
-  const trustedGraphMemory = trustedGraphClient
-    ? await retrieveTrustedKnowledgeGraphMemory(trustedGraphClient, {
+  const brain = await retrieveAiEngineBrainContext({
+        surface: "risk.recommendations",
+        userClient: auth.supabase,
         companyId: companyScope.companyId,
         jobsiteId,
         query: graphPatternQuery(ctx),
+        includeLegacyMemory: true,
         topK: 8,
-      })
-    : { items: [], method: "unavailable" as const, warnings: ["Approved knowledge graph memory was unavailable for this run."] };
+        legacyTopK: 4,
+      }).catch(() => ({
+        items: [],
+        method: "none" as const,
+        warnings: ["AI Engine brain memory was unavailable for this run."],
+        graphMemoryCount: 0,
+      }));
 
   const combined: RiskRecommendationDraft[] = [];
 
@@ -130,7 +136,7 @@ export async function POST(request: Request) {
   if (mode === "rules" || mode === "both") {
     combined.push(...buildRuleBasedRiskRecommendations(ctx));
   }
-  combined.push(...buildApprovedGraphPatternDrafts(trustedGraphMemory.items));
+  combined.push(...buildApprovedGraphPatternDrafts(brain.items));
 
   const seen = new Set<string>();
   const drafts = combined.filter((d) => {
@@ -152,9 +158,10 @@ export async function POST(request: Request) {
         band: ctx.aggregatedWithBaseline?.band ?? ctx.aggregated.band,
         score: ctx.aggregatedWithBaseline?.score ?? ctx.aggregated.score,
         mode,
-        trustedGraphMemoryCount: trustedGraphMemory.items.length,
+        trustedGraphMemoryCount: brain.graphMemoryCount,
+        aiEngineBrainMethod: brain.method,
       }
-    : { mode, trustedGraphMemoryCount: trustedGraphMemory.items.length };
+    : { mode, trustedGraphMemoryCount: brain.graphMemoryCount, aiEngineBrainMethod: brain.method };
 
   const rows = drafts.map((d) => {
     const actionDraft = enrichRiskActionDraft({
@@ -192,7 +199,7 @@ export async function POST(request: Request) {
         evidenceRefs: [],
         trustedGraphMemory:
           d.kind === "approved_graph_pattern"
-            ? trustedGraphMemory.items.slice(0, 5).map((item) => ({
+            ? brain.items.slice(0, 5).map((item) => ({
                 nodeId: item.nodeId,
                 title: item.title,
                 sourceTable: item.sourceTable,
@@ -251,6 +258,6 @@ export async function POST(request: Request) {
     created: recommendations.length,
     recommendations,
     mode,
-    trustedGraphMemoryCount: trustedGraphMemory.items.length,
+    trustedGraphMemoryCount: brain.graphMemoryCount,
   });
 }

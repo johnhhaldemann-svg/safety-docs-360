@@ -32,10 +32,9 @@ import {
   type AiSafetyFieldEvidenceRecommendationRow,
 } from "@/lib/aiSafetyFieldEvidence";
 import {
-  retrieveTrustedKnowledgeGraphMemory,
   trustedGraphMemoryAsPredictiveItems,
 } from "@/lib/aiKnowledgeMap/trustedMemory";
-import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { retrieveAiEngineBrainContext } from "@/lib/aiEngine/brain";
 
 export const runtime = "nodejs";
 
@@ -392,19 +391,22 @@ export async function POST(request: Request) {
     observations,
     trainingGaps,
   });
-  const trustedGraphClient = createSupabaseAdminClient();
-  const trustedGraphMemory =
-    trustedGraphClient && trustedGraphQuery
-      ? await retrieveTrustedKnowledgeGraphMemory(trustedGraphClient, {
+  const brain =
+    trustedGraphQuery
+      ? await retrieveAiEngineBrainContext({
+          surface: "safety_action_queue.sync",
+          userClient: auth.supabase,
           companyId,
           jobsiteId: requestedJobsiteId,
-          query: trustedGraphQuery,
-          topK: 8,
-        })
-      : { items: [], method: "unavailable" as const, warnings: ["Approved knowledge graph memory was unavailable for this run."] };
+        query: trustedGraphQuery,
+        includeLegacyMemory: true,
+        topK: 8,
+        legacyTopK: 4,
+        }).catch(() => ({ items: [], graphMemoryCount: 0 }))
+      : { items: [], graphMemoryCount: 0 };
   const memoryItems = [
     ...(memoryItemsRes.error ? [] : memoryItemsRes.data ?? []),
-    ...trustedGraphMemoryAsPredictiveItems(trustedGraphMemory.items),
+    ...trustedGraphMemoryAsPredictiveItems(brain.items),
   ];
   const workSchedule = workScheduleFromScheduleItems(scheduleItems);
   const forecast = await getInjuryWeatherDashboardData({
@@ -455,7 +457,7 @@ export async function POST(request: Request) {
       insertedCount: 0,
       skippedDuplicateCount: predictiveRisk.aiSafetyActionQueue.items.length,
       existingActionCount: existingSourceKeys.size,
-      trustedGraphMemoryCount: trustedGraphMemory.items.length,
+      trustedGraphMemoryCount: brain.graphMemoryCount,
       actionQueue: predictiveRisk.aiSafetyActionQueue,
       recommendations: [],
     });
@@ -501,7 +503,7 @@ export async function POST(request: Request) {
     insertedCount: inserted.length,
     skippedDuplicateCount: predictiveRisk.aiSafetyActionQueue.items.length - inserted.length,
     existingActionCount: existingSourceKeys.size,
-    trustedGraphMemoryCount: trustedGraphMemory.items.length,
+    trustedGraphMemoryCount: brain.graphMemoryCount,
     actionQueue: predictiveRisk.aiSafetyActionQueue,
     recommendations: inserted,
   });

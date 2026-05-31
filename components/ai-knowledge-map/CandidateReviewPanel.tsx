@@ -145,7 +145,7 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-sky-300" /> : null}
       </div>
-      <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs font-bold text-amber-100">
+      <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-bold text-amber-950">
         Trusted memory suggestions do not prove compliance. Verify source evidence, scope, and controls before approval.
       </p>
       {message ? <p className="mt-3 rounded-lg border border-sky-300/20 bg-sky-300/10 p-2 text-xs font-bold text-sky-100">{message}</p> : null}
@@ -206,7 +206,7 @@ function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[
                 {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {counts.failedSourceCandidates} failed, {counts.skippedSources} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
               </span>
               {batch.warnings.slice(0, 2).map((warning) => (
-                <span key={warning} className="col-span-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-[11px] font-bold text-amber-100">{warning}</span>
+                <span key={warning} className="col-span-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">{warning}</span>
               ))}
             </div>
           );
@@ -298,7 +298,7 @@ function CandidateCard({
             </p>
             <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">Review due: {new Date(preview.reviewDueAt).toLocaleDateString()}</p>
             {preview.dependencyWarnings.slice(0, 2).map((warning) => (
-              <p key={warning} className="mt-1 text-[11px] font-black leading-5 text-amber-100">{warning}</p>
+              <p key={warning} className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-black leading-5 text-amber-950">{warning}</p>
             ))}
           </div>
           <div className="mt-2 rounded-md border border-white/10 bg-black/10 p-2">
@@ -394,7 +394,7 @@ function CandidateReasonBox({
           Cancel
         </button>
       </div>
-      {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
+      {!canConfirm ? <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
     </div>
   );
 }

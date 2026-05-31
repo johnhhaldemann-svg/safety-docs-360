@@ -86,7 +86,7 @@ export function SelectedNodePanel({
         <span className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-black ${tone.border} ${tone.bg} ${tone.text}`}>{tone.label}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-300">{node.description || node.semanticSummary}</p>
-      <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs font-bold text-amber-100">
+      <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-bold text-amber-950">
         This AI Knowledge Map item does not prove compliance. Confirm source records, site conditions, and required controls before relying on it.
       </p>
       <dl className="mt-4 grid gap-2 text-xs text-slate-300">
@@ -95,7 +95,7 @@ export function SelectedNodePanel({
         <Row label="Trend" value={trend} />
         <Row label="Confidence" value={`${Math.round((node.confidenceScore ?? 0.72) * 100)}%`} />
         <Row label="Validation" value={node.validationStatus.replace(/_/g, " ")} badgeClass={validationTone(node.validationStatus)} />
-        <Row label="Memory layer" value={memoryLabel} badgeClass={isSharedLibrary ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : isFallback ? "border-amber-300/25 bg-amber-300/10 text-amber-100" : undefined} />
+        <Row label="Memory layer" value={memoryLabel} badgeClass={isSharedLibrary ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : isFallback ? "border-amber-300 bg-amber-50 text-amber-950" : undefined} />
         {reviewDueAt ? <Row label="Review due" value={new Date(reviewDueAt).toLocaleDateString()} badgeClass={stale ? "border-red-300/25 bg-red-300/10 text-red-100" : undefined} /> : null}
         {isFallback || isSharedLibrary ? <Row label="Company-specific" value="No, approved general guidance" /> : null}
         <Row label="Company" value={companyName} />
@@ -206,7 +206,7 @@ export function SelectedNodePanel({
                         Cancel
                       </button>
                     </div>
-                    {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
+                    {!canConfirm ? <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
                   </div>
                 ) : null}
               </div>
@@ -214,23 +214,23 @@ export function SelectedNodePanel({
           })}
           {suggestedRelationships.length > 0 ? <p className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-200">Suggested relationships need review: {suggestedRelationships.length}</p> : null}
           {related.length === 0 && potentialRelationships.length > 0 ? (
-            <div className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3">
-              <p className="text-sm font-black text-amber-100">Potential relationships found but not yet approved.</p>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+              <p className="text-sm font-black text-amber-950">Potential relationships found but not yet approved.</p>
               <div className="mt-3 space-y-2">
                 {potentialRelationships.map((suggestion) => (
-                  <div key={`${suggestion.relationshipType}-${suggestion.label}`} className="rounded-md border border-amber-200/20 bg-black/10 p-2">
+                  <div key={`${suggestion.relationshipType}-${suggestion.label}`} className="rounded-md border border-amber-200 bg-white/70 p-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-black text-amber-50">{suggestion.label}</p>
-                      <span className="rounded border border-amber-200/25 px-2 py-0.5 text-[10px] font-black text-amber-100">{Math.round(suggestion.confidenceScore * 100)}%</span>
+                      <p className="text-xs font-black text-amber-950">{suggestion.label}</p>
+                      <span className="rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-950">{Math.round(suggestion.confidenceScore * 100)}%</span>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-amber-100/90">{suggestion.reason}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-amber-100/70">{suggestion.evidenceText}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-amber-950">{suggestion.reason}</p>
+                    <p className="mt-1 text-[11px] font-semibold leading-5 text-amber-900">{suggestion.evidenceText}</p>
                   </div>
                 ))}
               </div>
             </div>
           ) : null}
-          {related.length === 0 && potentialRelationships.length === 0 ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3 text-sm font-semibold text-amber-100">No relationships generated for this node yet.</p> : null}
+          {related.length === 0 && potentialRelationships.length === 0 ? <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">No relationships generated for this node yet.</p> : null}
         </div>
       </div>
     </aside>

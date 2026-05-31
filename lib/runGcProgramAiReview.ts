@@ -7,11 +7,7 @@ import {
   extractGcProgramDocumentText,
   generateGcProgramAiReview,
 } from "@/lib/gcProgramAiReview";
-import {
-  gatherCompanyMemoryExcerptsForReview,
-  isCompanyMemoryForReviewsEnabled,
-} from "@/lib/companyMemory/reviewMemory";
-import { formatTrustedKnowledgeGraphExcerpts, retrieveTrustedKnowledgeGraphMemory } from "@/lib/aiKnowledgeMap/trustedMemory";
+import { retrieveAiEngineBrainContext } from "@/lib/aiEngine/brain";
 
 export type GcSiteReferenceExtractionMeta =
   | null
@@ -33,7 +29,7 @@ export async function runGcProgramDocumentAiReview(
   documentId: string,
   additionalGcContext: string,
   siteReference?: { buffer: Buffer; fileName: string } | null,
-  options?: { companyMemoryExcerpts?: string | null }
+  options?: { companyMemoryExcerpts?: string | null; userClient?: SupabaseClient | null }
 ): Promise<
   | {
       ok: true;
@@ -121,12 +117,6 @@ export async function runGcProgramDocumentAiReview(
     let siteReferenceText: string | null = null;
     let siteReferenceFileName: string | null = null;
 
-    /**
-     * If a caller already pulled memory excerpts (none today, but symmetric
-     * with `runBuilderProgramDocumentAiReview`), respect them. Otherwise, when
-     * `COMPANY_AI_MEMORY_FOR_REVIEWS=1`, fetch them so admin reviews get the
-     * same company-specific grounding the company-scoped flow does.
-     */
     let companyMemoryExcerpts = options?.companyMemoryExcerpts?.trim() || null;
     const memoryQuery = [
       doc.document_title ?? "",
@@ -136,40 +126,32 @@ export async function runGcProgramDocumentAiReview(
       .filter(Boolean)
       .join(" ")
       .slice(0, 2000);
-    if (!companyMemoryExcerpts && isCompanyMemoryForReviewsEnabled() && doc.company_id) {
-      const retrieved = await gatherCompanyMemoryExcerptsForReview({
-        supabase: admin,
-        companyId: doc.company_id,
-        query: memoryQuery,
-      });
-      if (retrieved.excerpts) {
-        companyMemoryExcerpts = retrieved.excerpts;
-        serverLog("info", "gc_program_ai_review_memory_injected", {
-          documentId: doc.id,
-          companyId: doc.company_id,
-          method: retrieved.method,
-          chunkCount: retrieved.chunkCount,
-        });
-      }
-    }
     if (doc.company_id && memoryQuery.length >= 8) {
-      const graph = await retrieveTrustedKnowledgeGraphMemory(admin, {
+      const brain = await retrieveAiEngineBrainContext({
+        surface: "document_ai.gc_review",
+        adminClient: admin,
+        userClient: options?.userClient ?? admin,
         companyId: doc.company_id,
         query: memoryQuery,
+        includeLegacyMemory: true,
         topK: 5,
+        legacyTopK: 5,
+        maxExcerptLength: 900,
       }).catch((error) => ({
-        items: [],
+        formattedPromptBlock: null,
         method: "none" as const,
-        warnings: [error instanceof Error ? error.message : "Approved graph memory unavailable."],
+        graphMemoryCount: 0,
+        legacyMemoryCount: 0,
+        warnings: [error instanceof Error ? error.message : "AI Engine brain memory unavailable."],
       }));
-      const graphExcerpts = formatTrustedKnowledgeGraphExcerpts(graph.items, { maxItems: 5, maxExcerptLength: 900 });
-      if (graphExcerpts) {
-        companyMemoryExcerpts = [companyMemoryExcerpts, graphExcerpts].filter(Boolean).join("\n\n");
-        serverLog("info", "gc_program_ai_review_graph_memory_injected", {
+      if (brain.formattedPromptBlock) {
+        companyMemoryExcerpts = [companyMemoryExcerpts, brain.formattedPromptBlock].filter(Boolean).join("\n\n");
+        serverLog("info", "gc_program_ai_review_brain_memory_injected", {
           documentId: doc.id,
           companyId: doc.company_id,
-          method: graph.method,
-          graphMemoryCount: graph.items.length,
+          method: brain.method,
+          graphMemoryCount: brain.graphMemoryCount,
+          legacyMemoryCount: brain.legacyMemoryCount,
         });
       }
     }
