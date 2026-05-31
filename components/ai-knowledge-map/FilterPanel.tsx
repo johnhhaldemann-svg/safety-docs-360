@@ -37,7 +37,7 @@ export function FilterPanel({
   };
 
   return (
-    <aside className="flex min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur">
+    <aside className="flex min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/72 p-4 shadow-2xl backdrop-blur lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
       <div className="flex items-center gap-2 text-white">
         <Filter className="h-4 w-4 text-sky-300" />
         <h2 className="text-sm font-black">Filters</h2>

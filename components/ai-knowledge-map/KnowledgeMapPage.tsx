@@ -324,9 +324,9 @@ export function KnowledgeMapPage() {
           </div>
         ) : null}
 
-        <main className="grid min-h-[680px] flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_380px]">
+        <main className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_380px]">
           <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={applyFilters} />
-          <section className="flex min-w-0 flex-col gap-3">
+          <section className="flex min-w-0 flex-col gap-3 self-start">
             <div className="relative">
               {loading ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-slate-950/72 backdrop-blur">
@@ -339,7 +339,7 @@ export function KnowledgeMapPage() {
             <StatsBar summary={graph.summary} generatedAt={graph.generatedAt} />
             <LegendBar />
           </section>
-          <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:col-span-1 2xl:flex 2xl:flex-col">
+          <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:flex 2xl:max-h-[calc(100vh-2rem)] 2xl:flex-col 2xl:overflow-y-auto 2xl:pr-1">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
             <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
             <CandidateReviewPanel companyId={graph.selectedCompanyId} />
