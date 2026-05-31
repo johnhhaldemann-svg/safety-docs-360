@@ -221,16 +221,16 @@ export function KnowledgeMapPage() {
     }
   }
 
-  async function validate(edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect") {
+  async function validate(edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect", reasonOverride?: string) {
     if (!edge.id || edge.id.startsWith("demo-edge")) {
       setMessage("Demo relationships show the validation flow. Rebuild a live company index to save review decisions.");
       return;
     }
-    const reason = status === "approved"
+    const reason = reasonOverride?.trim() || (status === "approved"
       ? `Super Admin reviewed ${edge.relationshipType} in AI Knowledge Map.`
-      : window.prompt(`Enter the reason this relationship is ${status}:`, "")?.trim();
+      : "");
     if (!reason) {
-      setError(`${status === "incorrect" ? "Incorrect" : "Reject"} review requires a reason.`);
+      setError(`${status === "incorrect" ? "Incorrect" : "Reject"} review requires a meaningful reason.`);
       return;
     }
     setWorking(`Mark ${status}`);
@@ -281,13 +281,13 @@ export function KnowledgeMapPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_48%_18%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,1))]" />
-      <div className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 px-4 py-4">
-        <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/76 px-5 py-4 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
-          <div>
+      <div className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
+        <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/76 px-4 py-4 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-black tracking-tight text-white">AI Knowledge Map</h1>
             <p className="mt-1 text-sm font-semibold text-slate-400">Semantic view of connected safety data</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
             <TopButton icon={LayoutDashboard} label="Dashboard" />
             <TopButton icon={Sparkles} label="Insights" />
             <TopButton icon={Bell} label="Alerts" />
@@ -322,7 +322,7 @@ export function KnowledgeMapPage() {
           </div>
         ) : null}
 
-        <main className="grid min-h-[680px] flex-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+        <main className="grid min-h-[680px] flex-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_380px]">
           <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={applyFilters} />
           <section className="flex min-w-0 flex-col gap-3">
             <div className="relative">
@@ -337,7 +337,7 @@ export function KnowledgeMapPage() {
             <StatsBar summary={graph.summary} generatedAt={graph.generatedAt} />
             <LegendBar />
           </section>
-          <section className="flex min-h-0 flex-col gap-4">
+          <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:col-span-1 2xl:flex 2xl:flex-col">
             <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status) => void validate(edge, status)} />
             <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => void load(filters)} />
             <CandidateReviewPanel companyId={graph.selectedCompanyId} />

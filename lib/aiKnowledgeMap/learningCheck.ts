@@ -688,7 +688,7 @@ async function alreadyQueuedOrTrusted(db: LearningDb, companyId: string, sourceT
       .eq("company_id", companyId)
       .eq("source_table", sourceTable)
       .eq("source_id", sourceId)
-      .in("validation_status", ["pending_review", "approved", "promoted"]) as unknown as Promise<QueryResult<unknown>>,
+      .in("validation_status", ["pending_review", "pending_second_approval", "approved", "promoted"]) as unknown as Promise<QueryResult<unknown>>,
   ]);
   return (trusted.count ?? 0) > 0 || (candidate.count ?? 0) > 0;
 }

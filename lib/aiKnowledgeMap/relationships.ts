@@ -207,7 +207,6 @@ function evidenceFor(left: AiKnowledgeNode, right: AiKnowledgeNode, detail: stri
 }
 
 function validationStatus(confidence: number): AiKnowledgeValidationStatus {
-  if (confidence >= 0.88) return "approved";
   if (confidence < 0.45) return "needs_review";
   return "pending_review";
 }

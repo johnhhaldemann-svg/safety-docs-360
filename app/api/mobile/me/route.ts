@@ -7,6 +7,12 @@ import {
   visibleMobileFeatures,
   type MobileFeatureOverride,
 } from "@/lib/mobileEntitlements";
+import {
+  buildMobileAuditCompanies,
+  type MobileAuditCustomerRow,
+  type MobileAuditJobsiteRow,
+  type MobileAuditLocationRow,
+} from "@/lib/mobileAuditCompanies";
 
 export const runtime = "nodejs";
 
@@ -17,24 +23,6 @@ type RecentActivityRow = {
   detail: string;
   createdAt: string | null;
   tone: "neutral" | "warning" | "success";
-};
-type MobileJobsiteRow = {
-  id: string;
-  name: string;
-  status?: string | null;
-  customer_company_name?: string | null;
-};
-type MobileAuditLocationRow = {
-  id: string;
-  name: string;
-  status?: string | null;
-  audit_customer_id: string;
-  report_email?: string | null;
-};
-type MobileAuditCustomerRow = {
-  id: string;
-  name: string;
-  report_email?: string | null;
 };
 
 function isMissingEntitlementTable(message?: string | null) {
@@ -95,27 +83,6 @@ async function countRows(
   const result = await query;
   if (result.error) return 0;
   return result.count ?? 0;
-}
-
-function buildAuditCompanies(params: {
-  customers: MobileAuditCustomerRow[];
-  locations: MobileAuditLocationRow[];
-}) {
-  const groups = new Map<string, { id: string; name: string; jobsites: MobileJobsiteRow[] }>();
-  for (const customer of params.customers) {
-    groups.set(customer.id, { id: customer.id, name: customer.name, jobsites: [] });
-  }
-  for (const location of params.locations) {
-    const existing = groups.get(location.audit_customer_id);
-    if (!existing) continue;
-    existing.jobsites.push({
-      id: location.id,
-      name: location.name,
-      status: location.status,
-      customer_company_name: existing.name,
-    });
-  }
-  return [...groups.values()];
 }
 
 function toRecentActivityRows(params: {
@@ -312,7 +279,7 @@ export async function GET(request: Request) {
 
   let jobsitesQuery = auth.supabase
     .from("company_jobsites")
-    .select("id, name, status, customer_company_name")
+    .select("id, name, status, audit_customer_id, customer_company_name, customer_report_email")
     .eq("company_id", companyScope.companyId)
     .order("name", { ascending: true });
   if (jobsiteScope.restricted) {
@@ -504,7 +471,7 @@ export async function GET(request: Request) {
     recentIncidentReviewsQuery,
     recentToolboxQuery,
   ]);
-  const jobsites = !jobsitesResult.error ? ((jobsitesResult.data ?? []) as MobileJobsiteRow[]) : [];
+  const jobsites = !jobsitesResult.error ? ((jobsitesResult.data ?? []) as MobileAuditJobsiteRow[]) : [];
   const auditCustomers = !auditCustomersResult.error ? ((auditCustomersResult.data ?? []) as MobileAuditCustomerRow[]) : [];
   const auditLocations = !auditLocationsResult.error ? ((auditLocationsResult.data ?? []) as MobileAuditLocationRow[]) : [];
 
@@ -522,9 +489,11 @@ export async function GET(request: Request) {
     jobsites,
     auditCustomers,
     auditLocations,
-    mobileCompanies: buildAuditCompanies({
+    mobileCompanies: buildMobileAuditCompanies({
       customers: auditCustomers,
       locations: auditLocations,
+      jobsites,
+      companyName: companyScope.companyName,
     }),
     dashboard: {
       openIssues,

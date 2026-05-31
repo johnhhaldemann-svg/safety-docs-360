@@ -62,6 +62,7 @@ describe("AI Knowledge Map relationship generation", () => {
     ] satisfies AiKnowledgeRelationshipType[]));
     expect(edges.every((edge) => edge.reason.length > 20)).toBe(true);
     expect(edges.every((edge) => edge.sourceEvidence.length === 2)).toBe(true);
+    expect(edges.every((edge) => edge.validationStatus !== "approved")).toBe(true);
   });
 
   it("does not connect records across company scope", () => {

@@ -54,14 +54,15 @@ export async function GET(request: Request) {
         .select("id, name, status, primary_contact_email")
         .neq("status", "archived")
         .order("name"),
-      requestedCompanyId
-        ? readSupabase
-            .from("company_jobsites")
-            .select(JOBSITE_SELECT)
-            .eq("company_id", requestedCompanyId)
-            .eq("status", "active")
-            .order("name")
-        : Promise.resolve({ data: [], error: null }),
+      (() => {
+        let query = readSupabase
+          .from("company_jobsites")
+          .select(JOBSITE_SELECT)
+          .eq("status", "active")
+          .order("name");
+        if (requestedCompanyId) query = query.eq("company_id", requestedCompanyId);
+        return query;
+      })(),
     ]);
 
     if (companiesResult.error) {

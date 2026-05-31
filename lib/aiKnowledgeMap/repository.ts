@@ -12,7 +12,15 @@ import {
 import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
 import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE } from "@/lib/aiKnowledgeMap/learningCheck";
-import { isLearningNodeVisibleOnMap, LEARNING_REVIEW_REQUIRED_BANNER } from "@/lib/aiKnowledgeMap/reviewGate";
+import {
+  buildCandidatePromotionPreview,
+  buildKnowledgeProvenanceCertificate,
+  candidateFirstApproval,
+  candidateRequiresSecondApproval,
+  isLearningNodeVisibleOnMap,
+  isTrustedMemoryStale,
+  LEARNING_REVIEW_REQUIRED_BANNER,
+} from "@/lib/aiKnowledgeMap/reviewGate";
 import type {
   AiKnowledgeEdge,
   AiKnowledgeGraphPayload,
@@ -52,6 +60,7 @@ const FALLBACK_NODE_THRESHOLD = 8;
 const FALLBACK_EDGE_THRESHOLD = 10;
 const FALLBACK_REASON = "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data.";
 const SHARED_LIBRARY_REASON = "Showing approved shared Knowledge Library guidance alongside company-specific reviewed memory.";
+const LEARNING_REVIEW_BLOCKING_STATUSES = ["pending_review", "pending_second_approval", "approved"] as const;
 
 function isMissingKnowledgeMapTable(error?: DbError | null) {
   const message = (error?.message ?? "").toLowerCase();
@@ -279,7 +288,7 @@ async function countPendingLearningReview(client: DbClient, selectedCompanyId: s
     let candidateQuery = client
       .from("ai_knowledge_ingest_candidates")
       .select("id", { count: "exact", head: true })
-      .eq("validation_status", "pending_review")
+      .in("validation_status", [...LEARNING_REVIEW_BLOCKING_STATUSES])
       .in("batch_id", batchIds);
     if (selectedCompanyId && selectedCompanyId !== ALL_COMPANIES_SCOPE) candidateQuery = candidateQuery.eq("company_id", selectedCompanyId);
     const candidateResult = (await candidateQuery) as QueryResult<unknown>;
@@ -724,7 +733,14 @@ async function upsertVectorMemory(client: DbClient, params: { nodes: AiKnowledge
       retrieval_text: retrievalText,
       semantic_summary: node.semanticSummary || node.title,
       status: "fallback",
-      metadata: { sourceTable: node.sourceTable, sourceId: node.sourceId },
+      metadata: {
+        sourceTable: node.sourceTable,
+        sourceId: node.sourceId,
+        provenanceCertificate: node.metadata.provenanceCertificate ?? null,
+        reviewDueAt: node.metadata.reviewDueAt ?? null,
+        trustedMemoryUse: node.metadata.trustedMemoryUse ?? null,
+        staleTrustedMemory: isTrustedMemoryStale(node.metadata),
+      },
       embedding_model: null as string | null,
       embedding_provider: null as string | null,
       prompt_hash: null as string | null,
@@ -1024,7 +1040,9 @@ export async function listKnowledgeIngestCandidates(client: DbClient, params: { 
 export async function getKnowledgeIngestCandidate(client: DbClient, candidateId: string) {
   const { data, error } = (await client.from("ai_knowledge_ingest_candidates").select("*").eq("id", candidateId).single()) as QueryResult<Record<string, unknown>>;
   if (error) throw new Error(error.message ?? "Failed to load AI knowledge review candidate.");
-  return { ok: true, candidate: camelCandidate(data ?? {}) };
+  const candidate = camelCandidate(data ?? {});
+  const promotionPreview = await buildRepositoryPromotionPreview(client, candidate);
+  return { ok: true, candidate, promotionPreview, provenancePreview: promotionPreview.provenancePreview };
 }
 
 async function findPromotedNodeId(client: DbClient, companyId: string | null, key: string | null) {
@@ -1050,14 +1068,15 @@ function candidateEdgePayload(candidate: AiKnowledgeIngestCandidate): AiKnowledg
   return payload as unknown as AiKnowledgeEdge;
 }
 
-function candidateRiskLevel(candidate: AiKnowledgeIngestCandidate) {
-  const payloadRisk = typeof candidate.proposedPayload.riskLevel === "string" ? candidate.proposedPayload.riskLevel : null;
-  const metadataRisk = typeof candidate.metadata.riskLevel === "string" ? candidate.metadata.riskLevel : null;
-  return String(payloadRisk ?? metadataRisk ?? "unknown").toLowerCase();
-}
-
-function candidateRequiresSecondApproval(candidate: AiKnowledgeIngestCandidate) {
-  return candidateRiskLevel(candidate) === "critical";
+async function buildRepositoryPromotionPreview(client: DbClient, candidate: AiKnowledgeIngestCandidate, actorUserId?: string | null) {
+  let sourceNodeReady: boolean | undefined;
+  let targetNodeReady: boolean | undefined;
+  if (candidate.candidateType === "edge") {
+    const edge = candidateEdgePayload(candidate);
+    sourceNodeReady = Boolean(await findPromotedNodeId(client, candidate.companyId, candidate.sourceNodeKey ?? edge?.fromNodeKey ?? null));
+    targetNodeReady = Boolean(await findPromotedNodeId(client, candidate.companyId, candidate.targetNodeKey ?? edge?.toNodeKey ?? null));
+  }
+  return buildCandidatePromotionPreview(candidate, { sourceNodeReady, targetNodeReady, actorUserId });
 }
 
 function evidenceEntries(candidate: AiKnowledgeIngestCandidate) {
@@ -1096,21 +1115,43 @@ function assertCandidateReviewAllowed(candidate: AiKnowledgeIngestCandidate, par
   if ((params.status === "rejected" || params.status === "incorrect") && !hasMeaningfulReviewReason(params.reason)) {
     throw new Error("Rejecting or marking incorrect requires a meaningful review reason.");
   }
-  if (params.status === "approved" && candidate.validationStatus === "approved" && candidate.reviewedBy === params.actorUserId && candidateRequiresSecondApproval(candidate)) {
-    throw new Error("Critical-risk memory requires a second Super Admin approval by a different reviewer.");
+  if (params.status === "approved" && candidate.validationStatus === "pending_second_approval" && candidateRequiresSecondApproval(candidate)) {
+    const first = candidateFirstApproval(candidate);
+    if (first.reviewedBy === params.actorUserId || candidate.reviewedBy === params.actorUserId) {
+      throw new Error("High/critical memory requires a second Super Admin approval by a different reviewer.");
+    }
   }
 }
 
-async function promoteNodeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+function trustedPromotionMetadata(candidate: AiKnowledgeIngestCandidate, base: Record<string, unknown>, certificate: ReturnType<typeof buildKnowledgeProvenanceCertificate>) {
+  const stale = isTrustedMemoryStale({ ...base, provenanceCertificate: certificate, reviewDueAt: certificate.reviewDueAt });
+  return {
+    ...base,
+    provenanceCertificate: certificate,
+    reviewDueAt: certificate.reviewDueAt,
+    staleTrustedMemory: stale,
+    trustedMemoryUse: certificate.safetyUse,
+    complianceProof: false,
+    promotedFromCandidateId: candidate.id,
+    promotedFromBatchId: candidate.batchId,
+  };
+}
+
+async function promoteNodeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate, certificate: ReturnType<typeof buildKnowledgeProvenanceCertificate>) {
   const node = candidateNodePayload(candidate);
   if (!node) throw new Error("Candidate does not contain a valid node payload.");
-  const [promoted] = await upsertNodes(client, [{ ...node, validationStatus: "approved", confidenceScore: node.confidenceScore ?? candidate.confidenceScore ?? 0.72 }]);
+  const [promoted] = await upsertNodes(client, [{
+    ...node,
+    validationStatus: "approved",
+    confidenceScore: node.confidenceScore ?? candidate.confidenceScore ?? 0.72,
+    metadata: trustedPromotionMetadata(candidate, node.metadata ?? {}, certificate),
+  }]);
   if (!promoted?.id) throw new Error("Node candidate could not be promoted.");
   await upsertVectorMemory(client, { nodes: [promoted], generateEmbeddings: false, maxEmbeddingAttempts: 0 });
   return { nodeId: promoted.id, edgeId: null as string | null };
 }
 
-async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate, certificate: ReturnType<typeof buildKnowledgeProvenanceCertificate>) {
   const edge = candidateEdgePayload(candidate);
   if (!edge) throw new Error("Candidate does not contain a valid edge payload.");
   const sourceNodeId = await findPromotedNodeId(client, candidate.companyId, candidate.sourceNodeKey ?? edge.fromNodeKey ?? null);
@@ -1126,16 +1167,17 @@ async function promoteEdgeCandidate(client: DbClient, candidate: AiKnowledgeInge
     validationStatus: "approved",
     relationshipStatus: "human_approved",
     confidenceScore: edge.confidenceScore ?? candidate.confidenceScore ?? 0.65,
+    metadata: trustedPromotionMetadata(candidate, edge.metadata ?? {}, certificate),
   }], []);
   if (!promoted?.id) throw new Error("Relationship candidate could not be promoted.");
   return { nodeId: null as string | null, edgeId: promoted.id };
 }
 
-async function promoteCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate) {
+async function promoteCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate, certificate: ReturnType<typeof buildKnowledgeProvenanceCertificate>) {
   if (candidate.validationStatus === "promoted") return { nodeId: candidate.promotedNodeId, edgeId: candidate.promotedEdgeId };
   if (!hasTrustedPromotionEvidence(candidate)) throw new Error("Candidate needs evidence text, source table, source ID, source label, and a human-readable reason before promotion.");
-  if (candidate.candidateType === "node") return promoteNodeCandidate(client, candidate);
-  if (candidate.candidateType === "edge") return promoteEdgeCandidate(client, candidate);
+  if (candidate.candidateType === "node") return promoteNodeCandidate(client, candidate, certificate);
+  if (candidate.candidateType === "edge") return promoteEdgeCandidate(client, candidate, certificate);
   throw new Error("Failed source candidates cannot be promoted.");
 }
 
@@ -1151,9 +1193,16 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
       assertCandidateReviewAllowed(loaded.candidate, params);
       let candidate = loaded.candidate;
       const needsSecondReview = candidateRequiresSecondApproval(candidate);
-      const firstCriticalApproval = params.status === "approved" && params.promoteApproved !== false && needsSecondReview && candidate.validationStatus !== "approved";
-      if (params.status === "approved" && params.promoteApproved !== false && !firstCriticalApproval) {
-        const promoted = await promoteCandidate(client, { ...candidate, validationStatus: "approved", reviewedBy: params.actorUserId, reviewedAt, reviewNote: params.reason });
+      const firstHighRiskApproval = params.status === "approved" && params.promoteApproved !== false && needsSecondReview && candidate.validationStatus !== "pending_second_approval";
+      if (params.status === "approved" && params.promoteApproved !== false && !firstHighRiskApproval) {
+        const certificate = buildKnowledgeProvenanceCertificate(candidate, {
+          approvedBy: params.actorUserId,
+          approvedAt: reviewedAt,
+          secondApprovedBy: needsSecondReview ? params.actorUserId : null,
+          secondApprovedAt: needsSecondReview ? reviewedAt : null,
+          promotedAt: reviewedAt,
+        });
+        const promoted = await promoteCandidate(client, { ...candidate, validationStatus: "approved", reviewedBy: params.actorUserId, reviewedAt, reviewNote: params.reason }, certificate);
         const promotedAt = new Date().toISOString();
         const update = await client.from("ai_knowledge_ingest_candidates").update({
           validation_status: "promoted",
@@ -1163,6 +1212,12 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
           promoted_node_id: promoted.nodeId,
           promoted_edge_id: promoted.edgeId,
           promoted_at: promotedAt,
+          metadata: {
+            ...candidate.metadata,
+            provenanceCertificate: certificate,
+            reviewDueAt: certificate.reviewDueAt,
+            secondApproval: needsSecondReview ? { reviewedBy: params.actorUserId, reviewedAt, reason: params.reason } : null,
+          },
         }).eq("id", candidate.id).select("*").single() as QueryResult<Record<string, unknown>>;
         if (update.error) throw new Error(update.error.message ?? "Failed to mark candidate promoted.");
         candidate = camelCandidate(update.data ?? {});
@@ -1182,19 +1237,24 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
         }).catch(() => undefined);
         if (candidate.candidateType === "edge") await recalculateGraphRiskFromRelationships(client, candidate.companyId, params.actorUserId).catch(() => undefined);
       } else {
+        const metadata = firstHighRiskApproval ? {
+          ...candidate.metadata,
+          firstApproval: { reviewedBy: params.actorUserId, reviewedAt, reason: params.reason },
+        } : candidate.metadata;
         const { data, error } = (await client.from("ai_knowledge_ingest_candidates").update({
-          validation_status: params.status,
+          validation_status: firstHighRiskApproval ? "pending_second_approval" : params.status,
           review_note: params.reason,
           reviewed_by: params.actorUserId,
           reviewed_at: reviewedAt,
+          metadata,
         }).eq("id", candidateId).select("*").single()) as QueryResult<Record<string, unknown>>;
         if (error) throw new Error(error.message ?? "Failed to update candidate review status.");
         candidate = camelCandidate(data ?? {});
         await logEngineEvent(client, {
           companyId: candidate.companyId,
           eventType: "knowledge_candidate_reviewed",
-          description: firstCriticalApproval
-            ? `AI Knowledge candidate ${candidate.id} received first critical-risk approval and still requires a second Super Admin approval.`
+          description: firstHighRiskApproval
+            ? `AI Knowledge candidate ${candidate.id} received first high/critical-risk approval and still requires a second Super Admin approval.`
             : `AI Knowledge candidate ${candidate.id} was marked ${params.status}.`,
           metadata: {
             candidateType: candidate.candidateType,
@@ -1203,7 +1263,7 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
             signalKeys: Array.isArray(candidate.metadata.signalKeys) ? candidate.metadata.signalKeys : [],
             learningImpact: candidate.candidateType === "edge" && (params.status === "rejected" || params.status === "incorrect")
               ? "Rejected relationship candidates reduce future confidence for similar signals."
-              : firstCriticalApproval ? "Critical-risk memory is not trusted until a second Super Admin approval promotes it." : undefined,
+              : firstHighRiskApproval ? "High/critical memory is not trusted until a second Super Admin approval promotes it." : undefined,
           },
           createdBy: params.actorUserId,
         }).catch(() => undefined);

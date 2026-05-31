@@ -48,8 +48,8 @@ export function sourceMatchesUrl(source: ApprovedSourceRow, requestedUrl: string
     return { ok: false, reason: "source_url must be a valid URL." };
   }
 
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    return { ok: false, reason: "Only HTTP(S) sources are supported." };
+  if (url.protocol !== "https:") {
+    return { ok: false, reason: "Only HTTPS sources are supported." };
   }
   if (!source.is_active) {
     return { ok: false, reason: "Approved source is inactive." };

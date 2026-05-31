@@ -21,14 +21,14 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
     { label: "Last updated", value: summary.latestUpdate ? new Date(summary.latestUpdate).toLocaleTimeString() : new Date(generatedAt).toLocaleTimeString(), icon: Clock },
   ];
   return (
-    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-950/78 p-3 shadow-2xl backdrop-blur md:grid-cols-4 xl:grid-cols-8">
+    <div className="grid gap-2 rounded-xl border border-white/10 bg-slate-950/78 p-3 shadow-2xl backdrop-blur sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
       {stats.map((stat) => (
-        <div key={stat.label} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+        <div key={stat.label} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
             <stat.icon className="h-3.5 w-3.5 text-sky-300" />
-            {stat.label}
+            <span className="truncate">{stat.label}</span>
           </div>
-          <div className="mt-1 text-lg font-black text-white">{stat.value}</div>
+          <div className="mt-1 truncate text-lg font-black text-white">{stat.value}</div>
         </div>
       ))}
     </div>

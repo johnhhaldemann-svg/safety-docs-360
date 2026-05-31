@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { createApprovedSource, defaultTrustLevelForSource, isAllowedSourceType, isAllowedTrustLevel } from "@/lib/gusLearning";
+import { assertAiKnowledgeWritesEnabled } from "@/lib/aiKnowledgeMap/guardrails";
 import { uploadDocumentsBucketObject } from "@/lib/supabaseStorageServer";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
 
 export const runtime = "nodejs";
+const MAX_TRUSTED_DOCUMENT_BYTES = 25 * 1024 * 1024;
+const TRUSTED_DOCUMENT_TYPES = new Map([
+  [".pdf", new Set(["application/pdf"])],
+  [".doc", new Set(["application/msword", "application/octet-stream"])],
+  [".docx", new Set(["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream"])],
+  [".txt", new Set(["text/plain", "application/octet-stream"])],
+  [".md", new Set(["text/markdown", "text/plain", "application/octet-stream"])],
+]);
 
 function text(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -17,6 +26,34 @@ function companyScope(value: unknown) {
 
 function safeFileName(value: string) {
   return (value || "document").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function fileExtension(fileName: string) {
+  const match = fileName.toLowerCase().match(/\.[a-z0-9]+$/);
+  return match?.[0] ?? "";
+}
+
+function validateTrustedDocumentFile(file: File) {
+  if (file.size > MAX_TRUSTED_DOCUMENT_BYTES) return "Trusted learning documents must be 25 MB or smaller.";
+  const ext = fileExtension(file.name);
+  const allowedTypes = TRUSTED_DOCUMENT_TYPES.get(ext);
+  if (!allowedTypes) return "Trusted learning documents must be PDF, Word, TXT, or Markdown files.";
+  const mime = file.type || "application/octet-stream";
+  if (!allowedTypes.has(mime)) return "Trusted learning document MIME type does not match the allowed file extension.";
+  return null;
+}
+
+async function logTrustedInputEvent(admin: ReturnType<typeof createSupabaseAdminClient>, input: { companyId: string | null; eventType: string; description: string; metadata: Record<string, unknown>; createdBy: string }) {
+  if (!admin) return;
+  await admin.from("ai_engine_events").insert({
+    company_id: input.companyId,
+    event_type: input.eventType,
+    description: input.description,
+    message: input.description,
+    metadata: input.metadata,
+    created_by: input.createdBy,
+    created_by_type: "user",
+  });
 }
 
 async function listTrustedInputs(request: Request) {
@@ -52,6 +89,7 @@ async function listTrustedInputs(request: Request) {
 async function addTrustedSource(request: Request) {
   const auth = await authorizeSuperadminAiEngineRequest(request);
   if ("error" in auth) return auth.error;
+  assertAiKnowledgeWritesEnabled("Trusted AI learning source creation");
 
   const admin = createSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "Service role client is required for trusted AI learning sources." }, { status: 500 });
@@ -75,12 +113,20 @@ async function addTrustedSource(request: Request) {
     createdBy: auth.user.id,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+  await logTrustedInputEvent(admin, {
+    companyId: result.source.company_id ?? null,
+    eventType: "trusted_source_created",
+    description: "Super Admin created a trusted AI learning source.",
+    metadata: { sourceId: result.source.id, sourceUrl: result.source.source_url, domain: result.source.domain, trustLevel: result.source.trust_level },
+    createdBy: auth.user.id,
+  }).catch(() => undefined);
   return NextResponse.json({ source: result.source }, { status: 201 });
 }
 
 async function addTrustedDocument(request: Request) {
   const auth = await authorizeSuperadminAiEngineRequest(request);
   if ("error" in auth) return auth.error;
+  assertAiKnowledgeWritesEnabled("Trusted AI learning document upload");
 
   const admin = createSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "Service role client is required for trusted AI learning documents." }, { status: 500 });
@@ -89,6 +135,8 @@ async function addTrustedDocument(request: Request) {
   if (!formData) return NextResponse.json({ error: "Expected multipart form data." }, { status: 400 });
   const file = formData.get("file");
   if (!(file instanceof File) || file.size <= 0) return NextResponse.json({ error: "A document file is required." }, { status: 400 });
+  const fileError = validateTrustedDocumentFile(file);
+  if (fileError) return NextResponse.json({ error: fileError }, { status: 400 });
 
   const companyId = companyScope(formData.get("companyId"));
   const title = text(formData.get("title"));
@@ -130,6 +178,19 @@ async function addTrustedDocument(request: Request) {
     .select("id")
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Failed to create trusted learning document." }, { status: 500 });
+  await logTrustedInputEvent(admin, {
+    companyId,
+    eventType: "trusted_document_uploaded",
+    description: "Super Admin uploaded a trusted AI learning document.",
+    metadata: {
+      documentId: data.id,
+      fileName,
+      fileSize: file.size,
+      mimeType: file.type || "application/octet-stream",
+      malwareScanStatus: "not_available",
+    },
+    createdBy: auth.user.id,
+  }).catch(() => undefined);
   return NextResponse.json({ documentId: data.id }, { status: 201 });
 }
 

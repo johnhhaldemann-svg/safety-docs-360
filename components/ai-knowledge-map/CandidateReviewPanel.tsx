@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, FileText, Globe2, GitBranch, Loader2, ShieldAlert, XCircle } from "lucide-react";
+import { buildCandidatePromotionPreview, candidateRequiresSecondApproval } from "@/lib/aiKnowledgeMap/reviewGate";
 import type { AiKnowledgeEvidence, AiKnowledgeIngestCandidate } from "@/lib/aiKnowledgeMap/types";
 
 type CandidateResponse = {
@@ -30,6 +31,8 @@ const GROUPS = [
   { key: "failed_source", label: "Failed sources", icon: ShieldAlert },
 ] as const;
 
+const REVIEW_VISIBLE_STATUSES = new Set(["pending_review", "pending_second_approval", "approved"]);
+
 export function CandidateReviewPanel({ companyId }: { companyId: string | null }) {
   const [candidates, setCandidates] = useState<AiKnowledgeIngestCandidate[]>([]);
   const [failedSources, setFailedSources] = useState<AiKnowledgeIngestCandidate[]>([]);
@@ -47,13 +50,13 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
     })).filter((group) => group.items.length > 0);
   }, [candidates, failedSources]);
 
-  const pendingIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates]);
+  const pendingIds = useMemo(() => candidates.filter((candidate) => REVIEW_VISIBLE_STATUSES.has(candidate.validationStatus)).map((candidate) => candidate.id), [candidates]);
   const selectedPendingIds = useMemo(() => pendingIds.filter((id) => selectedIds.has(id)), [pendingIds, selectedIds]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ status: "pending_review", limit: "30" });
+      const params = new URLSearchParams({ status: "all", limit: "60" });
       if (companyId && companyId !== "all") params.set("companyId", companyId);
       const failedParams = new URLSearchParams({ status: "failed", candidateType: "failed_source", limit: "8" });
       if (companyId && companyId !== "all") failedParams.set("companyId", companyId);
@@ -65,7 +68,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
       const candidateBody = await candidateResponse.json().catch(() => null) as CandidateResponse | null;
       const batchBody = await batchResponse.json().catch(() => null) as BatchResponse | null;
       const failedBody = await failedResponse.json().catch(() => null) as CandidateResponse | null;
-      setCandidates(candidateResponse.ok ? candidateBody?.candidates ?? [] : []);
+      setCandidates(candidateResponse.ok ? (candidateBody?.candidates ?? []).filter((candidate) => REVIEW_VISIBLE_STATUSES.has(candidate.validationStatus)) : []);
       setBatches(batchResponse.ok ? batchBody?.batches ?? [] : []);
       setFailedSources(failedResponse.ok ? failedBody?.candidates ?? [] : []);
       setSelectedIds(new Set());
@@ -154,7 +157,7 @@ export function CandidateReviewPanel({ companyId }: { companyId: string | null }
           </button>
         </div>
       ) : null}
-      <div className="mt-3 max-h-[680px] space-y-4 overflow-auto pr-1">
+      <div className="mt-3 max-h-[560px] space-y-4 overflow-auto pr-1 2xl:max-h-[680px]">
         {grouped.map((group) => (
           <section key={group.key} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
             <div className="flex items-center gap-2">
@@ -218,6 +221,7 @@ function CandidateCard({
   onReview: (action: "approve" | "reject" | "incorrect") => void;
 }) {
   const metadata = candidate.metadata;
+  const preview = buildCandidatePromotionPreview(candidate);
   const learnedSummary = text(metadata.learnedSummary) ?? candidate.semanticSummary ?? candidate.reason ?? "Candidate needs review.";
   const confidence = typeof metadata.confidenceScore === "number" ? metadata.confidenceScore : candidate.confidenceScore;
   const riskLevel = text(metadata.riskLevel) ?? "unknown";
@@ -225,7 +229,8 @@ function CandidateCard({
   const sourceDocument = text(metadata.sourceDocument);
   const evidence = evidenceItems(candidate);
   const failed = candidate.candidateType === "failed_source";
-  const critical = String(riskLevel).toLowerCase() === "critical";
+  const highRiskSecondApproval = candidateRequiresSecondApproval(candidate);
+  const waitingSecondApproval = candidate.validationStatus === "pending_second_approval";
   return (
     <article className={`rounded-lg border p-3 ${failed ? "border-red-300/20 bg-red-300/10" : "border-white/10 bg-white/[0.04]"}`}>
       <div className="flex items-start gap-2">
@@ -243,12 +248,32 @@ function CandidateCard({
             </span>
           </div>
           <p className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-300">{learnedSummary}</p>
-          {critical ? <p className="mt-2 rounded-md border border-red-300/20 bg-red-300/10 p-2 text-[11px] font-black text-red-100">Critical-risk memory requires a second Super Admin approval before it can influence trusted AI memory.</p> : null}
+          {highRiskSecondApproval ? (
+            <p className="mt-2 rounded-md border border-red-300/20 bg-red-300/10 p-2 text-[11px] font-black text-red-100">
+              {waitingSecondApproval ? "Second Super Admin approval required before this high/critical memory can be promoted." : "High/critical memory requires two different Super Admin approvals before it can influence trusted AI memory."}
+            </p>
+          ) : null}
           <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-400">
             <Detail label="Confidence" value={confidence == null ? "not scored" : `${Math.round(confidence * 100)}%`} />
             <Detail label="Risk" value={riskLevel} />
             <Detail label="Source" value={sourceDocument ?? sourceUrl ?? candidate.sourceTable ?? "unknown"} />
             <Detail label="Why it matters" value={candidate.reason ?? "AI learning check found safety-relevant content for review."} />
+          </div>
+          <div className="mt-2 rounded-md border border-sky-300/15 bg-sky-300/10 p-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-sky-100">Promotion preview</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-300">
+              Creates {preview.willCreateNode ? "trusted node + vector memory" : preview.willCreateEdge ? "trusted relationship edge" : "audit record"}. Affected: {preview.affectedSurfaces.slice(0, 4).join(", ")}.
+            </p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">Review due: {new Date(preview.reviewDueAt).toLocaleDateString()}</p>
+            {preview.dependencyWarnings.slice(0, 2).map((warning) => (
+              <p key={warning} className="mt-1 text-[11px] font-black leading-5 text-amber-100">{warning}</p>
+            ))}
+          </div>
+          <div className="mt-2 rounded-md border border-white/10 bg-black/10 p-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Provenance certificate</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
+              Candidate {preview.provenancePreview.candidateId}; source {preview.provenancePreview.sourceTable ?? "unknown"}:{preview.provenancePreview.sourceId ?? "unknown"}; compliance proof: no.
+            </p>
           </div>
           {evidence.length > 0 ? (
             <div className="mt-2 rounded-md border border-white/10 bg-black/10 p-2">
