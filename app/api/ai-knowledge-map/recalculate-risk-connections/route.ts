@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recalculateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 
@@ -17,9 +18,13 @@ export async function POST(request: Request) {
   if (!companyId) return NextResponse.json({ error: "companyId is required." }, { status: 400 });
   if (companyId === "all") return NextResponse.json({ error: "All-company view is read-only. Select one company before recalculating relationships." }, { status: 400 });
 
-  const result = await recalculateKnowledgeRelationships(admin, {
-    companyId,
-    actorUserId: auth.user.id,
-  });
-  return NextResponse.json(result);
+  try {
+    const result = await recalculateKnowledgeRelationships(admin, {
+      companyId,
+      actorUserId: auth.user.id,
+    });
+    return NextResponse.json(result);
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Recalculation failed.");
+  }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { rebuildKnowledgeIndex } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 
@@ -27,13 +28,17 @@ export async function POST(request: Request) {
   if (!companyId) return NextResponse.json({ error: "companyId is required." }, { status: 400 });
   if (companyId === "all") return NextResponse.json({ error: "All-company view is read-only. Select one company before rebuilding the AI Knowledge Map." }, { status: 400 });
 
-  const result = await rebuildKnowledgeIndex(admin, {
-    companyId,
-    actorUserId: auth.user.id,
-    generateEmbeddings: body?.generateEmbeddings === true,
-    limitPerTable: positiveInteger(body?.limitPerTable, 80, 250),
-    maxEmbeddingAttempts: positiveInteger(body?.maxEmbeddingAttempts, 24, 80),
-  });
+  try {
+    const result = await rebuildKnowledgeIndex(admin, {
+      companyId,
+      actorUserId: auth.user.id,
+      generateEmbeddings: body?.generateEmbeddings === true,
+      limitPerTable: positiveInteger(body?.limitPerTable, 80, 250),
+      maxEmbeddingAttempts: positiveInteger(body?.maxEmbeddingAttempts, 24, 80),
+    });
 
-  return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Rebuild failed.");
+  }
 }

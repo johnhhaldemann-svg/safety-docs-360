@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promoteApprovedKnowledgeCandidates } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { aiKnowledgeMapActionError } from "../route-helpers";
 
 export const runtime = "nodejs";
 
@@ -16,11 +17,15 @@ export async function POST(request: Request) {
   if (body?.companyId === "all") {
     return NextResponse.json({ error: "All-company view is read-only. Select one company before promoting trusted memory." }, { status: 400 });
   }
-  const result = await promoteApprovedKnowledgeCandidates(admin, {
-    companyId: typeof body?.companyId === "string" ? body.companyId : null,
-    batchId: typeof body?.batchId === "string" ? body.batchId : null,
-    limit: typeof body?.limit === "number" ? body.limit : 100,
-    actorUserId: auth.user.id,
-  });
-  return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  try {
+    const result = await promoteApprovedKnowledgeCandidates(admin, {
+      companyId: typeof body?.companyId === "string" ? body.companyId : null,
+      batchId: typeof body?.batchId === "string" ? body.batchId : null,
+      limit: typeof body?.limit === "number" ? body.limit : 100,
+      actorUserId: auth.user.id,
+    });
+    return NextResponse.json(result, { status: result.ok ? 200 : 207 });
+  } catch (error) {
+    return aiKnowledgeMapActionError(error, "Approved candidate promotion failed.");
+  }
 }
