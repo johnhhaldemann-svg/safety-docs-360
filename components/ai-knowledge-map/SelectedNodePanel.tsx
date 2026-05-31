@@ -1,9 +1,14 @@
+"use client";
+
+import { useState } from "react";
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { ConnectionLine } from "@/components/ai-knowledge-map/ConnectionLine";
 import { nodeTypeLabel, riskTone, validationTone } from "@/components/ai-knowledge-map/mapTheme";
 import { suggestPotentialRelationshipsForNode } from "@/lib/aiKnowledgeMap/relationships";
 import { isTrustedMemoryStale } from "@/lib/aiKnowledgeMap/reviewGate";
 import type { AiKnowledgeEdge, AiKnowledgeNode, AiKnowledgeProvenanceCertificate } from "@/lib/aiKnowledgeMap/types";
+
+type ReviewStatus = "approved" | "rejected" | "incorrect";
 
 export function SelectedNodePanel({
   node,
@@ -16,8 +21,10 @@ export function SelectedNodePanel({
   edges: AiKnowledgeEdge[];
   nodes: AiKnowledgeNode[];
   companies: Array<{ id: string; name: string }>;
-  onValidate: (edge: AiKnowledgeEdge, status: "approved" | "rejected" | "incorrect", reason?: string) => void;
+  onValidate: (edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) => void;
 }) {
+  const [pendingReview, setPendingReview] = useState<{ edgeKey: string; status: Exclude<ReviewStatus, "approved">; reason: string } | null>(null);
+
   if (!node) {
     return (
       <aside className="rounded-xl border border-white/10 bg-slate-950/72 p-4 text-sm text-slate-400 shadow-2xl backdrop-blur">
@@ -130,18 +137,55 @@ export function SelectedNodePanel({
         <div className="mt-3 space-y-3">
           {approvedRelationships.length > 0 ? <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-200">Approved relationships</p> : null}
           {related.map((edge) => {
+            const edgeKey = reviewEdgeKey(edge);
+            const activeReview = pendingReview?.edgeKey === edgeKey ? pendingReview : null;
+            const canConfirm = activeReview ? activeReview.reason.replace(/\s+/g, " ").trim().length >= 12 : false;
             const otherId = edge.sourceNodeId === node.id || edge.fromNodeId === node.id ? edge.targetNodeId ?? edge.toNodeId : edge.sourceNodeId ?? edge.fromNodeId;
             const other = byId.get(otherId);
             return (
-              <div key={edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}-${edge.relationshipType}`} className="space-y-2">
+              <div key={edgeKey} className="space-y-2">
                 <ConnectionLine edge={edge} />
                 {edge.evidenceText ? <p className="rounded-md border border-white/10 bg-white/[0.03] p-2 text-[11px] font-semibold leading-5 text-slate-400">Evidence: {edge.evidenceText}</p> : null}
                 {other ? <p className="text-[11px] font-semibold text-slate-500">Related record: {other.title}</p> : null}
                 {edge.createdByType === "ai" || edge.validationStatus !== "approved" ? (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <ReviewButton label="Approve" onClick={() => onValidate(edge, "approved")} />
-                    <ReviewButton label="Reject" onClick={() => onValidate(edge, "rejected")} />
-                    <ReviewButton label="Incorrect" onClick={() => onValidate(edge, "incorrect")} danger />
+                    <ReviewButton label="Reject" onClick={() => setPendingReview({ edgeKey, status: "rejected", reason: "" })} />
+                    <ReviewButton label="Incorrect" onClick={() => setPendingReview({ edgeKey, status: "incorrect", reason: "" })} danger />
+                  </div>
+                ) : null}
+                {activeReview ? (
+                  <div className="rounded-lg border border-white/10 bg-black/15 p-3">
+                    <label className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-300" htmlFor={`selected-node-review-${edgeKey}`}>
+                      Reason for marking {activeReview.status.replace(/_/g, " ")}
+                    </label>
+                    <textarea
+                      id={`selected-node-review-${edgeKey}`}
+                      value={activeReview.reason}
+                      onChange={(event) => setPendingReview({ ...activeReview, reason: event.target.value })}
+                      className="mt-2 min-h-20 w-full resize-y rounded-md border border-white/10 bg-slate-950/80 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-sky-300/50"
+                      placeholder="Example: This relationship is incorrect because the source evidence does not support this connection."
+                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <ReviewButton
+                        label={`Confirm ${activeReview.status === "incorrect" ? "Incorrect" : "Reject"}`}
+                        danger={activeReview.status === "incorrect"}
+                        disabled={!canConfirm}
+                        onClick={() => {
+                          if (!canConfirm) return;
+                          onValidate(edge, activeReview.status, activeReview.reason.trim());
+                          setPendingReview(null);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPendingReview(null)}
+                        className="min-h-10 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-black text-slate-200 hover:bg-white/[0.08]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {!canConfirm ? <p className="mt-2 text-[11px] font-bold text-amber-100">Add a meaningful reason, at least 12 characters, before submitting.</p> : null}
                   </div>
                 ) : null}
               </div>
@@ -183,6 +227,10 @@ function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function reviewEdgeKey(edge: AiKnowledgeEdge) {
+  return edge.id ?? `${edge.sourceNodeId}-${edge.targetNodeId}-${edge.relationshipType}`;
+}
+
 function InsightSection({ title, items }: { title: string; items: string[] }) {
   return (
     <section className="mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
@@ -205,9 +253,19 @@ function Row({ label, value, badgeClass }: { label: string; value: string; badge
   );
 }
 
-function ReviewButton({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+function ReviewButton({ label, onClick, danger, disabled = false }: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-md border px-2 py-1.5 text-xs font-black ${danger ? "border-red-400/25 bg-red-400/10 text-red-100 hover:bg-red-400/16" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}>
+    <button
+      type="button"
+      disabled={disabled}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) onClick();
+      }}
+      className={`min-h-10 rounded-md border px-2 py-1.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-red-400/25 bg-red-400/10 text-red-100 hover:bg-red-400/16" : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"}`}
+    >
       {label}
     </button>
   );
