@@ -27,11 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Rejecting or marking incorrect requires a meaningful review reason." }, { status: 400 });
   }
 
-  const result = await updateKnowledgeRelationshipValidation(admin, {
-    edgeId,
-    status: status as Exclude<AiKnowledgeValidationStatus, "pending_review" | "needs_review" | "unreviewed">,
-    reason: reason || `Super Admin marked relationship ${status}.`,
-    actorUserId: auth.user.id,
-  });
-  return NextResponse.json(result);
+  try {
+    const result = await updateKnowledgeRelationshipValidation(admin, {
+      edgeId,
+      status: status as Exclude<AiKnowledgeValidationStatus, "pending_review" | "needs_review" | "unreviewed">,
+      reason: reason || `Super Admin marked relationship ${status}.`,
+      actorUserId: auth.user.id,
+    });
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Validation update failed.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }
