@@ -5,13 +5,15 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
   const approvedRelationships = summary.humanApprovedRelationshipCount ?? 0;
   const graphReady = summary.nodeCount > 0 && approvedRelationships > 0;
   const graphThin = summary.nodeCount < 8 || summary.edgeCount < 10;
-  const stats = [
+  const primaryStats = [
     { label: "Total nodes", value: summary.nodeCount, icon: Database },
     { label: "Connections", value: summary.edgeCount, icon: GitBranch },
     { label: "Data sources", value: summary.dataSourceCount, icon: Activity },
     { label: "High risk", value: summary.highRiskNodeCount, icon: ShieldAlert },
     { label: "Suggested", value: summary.suggestedRelationshipCount ?? 0, icon: Activity },
     { label: "Human approved", value: approvedRelationships, icon: CheckCircle2 },
+  ];
+  const secondaryStats = [
     { label: "Rejected", value: summary.rejectedRelationshipCount ?? 0, icon: XCircle },
     { label: "Unlinked risk", value: summary.unlinkedHighRiskNodeCount ?? 0, icon: Link2Off },
     { label: "Low confidence", value: summary.lowConfidenceCount, icon: ShieldAlert },
@@ -25,7 +27,7 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
   ];
   return (
     <div className="rounded-xl border border-white/10 bg-slate-950/78 p-3 shadow-2xl backdrop-blur">
-      <div className="mb-3 flex flex-col gap-2 rounded-lg border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-sky-50 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-2 rounded-lg border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-sky-50 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-start gap-2">
           <BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" />
           <div className="min-w-0">
@@ -42,21 +44,33 @@ export function StatsBar({ summary, generatedAt }: { summary: AiKnowledgeGraphSu
         </div>
       </div>
       {graphThin ? (
-        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-950">
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-950">
           Approved company graph memory is thin. AI will warn and label fallback or legacy memory as supporting context only.
         </div>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-              <stat.icon className="h-3.5 w-3.5 text-sky-300" />
-              <span className="truncate">{stat.label}</span>
-            </div>
-            <div className="mt-1 truncate text-lg font-black text-white">{stat.value}</div>
-          </div>
-        ))}
+      <div className="mt-2 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {primaryStats.map((stat) => <StatCard key={stat.label} stat={stat} />)}
       </div>
+      <details className="mt-2">
+        <summary className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-200 hover:bg-white/[0.08]">
+          Engine metrics
+        </summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+          {secondaryStats.map((stat) => <StatCard key={stat.label} stat={stat} />)}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function StatCard({ stat }: { stat: { label: string; value: string | number; icon: typeof Activity } }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+        <stat.icon className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+        <span className="truncate">{stat.label}</span>
+      </div>
+      <div className="mt-1 truncate text-lg font-black text-white">{stat.value}</div>
     </div>
   );
 }

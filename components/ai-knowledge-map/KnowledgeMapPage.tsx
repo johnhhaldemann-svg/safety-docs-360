@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, BrainCircuit, Gauge, LayoutDashboard, Loader2, RefreshCw, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, BrainCircuit, Gauge, LayoutDashboard, Loader2, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { CandidateReviewPanel } from "@/components/ai-knowledge-map/CandidateReviewPanel";
 import { FilterPanel } from "@/components/ai-knowledge-map/FilterPanel";
 import { GlobeCanvas } from "@/components/ai-knowledge-map/GlobeCanvas";
@@ -18,7 +18,7 @@ type AuthMeResponse = {
   user?: { role?: string | null } | null;
 };
 
-type KnowledgeMapView = "dashboard" | "approvals" | "insights" | "alerts";
+type KnowledgeMapView = "map" | "details" | "approvals" | "learning";
 
 const EMPTY_SUMMARY = {
   nodeCount: 0,
@@ -67,7 +67,8 @@ export function KnowledgeMapPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
-  const [activeView, setActiveView] = useState<KnowledgeMapView>("dashboard");
+  const [activeView, setActiveView] = useState<KnowledgeMapView>("map");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const selectedNode = useMemo(() => graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0] ?? null, [graph.nodes, selectedNodeId]);
 
@@ -272,6 +273,7 @@ export function KnowledgeMapPage() {
 
   function selectNode(node: AiKnowledgeNode) {
     setSelectedNodeId(node.id ?? null);
+    setActiveView("details");
   }
 
   if (authAllowed === false) {
@@ -290,17 +292,17 @@ export function KnowledgeMapPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_48%_18%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.82),rgba(2,6,23,1))]" />
-      <div className="relative mx-auto flex min-h-screen max-w-[1800px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
-        <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/76 px-4 py-4 shadow-2xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+      <div className="relative mx-auto flex min-h-screen max-w-[1500px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
+        <header className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-slate-950/76 px-4 py-4 shadow-2xl backdrop-blur xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl font-black tracking-tight text-white">AI Knowledge Map</h1>
             <p className="mt-1 text-sm font-semibold text-slate-400">Semantic view of connected safety data</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
-            <TopButton icon={LayoutDashboard} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} />
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center xl:justify-end">
+            <TopButton icon={LayoutDashboard} label="Map" active={activeView === "map"} onClick={() => setActiveView("map")} />
+            <TopButton icon={Sparkles} label="Details" active={activeView === "details"} onClick={() => setActiveView("details")} />
             <TopButton icon={ShieldCheck} label="Approvals" active={activeView === "approvals"} onClick={() => setActiveView("approvals")} />
-            <TopButton icon={Sparkles} label="Insights" active={activeView === "insights"} onClick={() => setActiveView("insights")} />
-            <TopButton icon={Bell} label="Alerts" active={activeView === "alerts"} onClick={() => setActiveView("alerts")} />
+            <TopButton icon={BookOpenCheck} label="Learning" active={activeView === "learning"} onClick={() => setActiveView("learning")} />
             <button type="button" onClick={() => void runRebuild(false)} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg bg-sky-400 px-3 py-2 text-sm font-black text-slate-950 hover:bg-sky-300 disabled:opacity-60">
               {working === "Rebuild" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Rebuild index
@@ -320,21 +322,44 @@ export function KnowledgeMapPage() {
           </div>
         </header>
 
-        {(message || error || graph.demo || graph.warnings.length > 0) ? (
+        {(message || error || graph.demo || graph.warnings.length > 0 || graph.fallback || (graph.pendingLearningCandidateCount ?? 0) > 0 || (graph.sharedLibraryNodeCount ?? 0) > 0) ? (
           <div className="space-y-2">
             {message ? <Banner tone="green" text={message} /> : null}
             {error ? <Banner tone="red" text={error} /> : null}
-            {graph.demo ? <Banner tone="amber" text="Demo mode is showing safe sample records. Rebuild a live company index to use live safety records." /> : null}
-            {graph.fallback ? <Banner tone="amber" text={graph.fallbackReason ?? "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data."} /> : null}
-            {(graph.pendingLearningCandidateCount ?? 0) > 0 ? <Banner tone="amber" text={`AI learned new information. Human Review required before it enters the map. ${graph.pendingLearningCandidateCount} learned item${graph.pendingLearningCandidateCount === 1 ? "" : "s"} waiting.`} /> : null}
-            {(graph.sharedLibraryNodeCount ?? 0) > 0 ? <Banner tone="green" text={`Knowledge Library layer active: ${graph.sharedLibraryNodeCount} approved shared document guidance node${graph.sharedLibraryNodeCount === 1 ? "" : "s"} visible with ${graph.companyDocumentNodeCount ?? 0} approved company document node${(graph.companyDocumentNodeCount ?? 0) === 1 ? "" : "s"}.`} /> : null}
-            {graph.warnings.slice(0, 2).map((warning) => <Banner key={warning} tone="amber" text={warning} />)}
+            {buildInfoBanners(graph).slice(0, 2).map((banner) => <Banner key={banner.text} tone={banner.tone} text={banner.text} />)}
+            {buildInfoBanners(graph).length > 2 ? (
+              <button type="button" onClick={() => setActiveView("approvals")} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-left text-sm font-black text-amber-950 hover:bg-amber-100">
+                {buildInfoBanners(graph).length - 2} more Knowledge Map notice{buildInfoBanners(graph).length - 2 === 1 ? "" : "s"}. Open Approvals to review.
+              </button>
+            ) : null}
           </div>
         ) : null}
 
-        <main className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_380px]">
-          <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={applyFilters} />
-          <section className="flex min-w-0 flex-col gap-3 self-start">
+        <main className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-950/72 p-3 shadow-2xl backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((value) => !value)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-slate-100 hover:bg-white/[0.09]"
+            >
+              {filtersOpen ? <PanelLeftClose className="h-4 w-4 text-sky-300" /> : <PanelLeftOpen className="h-4 w-4 text-sky-300" />}
+              {filtersOpen ? "Hide filters" : "Show filters"}
+            </button>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-300">
+              <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">Company: {graph.companies.find((company) => company.id === graph.selectedCompanyId)?.name ?? "All"}</span>
+              <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">Nodes: {graph.summary.nodeCount}</span>
+              <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">Connections: {graph.summary.edgeCount}</span>
+            </div>
+          </div>
+
+          {filtersOpen ? (
+            <FilterPanel companies={graph.companies} filters={filters} nodes={graph.nodes} onChange={setFilters} onApply={(nextFilters) => {
+              setFiltersOpen(false);
+              applyFilters(nextFilters);
+            }} />
+          ) : null}
+
+          <section className={activeView === "map" ? "flex min-w-0 flex-col gap-3 self-start" : "hidden"}>
             <div className="relative">
               {loading ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-slate-950/72 backdrop-blur">
@@ -347,22 +372,29 @@ export function KnowledgeMapPage() {
             <StatsBar summary={graph.summary} generatedAt={graph.generatedAt} />
             <LegendBar />
           </section>
-          <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:flex 2xl:max-h-[calc(100vh-2rem)] 2xl:flex-col 2xl:overflow-y-auto 2xl:pr-1">
-            {activeView === "approvals" ? (
-              <>
-                <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
-                <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
-                <LowConfidenceQueue edges={graph.edges} />
-              </>
-            ) : (
-              <>
-                <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
-                <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
-                  setReviewRefreshKey((key) => key + 1);
-                  void load(filters);
-                }} />
-              </>
-            )}
+
+          <section className={activeView === "details" ? "grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]" : "hidden"}>
+            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
+            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
+              setReviewRefreshKey((key) => key + 1);
+              void load(filters);
+            }} />
+          </section>
+
+          <section className={activeView === "approvals" ? "grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,460px)]" : "hidden"}>
+            <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
+            <div className="grid min-h-0 gap-4">
+              <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
+              <LowConfidenceQueue edges={graph.edges} />
+            </div>
+          </section>
+
+          <section className={activeView === "learning" ? "grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]" : "hidden"}>
+            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
+              setReviewRefreshKey((key) => key + 1);
+              void load(filters);
+            }} />
+            <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
           </section>
         </main>
       </div>
@@ -400,4 +432,22 @@ function Banner({ tone, text }: { tone: "green" | "red" | "amber"; text: string 
       {text}
     </div>
   );
+}
+
+function buildInfoBanners(graph: AiKnowledgeGraphPayload): Array<{ tone: "green" | "amber"; text: string }> {
+  const banners: Array<{ tone: "green" | "amber"; text: string }> = [];
+  if (graph.demo) {
+    banners.push({ tone: "amber", text: "Demo mode is showing safe sample records. Rebuild a live company index to use live safety records." });
+  }
+  if (graph.fallback) {
+    banners.push({ tone: "amber", text: graph.fallbackReason ?? "Showing approved fallback safety intelligence until this company has enough reviewed company-specific data." });
+  }
+  if ((graph.pendingLearningCandidateCount ?? 0) > 0) {
+    banners.push({ tone: "amber", text: `AI learned new information. Human Review required before it enters the map. ${graph.pendingLearningCandidateCount} learned item${graph.pendingLearningCandidateCount === 1 ? "" : "s"} waiting.` });
+  }
+  if ((graph.sharedLibraryNodeCount ?? 0) > 0) {
+    banners.push({ tone: "green", text: `Knowledge Library layer active: ${graph.sharedLibraryNodeCount} approved shared document guidance node${graph.sharedLibraryNodeCount === 1 ? "" : "s"} visible with ${graph.companyDocumentNodeCount ?? 0} approved company document node${(graph.companyDocumentNodeCount ?? 0) === 1 ? "" : "s"}.` });
+  }
+  graph.warnings.forEach((warning) => banners.push({ tone: "amber", text: warning }));
+  return banners;
 }
