@@ -1,9 +1,13 @@
 # EAS reads ignores from the mobile project directory. Do not upload local
 # dependency/build artifacts; the macOS builder installs fresh dependencies.
 node_modules/
+safety-mobile/node_modules/
+**/node_modules/
 
 .expo/
+safety-mobile/.expo/
 dist/
+safety-mobile/dist/
 .env
 .expo-start*.log
 
