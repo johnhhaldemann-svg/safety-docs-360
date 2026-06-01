@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, FileText, Globe2, GitBranch, Loader2, ShieldAlert, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, FileText, Globe2, GitBranch, Loader2, XCircle } from "lucide-react";
 import { buildCandidatePromotionPreview, candidateRequiresSecondApproval } from "@/lib/aiKnowledgeMap/reviewGate";
 import type { AiKnowledgeEvidence, AiKnowledgeIngestCandidate } from "@/lib/aiKnowledgeMap/types";
 
@@ -29,10 +29,9 @@ const GROUPS = [
   { key: "document", label: "Documents", icon: FileText },
   { key: "internet_source", label: "Internet sources", icon: Globe2 },
   { key: "relationship", label: "Relationships", icon: GitBranch },
-  { key: "failed_source", label: "Failed sources", icon: ShieldAlert },
 ] as const;
 
-const REVIEW_VISIBLE_STATUSES = new Set(["pending_review", "pending_second_approval", "approved"]);
+const PENDING_REVIEW_STATUSES = new Set(["pending_review", "pending_second_approval"]);
 
 export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId: string | null; refreshKey?: number }) {
   const [candidates, setCandidates] = useState<AiKnowledgeIngestCandidate[]>([]);
@@ -42,16 +41,16 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const reviewableFailedSources = useMemo(() => failedSources.filter((candidate) => !isNoNewLearningCandidate(candidate)), [failedSources]);
 
   const grouped = useMemo(() => {
-    const all = [...candidates, ...failedSources];
     return GROUPS.map((group) => ({
       ...group,
-      items: all.filter((candidate) => candidateSourceKey(candidate) === group.key),
+      items: candidates.filter((candidate) => candidateSourceKey(candidate) === group.key),
     })).filter((group) => group.items.length > 0);
-  }, [candidates, failedSources]);
+  }, [candidates]);
 
-  const pendingIds = useMemo(() => candidates.filter((candidate) => REVIEW_VISIBLE_STATUSES.has(candidate.validationStatus)).map((candidate) => candidate.id), [candidates]);
+  const pendingIds = useMemo(() => candidates.filter((candidate) => PENDING_REVIEW_STATUSES.has(candidate.validationStatus)).map((candidate) => candidate.id), [candidates]);
   const selectedPendingIds = useMemo(() => pendingIds.filter((id) => selectedIds.has(id)), [pendingIds, selectedIds]);
 
   const load = useCallback(async () => {
@@ -69,7 +68,7 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
       const candidateBody = await candidateResponse.json().catch(() => null) as CandidateResponse | null;
       const batchBody = await batchResponse.json().catch(() => null) as BatchResponse | null;
       const failedBody = await failedResponse.json().catch(() => null) as CandidateResponse | null;
-      setCandidates(candidateResponse.ok ? (candidateBody?.candidates ?? []).filter((candidate) => REVIEW_VISIBLE_STATUSES.has(candidate.validationStatus)) : []);
+      setCandidates(candidateResponse.ok ? (candidateBody?.candidates ?? []).filter((candidate) => PENDING_REVIEW_STATUSES.has(candidate.validationStatus)) : []);
       setBatches(batchResponse.ok ? batchBody?.batches ?? [] : []);
       setFailedSources(failedResponse.ok ? failedBody?.candidates ?? [] : []);
       setSelectedIds(new Set());
@@ -149,7 +148,12 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
         Trusted memory suggestions do not prove compliance. Verify source evidence, scope, and controls before approval.
       </p>
       {message ? <p className="mt-3 rounded-lg border border-sky-300/20 bg-sky-300/10 p-2 text-xs font-bold text-sky-100">{message}</p> : null}
-      {batches.length > 0 ? <LearningBatchHistory batches={batches} candidates={[...candidates, ...failedSources]} /> : null}
+      {pendingIds.length === 0 && failedSources.length > 0 ? (
+        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-black text-amber-950">
+          No new approval-ready items are available. Latest learning checks mostly found duplicate, skipped, or unreadable sources.
+        </p>
+      ) : null}
+      {batches.length > 0 ? <LearningBatchHistory batches={batches} candidates={[...candidates, ...reviewableFailedSources]} /> : null}
       {pendingIds.length > 0 ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={selectAllPending} className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09]">
@@ -182,7 +186,26 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
             </div>
           </section>
         ))}
-        {!loading && grouped.length === 0 ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold text-emerald-100">No learned candidates need review in this view.</p> : null}
+        {reviewableFailedSources.length > 0 ? (
+          <details className="rounded-lg border border-amber-300/25 bg-amber-300/10 p-3">
+            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-amber-100">
+              Skipped / failed sources ({reviewableFailedSources.length})
+            </summary>
+            <div className="mt-3 space-y-3">
+              {reviewableFailedSources.map((candidate) => (
+                <CandidateCard
+                  key={candidate.id}
+                  candidate={candidate}
+                  selected={false}
+                  working={Boolean(working)}
+                  onToggle={() => undefined}
+                  onReview={(action, reason) => review(candidate, action, reason)}
+                />
+              ))}
+            </div>
+          </details>
+        ) : null}
+        {!loading && grouped.length === 0 && reviewableFailedSources.length === 0 ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold text-emerald-100">No learned candidates need review in this view.</p> : null}
       </div>
     </aside>
   );
@@ -198,16 +221,26 @@ function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[
       <div className="mt-2 space-y-2">
         {batches.slice(0, 4).map((batch) => {
           const counts = countBatchCandidatesForDisplay(batch, candidates);
+          const warningSummary = summarizeBatchWarnings(batch.warnings);
           return (
             <div key={batch.id} className="grid grid-cols-[1fr_auto] gap-3 text-xs font-semibold text-slate-400">
               <span>{new Date(batch.createdAt).toLocaleString()}</span>
-              <span className="font-black text-slate-200">{counts.totalCandidates} candidates</span>
+              <span className="font-black text-slate-200">{counts.approvalReadyCandidates} approval-ready</span>
               <span className="col-span-2 text-[11px] text-slate-500">
                 {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {counts.failedSourceCandidates} failed, {counts.skippedSources} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
               </span>
-              {batch.warnings.slice(0, 2).map((warning) => (
-                <span key={warning} className="col-span-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">{warning}</span>
-              ))}
+              {warningSummary.total > 0 ? (
+                <details className="col-span-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-950">
+                  <summary className="cursor-pointer">
+                    {warningSummary.duplicates} already pending/trusted, {warningSummary.failed} failed, {warningSummary.other} other notice{warningSummary.other === 1 ? "" : "s"}
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {batch.warnings.slice(0, 6).map((warning) => (
+                      <p key={warning} className="break-words">{warning}</p>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </div>
           );
         })}
@@ -218,12 +251,24 @@ function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[
 
 export function countBatchCandidatesForDisplay(batch: Pick<LearningBatch, "id" | "candidateCounts">, candidates: Array<Pick<AiKnowledgeIngestCandidate, "batchId" | "candidateType">>) {
   const actualCandidates = candidates.filter((candidate) => candidate.batchId === batch.id);
+  const actualApprovalReady = actualCandidates.filter((candidate) => candidate.candidateType !== "failed_source").length;
   const actualFailedSources = actualCandidates.filter((candidate) => candidate.candidateType === "failed_source").length;
   return {
-    totalCandidates: Math.max(Number(batch.candidateCounts.totalCandidates ?? 0), actualCandidates.length),
+    approvalReadyCandidates: actualApprovalReady,
     failedSourceCandidates: Math.max(Number(batch.candidateCounts.failedSourceCandidates ?? 0), actualFailedSources),
     skippedSources: Number(batch.candidateCounts.skippedSources ?? 0),
   };
+}
+
+function summarizeBatchWarnings(warnings: string[]) {
+  return warnings.reduce((summary, warning) => {
+    const normalized = warning.toLowerCase();
+    if (normalized.includes("already has pending or trusted ai memory")) summary.duplicates += 1;
+    else if (normalized.includes("failed") || normalized.includes("could not") || normalized.includes("unreadable")) summary.failed += 1;
+    else summary.other += 1;
+    summary.total += 1;
+    return summary;
+  }, { duplicates: 0, failed: 0, other: 0, total: 0 });
 }
 
 function CandidateCard({
@@ -273,13 +318,13 @@ function CandidateCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{candidateSourceLabel(candidate)}</p>
-              <p className="truncate text-sm font-black text-slate-950">{candidate.title}</p>
+              <p className="truncate text-sm font-black text-white">{candidate.title}</p>
             </div>
             <span className={`rounded-md border px-2 py-1 text-[10px] font-black ${failed ? "border-red-300 bg-red-50 text-red-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
               {candidate.validationStatus.replace(/_/g, " ")}
             </span>
           </div>
-          <p className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-300">{learnedSummary}</p>
+          <p className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-200">{learnedSummary}</p>
           {highRiskSecondApproval ? (
             <p className="mt-2 rounded-md border border-red-300/20 bg-red-300/10 p-2 text-[11px] font-black text-red-100">
               {waitingSecondApproval ? "Second Super Admin approval required before this high/critical memory can be promoted." : "High/critical memory requires two different Super Admin approvals before it can influence trusted AI memory."}
@@ -427,6 +472,11 @@ function candidateSourceLabel(candidate: AiKnowledgeIngestCandidate) {
   if (key === "internet_source") return "internet source";
   if (key === "failed_source") return "failed source";
   return key;
+}
+
+function isNoNewLearningCandidate(candidate: AiKnowledgeIngestCandidate) {
+  return candidate.candidateType === "failed_source"
+    && (candidate.metadata.failedSourceKind === "no_new_learning" || candidate.sourceTable === "ai_knowledge_learning_check");
 }
 
 function evidenceItems(candidate: AiKnowledgeIngestCandidate) {
