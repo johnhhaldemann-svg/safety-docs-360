@@ -4,6 +4,13 @@ import { getCompanyScope } from "@/lib/companyScope";
 import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 import { getJobsiteAccessScope, isJobsiteAllowed } from "@/lib/jobsiteAccess";
 import { OFFLINE_DEMO_EMAIL } from "@/lib/offlineDesktopSession";
+import {
+  buildClosedLoopEventMetadata,
+  buildClosedLoopLearningEvent,
+  buildClosedLoopOutcomeRecord,
+  type ClosedLoopCorrectiveActionRow,
+  type ClosedLoopRecommendationRow,
+} from "@/lib/aiKnowledgeMap/closedLoopOutcomes";
 
 export const runtime = "nodejs";
 
@@ -12,6 +19,25 @@ type ClosePayload = {
   managerOverrideReason?: string;
   closureNote?: string;
 };
+
+type MinimalSupabaseClient = {
+  from: (table: string) => {
+    select?: (columns?: string, options?: unknown) => {
+      eq: (column: string, value: unknown) => {
+        eq: (column: string, value: unknown) => {
+          eq: (column: string, value: unknown) => PromiseLike<{ data?: ClosedLoopRecommendationRow[] | null; error?: { message?: string | null } | null }>;
+        };
+      };
+    };
+    update?: (payload: Record<string, unknown>) => {
+      eq: (column: string, value: unknown) => {
+        eq: (column: string, value: unknown) => PromiseLike<{ error?: { message?: string | null } | null }>;
+      };
+    };
+    insert?: (payload: Record<string, unknown> | Array<Record<string, unknown>>) => PromiseLike<{ error?: { message?: string | null } | null }>;
+  };
+};
+
 
 function canManageCorrectiveActions(role: string) {
   return (
@@ -42,6 +68,80 @@ function isDemoRequest(auth: { role: string; user: { email?: string | null } }) 
     auth.role === "sales_demo" ||
     (auth.user.email ?? "").trim().toLowerCase() === OFFLINE_DEMO_EMAIL.toLowerCase()
   );
+}
+
+async function recordRecommendationClosedLoopOutcomes(params: {
+  supabase: MinimalSupabaseClient;
+  companyId: string;
+  correctiveAction: ClosedLoopCorrectiveActionRow;
+  evidenceCount: number;
+  closureNote: string;
+  actorUserId: string;
+}) {
+  const recommendationsQuery = params.supabase
+    .from("company_risk_ai_recommendations")
+    .select?.("id, company_id, jobsite_id, title, body, status, priority, mitigation_state, risk_reduction_points, verification_required, evidence_summary, linked_module, linked_record_id");
+  const linkedResult = recommendationsQuery
+    ? await recommendationsQuery
+        .eq("company_id", params.companyId)
+        .eq("linked_module", "corrective_action")
+        .eq("linked_record_id", params.correctiveAction.id)
+    : { data: [], error: null };
+
+  if (linkedResult.error) return { recorded: 0, warning: linkedResult.error.message || "Linked recommendation lookup failed." };
+  const recommendations = linkedResult.data ?? [];
+  if (recommendations.length === 0) return { recorded: 0, warning: null };
+
+  const now = new Date().toISOString();
+  let recorded = 0;
+  for (const recommendation of recommendations) {
+    const outcome = buildClosedLoopOutcomeRecord({
+      recommendation,
+      correctiveAction: params.correctiveAction,
+      evidenceCount: params.evidenceCount,
+      closureNote: params.closureNote,
+    });
+    const learningEvent = buildClosedLoopLearningEvent(outcome);
+    const metadata = buildClosedLoopEventMetadata({ outcome, learningEvent });
+
+    const updateQuery = params.supabase
+      .from("company_risk_ai_recommendations")
+      .update?.({
+        status: "resolved",
+        mitigation_state: "resolved",
+        risk_reduction_points: outcome.riskReductionPoints,
+        resolved_at: now,
+      });
+    const updateResult = updateQuery
+      ? await updateQuery.eq("id", recommendation.id).eq("company_id", params.companyId)
+      : null;
+    if (updateResult?.error) return { recorded, warning: updateResult.error.message || "Recommendation outcome update failed." };
+
+    const outcomeInsert = await params.supabase.from("company_risk_recommendation_events").insert?.({
+      company_id: params.companyId,
+      recommendation_id: recommendation.id,
+      event_type: "outcome_recorded",
+      from_status: recommendation.status ?? "accepted",
+      to_status: "resolved",
+      actor_user_id: params.actorUserId,
+      metadata,
+    });
+    if (outcomeInsert?.error) return { recorded, warning: outcomeInsert.error.message || "Recommendation outcome event failed." };
+
+    const learningInsert = await params.supabase.from("company_risk_recommendation_events").insert?.({
+      company_id: params.companyId,
+      recommendation_id: recommendation.id,
+      event_type: "learning_event_created",
+      from_status: recommendation.status ?? "accepted",
+      to_status: "resolved",
+      actor_user_id: params.actorUserId,
+      metadata,
+    });
+    if (learningInsert?.error) return { recorded, warning: learningInsert.error.message || "Recommendation learning event failed." };
+    recorded += 1;
+  }
+
+  return { recorded, warning: null };
 }
 
 export async function POST(
@@ -264,9 +364,20 @@ export async function POST(
     created_by: auth.user.id,
   });
 
+  const closedLoop = await recordRecommendationClosedLoopOutcomes({
+    supabase: auth.supabase as unknown as MinimalSupabaseClient,
+    companyId: companyScope.companyId,
+    correctiveAction: closeResult.data as unknown as ClosedLoopCorrectiveActionRow,
+    evidenceCount,
+    closureNote,
+    actorUserId: auth.user.id,
+  });
+
   return NextResponse.json({
     success: true,
     action: closeResult.data,
+    closedLoopOutcomeRecords: closedLoop.recorded,
+    closedLoopWarning: closedLoop.warning,
     message: managerOverride
       ? "Corrective action closed with manager override."
       : "Corrective action closed.",
