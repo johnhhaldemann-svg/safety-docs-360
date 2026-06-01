@@ -41,6 +41,7 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
   const [loading, setLoading] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const reviewableFailedSources = useMemo(() => failedSources.filter((candidate) => !isNoNewLearningCandidate(candidate)), [failedSources]);
 
   const grouped = useMemo(() => {
     return GROUPS.map((group) => ({
@@ -152,7 +153,7 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
           No new approval-ready items are available. Latest learning checks mostly found duplicate, skipped, or unreadable sources.
         </p>
       ) : null}
-      {batches.length > 0 ? <LearningBatchHistory batches={batches} candidates={[...candidates, ...failedSources]} /> : null}
+      {batches.length > 0 ? <LearningBatchHistory batches={batches} candidates={[...candidates, ...reviewableFailedSources]} /> : null}
       {pendingIds.length > 0 ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={selectAllPending} className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1.5 text-xs font-black text-slate-100 hover:bg-white/[0.09]">
@@ -185,13 +186,13 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
             </div>
           </section>
         ))}
-        {failedSources.length > 0 ? (
+        {reviewableFailedSources.length > 0 ? (
           <details className="rounded-lg border border-amber-300/25 bg-amber-300/10 p-3">
             <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-amber-100">
-              Skipped / failed sources ({failedSources.length})
+              Skipped / failed sources ({reviewableFailedSources.length})
             </summary>
             <div className="mt-3 space-y-3">
-              {failedSources.map((candidate) => (
+              {reviewableFailedSources.map((candidate) => (
                 <CandidateCard
                   key={candidate.id}
                   candidate={candidate}
@@ -204,7 +205,7 @@ export function CandidateReviewPanel({ companyId, refreshKey = 0 }: { companyId:
             </div>
           </details>
         ) : null}
-        {!loading && grouped.length === 0 && failedSources.length === 0 ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold text-emerald-100">No learned candidates need review in this view.</p> : null}
+        {!loading && grouped.length === 0 && reviewableFailedSources.length === 0 ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-sm font-semibold text-emerald-100">No learned candidates need review in this view.</p> : null}
       </div>
     </aside>
   );
@@ -224,7 +225,7 @@ function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[
           return (
             <div key={batch.id} className="grid grid-cols-[1fr_auto] gap-3 text-xs font-semibold text-slate-400">
               <span>{new Date(batch.createdAt).toLocaleString()}</span>
-              <span className="font-black text-slate-200">{counts.totalCandidates} approval-ready</span>
+              <span className="font-black text-slate-200">{counts.approvalReadyCandidates} approval-ready</span>
               <span className="col-span-2 text-[11px] text-slate-500">
                 {Number(batch.sourceCounts.documents ?? 0)} docs, {Number(batch.sourceCounts.internetSources ?? 0)} sources, {counts.failedSourceCandidates} failed, {counts.skippedSources} skipped, {String(batch.metadata.runSlot ?? "manual")}, {batch.status.replace(/_/g, " ")}
               </span>
@@ -250,9 +251,10 @@ function LearningBatchHistory({ batches, candidates }: { batches: LearningBatch[
 
 export function countBatchCandidatesForDisplay(batch: Pick<LearningBatch, "id" | "candidateCounts">, candidates: Array<Pick<AiKnowledgeIngestCandidate, "batchId" | "candidateType">>) {
   const actualCandidates = candidates.filter((candidate) => candidate.batchId === batch.id);
+  const actualApprovalReady = actualCandidates.filter((candidate) => candidate.candidateType !== "failed_source").length;
   const actualFailedSources = actualCandidates.filter((candidate) => candidate.candidateType === "failed_source").length;
   return {
-    totalCandidates: Math.max(Number(batch.candidateCounts.totalCandidates ?? 0), actualCandidates.length),
+    approvalReadyCandidates: actualApprovalReady,
     failedSourceCandidates: Math.max(Number(batch.candidateCounts.failedSourceCandidates ?? 0), actualFailedSources),
     skippedSources: Number(batch.candidateCounts.skippedSources ?? 0),
   };
@@ -470,6 +472,11 @@ function candidateSourceLabel(candidate: AiKnowledgeIngestCandidate) {
   if (key === "internet_source") return "internet source";
   if (key === "failed_source") return "failed source";
   return key;
+}
+
+function isNoNewLearningCandidate(candidate: AiKnowledgeIngestCandidate) {
+  return candidate.candidateType === "failed_source"
+    && (candidate.metadata.failedSourceKind === "no_new_learning" || candidate.sourceTable === "ai_knowledge_learning_check");
 }
 
 function evidenceItems(candidate: AiKnowledgeIngestCandidate) {
