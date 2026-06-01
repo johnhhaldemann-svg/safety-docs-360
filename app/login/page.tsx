@@ -15,12 +15,6 @@ type AuthMeResponse = {
   } | null;
 };
 
-const capabilityTiles = [
-  "Inspections",
-  "Field Teams",
-  "Compliance",
-];
-
 const securityPills = ["Company scoped", "RBAC", "Audit evidence", "Human review"];
 
 export default function LoginPage() {
@@ -193,29 +187,18 @@ function LoginPageContent() {
                 </p>
               </div>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                {capabilityTiles.map((tile, index) => (
-                  <div
-                    key={tile}
-                    className="group relative overflow-hidden rounded-2xl border border-[rgba(111,138,177,0.2)] bg-white/82 p-3 shadow-[0_10px_22px_rgba(38,64,106,0.08)]"
-                  >
-                    <div
-                      className={[
-                        "h-20 rounded-xl",
-                        index === 0
-                          ? "bg-[linear-gradient(135deg,_rgba(251,191,36,0.30),_rgba(15,23,42,0.30)),radial-gradient(circle_at_top_left,_rgba(255,255,255,0.25),_transparent_45%)]"
-                          : index === 1
-                            ? "bg-[linear-gradient(135deg,_rgba(56,189,248,0.26),_rgba(15,23,42,0.24)),radial-gradient(circle_at_bottom_right,_rgba(255,255,255,0.22),_transparent_45%)]"
-                            : "bg-[linear-gradient(135deg,_rgba(148,163,184,0.24),_rgba(245,158,11,0.20)),radial-gradient(circle_at_center,_rgba(255,255,255,0.22),_transparent_50%)]",
-                      ].join(" ")}
-                    />
-                    <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-[rgba(20,50,82,0.08)] px-3 py-2 backdrop-blur">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--app-text-strong)]">
-                        {tile}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-8 max-w-[30rem] overflow-hidden rounded-[1.45rem] border border-[rgba(111,138,177,0.24)] bg-white/82 p-2 shadow-[0_16px_34px_rgba(38,64,106,0.12)]">
+                <video
+                  aria-hidden="true"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="aspect-square w-full rounded-[1.05rem] bg-[rgba(234,241,255,0.82)] object-contain"
+                >
+                  <source src="/brand/safepredict-login-loop.mp4" type="video/mp4" />
+                </video>
               </div>
 
               <div className="mt-auto pt-8">
