@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",
-    "@supabase/ssr": "^0.10.2",
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.104.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
@@ -100,7 +100,7 @@
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "^16.2.6",
-    "supabase": "^2.95.5",
+    "supabase": "^2.102.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.2"
