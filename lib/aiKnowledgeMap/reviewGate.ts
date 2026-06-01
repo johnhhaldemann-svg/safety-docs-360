@@ -6,6 +6,7 @@ import type {
   AiKnowledgeProvenanceCertificate,
   AiKnowledgeRiskLevel,
 } from "@/lib/aiKnowledgeMap/types";
+import { buildClosedLoopSeparationMetadata, closedLoopMemoryCategoryForSourceKind } from "@/lib/aiKnowledgeMap/closedLoop";
 
 export const LEARNING_REVIEW_REQUIRED_BANNER = "AI learned new information. Human Review required before it enters the map.";
 
@@ -21,9 +22,15 @@ export function learningCandidateReviewMetadata(input: {
   sourceDocument?: string | null;
   extra?: Record<string, unknown>;
 }) {
+  const sourceKind = input.sourceKind;
   return {
     ...(input.extra ?? {}),
-    sourceKind: input.sourceKind,
+    ...buildClosedLoopSeparationMetadata({
+      sourceKind,
+      memoryCategory: closedLoopMemoryCategoryForSourceKind(sourceKind),
+      riskLevel: input.riskLevel,
+    }),
+    sourceKind,
     learnedSummary: input.learnedSummary ?? null,
     sourceEvidence: input.sourceEvidence ?? [],
     confidenceScore: input.confidenceScore ?? null,
