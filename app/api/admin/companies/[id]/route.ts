@@ -570,6 +570,7 @@ export async function GET(request: Request, context: RouteContext) {
     capabilities: {
       canPermanentlyDeleteCompanies: auth.role === "super_admin",
       canManageCompanySubscription: ["super_admin", "admin", "platform_admin"].includes(auth.role),
+      canManageCompanyUserAuthActions: ["super_admin", "admin", "platform_admin"].includes(auth.role),
       canOverrideCompanyPricing: auth.role === "super_admin",
       canManageCompanyPermissions: auth.role === "super_admin",
     },
