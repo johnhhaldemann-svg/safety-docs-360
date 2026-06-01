@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, BrainCircuit, Gauge, LayoutDashboard, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
-import { BrainHealthCard } from "@/components/ai-knowledge-map/BrainHealthCard";
+import { AlertTriangle, Bell, BrainCircuit, Gauge, LayoutDashboard, Loader2, RefreshCw, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { CandidateReviewPanel } from "@/components/ai-knowledge-map/CandidateReviewPanel";
 import { FilterPanel } from "@/components/ai-knowledge-map/FilterPanel";
 import { GlobeCanvas } from "@/components/ai-knowledge-map/GlobeCanvas";
@@ -18,6 +17,8 @@ import type { AiKnowledgeEdge, AiKnowledgeGraphPayload, AiKnowledgeMapFilters, A
 type AuthMeResponse = {
   user?: { role?: string | null } | null;
 };
+
+type KnowledgeMapView = "dashboard" | "approvals" | "insights" | "alerts";
 
 const EMPTY_SUMMARY = {
   nodeCount: 0,
@@ -66,6 +67,7 @@ export function KnowledgeMapPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reviewRefreshKey, setReviewRefreshKey] = useState(0);
+  const [activeView, setActiveView] = useState<KnowledgeMapView>("dashboard");
 
   const selectedNode = useMemo(() => graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0] ?? null, [graph.nodes, selectedNodeId]);
 
@@ -295,9 +297,10 @@ export function KnowledgeMapPage() {
             <p className="mt-1 text-sm font-semibold text-slate-400">Semantic view of connected safety data</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
-            <TopButton icon={LayoutDashboard} label="Dashboard" />
-            <TopButton icon={Sparkles} label="Insights" />
-            <TopButton icon={Bell} label="Alerts" />
+            <TopButton icon={LayoutDashboard} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} />
+            <TopButton icon={ShieldCheck} label="Approvals" active={activeView === "approvals"} onClick={() => setActiveView("approvals")} />
+            <TopButton icon={Sparkles} label="Insights" active={activeView === "insights"} onClick={() => setActiveView("insights")} />
+            <TopButton icon={Bell} label="Alerts" active={activeView === "alerts"} onClick={() => setActiveView("alerts")} />
             <button type="button" onClick={() => void runRebuild(false)} disabled={Boolean(working)} className="inline-flex items-center gap-2 rounded-lg bg-sky-400 px-3 py-2 text-sm font-black text-slate-950 hover:bg-sky-300 disabled:opacity-60">
               {working === "Rebuild" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Rebuild index
@@ -345,15 +348,21 @@ export function KnowledgeMapPage() {
             <LegendBar />
           </section>
           <section className="grid min-h-0 gap-4 lg:col-span-2 lg:grid-cols-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:flex 2xl:max-h-[calc(100vh-2rem)] 2xl:flex-col 2xl:overflow-y-auto 2xl:pr-1">
-            <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
-            <BrainHealthCard summary={graph.summary} />
-            <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
-              setReviewRefreshKey((key) => key + 1);
-              void load(filters);
-            }} />
-            <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
-            <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
-            <LowConfidenceQueue edges={graph.edges} />
+            {activeView === "approvals" ? (
+              <>
+                <CandidateReviewPanel companyId={graph.selectedCompanyId} refreshKey={reviewRefreshKey} />
+                <RelationshipValidationPanel edges={graph.validationQueue} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
+                <LowConfidenceQueue edges={graph.edges} />
+              </>
+            ) : (
+              <>
+                <SelectedNodePanel node={selectedNode} edges={graph.edges} nodes={graph.nodes} companies={graph.companies} onValidate={(edge, status, reason) => validate(edge, status, reason)} />
+                <TrustedLearningInputsPanel companyId={graph.selectedCompanyId} onChanged={() => {
+                  setReviewRefreshKey((key) => key + 1);
+                  void load(filters);
+                }} />
+              </>
+            )}
           </section>
         </main>
       </div>
@@ -361,10 +370,19 @@ export function KnowledgeMapPage() {
   );
 }
 
-function TopButton({ icon: Icon, label }: { icon: typeof Search; label: string }) {
+function TopButton({ icon: Icon, label, active, onClick }: { icon: typeof Search; label: string; active?: boolean; onClick?: () => void }) {
   return (
-    <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-slate-100 hover:bg-white/[0.09]">
-      <Icon className="h-4 w-4 text-sky-300" />
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-black transition ${
+        active
+          ? "border-sky-300/35 bg-sky-300/15 text-white shadow-[0_0_22px_rgba(56,189,248,0.14)]"
+          : "border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.09]"
+      }`}
+    >
+      <Icon className={`h-4 w-4 ${active ? "text-sky-200" : "text-sky-300"}`} />
       {label}
     </button>
   );
