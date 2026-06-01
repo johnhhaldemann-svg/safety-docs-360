@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button, Field } from "@/components/Form";
@@ -38,6 +39,15 @@ export default function LoginScreen() {
         </View>
       }
     >
+      <View style={styles.brandPanel}>
+        <View style={styles.brandIcon}>
+          <Ionicons name="shield-checkmark" size={32} color={theme.white} />
+        </View>
+        <View style={styles.brandText}>
+          <Text style={styles.brandKicker}>SafePredict Field</Text>
+          <Text style={styles.brandTitle}>Field safety, synced to the platform.</Text>
+        </View>
+      </View>
       <AppCard title="Company Field Access" eyebrow="SafePredict Field">
         <Field
           label="Email"
@@ -70,5 +80,31 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   footerActions: { gap: 10 },
+  brandPanel: {
+    borderWidth: 1,
+    borderColor: theme.borderStrong,
+    backgroundColor: theme.ink,
+    borderRadius: theme.radiusXl,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: theme.shadowDeep,
+    shadowOpacity: 1,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  },
+  brandIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 22,
+    backgroundColor: theme.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandText: { flex: 1, minWidth: 0 },
+  brandKicker: { color: "#9ec5ff", fontSize: 10, fontWeight: "900", letterSpacing: 1.2, textTransform: "uppercase" },
+  brandTitle: { color: theme.white, fontSize: 21, lineHeight: 26, fontWeight: "900", marginTop: 4 },
   note: { color: theme.muted, fontSize: 13, textAlign: "center", fontWeight: "700" }
 });

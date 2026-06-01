@@ -20,6 +20,7 @@ export function AppCard({
 }) {
   return (
     <View style={styles.card}>
+      <View style={styles.cardAccent} />
       {title || eyebrow || aside ? (
         <View style={styles.cardHeader}>
           <View style={styles.headerText}>
@@ -56,6 +57,9 @@ export function StatusBanner({
 }) {
   return (
     <View style={[styles.banner, bannerStyle(tone)]}>
+      <View style={[styles.bannerIcon, bannerIconStyle(tone)]}>
+        <Ionicons name={bannerIconName(tone)} size={18} color={bannerIconColor(tone)} />
+      </View>
       <View style={styles.headerText}>
         <Text style={[styles.bannerTitle, bannerTextStyle(tone)]}>{title}</Text>
         {detail ? <Text style={styles.bannerDetail}>{detail}</Text> : null}
@@ -108,6 +112,7 @@ export function ErrorState({
 export function MetricTile({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "success" | "warning" | "danger" }) {
   return (
     <View style={styles.metric}>
+      <View style={[styles.metricSpark, metricSparkTone(tone)]} />
       <Text style={[styles.metricValue, metricTone(tone)]}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
@@ -132,6 +137,7 @@ export function ModuleCard({
   const iconColor = tone === "danger" ? theme.danger : tone === "success" ? theme.success : tone === "neutral" ? theme.textStrong : theme.primary;
   return (
     <Pressable onPress={onPress} style={styles.module}>
+      <View style={[styles.moduleRail, moduleRailTone(tone)]} />
       <View style={[styles.moduleIcon, moduleTone(tone)]}>
         <Ionicons name={iconName} size={23} color={iconColor} />
       </View>
@@ -245,6 +251,30 @@ function bannerStyle(tone: "info" | "success" | "warning" | "danger" | "neutral"
   return { backgroundColor: theme.infoSoft, borderColor: "#9bd2ef" };
 }
 
+function bannerIconName(tone: "info" | "success" | "warning" | "danger" | "neutral"): IoniconName {
+  if (tone === "success") return "checkmark-circle-outline";
+  if (tone === "warning") return "alert-circle-outline";
+  if (tone === "danger") return "close-circle-outline";
+  if (tone === "neutral") return "shield-outline";
+  return "information-circle-outline";
+}
+
+function bannerIconColor(tone: "info" | "success" | "warning" | "danger" | "neutral") {
+  if (tone === "success") return theme.success;
+  if (tone === "warning") return theme.warning;
+  if (tone === "danger") return theme.danger;
+  if (tone === "neutral") return theme.textStrong;
+  return theme.info;
+}
+
+function bannerIconStyle(tone: "info" | "success" | "warning" | "danger" | "neutral") {
+  if (tone === "success") return { backgroundColor: theme.successSoft };
+  if (tone === "warning") return { backgroundColor: theme.warningSoft };
+  if (tone === "danger") return { backgroundColor: theme.dangerSoft };
+  if (tone === "neutral") return { backgroundColor: theme.panel };
+  return { backgroundColor: theme.infoSoft };
+}
+
 function bannerTextStyle(tone: "info" | "success" | "warning" | "danger" | "neutral") {
   if (tone === "success") return { color: theme.success };
   if (tone === "warning") return { color: theme.warning };
@@ -260,6 +290,13 @@ function metricTone(tone: "neutral" | "success" | "warning" | "danger") {
   return { color: theme.textStrong };
 }
 
+function metricSparkTone(tone: "neutral" | "success" | "warning" | "danger") {
+  if (tone === "success") return { backgroundColor: theme.success };
+  if (tone === "warning") return { backgroundColor: theme.warning };
+  if (tone === "danger") return { backgroundColor: theme.danger };
+  return { backgroundColor: theme.primary };
+}
+
 function moduleTone(tone: "primary" | "danger" | "success" | "neutral") {
   if (tone === "danger") return { backgroundColor: theme.dangerSoft };
   if (tone === "success") return { backgroundColor: theme.successSoft };
@@ -267,59 +304,80 @@ function moduleTone(tone: "primary" | "danger" | "success" | "neutral") {
   return { backgroundColor: theme.primarySoft };
 }
 
+function moduleRailTone(tone: "primary" | "danger" | "success" | "neutral") {
+  if (tone === "danger") return { backgroundColor: theme.danger };
+  if (tone === "success") return { backgroundColor: theme.success };
+  if (tone === "neutral") return { backgroundColor: theme.steel };
+  return { backgroundColor: theme.primary };
+}
+
 const styles = StyleSheet.create({
   card: {
+    position: "relative",
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: theme.borderStrong,
-    backgroundColor: theme.surface,
-    borderRadius: 10,
-    padding: 14,
-    gap: 12,
+    backgroundColor: theme.surfaceRaised,
+    borderRadius: theme.radiusLg,
+    padding: 16,
+    gap: 14,
     shadowColor: theme.shadowStrong,
     shadowOpacity: 1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 2,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 3,
+  },
+  cardAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: theme.primary,
+    opacity: 0.82,
   },
   cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   headerText: { flex: 1, minWidth: 0 },
-  eyebrow: { color: theme.primary, fontSize: 10, fontWeight: "900", letterSpacing: 1.2, textTransform: "uppercase" },
-  cardTitle: { color: theme.textStrong, fontSize: 17, fontWeight: "900", marginTop: 2 },
-  sectionHeader: { gap: 3, marginTop: 2 },
+  eyebrow: { color: theme.primary, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, textTransform: "uppercase" },
+  cardTitle: { color: theme.textStrong, fontSize: 18, fontWeight: "900", marginTop: 2, lineHeight: 23 },
+  sectionHeader: { gap: 4, marginTop: 4, paddingHorizontal: 2 },
   sectionTitle: { color: theme.slate, fontSize: 12, fontWeight: "900", letterSpacing: 1.1, textTransform: "uppercase" },
-  sectionDetail: { color: theme.muted, fontSize: 12, fontWeight: "700", lineHeight: 17 },
-  banner: { borderWidth: 1, borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  bannerTitle: { fontSize: 13, fontWeight: "900" },
-  bannerDetail: { color: theme.text, fontSize: 12, lineHeight: 17, marginTop: 2, fontWeight: "700" },
+  sectionDetail: { color: theme.muted, fontSize: 12, fontWeight: "700", lineHeight: 18 },
+  banner: { borderWidth: 1, borderRadius: theme.radiusMd, padding: 13, flexDirection: "row", alignItems: "center", gap: 11 },
+  bannerIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  bannerTitle: { fontSize: 13, fontWeight: "900", lineHeight: 18 },
+  bannerDetail: { color: theme.text, fontSize: 12, lineHeight: 18, marginTop: 2, fontWeight: "700" },
   stateTitle: { color: theme.textStrong, fontSize: 16, fontWeight: "900" },
   stateText: { color: theme.text, fontSize: 13, lineHeight: 19, fontWeight: "700" },
   retryButton: { marginTop: 2, borderWidth: 1, borderColor: theme.borderStrong, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   retryText: { color: theme.primary, fontWeight: "900", textTransform: "uppercase", fontSize: 12, letterSpacing: 0.5 },
-  metric: { flexGrow: 1, flexBasis: "46%", borderWidth: 1, borderColor: theme.border, backgroundColor: theme.panelSoft, borderRadius: 9, padding: 12 },
-  metricValue: { fontSize: 24, fontWeight: "900" },
-  metricLabel: { color: theme.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", marginTop: 4 },
-  module: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  moduleIcon: { width: 42, height: 42, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  moduleTitle: { color: theme.textStrong, fontWeight: "900", fontSize: 15 },
+  metric: { position: "relative", overflow: "hidden", flexGrow: 1, flexBasis: "46%", borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceRaised, borderRadius: theme.radiusMd, padding: 13, minHeight: 86 },
+  metricSpark: { position: "absolute", right: 12, top: 12, width: 30, height: 5, borderRadius: 99, opacity: 0.9 },
+  metricValue: { fontSize: 27, fontWeight: "900", lineHeight: 31 },
+  metricLabel: { color: theme.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", marginTop: 5, letterSpacing: 0.3 },
+  module: { position: "relative", overflow: "hidden", minHeight: 72, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surfaceRaised, borderRadius: theme.radiusLg, padding: 13, flexDirection: "row", alignItems: "center", gap: 11, shadowColor: theme.shadow, shadowOpacity: 1, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
+  moduleRail: { position: "absolute", left: 0, top: 12, bottom: 12, width: 4, borderTopRightRadius: 99, borderBottomRightRadius: 99 },
+  moduleIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  moduleTitle: { color: theme.textStrong, fontWeight: "900", fontSize: 15, lineHeight: 20 },
   moduleDetail: { color: theme.muted, fontWeight: "700", fontSize: 12, lineHeight: 17, marginTop: 2 },
   moduleBadge: { color: theme.accent, backgroundColor: theme.accentSoft, borderRadius: 999, overflow: "hidden", paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   selectorGroup: { gap: 7 },
   selectorLabel: { color: theme.textStrong, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4 },
-  dropdownButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 10 },
+  dropdownButton: { minHeight: theme.tap, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: theme.radiusMd, paddingHorizontal: 13, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   dropdownTitle: { color: theme.textStrong, fontSize: 14, fontWeight: "900" },
   dropdownMeta: { color: theme.muted, fontSize: 11, fontWeight: "700", marginTop: 2 },
-  dropdownPanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: 10, padding: 8, gap: 6 },
-  optionRow: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, gap: 2 },
+  dropdownPanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.primaryTint, borderRadius: theme.radiusMd, padding: 8, gap: 7 },
+  optionRow: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 11, gap: 2 },
   optionText: { color: theme.textStrong, fontWeight: "900", fontSize: 13 },
   optionMeta: { color: theme.muted, fontWeight: "700", fontSize: 11 },
   emptyText: { color: theme.muted, fontWeight: "700", padding: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choiceChip: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 8 },
+  choiceChip: { minHeight: 38, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
   choiceChipActive: { borderColor: theme.primary, backgroundColor: theme.primary },
   choiceChipText: { color: theme.text, fontSize: 12, fontWeight: "900" },
   choiceChipTextActive: { color: theme.white },
-  evidenceButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: 9, padding: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  evidenceIcon: { width: 38, height: 38, borderRadius: 8, backgroundColor: theme.primarySoft, alignItems: "center", justifyContent: "center" },
+  evidenceButton: { minHeight: 66, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.primaryTint, borderRadius: theme.radiusMd, padding: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  evidenceIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.primarySoft, alignItems: "center", justifyContent: "center" },
   evidenceTitle: { color: theme.textStrong, fontWeight: "900", fontSize: 13 },
   evidenceMeta: { color: theme.primary, fontWeight: "800", fontSize: 12, marginTop: 2 },
 });
