@@ -13,7 +13,7 @@ describe("CandidateReviewPanel learning batch counts", () => {
     );
 
     expect(counts).toEqual({
-      totalCandidates: 2,
+      approvalReadyCandidates: 1,
       failedSourceCandidates: 1,
       skippedSources: 0,
     });
