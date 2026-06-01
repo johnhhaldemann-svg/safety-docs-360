@@ -2,7 +2,7 @@
 import { deferEffect } from "@/lib/deferredEffect";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Send } from "lucide-react";
+import { Camera, ClipboardCheck, Download, Eye, FileText, RefreshCw, RotateCcw, Save, Send } from "lucide-react";
 import { FieldAuditChecklist } from "@/components/jobsite-audits/FieldAuditChecklist";
 import { Card, PageHeader, SectionTitle, SelectShell, cx } from "@/components/safe-predict/SafePredictPrimitives";
 import { AUDIT_SYSTEM_BLUEPRINT } from "@/lib/jobsiteAudits/auditSystemBlueprint";
@@ -410,12 +410,13 @@ export function SafePredictJobsiteAudits() {
     }
   }
 
-  async function openAuditPdf(auditId: string) {
-    setPreviewingAuditId(auditId);
+  async function openAuditPdf(audit: AuditListRow) {
+    setPreviewingAuditId(audit.id);
     setMessage("");
     try {
       const token = await getAccessToken();
-      const res = await fetch(`/api/company/field-audits/${auditId}/report-pdf`, {
+      const previewSuffix = audit.status === "pending_review" ? "?preview=1" : "";
+      const res = await fetch(`/api/company/field-audits/${audit.id}/report-pdf${previewSuffix}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -702,15 +703,21 @@ export function SafePredictJobsiteAudits() {
                       </ul>
                     ) : null}
                     <div className="mt-3 grid gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void openAuditPdf(audit.id)}
-                        disabled={previewingAuditId === audit.id || reviewingAuditId === audit.id}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-100"
-                      >
-                        <Eye className="h-4 w-4" />
-                        {previewingAuditId === audit.id ? "Opening PDF..." : "View PDF"}
-                      </button>
+                      {audit.status === "pending_review" || audit.status === "submitted" ? (
+                        <button
+                          type="button"
+                          onClick={() => void openAuditPdf(audit)}
+                          disabled={previewingAuditId === audit.id || reviewingAuditId === audit.id}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        >
+                          {audit.status === "submitted" ? <Download className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {previewingAuditId === audit.id
+                            ? "Opening PDF..."
+                            : audit.status === "submitted"
+                              ? "Download Approved PDF"
+                              : "Preview PDF"}
+                        </button>
+                      ) : null}
                       {audit.status === "pending_review" ? (
                         <div className="grid grid-cols-2 gap-2">
                           <button

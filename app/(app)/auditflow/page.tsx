@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardCheck, FileText, LayoutDashboard, ListChecks, RefreshCw, Send, UserPlus } from "lucide-react";
+import { ClipboardCheck, Download, Eye, FileText, LayoutDashboard, ListChecks, RefreshCw, Send, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   EmptyState,
@@ -139,6 +139,7 @@ export default function AuditFlowPage() {
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openingReportId, setOpeningReportId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [templateTitleInput, setTemplateTitleInput] = useState("");
@@ -356,6 +357,32 @@ export default function AuditFlowPage() {
     }
   }
 
+  async function openSubmissionPdf(submission: SubmissionRow, preview: boolean) {
+    setOpeningReportId(submission.id);
+    setMessage("");
+    try {
+      const token = await getToken();
+      const previewSuffix = preview ? "?preview=1" : "";
+      const res = await fetch(`/api/company/auditflow/submissions/${submission.id}/report-pdf${previewSuffix}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Could not open the AuditFlow PDF.");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) throw new Error("Your browser blocked the PDF window. Allow popups for this site and try again.");
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Could not open the AuditFlow PDF.");
+    } finally {
+      setOpeningReportId(null);
+    }
+  }
+
   function setAnswer(key: string, patch: Partial<AuditFlowSubmissionAnswers[string]>) {
     setAnswers((current) => ({
       ...current,
@@ -392,15 +419,20 @@ export default function AuditFlowPage() {
           <button type="button" onClick={() => void openAssignment(assignment.id)} className={appButtonSecondaryClassName}>
             Open
           </button>
-          {submission ? (
-            <a
-              href={`/api/company/auditflow/submissions/${submission.id}/report`}
-              target="_blank"
-              rel="noreferrer"
+          {submission?.status === "approved" ? (
+            <button
+              type="button"
+              onClick={() => void openSubmissionPdf(submission, false)}
               className={appButtonSecondaryClassName}
+              disabled={openingReportId === submission.id}
             >
-              Report
-            </a>
+              <Download className="h-4 w-4" />
+              {openingReportId === submission.id ? "Opening..." : "Download Approved PDF"}
+            </button>
+          ) : submission ? (
+            <span className="inline-flex items-center rounded-lg border border-[var(--app-border)] px-3 py-2 text-xs font-semibold text-[var(--app-muted)]">
+              Awaiting review approval
+            </span>
           ) : null}
         </div>
       </div>
@@ -625,6 +657,15 @@ export default function AuditFlowPage() {
                       <p className="mt-1 text-sm text-[var(--app-muted)]">Score {submission.score_summary?.compliancePercent ?? "--"}% | {submission.score_summary?.fail ?? 0} findings</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void openSubmissionPdf(submission, true)}
+                        className={appButtonSecondaryClassName}
+                        disabled={saving || openingReportId === submission.id}
+                      >
+                        <Eye className="h-4 w-4" />
+                        {openingReportId === submission.id ? "Opening..." : "Preview PDF"}
+                      </button>
                       <button type="button" onClick={() => void reviewSubmission(submission.id, "approved")} className={appButtonPrimaryClassName} disabled={saving}>Approve</button>
                       <button type="button" onClick={() => void reviewSubmission(submission.id, "returned")} className={appButtonSecondaryClassName} disabled={saving}>Return</button>
                     </div>
@@ -649,9 +690,21 @@ export default function AuditFlowPage() {
                       <p className="font-semibold text-[var(--app-text-strong)]">{assignment ? templateTitle(templates, assignment.template_id) : "AuditFlow report"}</p>
                       <p className="mt-1 text-sm text-[var(--app-muted)]">Submitted {formatDate(submission.submitted_at)} | Score {submission.score_summary?.compliancePercent ?? "--"}%</p>
                     </div>
-                    <a href={`/api/company/auditflow/submissions/${submission.id}/report`} target="_blank" rel="noreferrer" className={appButtonSecondaryClassName}>
-                      Open Report
-                    </a>
+                    {submission.status === "approved" ? (
+                      <button
+                        type="button"
+                        onClick={() => void openSubmissionPdf(submission, false)}
+                        className={appButtonSecondaryClassName}
+                        disabled={openingReportId === submission.id}
+                      >
+                        <Download className="h-4 w-4" />
+                        {openingReportId === submission.id ? "Opening..." : "Download Approved PDF"}
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center rounded-lg border border-[var(--app-border)] px-3 py-2 text-xs font-semibold text-[var(--app-muted)]">
+                        Awaiting review approval
+                      </span>
+                    )}
                   </div>
                 </div>
               );
