@@ -12,6 +12,7 @@ export type AiEngineSurfaceContextPolicy = {
   brainSurface: AiEngineBrainSurface | null;
   exceptionReason: string | null;
   highRiskFallbackBehavior: AiEngineHighRiskFallbackBehavior;
+  staticProofFiles: string[];
 };
 
 export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] = [
@@ -21,6 +22,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: "smart_safety.review",
     exceptionReason: null,
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: ["lib/safety-intelligence/engine/orchestrator.ts"],
   },
   {
     surface: "ai-engine",
@@ -28,6 +30,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: null,
     exceptionReason: "Super Admin diagnostics and telemetry surface; it does not generate customer-facing safety recommendations.",
     highRiskFallbackBehavior: "telemetry_only",
+    staticProofFiles: [],
   },
   {
     surface: "company-memory",
@@ -35,6 +38,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: "gus.verified_answer",
     exceptionReason: null,
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: ["app/api/gus/verified-answer/route.ts"],
   },
   {
     surface: "permit-copilot",
@@ -42,6 +46,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: "permit.copilot",
     exceptionReason: null,
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: ["lib/permitCopilot.ts"],
   },
   {
     surface: "csep-review",
@@ -49,6 +54,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: "document_ai.builder_review",
     exceptionReason: null,
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: ["lib/runBuilderProgramAiReview.ts"],
   },
   {
     surface: "gc-review",
@@ -56,6 +62,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: "document_ai.gc_review",
     exceptionReason: null,
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: ["lib/runGcProgramAiReview.ts"],
   },
   {
     surface: "injury-weather",
@@ -63,6 +70,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: null,
     exceptionReason: "Injury Weather uses deterministic weather/exposure evidence packs today; graph retrieval must be added before it emits graph-backed company recommendations.",
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: [],
   },
   {
     surface: "training-records.photo-extract",
@@ -70,13 +78,15 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: null,
     exceptionReason: "Photo extraction reads a submitted training record and is not a safety recommendation surface.",
     highRiskFallbackBehavior: "not_recommendation_surface",
+    staticProofFiles: [],
   },
   {
     surface: "field-audits.ai-review",
-    usesApprovedGraphContext: true,
-    brainSurface: "smart_safety.review",
-    exceptionReason: null,
+    usesApprovedGraphContext: false,
+    brainSurface: null,
+    exceptionReason: "Field audit AI review currently uses submitted audit observations only; high/critical findings stay in admin review until graph retrieval is integrated.",
     highRiskFallbackBehavior: "requires_company_graph_or_human_review",
+    staticProofFiles: [],
   },
   {
     surface: "embeddings",
@@ -84,6 +94,7 @@ export const AI_ENGINE_SURFACE_CONTEXT_POLICIES: AiEngineSurfaceContextPolicy[] 
     brainSurface: null,
     exceptionReason: "Embedding generation is indexing infrastructure and does not produce user-facing safety recommendations.",
     highRiskFallbackBehavior: "not_recommendation_surface",
+    staticProofFiles: [],
   },
 ];
 

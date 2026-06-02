@@ -65,6 +65,13 @@ function normalizeEvalResults(metrics) {
   };
 }
 
+function regressionFromBaseline(currentValue, baselineValue) {
+  const current = numberOrNull(currentValue);
+  const baseline = numberOrNull(baselineValue);
+  if (current == null || baseline == null || baseline <= 0) return null;
+  return Number(((current - baseline) / baseline).toFixed(4));
+}
+
 export function evaluateAiReleaseGate(input) {
   const thresholds = { ...DEFAULT_THRESHOLDS, ...(input.thresholds ?? {}) };
   const activeSurfaces = input.activeSurfaces?.length ? input.activeSurfaces : DEFAULT_ACTIVE_SURFACES;
@@ -117,12 +124,16 @@ export function evaluateAiReleaseGate(input) {
     failures.push(`fallback rate ${fallbackRate ?? "missing"} is above ${thresholds.fallbackRate}`);
   }
 
-  const tokenCostRegression = numberOrNull(metrics.tokenCostRegression);
+  const tokenCostRegression =
+    numberOrNull(metrics.tokenCostRegression) ??
+    regressionFromBaseline(metrics.current?.totalTokens ?? metrics.currentTotalTokens, metrics.baseline?.totalTokens ?? metrics.baselineTotalTokens);
   if (tokenCostRegression == null || tokenCostRegression > thresholds.tokenCostRegression) {
     failures.push(`token cost regression ${tokenCostRegression ?? "missing"} is above ${thresholds.tokenCostRegression}`);
   }
 
-  const p95LatencyRegression = numberOrNull(metrics.p95LatencyRegression);
+  const p95LatencyRegression =
+    numberOrNull(metrics.p95LatencyRegression) ??
+    regressionFromBaseline(metrics.current?.p95LatencyMs ?? metrics.currentP95LatencyMs, metrics.baseline?.p95LatencyMs ?? metrics.baselineP95LatencyMs);
   if (p95LatencyRegression == null || p95LatencyRegression > thresholds.p95LatencyRegression) {
     failures.push(`p95 latency regression ${p95LatencyRegression ?? "missing"} is above ${thresholds.p95LatencyRegression}`);
   }

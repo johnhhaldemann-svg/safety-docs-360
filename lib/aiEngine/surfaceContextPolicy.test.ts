@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { AI_ENGINE_SURFACES } from "@/lib/superadmin/aiEngineOperations";
 import { AI_ENGINE_SURFACE_CONTEXT_POLICIES, getAiEngineSurfaceContextPolicy } from "@/lib/aiEngine/surfaceContextPolicy";
 
@@ -14,10 +16,22 @@ describe("AI Engine surface context policy", () => {
       if (policy?.usesApprovedGraphContext) {
         expect(policy.brainSurface).toBeTruthy();
         expect(policy.exceptionReason).toBeNull();
+        expect(policy.staticProofFiles.length).toBeGreaterThan(0);
       } else {
         expect(policy?.brainSurface).toBeNull();
         expect(policy?.exceptionReason).toMatch(/\w{8,}/);
       }
+    }
+  });
+
+  it("proves graph-backed surfaces call retrieveAiEngineBrainContext in declared codepaths", () => {
+    for (const policy of AI_ENGINE_SURFACE_CONTEXT_POLICIES.filter((item) => item.usesApprovedGraphContext)) {
+      const matches = policy.staticProofFiles.map((file) => {
+        const absolute = join(process.cwd(), file);
+        expect(existsSync(absolute), `${policy.surface} proof file missing: ${file}`).toBe(true);
+        return readFileSync(absolute, "utf8").includes("retrieveAiEngineBrainContext");
+      });
+      expect(matches.some(Boolean), `${policy.surface} must call retrieveAiEngineBrainContext`).toBe(true);
     }
   });
 

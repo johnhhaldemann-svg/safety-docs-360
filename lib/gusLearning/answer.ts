@@ -190,6 +190,17 @@ export function buildVerifiedSafetyAnswer(params: {
   const graphBasis = graphMemory.length
     ? graphMemory.map((item) => `- ${item.title}: ${clean(item.excerpt, 260)} (${item.sourceTable}:${item.sourceId})`).join("\n")
     : "- None found.";
+  const fallbackGraphMemory = graphMemory.filter((item) => item.id.startsWith("fallback:") || !item.companyId);
+  const highCriticalGraphMemory = graphMemory.filter((item) => item.riskLevel === "high" || item.riskLevel === "critical");
+  const staleGraphMemory = graphMemory.filter((item) => item.isStale);
+  const graphSafetyLimits = [
+    fallbackGraphMemory.length > 0 && highCriticalGraphMemory.length > 0
+      ? "High or critical graph context matched only general fallback guidance. Treat it as not company-specific evidence and require immediate human review with possible stop-work evaluation."
+      : null,
+    staleGraphMemory.length > 0
+      ? "Some approved graph memory is stale and needs Super Admin refresh before being treated as current."
+      : null,
+  ].filter(Boolean);
 
   if (usable.length === 0) {
     const text = [
@@ -216,9 +227,12 @@ export function buildVerifiedSafetyAnswer(params: {
       graphMemory.length
         ? "Approved graph memory may describe related company records and risk context, but no approved requirement source matched this question."
         : null,
+      ...graphSafetyLimits,
       "",
       "Recommended Action:",
-      "Route this question to a qualified safety professional or company admin for source review before using it as official guidance.",
+      graphSafetyLimits.length > 0
+        ? "Route this question to a qualified safety professional or company admin for source review before using it as official guidance; for high or critical risk, evaluate whether work should pause for possible stop-work review."
+        : "Route this question to a qualified safety professional or company admin for source review before using it as official guidance.",
     ].filter(Boolean).join("\n");
     return {
       answerId: answerId(params.question, []),

@@ -1,33 +1,5 @@
 import type { AiKnowledgeNode, AiKnowledgeNodeType, AiKnowledgeRiskLevel, AiKnowledgeSourceRow } from "@/lib/aiKnowledgeMap/types";
-
-const SOURCE_NODE_TYPES: Record<string, AiKnowledgeNodeType> = {
-  company_permits: "permit",
-  company_jsas: "task",
-  company_hazards: "hazard",
-  company_controls: "control",
-  company_training_requirements: "training",
-  company_employee_training_records: "training",
-  company_induction_programs: "training",
-  company_induction_requirements: "training",
-  company_induction_completions: "training",
-  company_toolbox_sessions: "training",
-  company_toolbox_attendees: "training",
-  company_incidents: "incident",
-  company_sor_records: "observation",
-  company_jobsite_audits: "observation",
-  company_jobsite_audit_observations: "observation",
-  company_corrective_actions: "corrective_action",
-  company_jobsite_chemicals: "hazard",
-  company_jobsite_visual_zones: "risk_record",
-  company_crews: "user_role",
-  company_employee_profiles: "user_role",
-  company_employee_jobsite_assignments: "task",
-  company_jobsites: "project",
-  safety_data_bucket: "risk_record",
-  documents: "document",
-  company_generated_documents: "document",
-  company_risk_ai_recommendations: "risk_record",
-};
+import { nodeTypeForSourceTable } from "@/lib/aiKnowledgeMap/sourceAdapters";
 
 function text(value: unknown, fallback = ""): string {
   if (Array.isArray(value)) return value.filter(Boolean).map((item) => text(item)).filter(Boolean).join(", ");
@@ -164,7 +136,7 @@ function categoryFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "safety_data_bucket") return text(row.category_code, text(row.source_type, "safety signal"));
   if (table === "company_risk_ai_recommendations") return text(row.kind, "risk");
   if (table === "documents") return text(row.category, text(row.document_type, "document"));
-  return text(row.category, text(row.status, SOURCE_NODE_TYPES[table] ?? "record"));
+  return text(row.category, text(row.status, nodeTypeForSourceTable(table) ?? "record"));
 }
 
 function descriptionFor(table: string, row: AiKnowledgeSourceRow) {
@@ -232,7 +204,7 @@ export function sourceKey(table: string, sourceId: string) {
 export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledgeSourceRow): AiKnowledgeNode | null {
   const companyId = text(row.company_id);
   const sourceId = text(row.id);
-  const type = SOURCE_NODE_TYPES[table];
+  const type = nodeTypeForSourceTable(table);
   if (!companyId || !sourceId || !type) return null;
 
   const riskLevel = normalizeRiskLevel(riskInputs(table, row).find(Boolean));

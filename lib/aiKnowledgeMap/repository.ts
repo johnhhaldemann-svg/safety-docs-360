@@ -10,6 +10,7 @@ import {
   requireConcreteCompanyId,
 } from "@/lib/aiKnowledgeMap/guardrails";
 import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
+import { AI_KNOWLEDGE_SOURCE_TABLES, domainCoverageForNodes } from "@/lib/aiKnowledgeMap/sourceAdapters";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
 import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE } from "@/lib/aiKnowledgeMap/learningCheck";
 import {
@@ -41,34 +42,7 @@ type DbClient = Pick<SupabaseClient, "from">;
 type DbError = { message?: string | null };
 type QueryResult<T> = { data: T | null; error: DbError | null; count?: number | null };
 
-const SOURCE_TABLES = [
-  "company_permits",
-  "company_jsas",
-  "company_hazards",
-  "company_controls",
-  "company_training_requirements",
-  "company_employee_training_records",
-  "company_induction_programs",
-  "company_induction_requirements",
-  "company_induction_completions",
-  "company_toolbox_sessions",
-  "company_toolbox_attendees",
-  "company_incidents",
-  "company_sor_records",
-  "company_jobsite_audits",
-  "company_jobsite_audit_observations",
-  "company_corrective_actions",
-  "company_jobsite_chemicals",
-  "company_jobsite_visual_zones",
-  "company_crews",
-  "company_employee_profiles",
-  "company_employee_jobsite_assignments",
-  "company_jobsites",
-  "safety_data_bucket",
-  "documents",
-  "company_generated_documents",
-  "company_risk_ai_recommendations",
-] as const;
+const SOURCE_TABLES = AI_KNOWLEDGE_SOURCE_TABLES;
 
 const ALL_COMPANIES_SCOPE = "all";
 const FALLBACK_NODE_THRESHOLD = 8;
@@ -394,6 +368,7 @@ function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies
     relationshipApprovalRate: reviewed === 0 ? 0 : Number((approved.length / reviewed).toFixed(3)),
     falsePositiveRate: reviewed === 0 ? 0 : Number((rejected.length / reviewed).toFixed(3)),
     missedLinkRate: health.missedLinkRate,
+    domainCoverage: domainCoverageForNodes(nodes),
     latestUpdate,
   };
 }

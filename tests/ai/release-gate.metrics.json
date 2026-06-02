@@ -2,12 +2,12 @@
   "source": "local deterministic golden evaluation run",
   "generatedAt": "2026-05-28T00:00:00.000Z",
   "evalResults": {
-    "totalFixtures": 7,
-    "executedFixtures": 7,
-    "passedFixtures": 7,
+    "totalFixtures": 22,
+    "executedFixtures": 8,
+    "passedFixtures": 8,
     "failedFixtures": 0,
-    "skippedFixtures": 0,
-    "registeredAdapters": 7,
+    "skippedFixtures": 14,
+    "registeredAdapters": 10,
     "unregisteredFixtures": 0,
     "telemetryAvailable": true
   },

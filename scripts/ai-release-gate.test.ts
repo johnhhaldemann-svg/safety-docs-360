@@ -125,4 +125,31 @@ describe("AI release gate", () => {
     expect(result.ok).toBe(false);
     expect(result.failures[0]).toContain("eval execution results are missing");
   });
+
+  it("computes token and latency regressions from baseline metrics", () => {
+    const result = evaluateAiReleaseGate({
+      activeSurfaces: ["injury-weather.insights"],
+      coverage,
+      metrics: {
+        evalResults: {
+          totalFixtures: 1,
+          executedFixtures: 1,
+          passedFixtures: 1,
+          failedFixtures: 0,
+          skippedFixtures: 0,
+          registeredAdapters: 1,
+          unregisteredFixtures: 0,
+          telemetryAvailable: true,
+        },
+        failureRate: 0,
+        fallbackRate: 0,
+        current: { totalTokens: 1150, p95LatencyMs: 1200 },
+        baseline: { totalTokens: 1000, p95LatencyMs: 1000 },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.artifact.runtime.tokenCostRegression).toBe(0.15);
+    expect(result.artifact.runtime.p95LatencyRegression).toBe(0.2);
+  });
 });

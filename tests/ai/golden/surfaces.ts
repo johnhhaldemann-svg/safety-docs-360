@@ -28,6 +28,7 @@ import {
 } from "@/lib/jobsiteSiteVisual";
 import type { RiskMemoryStructuredContext } from "@/lib/riskMemory/structuredContext";
 import type { ApprovedKnowledgeRow } from "@/lib/gusLearning/types";
+import type { TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
 
 export type AiEvalAdapter = (input: unknown) => Promise<unknown>;
 
@@ -150,6 +151,56 @@ function gusVerifiedLearningKnowledge(scenario: string): ApprovedKnowledgeRow[] 
     ];
   }
   return [];
+}
+
+function gusVerifiedLearningGraphMemory(scenario: string): TrustedKnowledgeGraphMemoryItem[] {
+  if (scenario === "fallback-only-critical-graph") {
+    return [
+      graphMemory({
+        id: "fallback:confined-space-critical",
+        nodeId: "fallback-confined-space-critical",
+        companyId: null,
+        title: "General confined space critical exposure guidance",
+        excerpt: "General approved fallback guidance says confined space entry may require immediate review and possible stop-work evaluation.",
+        riskLevel: "critical",
+        confidenceScore: 0.54,
+      }),
+    ];
+  }
+  if (scenario === "stale-graph-memory") {
+    return [
+      graphMemory({
+        id: "graph:stale-hot-work",
+        nodeId: "stale-hot-work",
+        companyId: "company-1",
+        title: "Stale company hot work memory",
+        excerpt: "Approved company-specific hot work memory is past its review due date.",
+        riskLevel: "high",
+        confidenceScore: 0.49,
+        isStale: true,
+      }),
+    ];
+  }
+  return [];
+}
+
+function graphMemory(overrides: Partial<TrustedKnowledgeGraphMemoryItem>): TrustedKnowledgeGraphMemoryItem {
+  return {
+    id: "graph:memory-1",
+    nodeId: "memory-1",
+    companyId: "company-1",
+    title: "Approved graph memory",
+    excerpt: "Approved graph memory excerpt.",
+    sourceTable: "ai_knowledge_nodes",
+    sourceId: "memory-1",
+    category: "risk",
+    nodeType: "risk_record",
+    riskLevel: "moderate",
+    confidenceScore: 0.72,
+    relationshipReasons: [],
+    evidence: [],
+    ...overrides,
+  };
 }
 
 const adapters: Record<string, AiEvalAdapter> = {
@@ -314,6 +365,7 @@ const adapters: Record<string, AiEvalAdapter> = {
       companyId: params.companyId ?? "company-1",
       projectId: params.projectId ?? null,
       knowledge: gusVerifiedLearningKnowledge(params.scenario),
+      graphMemoryMatches: gusVerifiedLearningGraphMemory(params.scenario),
       now: params.now ? new Date(params.now) : undefined,
     });
   },
