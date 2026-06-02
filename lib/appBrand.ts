@@ -3,7 +3,7 @@ export const APP_BRAND = {
   shortName: "SafePredict",
   description: "Safety operations for risk, compliance, documentation, and field execution.",
   supportEmailFallback: "support@example.com",
-  defaultMobileApiBaseUrl: "https://app.safepredict.com/api/mobile",
+  defaultMobileApiBaseUrl: "https://safety360docs.com/api/mobile",
 } as const;
 
 export function productSentence(prefix?: string) {

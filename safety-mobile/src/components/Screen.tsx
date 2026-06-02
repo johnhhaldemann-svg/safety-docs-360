@@ -21,7 +21,7 @@ export function Screen({
   headerAside?: ReactNode;
 }) {
   const pathname = usePathname();
-  const showDock = pathname !== "/login" && pathname !== "/" && !pathname.endsWith("/new") && !footer;
+  const showDock = pathname !== "/login" && pathname !== "/" && !footer;
 
   return (
     <KeyboardAvoidingView
@@ -68,6 +68,7 @@ export function Screen({
 function BottomDock({ pathname }: { pathname: string }) {
   const items = [
     { href: "/dashboard", label: "Home", icon: "home-outline" },
+    { href: "/jsa", label: "JSA", icon: "document-text-outline" },
     { href: "/field-issues", label: "Issues", icon: "warning-outline" },
     { href: "/audits", label: "Audits", icon: "reader-outline" },
     { href: "/safety-intelligence", label: "AI", icon: "bulb-outline" },

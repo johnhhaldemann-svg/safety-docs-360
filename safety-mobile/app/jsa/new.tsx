@@ -32,6 +32,19 @@ const HAZARD_OPTIONS = [
   { id: "overhead", label: "Overhead" },
 ];
 
+const TASK_OPTIONS = [
+  { id: "site_access_setup", label: "Site access / setup" },
+  { id: "material_handling", label: "Material handling" },
+  { id: "equipment_operation", label: "Equipment operation" },
+  { id: "working_at_heights", label: "Working at heights" },
+  { id: "excavation_trenching", label: "Excavation / trenching" },
+  { id: "hot_work", label: "Hot work" },
+  { id: "energized_or_loto", label: "Electrical / LOTO" },
+  { id: "confined_space", label: "Confined space" },
+  { id: "rigging_lifting", label: "Rigging / lifting" },
+  { id: "cleanup_closeout", label: "Cleanup / closeout" },
+];
+
 const PPE_OPTIONS = [
   { id: "hard_hat", label: "Hard Hat" },
   { id: "safety_glasses", label: "Safety Glasses" },
@@ -75,7 +88,8 @@ export default function NewJsaScreen() {
   const [selectedJobsiteId, setSelectedJobsiteId] = useState("");
   const [trade, setTrade] = useState("general_contractor");
   const [workArea, setWorkArea] = useState("");
-  const [activityName, setActivityName] = useState("");
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [customTasks, setCustomTasks] = useState("");
   const [crewSize, setCrewSize] = useState("");
   const [hazardTags, setHazardTags] = useState<string[]>([]);
   const [hazardDescription, setHazardDescription] = useState("");
@@ -93,13 +107,23 @@ export default function NewJsaScreen() {
   const selectedJobsite = data?.jobsites.find((jobsite) => jobsite.id === selectedJobsiteId) ?? data?.jobsites[0] ?? null;
   const hazardCategory = hazardTags.join(",");
   const ppe = ppeTags.map((tag) => labelFor(PPE_OPTIONS, tag)).join(", ");
+  const selectedTaskLabels = selectedTaskIds.map((id) => labelFor(TASK_OPTIONS, id));
+  const customTaskLabels = customTasks
+    .split(/\n|,/)
+    .map((task) => task.trim())
+    .filter(Boolean);
+  const workTasks = Array.from(new Set([...selectedTaskLabels, ...customTaskLabels]));
   const mutation = useMutation({
     mutationFn: async () => {
+      if (workTasks.length < 1) {
+        throw new Error("Select at least one JSA task or enter a custom task.");
+      }
       const jobsiteId = selectedJobsite?.id ?? null;
       const created = await createJsa({
         title,
         description: [
           `Trade: ${labelFor(TRADE_OPTIONS, trade)}`,
+          `Tasks: ${workTasks.join("; ")}`,
           `Work area: ${workArea}`,
           `Supervisor: ${supervisor}`,
           `Shift phase: ${shiftPhase}`,
@@ -112,29 +136,31 @@ export default function NewJsaScreen() {
       });
       const id = created?.jsa?.id;
       if (!id) throw new Error("JSA was not created.");
-      await createJsaActivity({
-        jsaId: id,
-        jobsiteId,
-        workDate,
-        trade,
-        activityName: activityName || title,
-        area: workArea,
-        crewSize: Number.parseInt(crewSize, 10) || null,
-        hazardCategory,
-        hazardDescription,
-        mitigation,
-        permitRequired: permitRequired.trim().toLowerCase().startsWith("y"),
-        permitType,
-        plannedRiskLevel,
-        status: stepStatus
-      });
+      for (const activityName of workTasks) {
+        await createJsaActivity({
+          jsaId: id,
+          jobsiteId,
+          workDate,
+          trade,
+          activityName,
+          area: workArea,
+          crewSize: Number.parseInt(crewSize, 10) || null,
+          hazardCategory,
+          hazardDescription,
+          mitigation,
+          permitRequired: permitRequired.trim().toLowerCase().startsWith("y"),
+          permitType,
+          plannedRiskLevel,
+          status: stepStatus
+        });
+      }
       if (photo) await uploadJsaPhoto(id, photo);
       await signJsa(id, signature);
       await submitJsa(id);
       return id;
     },
     onSuccess: () => {
-      Alert.alert("Sent for review", "JSA sent to company admin review.");
+      Alert.alert("Sent for review", `JSA sent with ${workTasks.length} task${workTasks.length === 1 ? "" : "s"} for company admin review.`);
       router.replace("/jsa");
     },
     onError: (error) => Alert.alert("JSA failed", error instanceof Error ? error.message : "Could not submit JSA.")
@@ -200,7 +226,8 @@ export default function NewJsaScreen() {
         </AppCard>
 
         <AppCard title="Work Step & Controls" eyebrow="Step 2">
-          <Field label="Work Step / Activity" value={activityName} onChangeText={setActivityName} multiline />
+          <MultiSelect label="Task / Work Steps" selected={selectedTaskIds} options={TASK_OPTIONS} onToggle={(id) => toggleValue(setSelectedTaskIds, id)} />
+          <Field label="Additional Task(s)" value={customTasks} onChangeText={setCustomTasks} placeholder="One per line or comma-separated" multiline />
           <MultiSelect label="Hazard Tags" selected={hazardTags} options={HAZARD_OPTIONS} onToggle={(id) => toggleValue(setHazardTags, id)} />
           <Field label="Hazard Description" value={hazardDescription} onChangeText={setHazardDescription} multiline />
           <Field label="Controls / Mitigation" value={mitigation} onChangeText={setMitigation} multiline />
@@ -257,7 +284,7 @@ export default function NewJsaScreen() {
         <AppCard title="Evidence & Sign-Off" eyebrow="Final">
           <PhotoEvidenceButton selected={Boolean(photo)} onPress={addPhoto} />
           <Field label="Signature" value={signature} onChangeText={setSignature} placeholder="Printed name" />
-          <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title || !activityName || hazardTags.length < 1 || !hazardDescription || !mitigation || ppeTags.length < 1 || !signature}>
+          <Button onPress={() => mutation.mutate()} disabled={mutation.isPending || !title || workTasks.length < 1 || hazardTags.length < 1 || !hazardDescription || !mitigation || ppeTags.length < 1 || !signature}>
             {mutation.isPending ? "Sending..." : "Send JSA For Review"}
           </Button>
         </AppCard>

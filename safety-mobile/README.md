@@ -32,7 +32,7 @@ npm run start
 Set `EXPO_PUBLIC_API_BASE_URL` to the platform mobile API base URL, for example:
 
 ```text
-https://app.safepredict.com/api/mobile
+https://safety360docs.com/api/mobile
 ```
 
 ## Device Preview
