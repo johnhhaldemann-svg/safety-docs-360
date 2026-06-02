@@ -1,7 +1,16 @@
 {
   "source": "local deterministic golden evaluation run",
   "generatedAt": "2026-05-28T00:00:00.000Z",
-  "criticalEvalPassRate": 1,
+  "evalResults": {
+    "totalFixtures": 7,
+    "executedFixtures": 7,
+    "passedFixtures": 7,
+    "failedFixtures": 0,
+    "skippedFixtures": 0,
+    "registeredAdapters": 7,
+    "unregisteredFixtures": 0,
+    "telemetryAvailable": true
+  },
   "failureRate": 0,
   "fallbackRate": 0,
   "tokenCostRegression": 0,

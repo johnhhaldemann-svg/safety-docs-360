@@ -58,6 +58,14 @@ export function SelectedNodePanel({
   const provenance = provenanceCertificate(node.metadata);
   const reviewDueAt = text(node.metadata.reviewDueAt) ?? provenance?.reviewDueAt ?? null;
   const stale = isTrustedMemoryStale(node.metadata);
+  const visibilityBadges = memoryVisibilityBadges({
+    isFallback,
+    isSharedLibrary,
+    confidenceScore: node.confidenceScore,
+    validationStatus: node.validationStatus,
+    hasHighRisk,
+    stale,
+  });
 
   async function submitReview(edge: AiKnowledgeEdge, status: ReviewStatus, reason?: string) {
     const edgeKey = reviewEdgeKey(edge);
@@ -89,6 +97,13 @@ export function SelectedNodePanel({
       <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-bold text-amber-950">
         This AI Knowledge Map item does not prove compliance. Confirm source records, site conditions, and required controls before relying on it.
       </p>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {visibilityBadges.map((badge) => (
+          <span key={badge.label} className={`rounded-md border px-2 py-1 text-[11px] font-black ${badge.className}`}>
+            {badge.label}
+          </span>
+        ))}
+      </div>
       <dl className="mt-4 grid gap-2 text-xs text-slate-300">
         <Row label="Category" value={node.category} />
         <Row label="Risk score" value={node.riskScore == null ? "Not scored" : String(node.riskScore)} />
@@ -256,6 +271,35 @@ function messageTone(tone: "success" | "error" | "info") {
   if (tone === "success") return "border-emerald-300 bg-emerald-50 text-emerald-900";
   if (tone === "error") return "border-red-300 bg-red-50 text-red-900";
   return "border-sky-300 bg-sky-50 text-sky-900";
+}
+
+function memoryVisibilityBadges({
+  isFallback,
+  isSharedLibrary,
+  confidenceScore,
+  validationStatus,
+  hasHighRisk,
+  stale,
+}: {
+  isFallback: boolean;
+  isSharedLibrary: boolean;
+  confidenceScore: number | null;
+  validationStatus: AiKnowledgeNode["validationStatus"];
+  hasHighRisk: boolean;
+  stale: boolean;
+}) {
+  const badges = [
+    isFallback
+      ? { label: "Fallback-only", className: "border-amber-300 bg-amber-50 text-amber-950" }
+      : isSharedLibrary
+        ? { label: "Shared library", className: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" }
+        : { label: "Company-specific", className: "border-sky-300/25 bg-sky-300/10 text-sky-100" },
+  ];
+  if (stale) badges.push({ label: "Stale", className: "border-red-300/25 bg-red-300/10 text-red-100" });
+  if ((confidenceScore ?? 0.72) < 0.55) badges.push({ label: "Low confidence", className: "border-amber-300 bg-amber-50 text-amber-950" });
+  if (validationStatus !== "approved") badges.push({ label: "Pending review", className: "border-slate-300/20 bg-slate-300/10 text-slate-100" });
+  if (hasHighRisk) badges.push({ label: "High/critical: 2 reviews", className: "border-red-300 bg-red-50 text-red-950" });
+  return badges;
 }
 
 function InsightSection({ title, items }: { title: string; items: string[] }) {

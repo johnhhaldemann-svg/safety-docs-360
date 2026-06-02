@@ -55,6 +55,21 @@ function evidenceFromEdge(edge: Record<string, unknown>): AiKnowledgeEvidence[] 
   return [];
 }
 
+function isFallbackMemoryItem(item: Pick<TrustedKnowledgeGraphMemoryItem, "id" | "companyId">) {
+  return item.id.startsWith("fallback:") || !item.companyId;
+}
+
+function isHighOrCriticalRisk(value: AiKnowledgeRiskLevel | string | null | undefined) {
+  return value === "high" || value === "critical";
+}
+
+function rankTrustedMemoryItem(item: TrustedKnowledgeGraphMemoryItem) {
+  if (!isFallbackMemoryItem(item) && !item.isStale) return 0;
+  if (!isFallbackMemoryItem(item) && item.isStale) return 1;
+  if (isFallbackMemoryItem(item) && !isHighOrCriticalRisk(item.riskLevel)) return 2;
+  return 3;
+}
+
 async function loadApprovedEdges(client: DbClient, companyId: string, nodeIds: string[]) {
   if (nodeIds.length === 0) return new Map<string, Array<Record<string, unknown>>>();
   const { data: edgeRows } = (await client
@@ -84,6 +99,8 @@ function rowsToItems(rows: Array<Record<string, unknown>>, edgesBySource: Map<st
       ? metadata.provenanceCertificate as TrustedKnowledgeGraphMemoryItem["provenanceCertificate"]
       : null;
     const reviewDueAt = typeof metadata.reviewDueAt === "string" ? metadata.reviewDueAt : certificate?.reviewDueAt ?? null;
+    const isStale = isTrustedMemoryStale(metadata);
+    const confidenceScore = Math.min(Number(row.confidence_score ?? 0.72), isStale ? 0.49 : 1);
     return {
       id: `graph:${nodeId}`,
       nodeId,
@@ -95,13 +112,13 @@ function rowsToItems(rows: Array<Record<string, unknown>>, edgesBySource: Map<st
       category: String(row.category ?? "Knowledge Graph"),
       nodeType: String(row.node_type ?? row.type ?? "document") as AiKnowledgeNodeType,
       riskLevel: String(row.risk_level ?? "unknown") as AiKnowledgeRiskLevel,
-      confidenceScore: Number(row.confidence_score ?? 0.72),
+      confidenceScore,
       relationshipReasons,
       evidence: edges.flatMap(evidenceFromEdge).slice(0, 6),
       similarity: typeof row.similarity === "number" ? row.similarity : null,
       provenanceCertificate: certificate,
       reviewDueAt,
-      isStale: isTrustedMemoryStale(metadata),
+      isStale,
     };
   });
 }
@@ -207,27 +224,51 @@ export async function retrieveTrustedKnowledgeGraphMemory(
       if (sourceId) edgeReasonsByNode.set(sourceId, [...(edgeReasonsByNode.get(sourceId) ?? []), reason]);
       if (targetId) edgeReasonsByNode.set(targetId, [...(edgeReasonsByNode.get(targetId) ?? []), reason]);
     }
-    const fallbackItems = fallbackGraph.nodes.slice(0, limit - items.length).map((node): TrustedKnowledgeGraphMemoryItem => ({
-      id: `fallback:${node.id ?? node.sourceId}`,
-      nodeId: node.id ?? node.sourceId,
-      companyId: null,
-      title: clean(node.title, 180) || "General approved fallback guidance",
-      excerpt: clean(`General approved fallback guidance, not company-specific evidence: ${node.semanticSummary || node.description}`, 900),
-      sourceTable: node.sourceTable,
-      sourceId: node.sourceId,
-      category: node.category,
-      nodeType: node.nodeType,
-      riskLevel: node.riskLevel,
-      confidenceScore: node.confidenceScore ?? 0.68,
-      relationshipReasons: edgeReasonsByNode.get(node.id ?? "") ?? [],
-      evidence: [{
-        sourceTable: "ai_fallback_memory",
-        sourceRecordId: "approved-fallback",
-        label: "General approved fallback guidance",
-        detail: "This fallback memory is approved, anonymized, and not specific to the selected company.",
-      }],
-    }));
+    const fallbackItems = fallbackGraph.nodes.slice(0, limit - items.length).map((node): TrustedKnowledgeGraphMemoryItem => {
+      const highRiskFallback = isHighOrCriticalRisk(node.riskLevel);
+      const highRiskReason = highRiskFallback
+        ? "Fallback-only high/critical memory requires human review and possible stop-work evaluation before normal recommendations are used."
+        : null;
+      return {
+        id: `fallback:${node.id ?? node.sourceId}`,
+        nodeId: node.id ?? node.sourceId,
+        companyId: null,
+        title: clean(node.title, 180) || "General approved fallback guidance",
+        excerpt: clean([
+          `General approved fallback guidance, not company-specific evidence: ${node.semanticSummary || node.description}`,
+          highRiskFallback
+            ? "Because this is fallback-only high/critical guidance, recommend immediate human review and possible stop-work evaluation instead of treating it as a company-specific recommendation."
+            : "",
+        ].filter(Boolean).join(" "), 900),
+        sourceTable: node.sourceTable,
+        sourceId: node.sourceId,
+        category: node.category,
+        nodeType: node.nodeType,
+        riskLevel: node.riskLevel,
+        confidenceScore: Math.min(node.confidenceScore ?? 0.68, highRiskFallback ? 0.54 : 1),
+        relationshipReasons: [
+          ...(edgeReasonsByNode.get(node.id ?? "") ?? []),
+          ...(highRiskReason ? [highRiskReason] : []),
+        ],
+        evidence: [{
+          sourceTable: "ai_fallback_memory",
+          sourceRecordId: "approved-fallback",
+          label: "General approved fallback guidance",
+          detail: "This fallback memory is approved, anonymized, and not specific to the selected company.",
+        }],
+      };
+    });
     items.push(...fallbackItems);
+  }
+
+  items.sort((a, b) => rankTrustedMemoryItem(a) - rankTrustedMemoryItem(b));
+
+  const companySpecificItemCount = items.filter((item) => !isFallbackMemoryItem(item)).length;
+  if (companySpecificItemCount === 0 && items.some((item) => isFallbackMemoryItem(item) && isHighOrCriticalRisk(item.riskLevel))) {
+    warnings.push("High/critical AI guidance matched only general fallback memory; require human review and possible stop-work evaluation before work proceeds.");
+  }
+  if (items.some((item) => item.isStale)) {
+    warnings.push("Approved graph memory includes stale items; stale memory is downgraded and needs Super Admin refresh before being treated as current.");
   }
 
   return {
