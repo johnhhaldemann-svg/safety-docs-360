@@ -6,6 +6,14 @@ import { blockIfCsepOnlyCompany } from "@/lib/csepApiGuard";
 
 export const runtime = "nodejs";
 
+function isPendingReviewConstraintError(message?: string | null) {
+  const lower = (message ?? "").toLowerCase();
+  return (
+    lower.includes("company_jsas_status_check") ||
+    (lower.includes("violates check constraint") && lower.includes("pending_review"))
+  );
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -48,7 +56,7 @@ export async function POST(
     return NextResponse.json({ error: "You can only submit JSAs for assigned jobsites." }, { status: 403 });
   }
 
-  const result = await auth.supabase
+  let result = await auth.supabase
     .from("company_jsas")
     .update({
       status: "pending_review",
@@ -59,14 +67,30 @@ export async function POST(
     .select("*")
     .single();
 
+  if (result.error && isPendingReviewConstraintError(result.error.message)) {
+    result = await auth.supabase
+      .from("company_jsas")
+      .update({
+        status: "active",
+        updated_by: auth.user.id,
+      })
+      .eq("id", id)
+      .eq("company_id", companyScope.companyId)
+      .select("*")
+      .single();
+  }
+
   if (result.error) {
     return NextResponse.json({ error: result.error.message || "Failed to send JSA for review." }, { status: 500 });
   }
 
   return NextResponse.json({
     success: true,
-    reviewStatus: "pending_review",
-    message: "JSA sent for company admin review.",
+    reviewStatus: result.data.status === "pending_review" ? "pending_review" : "active",
+    message:
+      result.data.status === "pending_review"
+        ? "JSA sent for company admin review."
+        : "JSA submitted. Your workspace is using the legacy active status for submitted JSAs.",
     jsa: result.data,
   });
 }

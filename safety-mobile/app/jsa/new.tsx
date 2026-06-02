@@ -129,7 +129,7 @@ export default function NewJsaScreen() {
           `Shift phase: ${shiftPhase}`,
           `PPE: ${ppe}`
         ].filter((line) => !line.endsWith(": ")).join("\n"),
-        status: "active",
+        status: "draft",
         severity: plannedRiskLevel,
         category: hazardCategory || "corrective_action",
         jobsiteId
