@@ -136,8 +136,10 @@ export default function NewJsaScreen() {
       });
       const id = created?.jsa?.id;
       if (!id) throw new Error("JSA was not created.");
+      const permitActivityIds: string[] = [];
+      const permitTypes = new Set<string>();
       for (const activityName of workTasks) {
-        await createJsaActivity({
+        const createdActivity = await createJsaActivity({
           jsaId: id,
           jobsiteId,
           workDate,
@@ -153,14 +155,38 @@ export default function NewJsaScreen() {
           plannedRiskLevel,
           status: stepStatus
         });
+        const activityId = String(createdActivity?.activity?.id ?? "");
+        if (permitRequired.trim().toLowerCase().startsWith("y") && activityId) {
+          permitActivityIds.push(activityId);
+          if (permitType) permitTypes.add(permitType);
+        }
       }
       if (photo) await uploadJsaPhoto(id, photo);
       await signJsa(id, signature);
       await submitJsa(id);
-      return id;
+      return { id, jobsiteId, permitActivityIds, permitTypes: Array.from(permitTypes) };
     },
-    onSuccess: () => {
-      Alert.alert("Sent for review", `JSA sent with ${workTasks.length} task${workTasks.length === 1 ? "" : "s"} for company admin review.`);
+    onSuccess: (result) => {
+      const message = `JSA sent with ${workTasks.length} task${workTasks.length === 1 ? "" : "s"} for company admin review.`;
+      if (result.permitActivityIds.length > 0) {
+        Alert.alert("Sent for review", `${message} Create linked permit requests now?`, [
+          {
+            text: "Create Permits",
+            onPress: () =>
+              router.replace({
+                pathname: "/permits/new",
+                params: {
+                  jobsiteId: result.jobsiteId ?? "",
+                  jsaActivityIds: result.permitActivityIds.join(","),
+                  permitTypes: result.permitTypes.join(",")
+                }
+              })
+          },
+          { text: "JSA Register", onPress: () => router.replace("/jsa"), style: "cancel" }
+        ]);
+        return;
+      }
+      Alert.alert("Sent for review", message);
       router.replace("/jsa");
     },
     onError: (error) => Alert.alert("JSA failed", error instanceof Error ? error.message : "Could not submit JSA.")

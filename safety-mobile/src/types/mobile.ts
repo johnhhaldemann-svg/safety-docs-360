@@ -83,6 +83,32 @@ export type MobileMe = {
   };
 };
 
+export type MobilePermit = {
+  id: string;
+  title?: string | null;
+  permit_type?: string | null;
+  status?: string | null;
+  severity?: string | null;
+  updated_at?: string | null;
+  due_at?: string | null;
+  dap_activity_id?: string | null;
+};
+
+export type MobileJsaActivity = {
+  id: string;
+  jsa_id?: string | null;
+  jobsite_id?: string | null;
+  work_date?: string | null;
+  trade?: string | null;
+  activity_name?: string | null;
+  area?: string | null;
+  permit_required?: boolean | null;
+  permit_type?: string | null;
+  planned_risk_level?: string | null;
+  status?: string | null;
+  updated_at?: string | null;
+};
+
 export type ApiList<T> = {
   [key: string]: T[] | unknown;
 };

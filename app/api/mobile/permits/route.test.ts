@@ -40,6 +40,19 @@ function buildSupabase() {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({ data: { id: "jobsite-1", status: "active" }, error: null }),
   };
+  const activityQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: {
+        id: "activity-1",
+        jobsite_id: "jobsite-1",
+        activity_name: "Hot work layout",
+        permit_type: "hot_work",
+      },
+      error: null,
+    }),
+  };
   const permitQuery = {
     insert: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
@@ -55,6 +68,7 @@ function buildSupabase() {
     client: {
       from: vi.fn((table: string) => {
         if (table === "company_jobsites") return jobsiteQuery;
+        if (table === "company_jsa_activities") return activityQuery;
         if (table === "company_permits") return permitQuery;
         if (table === "company_risk_events") return eventsQuery;
         return {};
@@ -166,6 +180,42 @@ describe("/api/mobile/permits", () => {
         title: "Hot work",
         permit_type: "hot_work",
         jobsite_id: "jobsite-1",
+      })
+    );
+  });
+
+  it("creates a draft permit linked to a JSA activity", async () => {
+    const { client, permitQuery } = buildSupabase();
+    authorizeRequest.mockResolvedValue({
+      user: { id: "user-1" },
+      role: "field_supervisor",
+      team: null,
+      permissionMap: { can_create_documents: true, can_access_field_work: true },
+      supabase: client,
+    });
+
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/mobile/permits", {
+          method: "POST",
+          body: JSON.stringify({
+            title: "Hot work layout permit",
+            permitType: "hot_work",
+            jobsiteId: "jobsite-1",
+            jsaActivityId: "activity-1",
+          }),
+        })
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(permitQuery.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "draft",
+        title: "Hot work layout permit",
+        permit_type: "hot_work",
+        jobsite_id: "jobsite-1",
+        dap_activity_id: "activity-1",
       })
     );
   });

@@ -41,7 +41,7 @@ export function RegisterRow({
 
 function badgeTone(badge?: string) {
   const normalized = String(badge ?? "").toLowerCase();
-  if (normalized.includes("pending")) return { color: theme.warning, background: theme.warningSoft };
+  if (normalized.includes("pending") || normalized.includes("draft")) return { color: theme.warning, background: theme.warningSoft };
   if (normalized.includes("open") || normalized.includes("active")) return { color: theme.info, background: theme.infoSoft };
   if (normalized.includes("submit") || normalized.includes("complete") || normalized.includes("closed")) {
     return { color: theme.success, background: theme.successSoft };
