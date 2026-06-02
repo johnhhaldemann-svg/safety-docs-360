@@ -1,5 +1,5 @@
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, deleteStoredToken, getStoredToken, setStoredToken } from "@/auth/tokenStorage";
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://safety360docs.com/api/mobile";
@@ -22,14 +22,14 @@ export function setAuthTokens(accessToken: string | null, refreshToken?: string 
 
 async function getStoredAccessToken() {
   if (accessTokenCache) return accessTokenCache;
-  const token = await SecureStore.getItemAsync("access_token");
+  const token = await getStoredToken(ACCESS_TOKEN_KEY);
   if (token) setAuthTokens(token);
   return token;
 }
 
 async function getStoredRefreshToken() {
   if (refreshTokenCache) return refreshTokenCache;
-  const token = await SecureStore.getItemAsync("refresh_token");
+  const token = await getStoredToken(REFRESH_TOKEN_KEY);
   refreshTokenCache = token;
   return token;
 }
@@ -43,8 +43,8 @@ async function refreshAccessToken() {
     const nextAccessToken = typeof data?.accessToken === "string" ? data.accessToken : null;
     const nextRefreshToken = typeof data?.refreshToken === "string" ? data.refreshToken : refreshToken;
     if (!nextAccessToken) return null;
-    await SecureStore.setItemAsync("access_token", nextAccessToken);
-    await SecureStore.setItemAsync("refresh_token", nextRefreshToken);
+    await setStoredToken(ACCESS_TOKEN_KEY, nextAccessToken);
+    await setStoredToken(REFRESH_TOKEN_KEY, nextRefreshToken);
     setAuthTokens(nextAccessToken, nextRefreshToken);
     return nextAccessToken;
   })().finally(() => {
@@ -102,8 +102,8 @@ api.interceptors.response.use(
       const apiError = new Error(message) as Error & { status?: number };
       apiError.status = error?.response?.status;
       if (apiError.status === 401) {
-        void SecureStore.deleteItemAsync("access_token");
-        void SecureStore.deleteItemAsync("refresh_token");
+        void deleteStoredToken(ACCESS_TOKEN_KEY);
+        void deleteStoredToken(REFRESH_TOKEN_KEY);
         setAuthTokens(null, null);
       }
       return Promise.reject(apiError);
@@ -112,8 +112,8 @@ api.interceptors.response.use(
       const apiError = new Error(`API returned ${error.response.status}.`) as Error & { status?: number };
       apiError.status = error.response.status;
       if (apiError.status === 401) {
-        void SecureStore.deleteItemAsync("access_token");
-        void SecureStore.deleteItemAsync("refresh_token");
+        void deleteStoredToken(ACCESS_TOKEN_KEY);
+        void deleteStoredToken(REFRESH_TOKEN_KEY);
         setAuthTokens(null, null);
       }
       return Promise.reject(apiError);
