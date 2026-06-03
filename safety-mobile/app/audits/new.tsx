@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMemo, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, Field } from "@/components/Form";
 import { PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
@@ -81,7 +82,7 @@ export default function NewAuditScreen() {
   const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [sectionPage, setSectionPage] = useState(0);
-  const [photo, setPhoto] = useState<ImagePickerAsset | null>(null);
+  const [photos, setPhotos] = useState<ImagePickerAsset[]>([]);
   const [signature, setSignature] = useState("");
 
   const selectedTemplates = useMemo(() => {
@@ -145,7 +146,7 @@ export default function NewAuditScreen() {
     }
     return rows;
   }, [combinedSections, correctiveActionsMap, statusMap]);
-  const totalPhotos = Object.values(photoCounts).reduce((total, count) => total + count, 0);
+  const totalPhotos = photos.length;
 
   function setRowStatus(key: string, status: AuditStatus) {
     setStatusMap((current) => ({ ...current, [key]: status }));
@@ -190,7 +191,7 @@ export default function NewAuditScreen() {
     try {
       const nextPhoto = await pickPhotoFromCamera();
       if (!nextPhoto) return;
-      setPhoto(nextPhoto);
+      setPhotos((current) => [...current, nextPhoto]);
       setPhotoCounts((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
     } catch (error) {
       Alert.alert("Photo failed", error instanceof Error ? error.message : "Could not add photo.");
@@ -201,7 +202,7 @@ export default function NewAuditScreen() {
     try {
       const nextPhoto = await pickPhotoFromLibrary();
       if (!nextPhoto) return;
-      setPhoto(nextPhoto);
+      setPhotos((current) => [...current, nextPhoto]);
       setPhotoCounts((current) => ({ ...current, [key]: (current[key] ?? 0) + 1 }));
     } catch (error) {
       Alert.alert("Photo failed", error instanceof Error ? error.message : "Could not choose photo.");
@@ -247,7 +248,11 @@ export default function NewAuditScreen() {
         photoCounts
       });
       const id = created?.audit?.id;
-      if (id && photo) await uploadAuditPhoto(id, photo);
+      if (id) {
+        for (const photo of photos) {
+          await uploadAuditPhoto(id, photo);
+        }
+      }
       if (id && signature) await signAudit(id, signature);
       return id;
     },
@@ -266,6 +271,9 @@ export default function NewAuditScreen() {
         style={[styles.pageButton, activePage === 0 ? styles.pageButtonDisabled : null]}
       >
         <Text style={styles.pageButtonText}>Previous</Text>
+      </Pressable>
+      <Pressable onPress={() => router.replace("/dashboard")} style={styles.pageHomeButton}>
+        <Ionicons name="home-outline" size={18} color={theme.primary} />
       </Pressable>
       <Text style={styles.pageCount}>Section {activePage + 1} of {sectionCount}</Text>
       <Pressable
@@ -578,6 +586,7 @@ const styles = StyleSheet.create({
   pageButton: { minHeight: 42, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: theme.radiusMd, paddingHorizontal: 12, paddingVertical: 10 },
   pageButtonDisabled: { opacity: 0.45 },
   pageButtonText: { color: theme.primary, fontWeight: "900", fontSize: 12 },
+  pageHomeButton: { minHeight: 42, minWidth: 42, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: theme.radiusMd, alignItems: "center", justifyContent: "center" },
   pageCount: { color: theme.textStrong, fontWeight: "900", fontSize: 12 },
   sectionHeader: { flexDirection: "row", gap: 10, alignItems: "flex-start", justifyContent: "space-between" },
   sectionHeaderText: { flex: 1, gap: 3 },
@@ -606,7 +615,7 @@ const styles = StyleSheet.create({
   statusButtonActive: { borderColor: theme.primary, backgroundColor: theme.primary },
   statusButtonPass: { borderColor: theme.success, backgroundColor: theme.success },
   statusButtonFail: { borderColor: theme.danger, backgroundColor: theme.danger },
-  statusButtonNa: { borderColor: theme.primary, backgroundColor: theme.primary },
+  statusButtonNa: { borderColor: theme.steel, backgroundColor: theme.steel },
   statusText: { color: theme.text, fontWeight: "900", fontSize: 12 },
   statusTextActive: { color: theme.white, fontWeight: "900", fontSize: 12 },
   evidenceButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: theme.radiusMd, padding: 12, gap: 4 },

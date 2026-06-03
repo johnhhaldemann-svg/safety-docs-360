@@ -36,6 +36,7 @@ export function Screen({
           style={styles.scroll}
           contentContainerStyle={[
             styles.content,
+            Platform.OS === "web" ? styles.webContent : null,
             footer ? styles.contentWithFooter : null,
             showDock ? styles.contentWithDock : null,
           ]}
@@ -59,7 +60,7 @@ export function Screen({
           {children}
         </ScrollView>
         {showDock ? <BottomDock pathname={pathname} /> : null}
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? <View style={[styles.footer, Platform.OS === "web" ? styles.webFooter : null]}>{footer}</View> : null}
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -122,6 +123,7 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 18, gap: 14 },
+  webContent: { width: "100%", maxWidth: 440, alignSelf: "center" },
   contentWithFooter: { paddingBottom: 116 },
   contentWithDock: { paddingBottom: 104 },
   footer: {
@@ -137,6 +139,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     elevation: 10,
   },
+  webFooter: { width: "100%", maxWidth: 440, alignSelf: "center" },
   header: {
     position: "relative",
     overflow: "hidden",

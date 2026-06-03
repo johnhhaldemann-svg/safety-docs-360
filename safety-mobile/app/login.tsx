@@ -6,6 +6,7 @@ import { Button, Field } from "@/components/Form";
 import { AppCard, StatusBanner } from "@/components/Enterprise";
 import { Screen } from "@/components/Screen";
 import { login } from "@/api/mobile";
+import { getFriendlyApiError } from "@/api/client";
 import { saveSession } from "@/auth/session";
 import { theme } from "@/theme";
 
@@ -13,15 +14,19 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function submit() {
     setLoading(true);
+    setErrorMessage("");
     try {
       const session = await login(email, password);
       await saveSession(session.accessToken, session.refreshToken);
       router.replace("/dashboard");
     } catch (error) {
-      Alert.alert("Login failed", error instanceof Error ? error.message : "Check your email and password.");
+      const message = getFriendlyApiError(error, "Check your email and password.");
+      setErrorMessage(message);
+      Alert.alert("Login failed", message);
     } finally {
       setLoading(false);
     }
@@ -30,7 +35,7 @@ export default function LoginScreen() {
   return (
     <Screen
       title="Sign In"
-      subtitle="Use your existing SafePredict company account."
+      subtitle="Use your existing Safety360 company account."
       footer={
         <View style={styles.footerActions}>
           <Button onPress={submit} disabled={loading}>
@@ -44,11 +49,11 @@ export default function LoginScreen() {
           <Ionicons name="shield-checkmark" size={32} color={theme.white} />
         </View>
         <View style={styles.brandText}>
-          <Text style={styles.brandKicker}>SafePredict Field</Text>
+          <Text style={styles.brandKicker}>Safety360 Field</Text>
           <Text style={styles.brandTitle}>Field safety, synced to the platform.</Text>
         </View>
       </View>
-      <AppCard title="Company Field Access" eyebrow="SafePredict Field">
+      <AppCard title="Company Field Access" eyebrow="Safety360 Field">
         <Field
           label="Email"
           value={email}
@@ -72,6 +77,7 @@ export default function LoginScreen() {
           returnKeyType="done"
         />
       </AppCard>
+      {errorMessage ? <StatusBanner title="Login Failed" detail={errorMessage} tone="danger" /> : null}
       <StatusBanner title="Login Required" detail="Field workflows require an approved platform account." tone="info" />
       <Text style={styles.note}>Internet is required for version 1.</Text>
     </Screen>

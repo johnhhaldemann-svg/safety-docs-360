@@ -6,7 +6,7 @@ export async function pickPhotoFromCamera() {
     throw new Error("Camera permission is required to take photos.");
   }
   const result = await ImagePicker.launchCameraAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: "images",
     quality: 0.75
   });
   if (result.canceled) return null;
@@ -19,13 +19,9 @@ export async function pickPhotoFromLibrary() {
     throw new Error("Photo library permission is required to choose photos from your phone.");
   }
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: "images",
     quality: 0.75
   });
   if (result.canceled) return null;
   return result.assets[0] ?? null;
-}
-
-export async function pickPhoto() {
-  return pickPhotoFromCamera();
 }

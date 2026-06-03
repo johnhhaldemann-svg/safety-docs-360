@@ -1,7 +1,7 @@
 "use client";
 import { deferEffect } from "@/lib/deferredEffect";
 
-import { ClipboardCheck, Eye, FileText, RefreshCw, RotateCcw, Save, Search, Send } from "lucide-react";
+import { ClipboardCheck, Download, Eye, FileText, RefreshCw, RotateCcw, Save, Search, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppTabBar } from "@/components/AppTabBar";
 import { FieldAuditChecklist } from "@/components/jobsite-audits/FieldAuditChecklist";
@@ -365,15 +365,16 @@ export default function CompanyFieldAuditsPage() {
     }
   }
 
-  async function openAuditPdf(auditId: string) {
-    setPreviewingAuditId(auditId);
+  async function openAuditPdf(audit: AuditListRow) {
+    setPreviewingAuditId(audit.id);
     setMessage("");
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not signed in.");
-      const res = await fetch(`/api/company/field-audits/${auditId}/report-pdf`, {
+      const previewSuffix = audit.status === "pending_review" ? "?preview=1" : "";
+      const res = await fetch(`/api/company/field-audits/${audit.id}/report-pdf${previewSuffix}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) {
@@ -768,39 +769,49 @@ export default function CompanyFieldAuditsPage() {
                           ) : null}
                         </div>
                       ) : null}
-                      {audit.status === "pending_review" ? (
+                      {audit.status === "pending_review" || audit.status === "submitted" ? (
                         <div className="mt-3 space-y-2">
                           <p className="text-xs text-slate-400">
-                            Customer PDF: {copyEmail || "No customer email saved"}
+                            {audit.status === "submitted"
+                              ? "Approved PDF is ready to download."
+                              : `Customer PDF: ${copyEmail || "No customer email saved"}`}
                           </p>
                           <div className="grid gap-2">
                             <button
                               type="button"
-                              onClick={() => void openAuditPdf(audit.id)}
+                              onClick={() => void openAuditPdf(audit)}
                               disabled={previewingAuditId === audit.id || reviewingAuditId === audit.id}
                               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-100 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
                             >
-                              <Eye className="h-4 w-4" />
-                              {previewingAuditId === audit.id ? "Opening PDF..." : "View Finished PDF"}
+                              {audit.status === "submitted" ? <Download className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              {previewingAuditId === audit.id
+                                ? "Opening PDF..."
+                                : audit.status === "submitted"
+                                  ? "Download Approved PDF"
+                                  : "Preview PDF"}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void reviewAudit(audit.id, "approved")}
-                              disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-                            >
-                              <Send className="h-4 w-4" />
-                              {reviewingAuditId === audit.id ? "Reviewing..." : "Approve & Email PDF"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void reviewAudit(audit.id, "rejected")}
-                              disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/60 bg-amber-950/40 px-3 py-2 text-xs font-bold text-amber-100 transition hover:bg-amber-900/60 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              {reviewingAuditId === audit.id ? "Reviewing..." : "Send Back"}
-                            </button>
+                            {audit.status === "pending_review" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void reviewAudit(audit.id, "approved")}
+                                  disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                                >
+                                  <Send className="h-4 w-4" />
+                                  {reviewingAuditId === audit.id ? "Reviewing..." : "Approve & Email PDF"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void reviewAudit(audit.id, "rejected")}
+                                  disabled={reviewingAuditId === audit.id || previewingAuditId === audit.id}
+                                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/60 bg-amber-950/40 px-3 py-2 text-xs font-bold text-amber-100 transition hover:bg-amber-900/60 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  {reviewingAuditId === audit.id ? "Reviewing..." : "Send Back"}
+                                </button>
+                              </>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}

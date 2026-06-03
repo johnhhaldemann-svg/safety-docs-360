@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(rootDir, "."),
+      // React 19 moved server rendering to subpath exports; Vitest in Node env
+      // needs the .node variant explicitly.
+      "react-dom/server": resolve(rootDir, "node_modules/react-dom/server.node.js"),
     },
   },
   test: {

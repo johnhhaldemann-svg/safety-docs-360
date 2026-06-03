@@ -12,6 +12,7 @@ export const E2E_PLACEHOLDER_UUID = "00000000-0000-4000-8000-000000000001";
 export const PUBLIC_ROUTES = [
   "/",
   "/login",
+  "/reset-password",
   "/marketing",
   "/terms",
   "/privacy",

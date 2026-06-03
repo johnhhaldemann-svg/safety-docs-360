@@ -20,7 +20,7 @@ vi.mock("@/lib/rbac", async () => {
   return { ...actual, authorizeRequest, getUserRoleContext };
 });
 
-import { PATCH } from "./route";
+import { PATCH, POST } from "./route";
 
 describe("/api/admin/users/[id]", () => {
   beforeEach(() => {
@@ -233,5 +233,117 @@ describe("/api/admin/users/[id]", () => {
     expect(response.status).toBe(500);
     expect(payload.error).toContain("membership role constraint");
     expect(payload.error).not.toContain("new row for relation");
+  });
+
+  it("sets a company user's password without writing the password to the audit event", async () => {
+    const updateUserById = vi.fn().mockResolvedValue({ data: { user: { id: "target-1" } }, error: null });
+    const securityInsert = vi.fn().mockResolvedValue({ error: null });
+
+    const adminClient = {
+      auth: {
+        admin: {
+          getUserById: vi.fn().mockResolvedValue({
+            data: {
+              user: { id: "target-1", email: "worker@example.com" },
+            },
+            error: null,
+          }),
+          updateUserById,
+        },
+      },
+      from: vi.fn((table: string) => {
+        if (table === "user_roles") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { company_id: "company-1" },
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        if (table === "company_security_events") {
+          return {
+            insert: securityInsert,
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+    createSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/admin/users/target-1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "set_password",
+            password: "Temporary123!",
+          }),
+        }),
+        { params: Promise.resolve({ id: "target-1" }) }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateUserById).toHaveBeenCalledWith("target-1", {
+      password: "Temporary123!",
+      email_confirm: true,
+    });
+    expect(securityInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        company_id: "company-1",
+        event_type: "user_access_updated",
+        resource_type: "company_user",
+        resource_id: "target-1",
+        metadata: {
+          action: "set_password",
+          targetEmail: "worker@example.com",
+        },
+      })
+    );
+    expect(JSON.stringify(securityInsert.mock.calls)).not.toContain("Temporary123!");
+  });
+
+  it("rejects short admin-set passwords", async () => {
+    const updateUserById = vi.fn();
+    const adminClient = {
+      auth: {
+        admin: {
+          getUserById: vi.fn().mockResolvedValue({
+            data: {
+              user: { id: "target-1", email: "worker@example.com" },
+            },
+            error: null,
+          }),
+          updateUserById,
+        },
+      },
+    };
+    createSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const response = requireRouteResponse(
+      await POST(
+        new Request("https://example.com/api/admin/users/target-1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "set_password",
+            password: "short",
+          }),
+        }),
+        { params: Promise.resolve({ id: "target-1" }) }
+      )
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("at least 12 characters");
+    expect(updateUserById).not.toHaveBeenCalled();
   });
 });

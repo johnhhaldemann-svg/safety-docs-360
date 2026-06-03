@@ -324,6 +324,7 @@ export default function AdminCompanyDetailPage({
   const [processingAction, setProcessingAction] = useState(false);
   const [canPermanentlyDeleteCompanies, setCanPermanentlyDeleteCompanies] = useState(false);
   const [canManageCompanySubscription, setCanManageCompanySubscription] = useState(false);
+  const [canManageCompanyUserAuthActions, setCanManageCompanyUserAuthActions] = useState(false);
   const [canOverrideCompanyPricing, setCanOverrideCompanyPricing] = useState(false);
   const [canManageCompanyPermissions, setCanManageCompanyPermissions] = useState(false);
   const [subscription, setSubscription] = useState<CompanySubscriptionSummary | null>(null);
@@ -368,6 +369,10 @@ export default function AdminCompanyDetailPage({
     emptyTrackedEmployeeForm
   );
   const [trackedEmployeeSaving, setTrackedEmployeeSaving] = useState(false);
+  const [companyUserActionLoading, setCompanyUserActionLoading] = useState("");
+  const [passwordUser, setPasswordUser] = useState<CompanyUser | null>(null);
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("");
 
   const activeImportRows = importPreview[importTab];
   const activeImportValidation = useMemo(
@@ -411,6 +416,7 @@ export default function AdminCompanyDetailPage({
             capabilities?: {
               canPermanentlyDeleteCompanies?: boolean;
               canManageCompanySubscription?: boolean;
+              canManageCompanyUserAuthActions?: boolean;
               canOverrideCompanyPricing?: boolean;
               canManageCompanyPermissions?: boolean;
             };
@@ -443,6 +449,7 @@ export default function AdminCompanyDetailPage({
         setActivity([]);
         setCanPermanentlyDeleteCompanies(false);
         setCanManageCompanySubscription(false);
+        setCanManageCompanyUserAuthActions(false);
         setCanOverrideCompanyPricing(false);
         setCanManageCompanyPermissions(false);
         setSubscription(null);
@@ -457,6 +464,9 @@ export default function AdminCompanyDetailPage({
       );
       setCanManageCompanySubscription(
         Boolean(data?.capabilities?.canManageCompanySubscription)
+      );
+      setCanManageCompanyUserAuthActions(
+        Boolean(data?.capabilities?.canManageCompanyUserAuthActions)
       );
       setCanOverrideCompanyPricing(Boolean(data?.capabilities?.canOverrideCompanyPricing));
       setCanManageCompanyPermissions(
@@ -518,6 +528,7 @@ export default function AdminCompanyDetailPage({
       setDocuments([]);
       setActivity([]);
       setCompanyHealth(null);
+      setCanManageCompanyUserAuthActions(false);
       setCanOverrideCompanyPricing(false);
       setCanManageCompanyPermissions(false);
       setCompanyPermissionDraft({ allow: [], deny: [] });
@@ -1097,6 +1108,83 @@ export default function AdminCompanyDetailPage({
 
     setTrackedEmployeeSaving(false);
   }, [companyId, editingTrackedEmployee, loadCompany, resetTrackedEmployeeEditor, trackedEmployeeForm]);
+
+  const handleCompanyUserAuthAction = useCallback(
+    async (user: CompanyUser, action: "password_reset" | "set_password") => {
+      const nextPassword = passwordDraft;
+
+      if (action === "set_password") {
+        if (nextPassword.length < 12) {
+          setMessageTone("error");
+          setMessage("Password must be at least 12 characters.");
+          return;
+        }
+
+        if (nextPassword !== confirmPasswordDraft) {
+          setMessageTone("error");
+          setMessage("Password confirmation does not match.");
+          return;
+        }
+      }
+
+      setCompanyUserActionLoading(`${user.id}:${action}`);
+      setMessage("");
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error || !session?.access_token) {
+          setMessageTone("error");
+          setMessage("You must be logged in as an internal admin.");
+          setCompanyUserActionLoading("");
+          return;
+        }
+
+        const response = await fetch(`/api/admin/users/${user.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            action,
+            ...(action === "set_password" ? { password: nextPassword } : {}),
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+
+        if (!response.ok) {
+          setMessageTone("error");
+          setMessage(data?.error || "Failed to update company user password.");
+          setCompanyUserActionLoading("");
+          return;
+        }
+
+        setMessageTone("success");
+        setMessage(
+          action === "set_password"
+            ? `Password set for ${user.email || user.name}.`
+            : `Password reset link sent to ${user.email || user.name}.`
+        );
+        setPasswordUser(null);
+        setPasswordDraft("");
+        setConfirmPasswordDraft("");
+        await loadCompany();
+      } catch (error) {
+        setMessageTone("error");
+        setMessage(
+          error instanceof Error ? error.message : "Failed to update company user password."
+        );
+      }
+
+      setCompanyUserActionLoading("");
+    },
+    [confirmPasswordDraft, loadCompany, passwordDraft]
+  );
 
   useEffect(() => {
     if (!companyId) return;
@@ -2256,17 +2344,28 @@ export default function AdminCompanyDetailPage({
             description="Company admins and employees will appear here once they are linked to the workspace."
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-700/80">
-            <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-b border-slate-700/80 bg-slate-950/50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="overflow-x-auto rounded-2xl border border-slate-700/80">
+            <div
+              className={`grid ${
+                canManageCompanyUserAuthActions
+                  ? "grid-cols-[1.3fr_0.75fr_0.75fr_0.8fr_1.1fr]"
+                  : "grid-cols-[1.4fr_0.9fr_0.9fr_1fr]"
+              } min-w-[760px] gap-3 border-b border-slate-700/80 bg-slate-950/50 px-5 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400`}
+            >
               <div>User</div>
               <div>Role</div>
               <div>Status</div>
               <div>Last Seen</div>
+              {canManageCompanyUserAuthActions ? <div>Actions</div> : null}
             </div>
             {users.map((user) => (
               <div
                 key={user.id}
-                className="grid grid-cols-[1.4fr_0.9fr_0.9fr_1fr] gap-3 border-t border-slate-700/60 px-5 py-4 text-sm text-slate-400 first:border-t-0"
+                className={`grid ${
+                  canManageCompanyUserAuthActions
+                    ? "grid-cols-[1.3fr_0.75fr_0.75fr_0.8fr_1.1fr]"
+                    : "grid-cols-[1.4fr_0.9fr_0.9fr_1fr]"
+                } min-w-[760px] gap-3 border-t border-slate-700/60 px-5 py-4 text-sm text-slate-400 first:border-t-0`}
               >
                 <div>
                   <div className="font-semibold text-slate-100">{user.name}</div>
@@ -2277,11 +2376,116 @@ export default function AdminCompanyDetailPage({
                   <StatusBadge label={user.status} tone={statusTone(user.status)} />
                 </div>
                 <div>{formatRelative(user.last_sign_in_at ?? user.created_at)}</div>
+                {canManageCompanyUserAuthActions ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCompanyUserAuthAction(user, "password_reset")}
+                      disabled={companyUserActionLoading === `${user.id}:password_reset`}
+                      className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800/80 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {companyUserActionLoading === `${user.id}:password_reset`
+                        ? "Sending..."
+                        : "Reset Link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasswordUser(user);
+                        setPasswordDraft("");
+                        setConfirmPasswordDraft("");
+                        setMessage("");
+                      }}
+                      disabled={companyUserActionLoading === `${user.id}:set_password`}
+                      className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {companyUserActionLoading === `${user.id}:set_password`
+                        ? "Saving..."
+                        : "Set Password"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
         )}
       </SectionCard>
+
+      {passwordUser ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 [color-scheme:dark]">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-300">
+                  Company Password
+                </p>
+                <h3 className="mt-2 text-xl font-bold text-slate-100">{passwordUser.name}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {passwordUser.email || passwordUser.id}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordUser(null);
+                  setPasswordDraft("");
+                  setConfirmPasswordDraft("");
+                }}
+                className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label className="grid gap-2 text-sm font-semibold text-slate-200">
+                New password
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordDraft}
+                  onChange={(event) => setPasswordDraft(event.target.value)}
+                  className="rounded-xl border border-slate-600 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-slate-200">
+                Confirm password
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPasswordDraft}
+                  onChange={(event) => setConfirmPasswordDraft(event.target.value)}
+                  className="rounded-xl border border-slate-600 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordUser(null);
+                  setPasswordDraft("");
+                  setConfirmPasswordDraft("");
+                }}
+                className="rounded-xl border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCompanyUserAuthAction(passwordUser, "set_password")}
+                disabled={companyUserActionLoading === `${passwordUser.id}:set_password`}
+                className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {companyUserActionLoading === `${passwordUser.id}:set_password`
+                  ? "Saving..."
+                  : "Set Password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <section className="grid gap-8 xl:grid-cols-2">
         <ActivityFeed

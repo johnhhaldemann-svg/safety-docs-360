@@ -264,7 +264,7 @@ async function buildPdfExportChecks(): Promise<OwnerDocumentExportCheckResult[]>
       artifactLabel: "PDF export",
       text,
       expectedPhrases: [SAFETY360_TEST_COMPANY_NAME, "High-risk jobsite", "Finished Field Audit Report"],
-      requiredSections: ["Report details", "Findings summary", "Approval note"],
+      requiredSections: ["Report details", "Findings summary", "Approval record"],
     });
 
     return [

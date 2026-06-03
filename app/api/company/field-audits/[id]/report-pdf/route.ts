@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateFieldAuditReportPdf } from "@/lib/fieldAudits/reportPdf";
 import { getCompanyScope } from "@/lib/companyScope";
 import { isJobsiteAllowed, getJobsiteAccessScope } from "@/lib/jobsiteAccess";
-import { authorizeRequest, isAdminRole } from "@/lib/rbac";
+import { authorizeRequest, isAdminRole, isCompanyRole } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 
@@ -32,12 +32,19 @@ function safeFilename(filename: string) {
 
 export async function GET(request: Request, context: RouteContext) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_view_all_company_data", "can_view_analytics", "can_manage_observations"],
+    requireAnyPermission: [
+      "can_submit_documents",
+      "can_manage_observations",
+      "can_create_documents",
+      "can_view_dashboards",
+      "can_view_all_company_data",
+      "can_view_analytics",
+    ],
   });
   if ("error" in auth) return auth.error;
-  if (!isReviewRole(auth.role)) {
+  if (!isCompanyRole(auth.role) && !isAdminRole(auth.role)) {
     return NextResponse.json(
-      { error: "Only company admins and safety managers can view field audit reports." },
+      { error: "Field audit reports are available to company workspace roles." },
       { status: 403 }
     );
   }
@@ -45,6 +52,7 @@ export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const auditId = String(id ?? "").trim();
   if (!auditId) return NextResponse.json({ error: "Audit id is required." }, { status: 400 });
+  const wantsPreview = new URL(request.url).searchParams.get("preview") === "1";
 
   const companyScope = await getCompanyScope({
     supabase: auth.supabase,
@@ -58,7 +66,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const auditResult = await auth.supabase
     .from("company_jobsite_audits")
-    .select("id, company_id, jobsite_id, audit_customer_id, audit_customer_location_id, audit_date, auditors, selected_trade, status, score_summary, payload, ai_review_summary")
+    .select("id, company_id, jobsite_id, audit_customer_id, audit_customer_location_id, audit_date, auditors, selected_trade, status, score_summary, payload, ai_review_summary, submitted_by")
     .eq("company_id", companyScope.companyId)
     .eq("id", auditId)
     .maybeSingle();
@@ -72,6 +80,22 @@ export async function GET(request: Request, context: RouteContext) {
   if (!auditResult.data) return NextResponse.json({ error: "Field audit not found." }, { status: 404 });
 
   const audit = auditResult.data;
+  const isReviewer = isReviewRole(auth.role);
+  const isSubmitter = audit.submitted_by === auth.user.id;
+  const isApproved = audit.status === "submitted" || audit.status === "approved";
+  if (wantsPreview) {
+    if (!isReviewer) {
+      return NextResponse.json({ error: "Only company reviewers can preview field audit PDFs before approval." }, { status: 403 });
+    }
+    if (isApproved) {
+      return NextResponse.json({ error: "Use the approved download for approved field audit reports." }, { status: 400 });
+    }
+  } else if (!isApproved) {
+    return NextResponse.json({ error: "This field audit PDF is available after company review approval." }, { status: 403 });
+  } else if (!isReviewer && !isSubmitter) {
+    return NextResponse.json({ error: "You can only download your own approved field audit reports." }, { status: 403 });
+  }
+
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
@@ -168,13 +192,13 @@ export async function GET(request: Request, context: RouteContext) {
         : null,
     observations: observationsResult.data ?? [],
     reviewerName: auth.user.email ?? null,
-    reportStatus: audit.status === "submitted" ? "approved" : "preview",
+    reportStatus: wantsPreview ? "preview" : "approved",
   });
 
   return new Response(report.bytes as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${safeFilename(report.filename)}"`,
+      "Content-Disposition": `${wantsPreview ? "inline" : "attachment"}; filename="${safeFilename(report.filename)}"`,
       "Cache-Control": "no-store",
     },
   });

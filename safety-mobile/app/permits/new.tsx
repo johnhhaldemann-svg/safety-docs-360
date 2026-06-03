@@ -133,7 +133,7 @@ export default function NewPermitScreen() {
               setOpenPicker(null);
             }}
           />
-          <MultiSelect label="Permit Types" selected={selectedPermitTypeIds} options={PERMIT_TYPES} onToggle={togglePermitType} />
+          <MultiSelect label={`Permit Types — Select All That Apply (${selectedPermitTypeIds.length} selected)`} selected={selectedPermitTypeIds} options={PERMIT_TYPES} onToggle={togglePermitType} />
           <SelectionDropdown
             label="Severity"
             value={labelFor(SEVERITIES, severity)}
@@ -220,24 +220,37 @@ function buildPendingRequests({
 }): PendingPermitRequest[] {
   const cleanTitle = title.trim();
   const selectedActivities = activities.filter((activity) => selectedActivityIds.includes(activity.id));
-  if (selectedActivities.length > 0) {
-    return selectedActivities.map((activity) => {
-      const permitType = activityPermitType(activity) ?? selectedPermitTypeIds[0] ?? "other";
-      const activityName = activity.activity_name?.trim() || labelFor(PERMIT_TYPES, permitType);
-      return {
-        key: `activity:${activity.id}`,
-        title: cleanTitle ? `${cleanTitle} - ${activityName}` : `${activityName} permit`,
-        permitType,
-        jsaActivityId: activity.id,
-        activityName,
-      };
-    });
-  }
-  return selectedPermitTypeIds.map((permitType) => ({
-    key: `type:${permitType}`,
-    title: cleanTitle ? `${cleanTitle} - ${labelFor(PERMIT_TYPES, permitType)}` : `${labelFor(PERMIT_TYPES, permitType)} permit`,
-    permitType,
-  }));
+
+  // One request per linked JSA activity (using each activity's inferred permit type).
+  const activityRequests: PendingPermitRequest[] = selectedActivities.map((activity) => {
+    const permitType = activityPermitType(activity) ?? selectedPermitTypeIds[0] ?? "other";
+    const activityName = activity.activity_name?.trim() || labelFor(PERMIT_TYPES, permitType);
+    return {
+      key: `activity:${activity.id}`,
+      title: cleanTitle ? `${cleanTitle} - ${activityName}` : `${activityName} permit`,
+      permitType,
+      jsaActivityId: activity.id,
+      activityName,
+    };
+  });
+
+  // Permit types covered by the activity requests above.
+  const coveredTypes = new Set(activityRequests.map((r) => r.permitType));
+
+  // One request per explicitly selected permit type that isn't already
+  // covered by a linked activity — so selecting Hot Work + LOTO always
+  // produces both requests, whether or not activities are linked.
+  const typeRequests: PendingPermitRequest[] = selectedPermitTypeIds
+    .filter((permitType) => !coveredTypes.has(permitType))
+    .map((permitType) => ({
+      key: `type:${permitType}`,
+      title: cleanTitle
+        ? `${cleanTitle} - ${labelFor(PERMIT_TYPES, permitType)}`
+        : `${labelFor(PERMIT_TYPES, permitType)} permit`,
+      permitType,
+    }));
+
+  return [...activityRequests, ...typeRequests];
 }
 
 function buildDescription(description: string, request: PendingPermitRequest) {
