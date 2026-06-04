@@ -1,4 +1,0 @@
--- Placeholder for a migration version that already exists in the remote Supabase
--- migration history but was not present in this local checkout. Keeping the
--- version locally lets `supabase db push` reconcile history without marking
--- the remote migration as reverted.
