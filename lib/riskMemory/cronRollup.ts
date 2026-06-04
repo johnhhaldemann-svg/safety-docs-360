@@ -6,6 +6,18 @@ import { buildRiskMemoryStructuredContext } from "@/lib/riskMemory/structuredCon
 import { serverLog } from "@/lib/serverLog";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
+/**
+ * True only when `tableName` is genuinely absent (feature not migrated) — a safe skip.
+ * A missing-column or stale "schema cache" error on an existing table is real schema
+ * drift and must surface as a failure rather than being masked as "skipped".
+ */
+function isMissingTableError(message: string | null | undefined, tableName: string) {
+  const m = (message ?? "").toLowerCase();
+  if (!m.includes(tableName)) return false;
+  if (m.includes("column")) return false;
+  return m.includes("does not exist") || m.includes("could not find the table");
+}
+
 export type RiskMemoryCronResult = {
   ok: boolean;
   error?: string;
@@ -157,8 +169,7 @@ export async function runRiskMemoryCronJob(input: {
       );
 
       if (snap.error) {
-        const msg = (snap.error.message ?? "").toLowerCase();
-        if (msg.includes("company_risk_memory_snapshots") || msg.includes("schema cache")) {
+        if (isMissingTableError(snap.error.message, "company_risk_memory_snapshots")) {
           companiesSkipped += 1;
           serverLog("warn", "risk_memory_cron_snapshot_skipped", {
             companyId,
@@ -188,8 +199,7 @@ export async function runRiskMemoryCronJob(input: {
             riskScoreUpserts += 1;
           } else {
             riskScoreFailed += 1;
-            const msg = (scoreRes.error ?? "").toLowerCase();
-            const level = msg.includes("company_risk_scores") || msg.includes("schema cache") ? "info" : "warn";
+            const level = isMissingTableError(scoreRes.error, "company_risk_scores") ? "info" : "warn";
             serverLog(level, "risk_memory_cron_score_upsert_failed", {
               companyId,
               message: (scoreRes.error ?? "").slice(0, 180),

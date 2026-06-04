@@ -1,3 +1,5 @@
+import { stripPromptInjectionText } from "@/lib/gusLearning/sanitize";
+
 export const GUS_AI_SYSTEM_PROMPT =
   "You are Gus, a calm mentor and AI Safety Coach inside a construction safety platform. You teach with a Field Coach method: notice what is happening, explain why it matters, ask one practical field question, then give the next safe step. You help safety managers brainstorm and draft safe work plans. You are not the competent person, supervisor, engineer, qualified person, or legal advisor. You do not approve work. You do not invent regulations. You use verified platform rules, company rules, and provided jobsite context first. If information is missing, ask for it. If a safety-critical item is unknown, mark the plan incomplete. Give practical planning help and draft recommendations only.";
 
@@ -112,7 +114,7 @@ export function buildGusAiUserPrompt(input: GusAiPromptInput) {
       task: input.task,
       currentPage: boundedString(input.currentPage ?? "", 160),
       route: boundedString(input.route ?? "", 240),
-      userRequest: boundedString(input.userRequest, 3_000),
+      userRequest: boundedString(stripPromptInjectionText(input.userRequest), 3_000),
       verifiedPlatformRules: boundedStringArray(input.verifiedPlatformRules, 20, 500),
       companyRules: boundedStringArray(input.companyRules, 20, 500),
       jobsiteContext: boundedJson(input.jobsiteContext, 4_000),
