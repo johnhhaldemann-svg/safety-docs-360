@@ -30,6 +30,11 @@ import { computeWeatherMultiplier } from "./weather";
 const { INTERPRETABLE_WEIGHT, ML_WEIGHT, LAMBDA_SCALE, MODEL_VERSION, FALLBACK_LAMBDA_SCALE, MIN_DISPLAY_RISK_SCORE } =
   DYNAMIC_INJURY_FORECAST;
 
+// Safety ceiling on the blended 30-day expected-injury rate. P = 1 - e^-λ, so λ≈3 already
+// gives >95% probability; 25 is far above any realistic value and only guards against a
+// misconfigured fallback/blend silently producing a near-certain (100) risk score.
+const MAX_FORECAST_LAMBDA30 = 25;
+
 function synthesizeRunContextFromForecastInput(input: ForecastInput): ForecastRunContext {
   const sor = input.leadingIndicators.sorCount;
   const capa = input.leadingIndicators.correctiveOpenCount;
@@ -123,6 +128,10 @@ export function runDynamicInjuryForecastEngine(
   if (!Number.isFinite(lambda30) || lambda30 <= 0) {
     lambda30 = fallbackLambda30;
   }
+  // Generous ceiling: a realistic 30-day expected-injury rate of ~3 already yields P>0.95,
+  // so this only trips on misconfiguration (e.g. an oversized fallback scale) and prevents
+  // silently pegging every forecast to a 100/near-certain risk score.
+  lambda30 = Math.min(lambda30, MAX_FORECAST_LAMBDA30);
 
   const interpretableProbability = 1 - Math.exp(-Math.max(0, lambda30));
   const mlScore = hooks.predictProbability({ lambda30, interpretableProbability });

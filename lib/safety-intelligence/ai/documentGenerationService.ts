@@ -11,6 +11,55 @@ import { assertAiReviewContextReady } from "@/lib/safety-intelligence/validation
 import { runStructuredAiJson } from "@/lib/safety-intelligence/ai/utils";
 import { buildFallbackNarratives } from "@/lib/safety-intelligence/documents/assemble";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
+import { serverLog } from "@/lib/serverLog";
+
+// Cap the review context fed into the document-generation prompt so a large workspace
+// (many buckets / rule + conflict evaluations) cannot produce an unbounded, runaway-cost
+// prompt. Array caps keep the JSON valid; the char backstop is a last resort.
+const MAX_DOC_PROMPT_CONTEXT_ROWS = 80;
+const MAX_DOC_PROMPT_CHARS = 60_000;
+
+function boundDocumentRequestForPrompt(
+  request: DocumentGenerationRequest
+): DocumentGenerationRequest {
+  const rc = request.reviewContext;
+  return {
+    ...request,
+    reviewContext: {
+      ...rc,
+      buckets: Array.isArray(rc.buckets) ? rc.buckets.slice(0, MAX_DOC_PROMPT_CONTEXT_ROWS) : rc.buckets,
+      rulesEvaluations: Array.isArray(rc.rulesEvaluations)
+        ? rc.rulesEvaluations.slice(0, MAX_DOC_PROMPT_CONTEXT_ROWS)
+        : rc.rulesEvaluations,
+      conflictEvaluations: Array.isArray(rc.conflictEvaluations)
+        ? rc.conflictEvaluations.slice(0, MAX_DOC_PROMPT_CONTEXT_ROWS)
+        : rc.conflictEvaluations,
+    },
+  };
+}
+
+function buildBoundedDocumentPromptUser(request: DocumentGenerationRequest): string {
+  const rc = request.reviewContext;
+  const originalRows =
+    (Array.isArray(rc.buckets) ? rc.buckets.length : 0) +
+    (Array.isArray(rc.rulesEvaluations) ? rc.rulesEvaluations.length : 0) +
+    (Array.isArray(rc.conflictEvaluations) ? rc.conflictEvaluations.length : 0);
+
+  let user = JSON.stringify(boundDocumentRequestForPrompt(request));
+  const truncatedChars = user.length > MAX_DOC_PROMPT_CHARS;
+  if (truncatedChars) {
+    user = user.slice(0, MAX_DOC_PROMPT_CHARS);
+  }
+  if (originalRows > MAX_DOC_PROMPT_CONTEXT_ROWS * 3 || truncatedChars) {
+    serverLog("warn", "safety_intelligence_document_prompt_truncated", {
+      documentType: request.documentType,
+      originalRows,
+      maxRowsPerArray: MAX_DOC_PROMPT_CONTEXT_ROWS,
+      truncatedChars,
+    });
+  }
+  return user;
+}
 
 function fallbackDocument(request: DocumentGenerationRequest): GeneratedDocumentRecord {
   const exposures = request.reviewContext.rulesEvaluations.flatMap((row) => row.hazardFamilies);
@@ -70,7 +119,7 @@ export async function generateDocumentDraft(request: DocumentGenerationRequest):
     "Prefer short summaries because tables, numbered procedural requirements, and program sections carry the detailed content.",
     "Return JSON with keys: title, sections (array of heading/body), htmlPreview, draftJson, provenance.",
   ].join(" ");
-  const user = JSON.stringify(request);
+  const user = buildBoundedDocumentPromptUser(request);
   const result = await runStructuredAiJson<GeneratedDocumentRecord>({
     modelEnv: process.env.SAFETY_INTELLIGENCE_DOCUMENT_MODEL,
     fallbackModel: resolveCompanyAiDefaultModel("gpt-4o-mini"),
