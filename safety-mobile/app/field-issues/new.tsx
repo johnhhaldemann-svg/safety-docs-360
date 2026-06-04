@@ -8,7 +8,6 @@ import { Screen } from "@/components/Screen";
 import { createFieldIssue, getMe, uploadFieldIssuePhoto } from "@/api/mobile";
 import { pickPhotoFromCamera, pickPhotoFromLibrary } from "@/utils/photos";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { theme } from "@/theme";
 
 const SEVERITY_OPTIONS = [
   { id: "low", label: "Low" },
