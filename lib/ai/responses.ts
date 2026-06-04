@@ -89,6 +89,20 @@ export function resetAiModelAccessDenylistForTests(): void {
   modelAccessDenylist.clear();
 }
 
+/**
+ * Test-only replay seam. When set, `requestAiResponsesText` returns the resolved text
+ * instead of calling the provider. This lets the AI eval harness exercise the real
+ * deterministic post-processing (JSON parse, sanitization, safety gate, assertions) for
+ * model-backed surfaces in CI — using a recorded response — without an OPENAI_API_KEY.
+ */
+type AiResponsesReplayResolver = (ctx: { surface: string; evalFixtureId: string | null }) => string | null | undefined;
+let aiResponsesReplayResolver: AiResponsesReplayResolver | null = null;
+
+export function __setAiResponsesReplayForTests(resolver: AiResponsesReplayResolver | null): void {
+  if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") return;
+  aiResponsesReplayResolver = resolver;
+}
+
 function shouldRetry(httpStatus: number): boolean {
   return httpStatus === 408 || httpStatus === 425 || httpStatus === 429 || (httpStatus >= 500 && httpStatus < 600);
 }
@@ -144,6 +158,39 @@ export async function requestAiResponsesText(params: {
         : 0
       : Math.max(0, Math.round(params.toolCallsUsed));
   const cacheHit = Boolean(params.cacheHit);
+
+  // Test-only replay: short-circuit to a recorded response so CI can exercise real
+  // post-processing without a provider key. No-op outside tests (resolver stays null).
+  if (aiResponsesReplayResolver) {
+    const replayText = aiResponsesReplayResolver({ surface, evalFixtureId });
+    if (typeof replayText === "string") {
+      let replayJson: unknown = null;
+      try {
+        replayJson = JSON.parse(replayText);
+      } catch {
+        replayJson = null;
+      }
+      const meta: AiExecutionMeta = {
+        model: resolveAiModelId(params.model),
+        provider: resolveAiProvider(params.model),
+        promptHash: null,
+        traceId,
+        promptVersion,
+        outputSchemaVersion,
+        fallbackUsed: false,
+        fallbackReason: null,
+        attempts: 1,
+        retryCount: 0,
+        latencyMs: 0,
+        usage: null,
+        surface,
+        cacheHit,
+        toolCallsUsed,
+        evalFixtureId,
+      };
+      return { text: replayText, json: replayJson, meta };
+    }
+  }
 
   if (!apiKey) {
     const meta: AiExecutionMeta = {

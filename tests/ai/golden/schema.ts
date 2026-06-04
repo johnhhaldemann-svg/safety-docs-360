@@ -73,4 +73,10 @@ export type AiEvalFixture = {
   assertions: AiEvalAssertions;
   /** Optional human-readable note about why this fixture exists. */
   notes?: string;
+  /**
+   * Optional recorded raw model output (the text the provider would return). When present,
+   * the eval harness replays it instead of calling the provider, so the fixture runs in CI
+   * without an OPENAI_API_KEY and still exercises real parsing / sanitization / safety gates.
+   */
+  recordedOutputText?: string;
 };

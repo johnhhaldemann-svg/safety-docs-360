@@ -1,0 +1,18 @@
+{
+  "name": "recorded-training-topics-replay",
+  "surface": "responses-api.json",
+  "notes": "Replay fixture: recordedOutputText lets this run in CI WITHOUT an OPENAI_API_KEY. The harness feeds the recorded text through the real runStructuredAiJsonTask path, so JSON parsing / key-preservation regressions are still caught offline (not skipped).",
+  "input": {
+    "system": "You are a construction training planner. Return strict JSON with keys 'topics' (array of 2-3 short strings) and 'priority' (string: one of high, medium, low). No markdown or code fences.",
+    "user": "{\"trade\":\"ironworker\",\"focus\":\"tie-off at height\"}",
+    "fallbackModel": "gpt-4o-mini",
+    "fallback": { "topics": ["fallback-topic"], "priority": "low" },
+    "surface": "ai-eval.responses-api.recorded-training-topics"
+  },
+  "recordedOutputText": "{\"topics\":[\"Tie-off at height\",\"Anchor point inspection\"],\"priority\":\"high\"}",
+  "assertions": {
+    "mustContain": ["priority", "Tie-off at height"],
+    "mustNotContain": ["fallback-topic"],
+    "schemaShape": ["parsed.topics[]", "parsed.priority", "model"]
+  }
+}
