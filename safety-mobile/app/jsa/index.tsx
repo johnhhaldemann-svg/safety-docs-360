@@ -15,10 +15,24 @@ export default function JsaListScreen() {
       {error ? <ErrorState title="JSAs Not Loaded" detail={getFriendlyApiError(error)} onRetry={() => void refetch()} /> : null}
       {!isLoading && !error && (data ?? []).length === 0 ? <EmptyState title="No JSAs Yet" detail="Submitted mobile JSAs will appear here." /> : null}
       <View style={listStyles.list}>
-        {(data ?? []).map((item: { id: string; title?: string; status?: string }) => (
-          <RegisterRow key={item.id} title={item.title || "Untitled JSA"} meta="Job Safety Analysis" badge={item.status || "draft"} />
+        {(data ?? []).map((item: { id: string; title?: string; status?: string; description?: string | null; severity?: string }) => (
+          <RegisterRow
+            key={item.id}
+            title={item.title || "Untitled JSA"}
+            meta={item.severity ? `Risk: ${item.severity.replaceAll("_", " ")}` : "Job Safety Analysis"}
+            badge={item.status || "draft"}
+            detail={taskDetail(item.description)}
+          />
         ))}
       </View>
     </Screen>
   );
+}
+
+function taskDetail(description?: string | null) {
+  const taskLine = String(description ?? "")
+    .split("\n")
+    .find((line) => line.toLowerCase().startsWith("tasks:"));
+  const tasks = taskLine?.replace(/^tasks:\s*/i, "").trim();
+  return tasks || undefined;
 }

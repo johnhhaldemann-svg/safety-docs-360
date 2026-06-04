@@ -54,20 +54,47 @@ export async function POST(request: Request) {
   const csepBlock = await blockIfCsepOnlyCompany(auth.supabase, companyScope.companyId);
   if (csepBlock) return csepBlock;
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const title = String(body?.title ?? "").trim();
-  const permitType = String(body?.permitType ?? "").trim();
-  const jobsiteId = String(body?.jobsiteId ?? "").trim();
-  if (!title) return NextResponse.json({ error: "Permit title is required." }, { status: 400 });
-  if (!permitType) return NextResponse.json({ error: "Permit type is required." }, { status: 400 });
-  if (!jobsiteId) return NextResponse.json({ error: "Choose a jobsite before submitting a permit request." }, { status: 400 });
-
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
+
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const linkedActivityId = String(body?.jsaActivityId ?? body?.dapActivityId ?? "").trim();
+  let linkedActivity: {
+    id: string;
+    jobsite_id: string | null;
+    activity_name: string | null;
+    permit_type: string | null;
+  } | null = null;
+
+  if (linkedActivityId) {
+    const linkedActivityResult = await auth.supabase
+      .from("company_jsa_activities")
+      .select("id, jobsite_id, activity_name, permit_type")
+      .eq("company_id", companyScope.companyId)
+      .eq("id", linkedActivityId)
+      .maybeSingle();
+    if (linkedActivityResult.error) {
+      return NextResponse.json({ error: linkedActivityResult.error.message || "Failed to load linked JSA step." }, { status: 500 });
+    }
+    if (!linkedActivityResult.data) {
+      return NextResponse.json({ error: "Linked JSA step not found." }, { status: 404 });
+    }
+    linkedActivity = linkedActivityResult.data;
+  }
+
+  const title = String(body?.title ?? "").trim() || (linkedActivity?.activity_name ? `${linkedActivity.activity_name} permit` : "");
+  const permitType = String(linkedActivity?.permit_type ?? "").trim() || String(body?.permitType ?? "").trim();
+  const jobsiteId = String(body?.jobsiteId ?? "").trim() || linkedActivity?.jobsite_id || "";
+  if (!title) return NextResponse.json({ error: "Permit title is required." }, { status: 400 });
+  if (!permitType) return NextResponse.json({ error: "Permit type is required." }, { status: 400 });
+  if (!jobsiteId) return NextResponse.json({ error: "Choose a jobsite before submitting a permit request." }, { status: 400 });
+  if (linkedActivity?.jobsite_id && linkedActivity.jobsite_id !== jobsiteId) {
+    return NextResponse.json({ error: "The permit jobsite must match the linked JSA step jobsite." }, { status: 400 });
+  }
   if (!isJobsiteAllowed(jobsiteId, jobsiteScope)) {
     return NextResponse.json({ error: "You can only submit permit requests for assigned jobsites." }, { status: 403 });
   }
@@ -105,7 +132,7 @@ export async function POST(request: Request) {
       stop_work_status: "normal",
       stop_work_reason: null,
       observation_id: String(body?.observationId ?? "").trim() || null,
-      dap_activity_id: String(body?.jsaActivityId ?? body?.dapActivityId ?? "").trim() || null,
+      dap_activity_id: linkedActivity?.id ?? null,
       created_by: auth.user.id,
       updated_by: auth.user.id,
     })
@@ -122,7 +149,7 @@ export async function POST(request: Request) {
     record_id: result.data.id,
     event_type: "mobile_permit_request_submitted",
     detail: "Mobile permit request submitted for manager review.",
-    event_payload: { status: "draft", permitType },
+    event_payload: { status: "draft", permitType, linkedActivityId: linkedActivity?.id ?? null },
     created_by: auth.user.id,
   });
 

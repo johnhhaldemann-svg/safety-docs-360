@@ -242,6 +242,15 @@ export const superadminMostUsedHrefs = [
   "/superadmin/builder-text",
 ] as const;
 
+export const superadminDailyToolHrefs = [
+  "/superadmin/system-health",
+  "/superadmin/help-tickets",
+  "/superadmin/csep-programs",
+  "/superadmin/jurisdiction-standards",
+  "/superadmin/builder-text",
+  "/superadmin/osha-ipa-lab",
+] as const;
+
 export function flattenSuperadminTools() {
   return superadminToolGroups.flatMap((group) => group.items);
 }
@@ -251,4 +260,18 @@ export function getSuperadminMostUsedTools() {
   return superadminMostUsedHrefs
     .map((href) => tools.find((tool) => tool.href === href))
     .filter((tool): tool is SuperadminNavItem => Boolean(tool));
+}
+
+export function getDailyTools() {
+  const tools = flattenSuperadminTools();
+  return superadminDailyToolHrefs
+    .map((href) => tools.find((tool) => tool.href === href))
+    .filter((tool): tool is SuperadminNavItem => Boolean(tool));
+}
+
+export function getAdvancedTools() {
+  const dailySet = new Set<string>(superadminDailyToolHrefs);
+  return flattenSuperadminTools().filter(
+    (tool) => !dailySet.has(tool.href) && tool.href !== "/superadmin"
+  );
 }

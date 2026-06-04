@@ -855,6 +855,7 @@ export async function recordAiEngineFeedback(
 
 export function getAiEngineEvalSummary() {
   const root = join(process.cwd(), "tests", "ai", "golden");
+  const registeredAdapters = getRegisteredEvalAdapters();
   const surfaces = AI_ENGINE_SURFACES.map((surface) => ({
     surface,
     fixtures: 0,
@@ -867,6 +868,10 @@ export function getAiEngineEvalSummary() {
       rootAvailable: false,
       surfaces,
       totalFixtures: 0,
+      registeredAdapterSurfaces: registeredAdapters,
+      registeredAdapterCount: registeredAdapters.length,
+      fixtureDirectoriesWithoutAdapters: [],
+      adapterSurfacesWithoutFixtures: registeredAdapters,
     };
   }
 
@@ -897,9 +902,24 @@ export function getAiEngineEvalSummary() {
     registeredFixtureDirectories: Array.from(fixtureCounts.entries()).map(([surface, fixtures]) => ({
       surface,
       fixtures,
+      adapterRegistered: registeredAdapters.includes(surface),
     })),
+    registeredAdapterSurfaces: registeredAdapters,
+    registeredAdapterCount: registeredAdapters.length,
+    fixtureDirectoriesWithoutAdapters: Array.from(fixtureCounts.keys()).filter((surface) => !registeredAdapters.includes(surface)),
+    adapterSurfacesWithoutFixtures: registeredAdapters.filter((surface) => !fixtureCounts.has(surface)),
     totalFixtures,
   };
+}
+
+function getRegisteredEvalAdapters() {
+  const adaptersPath = join(process.cwd(), "tests", "ai", "golden", "surfaces.ts");
+  if (!existsSync(adaptersPath)) return [];
+  const source = readFileSync(adaptersPath, "utf8");
+  return Array.from(source.matchAll(/"([^"]+)":\s*async/g))
+    .map((match) => match[1])
+    .filter(Boolean)
+    .sort();
 }
 
 function getStructuredAssertionCoverage() {
@@ -1032,6 +1052,7 @@ function runEvalCoverageTool(filters: AiEngineToolResult["filters"]): AiEngineTo
       surface: row.surface,
       fixtures: row.fixtures,
       status: row.status,
+      adapterRegistered: evals.registeredAdapterSurfaces.some((adapter) => adapter === row.surface || adapter.startsWith(`${row.surface}.`) || row.surface.includes(adapter.split(".")[0])),
     }));
   return {
     toolName: "get_eval_coverage",
@@ -1043,6 +1064,9 @@ function runEvalCoverageTool(filters: AiEngineToolResult["filters"]): AiEngineTo
       coveredSurfaces: evals.surfaces.filter((row) => row.status === "covered").length,
       missingSurfaces: missing.length,
       structuredAssertions: structured,
+      registeredAdapterCount: evals.registeredAdapterCount,
+      fixtureDirectoriesWithoutAdapters: evals.fixtureDirectoriesWithoutAdapters,
+      adapterSurfacesWithoutFixtures: evals.adapterSurfacesWithoutFixtures,
     },
     rows,
     evidenceIds: rows.map((row) => `eval:${row.surface}`),
@@ -1167,6 +1191,20 @@ async function runReleaseGateSnapshotTool(client: AiEngineReadableClient | null,
       threshold: RELEASE_GATE_THRESHOLDS.p95LatencyRegression,
       reason: "baseline_required",
     },
+    {
+      id: "fixture_adapter_registration",
+      ok: evals.fixtureDirectoriesWithoutAdapters.length === 0,
+      value: evals.fixtureDirectoriesWithoutAdapters.length,
+      threshold: 0,
+      reason: evals.fixtureDirectoriesWithoutAdapters.length > 0 ? evals.fixtureDirectoriesWithoutAdapters.join(", ") : null,
+    },
+    {
+      id: "telemetry_available",
+      ok: !metrics.unavailable,
+      value: metrics.unavailable ? 0 : 1,
+      threshold: 1,
+      reason: metrics.unavailableReason,
+    },
   ];
   const failed = checks.filter((check) => check.ok === false);
   const unknown = checks.filter((check) => check.ok === null);
@@ -1182,6 +1220,11 @@ async function runReleaseGateSnapshotTool(client: AiEngineReadableClient | null,
       totalCalls: metrics.summary.totalCalls,
       activeSurfaceCount: activeSurfaces.length,
       coveredSurfaceCount: covered,
+      totalFixtures: evals.totalFixtures,
+      registeredAdapterCount: evals.registeredAdapterCount,
+      fixtureDirectoriesWithoutAdapters: evals.fixtureDirectoriesWithoutAdapters,
+      adapterSurfacesWithoutFixtures: evals.adapterSurfacesWithoutFixtures,
+      telemetryAvailable: !metrics.unavailable,
     },
     rows: checks,
     evidenceIds: checks.map((check) => `release-gate:${check.id}`),

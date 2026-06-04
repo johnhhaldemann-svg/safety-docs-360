@@ -9,13 +9,6 @@ export const runtime = "nodejs";
 
 export { GET };
 
-const MOBILE_JSA_STATUSES = new Set(["draft", "pending_review", "active", "closed", "archived"]);
-
-function normalizeMobileJsaStatus(input: unknown, fallback = "draft") {
-  const value = String(input ?? "").trim().toLowerCase();
-  return MOBILE_JSA_STATUSES.has(value) ? value : fallback;
-}
-
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_create_documents", "can_submit_documents", "can_view_all_company_data"],
@@ -67,7 +60,7 @@ export async function POST(request: Request) {
       jobsite_id: jobsiteId,
       title,
       description: String(body?.description ?? "").trim() || null,
-      status: normalizeMobileJsaStatus(body?.status, "draft"),
+      status: "draft",
       severity: String(body?.severity ?? "").trim().toLowerCase() || "medium",
       category: String(body?.category ?? "").trim().toLowerCase() || "corrective_action",
       owner_user_id: String(body?.ownerUserId ?? "").trim() || null,

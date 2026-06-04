@@ -1,18 +1,5 @@
 import type { AiKnowledgeNode, AiKnowledgeNodeType, AiKnowledgeRiskLevel, AiKnowledgeSourceRow } from "@/lib/aiKnowledgeMap/types";
-
-const SOURCE_NODE_TYPES: Record<string, AiKnowledgeNodeType> = {
-  company_permits: "permit",
-  company_jsas: "task",
-  company_hazards: "hazard",
-  company_controls: "control",
-  company_training_requirements: "training",
-  company_incidents: "incident",
-  company_sor_records: "observation",
-  company_corrective_actions: "corrective_action",
-  documents: "document",
-  company_generated_documents: "document",
-  company_risk_ai_recommendations: "risk_record",
-};
+import { nodeTypeForSourceTable } from "@/lib/aiKnowledgeMap/sourceAdapters";
 
 function text(value: unknown, fallback = ""): string {
   if (Array.isArray(value)) return value.filter(Boolean).map((item) => text(item)).filter(Boolean).join(", ");
@@ -112,9 +99,24 @@ function titleFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_hazards") return text(row.title, text(row.name, "Hazard"));
   if (table === "company_controls") return text(row.title, text(row.name, "Control"));
   if (table === "company_training_requirements") return text(row.title, "Training requirement");
+  if (table === "company_employee_training_records") return text(row.title, text(row.training_title, "Employee training record"));
+  if (table === "company_induction_programs") return text(row.name, "Induction program");
+  if (table === "company_induction_requirements") return text(row.title, text(row.name, "Induction requirement"));
+  if (table === "company_induction_completions") return text(row.title, "Induction completion");
+  if (table === "company_toolbox_sessions") return text(row.topic, text(row.title, "Toolbox briefing"));
+  if (table === "company_toolbox_attendees") return text(row.attendee_name, text(row.user_name, "Toolbox attendee"));
   if (table === "company_incidents") return text(row.title, "Incident");
   if (table === "company_sor_records") return text(row.description, "Observation").slice(0, 140);
+  if (table === "company_jobsite_audits") return text(row.auditors, text(row.selected_trade, "Field audit"));
+  if (table === "company_jobsite_audit_observations") return text(row.item_label, text(row.category_label, "Field audit observation"));
   if (table === "company_corrective_actions") return text(row.title, "Corrective action");
+  if (table === "company_jobsite_chemicals") return text(row.chemical_name, "Chemical / SDS record");
+  if (table === "company_jobsite_visual_zones") return text(row.label, "Site visual risk zone");
+  if (table === "company_crews") return text(row.name, "Crew");
+  if (table === "company_employee_profiles") return text(row.full_name, text(row.name, "Worker profile"));
+  if (table === "company_employee_jobsite_assignments") return text(row.assignment_label, "Worker jobsite assignment");
+  if (table === "company_jobsites") return text(row.name, text(row.project_name, "Jobsite"));
+  if (table === "safety_data_bucket") return text(row.title, text(row.source_type, "Safety data signal"));
   if (table === "documents") return text(row.document_title, text(row.title, text(row.file_name, "Document")));
   if (table === "company_generated_documents") return text(row.title, text(row.document_type, "Generated document"));
   if (table === "company_risk_ai_recommendations") return text(row.title, "Risk recommendation");
@@ -123,17 +125,40 @@ function titleFor(table: string, row: AiKnowledgeSourceRow) {
 
 function categoryFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_permits") return text(row.category, text(row.permit_type, "permit"));
-  if (table === "company_training_requirements") return "training";
+  if (table === "company_training_requirements" || table === "company_employee_training_records") return "training";
+  if (table.startsWith("company_induction_")) return "induction";
+  if (table.startsWith("company_toolbox_")) return "toolbox briefing";
+  if (table === "company_jobsite_chemicals") return "chemical / SDS";
+  if (table === "company_jobsite_visual_zones") return text(row.source_type, "site visual zone");
+  if (table === "company_jobsite_audits" || table === "company_jobsite_audit_observations") return text(row.category_label, text(row.category_code, "field audit"));
+  if (table === "company_crews" || table === "company_employee_profiles" || table === "company_employee_jobsite_assignments") return "workforce";
+  if (table === "company_jobsites") return "jobsite";
+  if (table === "safety_data_bucket") return text(row.category_code, text(row.source_type, "safety signal"));
   if (table === "company_risk_ai_recommendations") return text(row.kind, "risk");
   if (table === "documents") return text(row.category, text(row.document_type, "document"));
-  return text(row.category, text(row.status, SOURCE_NODE_TYPES[table] ?? "record"));
+  return text(row.category, text(row.status, nodeTypeForSourceTable(table) ?? "record"));
 }
 
 function descriptionFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_permits") return compactSummary([row.description, row.assignment_rationale, row.permit_type, row.stop_work_status]);
   if (table === "company_training_requirements") return compactSummary([row.match_keywords, row.match_fields, row.apply_trades, row.apply_positions]);
+  if (table === "company_employee_training_records") return compactSummary([row.provider, row.completed_on, row.expires_on, row.notes, row.evidence]);
+  if (table === "company_induction_programs") return compactSummary([row.description, row.audience, row.active]);
+  if (table === "company_induction_requirements") return compactSummary([row.program_id, row.jobsite_id, row.active, row.required_for_role]);
+  if (table === "company_induction_completions") return compactSummary([row.subject_type, row.user_id, row.completed_at, row.expires_at]);
+  if (table === "company_toolbox_sessions") return compactSummary([row.topic, row.status, row.scheduled_for, row.completed_at, row.notes]);
+  if (table === "company_toolbox_attendees") return compactSummary([row.attendee_name, row.user_id, row.signed_at, row.status]);
   if (table === "company_sor_records") return compactSummary([row.description, row.subcategory, row.hazard_category_code, row.location]);
+  if (table === "company_jobsite_audits") return compactSummary([row.selected_trade, row.template_source, row.status, row.score_summary, row.payload]);
+  if (table === "company_jobsite_audit_observations") return compactSummary([row.item_label, row.category_label, row.status, row.severity, row.notes, row.evidence_metadata]);
   if (table === "company_risk_ai_recommendations") return compactSummary([row.body, row.kind, row.confidence]);
+  if (table === "company_jobsite_chemicals") return compactSummary([row.chemical_name, row.manufacturer, row.quantity_note, row.sds_file_path, row.sds_effective_date, row.next_review_date]);
+  if (table === "company_jobsite_visual_zones") return compactSummary([row.label, row.zone_type, row.source_type, row.risk_level, row.notes, row.metadata]);
+  if (table === "company_crews") return compactSummary([row.name, row.active, row.jobsite_id]);
+  if (table === "company_employee_profiles") return compactSummary([row.full_name, row.name, row.trade, row.position, row.status, row.equipment, row.certifications]);
+  if (table === "company_employee_jobsite_assignments") return compactSummary([row.employee_id, row.jobsite_id, row.role, row.starts_on, row.ends_on, row.status]);
+  if (table === "company_jobsites") return compactSummary([row.name, row.address, row.status, row.safety_lead, row.project_type]);
+  if (table === "safety_data_bucket") return compactSummary([row.title, row.summary, row.source_type, row.category_code, row.severity, row.normalized_payload, row.sanitized_payload]);
   if (table === "documents") return compactSummary([row.notes, row.document_type, row.category, row.project_name]);
   return compactSummary([row.description, row.summary, row.notes, row.status]);
 }
@@ -141,10 +166,35 @@ function descriptionFor(table: string, row: AiKnowledgeSourceRow) {
 function riskInputs(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_permits") return [row.severity, row.stop_work_status, row.escalation_level];
   if (table === "company_incidents") return [row.severity, row.escalation_level, row.stop_work_status];
-  if (table === "company_sor_records") return [row.severity, row.hazard_category_code];
+  if (table === "company_sor_records" || table === "company_jobsite_audit_observations" || table === "safety_data_bucket") return [row.severity, row.hazard_category_code, row.category_code];
   if (table === "company_corrective_actions") return [row.priority, row.severity, row.sif_potential];
   if (table === "company_risk_ai_recommendations") return [row.severity, row.kind, row.confidence];
+  if (table === "company_jobsite_chemicals") return [row.risk_level, row.sds_file_path ? null : "high", row.next_review_date];
+  if (table === "company_jobsite_visual_zones") return [row.risk_level, row.severity, row.zone_type];
+  if (table === "company_employee_training_records" || table === "company_induction_completions") return [row.expires_on, row.expired, row.status];
   return [row.risk_level, row.severity, row.priority];
+}
+
+function sourceEvidenceFor(table: string, row: AiKnowledgeSourceRow, title: string, summary: string) {
+  return [
+    {
+      sourceTable: table,
+      sourceRecordId: text(row.id),
+      label: title,
+      detail: summary.slice(0, 500) || `${table} record indexed into the AI Knowledge Map.`,
+    },
+  ];
+}
+
+function confidenceFor(table: string, row: AiKnowledgeSourceRow, summary: string) {
+  let confidence = 0.72;
+  if (table === "company_jobsite_audit_observations" && text(row.status) === "fail") confidence += 0.08;
+  if (table === "company_employee_training_records" && text(row.evidence)) confidence += 0.08;
+  if (table === "company_jobsite_chemicals" && text(row.sds_file_path)) confidence += 0.08;
+  if (table === "company_jobsite_visual_zones") confidence += 0.04;
+  if (table === "safety_data_bucket" && row.ai_ready === true) confidence += 0.08;
+  if (!summary) confidence -= 0.12;
+  return Math.max(0.45, Math.min(0.9, Number(confidence.toFixed(2))));
 }
 
 export function sourceKey(table: string, sourceId: string) {
@@ -154,7 +204,7 @@ export function sourceKey(table: string, sourceId: string) {
 export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledgeSourceRow): AiKnowledgeNode | null {
   const companyId = text(row.company_id);
   const sourceId = text(row.id);
-  const type = SOURCE_NODE_TYPES[table];
+  const type = nodeTypeForSourceTable(table);
   if (!companyId || !sourceId || !type) return null;
 
   const riskLevel = normalizeRiskLevel(riskInputs(table, row).find(Boolean));
@@ -204,12 +254,14 @@ export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledg
       originalStatus: nullableText(row.status),
       originalCategory: nullableText(row.category),
       minimumRiskScore,
+      sourceEvidence: sourceEvidenceFor(table, row, title, semanticSummary),
+      indexedSourceFamily: categoryFor(table, row),
       rawMetadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {},
     },
     semanticSummary: semanticSummary || title,
     vectorStatus: "pending",
     vectorCoordinates,
-    confidenceScore: 0.72,
+    confidenceScore: confidenceFor(table, row, semanticSummary),
     validationStatus: "unreviewed",
     createdByType: "system",
   };

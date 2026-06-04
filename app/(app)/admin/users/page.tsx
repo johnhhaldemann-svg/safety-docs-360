@@ -175,6 +175,8 @@ export default function AdminUsersPage() {
   const [modalMessageTone, setModalMessageTone] = useState<
     "neutral" | "success" | "warning" | "error"
   >("neutral");
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("");
 
   async function getAccessToken() {
     const {
@@ -509,9 +511,29 @@ export default function AdminUsersPage() {
   }
 
   async function handleUserAction(
-    action: "resend_invite" | "password_reset" | "force_sign_out"
+    action: "resend_invite" | "password_reset" | "set_password" | "force_sign_out"
   ) {
     if (!editingUser) return;
+    const nextPassword = passwordDraft;
+
+    if (action === "set_password") {
+      if (nextPassword.length < 12) {
+        setMessageTone("error");
+        setMessage("Password must be at least 12 characters.");
+        setModalMessageTone("error");
+        setModalMessage("Password must be at least 12 characters.");
+        return;
+      }
+
+      if (nextPassword !== confirmPasswordDraft) {
+        setMessageTone("error");
+        setMessage("Password confirmation does not match.");
+        setModalMessageTone("error");
+        setModalMessage("Password confirmation does not match.");
+        return;
+      }
+    }
+
     setActionLoading(action);
     setMessage("");
     setMessageTone("neutral");
@@ -525,7 +547,10 @@ export default function AdminUsersPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          ...(action === "set_password" ? { password: nextPassword } : {}),
+        }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) {
@@ -541,11 +566,17 @@ export default function AdminUsersPage() {
           ? "Invite email sent again."
           : action === "password_reset"
             ? "Password reset email sent."
-            : "Force sign-out sent.";
+            : action === "set_password"
+              ? "Password set."
+              : "Force sign-out sent.";
       setMessageTone("success");
       setMessage(successMessage);
       setModalMessageTone("success");
       setModalMessage(successMessage);
+      if (action === "set_password") {
+        setPasswordDraft("");
+        setConfirmPasswordDraft("");
+      }
       await loadUsers({ preserveMessage: true });
     } catch (error) {
       setMessageTone("error");
@@ -928,6 +959,8 @@ export default function AdminUsersPage() {
                         );
                         setModalMessage("");
                         setModalMessageTone("neutral");
+                        setPasswordDraft("");
+                        setConfirmPasswordDraft("");
                       }}
                         className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
                       >
@@ -1048,6 +1081,8 @@ export default function AdminUsersPage() {
                         );
                         setModalMessage("");
                         setModalMessageTone("neutral");
+                        setPasswordDraft("");
+                        setConfirmPasswordDraft("");
                       }}
                     className="rounded-xl border border-[var(--app-border-strong)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-primary-soft)]"
                   >
@@ -1081,6 +1116,8 @@ export default function AdminUsersPage() {
                   setEditingUser(null);
                   setModalMessage("");
                   setModalMessageTone("neutral");
+                  setPasswordDraft("");
+                  setConfirmPasswordDraft("");
                 }}
                 className="rounded-xl border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
               >
@@ -1172,6 +1209,51 @@ export default function AdminUsersPage() {
               functions this account can use.
             </p>
 
+            {capabilities.canRunAdminAuthActions ? (
+              <div className="mt-6 rounded-2xl border border-slate-700/80 bg-slate-950/45 p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm font-semibold text-slate-200">
+                    New password
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={passwordDraft}
+                      onChange={(event) => setPasswordDraft(event.target.value)}
+                      className="rounded-xl border border-slate-600 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-slate-200">
+                    Confirm password
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={confirmPasswordDraft}
+                      onChange={(event) => setConfirmPasswordDraft(event.target.value)}
+                      className="rounded-xl border border-slate-600 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-500"
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleUserAction("password_reset")}
+                    disabled={actionLoading === "password_reset"}
+                    className="rounded-xl border border-slate-400 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-800/80 disabled:opacity-60"
+                  >
+                    {actionLoading === "password_reset" ? "Sending..." : "Send Password Reset"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleUserAction("set_password")}
+                    disabled={actionLoading === "set_password"}
+                    className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
+                  >
+                    {actionLoading === "set_password" ? "Saving..." : "Set Password"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
               {modalMessage ? (
                 <div className="mt-4">
                   <InlineMessage tone={modalMessageTone}>{modalMessage}</InlineMessage>
@@ -1202,15 +1284,6 @@ export default function AdminUsersPage() {
                   className="rounded-xl border border-slate-400 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-800/80 disabled:opacity-60"
                 >
                   {actionLoading === "resend_invite" ? "Sending..." : "Resend Invite"}
-                </button>
-              ) : null}
-              {editingUser.status !== "Pending" && capabilities.canRunAdminAuthActions ? (
-                <button
-                  onClick={() => void handleUserAction("password_reset")}
-                  disabled={actionLoading === "password_reset"}
-                  className="rounded-xl border border-slate-400 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-800/80 disabled:opacity-60"
-                >
-                  {actionLoading === "password_reset" ? "Sending..." : "Send Password Reset"}
                 </button>
               ) : null}
               {editingUser.status !== "Pending" &&

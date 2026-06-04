@@ -136,6 +136,7 @@ const navGroups: NavGroup[] = [
       { href: "/safe-predict/billing", label: "Billing", icon: ClipboardCheck },
       { href: "/safe-predict/profile", label: "Profile", icon: Users },
       { href: "/safe-predict/settings", label: "Settings", icon: Settings },
+      { href: "/support", label: "Help & Support", icon: HelpCircle },
     ],
   },
 ];
@@ -437,7 +438,7 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} employees</span>
               <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">Workspace data</span>
             </Link>
-            <Link href="/safe-predict/settings" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
+            <Link href="/support" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
               <HelpCircle className="h-6 w-6" aria-hidden />
               <span>
                 <span className="block font-bold text-white">Need help?</span>

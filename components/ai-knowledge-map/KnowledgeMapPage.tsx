@@ -103,7 +103,7 @@ export function KnowledgeMapPage() {
         validationQueue: edgesBody?.validationQueue ?? [],
         summary: summaryBody?.summary ?? EMPTY_SUMMARY,
         generatedAt: summaryBody?.generatedAt ?? nodesBody?.generatedAt ?? new Date().toISOString(),
-        warnings: [...(nodesBody?.warnings ?? []), ...(edgesBody?.warnings ?? []), ...(summaryBody?.warnings ?? [])],
+        warnings: [...new Set([...(nodesBody?.warnings ?? []), ...(edgesBody?.warnings ?? []), ...(summaryBody?.warnings ?? [])])],
         demo: Boolean(nodesBody?.demo || edgesBody?.demo || summaryBody?.demo),
         fallback: Boolean(nodesBody?.fallback || edgesBody?.fallback || summaryBody?.fallback),
         fallbackReason: nodesBody?.fallbackReason ?? summaryBody?.fallbackReason ?? null,

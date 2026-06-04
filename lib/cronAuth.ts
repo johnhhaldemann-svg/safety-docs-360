@@ -10,8 +10,5 @@ export function isCronRequestAuthorized(request: Request): boolean {
   const rawAuth = request.headers.get("authorization")?.trim() ?? "";
   const bearerMatch = rawAuth.match(/^Bearer\s+(.+)$/i);
   const bearerToken = bearerMatch ? bearerMatch[1].trim() : "";
-  if (bearerToken === secret) return true;
-
-  const querySecret = new URL(request.url).searchParams.get("secret");
-  return querySecret === secret;
+  return bearerToken === secret;
 }

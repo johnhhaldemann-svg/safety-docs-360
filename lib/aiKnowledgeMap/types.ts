@@ -154,6 +154,19 @@ export type AiKnowledgeGraphSummary = {
   falsePositiveRate?: number;
   missedLinkRate?: number;
   latestUpdate: string | null;
+  domainCoverage?: AiKnowledgeDomainCoverage[];
+};
+
+export type AiKnowledgeDomainCoverage = {
+  domain: string;
+  table: string;
+  owner: string;
+  nodeType: AiKnowledgeNodeType;
+  indexedNodeCount: number;
+  approvedNodeCount: number;
+  staleNodeCount: number;
+  lowConfidenceNodeCount: number;
+  blocksHighRiskRelease: boolean;
 };
 
 export type AiKnowledgeGraphPayload = {

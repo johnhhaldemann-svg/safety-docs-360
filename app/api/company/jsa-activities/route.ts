@@ -121,12 +121,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const jsaId = searchParams.get("jsaId")?.trim();
   const workDate = searchParams.get("workDate")?.trim();
+  const requestedJobsiteId = searchParams.get("jobsiteId")?.trim() ?? "";
   const jobsiteScope = await getJobsiteAccessScope({
     supabase: auth.supabase,
     userId: auth.user.id,
     companyId: companyScope.companyId,
     role: auth.role,
   });
+  if (requestedJobsiteId && jobsiteScope.restricted && !jobsiteScope.jobsiteIds.includes(requestedJobsiteId)) {
+    return NextResponse.json({ activities: [] });
+  }
 
   let query = auth.supabase
     .from("company_jsa_activities")
@@ -135,6 +139,7 @@ export async function GET(request: Request) {
     .order("updated_at", { ascending: false });
   if (jsaId) query = query.eq("jsa_id", jsaId);
   if (workDate) query = query.eq("work_date", workDate);
+  if (requestedJobsiteId) query = query.eq("jobsite_id", requestedJobsiteId);
   if (jobsiteScope.restricted) {
     if (jobsiteScope.jobsiteIds.length < 1) return NextResponse.json({ activities: [] });
     query = query.in("jobsite_id", jobsiteScope.jobsiteIds);

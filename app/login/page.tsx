@@ -15,7 +15,29 @@ type AuthMeResponse = {
   } | null;
 };
 
-const securityPills = ["Company scoped", "RBAC", "Audit evidence", "Human review"];
+const riskSignalChips = ["Leading indicators", "Critical alerts", "Pre-task controls"];
+
+const predictiveProofItems = [
+  {
+    title: "Risk forecast",
+    detail: "See leading conditions before crews mobilize.",
+  },
+  {
+    title: "Hazard drivers",
+    detail: "Surface the factors pushing work into higher risk.",
+  },
+  {
+    title: "Stop-work review",
+    detail: "Escalate critical signals for human review.",
+  },
+];
+
+const riskActionCards = [
+  "Flag high-risk work before crews mobilize",
+  "Guide teams toward safer pre-task decisions",
+];
+
+const securityPills = ["Company scoped", "Human review", "Audit evidence", "Role based"];
 
 export default function LoginPage() {
   return (
@@ -175,30 +197,77 @@ function LoginPageContent() {
 
               <div className="mt-10 max-w-xl">
                 <h1 className="text-4xl font-black leading-[0.95] tracking-tight text-[var(--app-text-strong)] sm:text-5xl lg:text-[4.1rem]">
-                  <span className="block">Secure.</span>
-                  <span className="block text-[var(--semantic-success)]">Document.</span>
+                  <span className="block">Predict.</span>
+                  <span className="block text-[var(--semantic-success)]">Prevent.</span>
                   <span className="block">Stay Safe.</span>
                 </h1>
 
-                  <p className="mt-6 max-w-lg text-base leading-8 text-[var(--app-text)]">
-                  The complete safety documentation platform trusted by industrial
-                  leaders. Manage incidents, inspections, and compliance from one
-                  secure command center.
+                <p className="mt-6 max-w-lg text-base leading-8 text-[var(--app-text)]">
+                  Predict safety risk before work starts. Spot leading indicators,
+                  escalate critical hazards, and guide teams toward safer decisions
+                  from one secure command center.
                 </p>
               </div>
 
-              <div className="mt-8 max-w-[30rem] overflow-hidden rounded-[1.45rem] border border-[rgba(111,138,177,0.24)] bg-white/82 p-2 shadow-[0_16px_34px_rgba(38,64,106,0.12)]">
-                <video
-                  aria-hidden="true"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                  className="aspect-square w-full rounded-[1.05rem] bg-[rgba(234,241,255,0.82)] object-contain"
-                >
-                  <source src="/brand/safepredict-login-loop.mp4" type="video/mp4" />
-                </video>
+              <div className="mt-8 max-w-[31rem]">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(111,138,177,0.18)] bg-white/72 px-4 py-3 shadow-[0_10px_24px_rgba(38,64,106,0.07)] backdrop-blur">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--app-text-strong)]">
+                    Predictive risk in action
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {riskSignalChips.map((chip) => (
+                      <span
+                        key={chip}
+                        className="rounded-full border border-[rgba(46,158,91,0.18)] bg-[rgba(46,158,91,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[var(--app-text)]"
+                      >
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3 overflow-hidden rounded-[1.45rem] border border-[rgba(111,138,177,0.24)] bg-white/86 p-2 shadow-[0_16px_34px_rgba(38,64,106,0.12)]">
+                  <video
+                    aria-hidden="true"
+                    autoPlay
+                    loop
+                    muted
+                    poster="/brand/safepredict-risk-poster.png"
+                    playsInline
+                    preload="metadata"
+                    className="aspect-square w-full rounded-[1.05rem] bg-[rgba(234,241,255,0.82)] object-contain"
+                  >
+                    <source src="/brand/safepredict-login-loop.mp4" type="video/mp4" />
+                  </video>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {predictiveProofItems.map((item) => (
+                    <div
+                      key={item.title}
+                      className="rounded-2xl border border-[rgba(111,138,177,0.18)] bg-white/76 px-3 py-3 shadow-[0_8px_20px_rgba(38,64,106,0.06)]"
+                    >
+                      <div className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--app-text-strong)]">
+                        {item.title}
+                      </div>
+                      <div className="mt-2 text-xs leading-5 text-[var(--app-muted)]">
+                        {item.detail}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {riskActionCards.map((action) => (
+                    <div
+                      key={action}
+                      className="flex items-start gap-3 rounded-2xl border border-[rgba(111,138,177,0.18)] bg-[rgba(234,241,255,0.74)] px-4 py-3 text-sm font-semibold leading-6 text-[var(--app-text-strong)]"
+                    >
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--semantic-success)]" />
+                      <span>{action}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-auto pt-8">

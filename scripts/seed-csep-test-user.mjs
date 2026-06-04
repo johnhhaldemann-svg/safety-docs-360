@@ -44,7 +44,11 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 const email =
   process.env.CSEP_TEST_EMAIL?.trim() || "csep-test@example.com";
-const password = process.env.CSEP_TEST_PASSWORD?.trim() || "CsepLocalTest2026!";
+const password = process.env.CSEP_TEST_PASSWORD?.trim();
+if (!password) {
+  console.error("Error: CSEP_TEST_PASSWORD env var is required. Set it in .env.local or pass inline: CSEP_TEST_PASSWORD=... npm run seed:csep-test");
+  process.exit(1);
+}
 const companyName =
   process.env.CSEP_TEST_COMPANY_NAME?.trim() || "CSEP Local Test Company";
 const teamKey =

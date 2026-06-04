@@ -107,6 +107,14 @@ const globalKnowledge = {
   review_status: "current",
 };
 
+const criticalGlobalKnowledge = {
+  ...globalKnowledge,
+  id: "global-critical-knowledge-1",
+  knowledge_title: "Critical confined space stop-work guidance",
+  approved_summary: "Critical confined space exposure requires immediate safety review before entry and possible stop_work evaluation.",
+  quality_score: 91,
+};
+
 describe("real-data fallback knowledge graph", () => {
   it("shows approved company document memory and hides unapproved document graph rows", async () => {
     const payload = await getKnowledgeGraphPayload(fakeClient({
@@ -249,5 +257,64 @@ describe("real-data fallback knowledge graph", () => {
     expect(result.items.some((item) => item.id.startsWith("fallback:"))).toBe(true);
     expect(result.items.find((item) => item.id.startsWith("fallback:"))?.excerpt).toContain("not company-specific evidence");
     expect(result.method).toBe("approved_graph_with_fallback");
+  });
+
+  it("downgrades fallback-only high and critical memory and requires human review language", async () => {
+    const result = await retrieveTrustedKnowledgeGraphMemory(fakeClient({
+      ai_knowledge_nodes: [],
+      ai_knowledge_edges: [],
+      ai_vector_memory: [],
+      approved_knowledge: [criticalGlobalKnowledge],
+      documents: [],
+    }) as never, {
+      companyId: "company-1",
+      query: "confined space stop work",
+      topK: 2,
+    });
+
+    const fallback = result.items.find((item) => item.id.startsWith("fallback:"));
+    expect(fallback?.riskLevel).toBe("critical");
+    expect(fallback?.confidenceScore).toBeLessThanOrEqual(0.54);
+    expect(fallback?.excerpt).toContain("possible stop-work evaluation");
+    expect(fallback?.relationshipReasons.join(" ")).toContain("Fallback-only high/critical memory requires human review");
+    expect(result.warnings.join(" ")).toContain("High/critical AI guidance matched only general fallback memory");
+  });
+
+  it("flags stale trusted memory, caps confidence, and ranks current company memory first", async () => {
+    const result = await retrieveTrustedKnowledgeGraphMemory(fakeClient({
+      ai_knowledge_nodes: [
+        approvedNode("stale-hot-work", {
+          title: "Stale hot work procedure",
+          description: "Company-specific hot work memory that is past review.",
+          semantic_summary: "Company-specific hot work memory that is past review.",
+          metadata: { reviewDueAt: "2025-01-01T00:00:00.000Z" },
+          confidence_score: 0.91,
+        }),
+        approvedNode("current-hot-work", {
+          title: "Current hot work procedure",
+          description: "Company-specific current hot work memory.",
+          semantic_summary: "Company-specific current hot work memory.",
+          metadata: { reviewDueAt: "2027-01-01T00:00:00.000Z" },
+          confidence_score: 0.74,
+        }),
+      ],
+      ai_knowledge_edges: [],
+      ai_vector_memory: [
+        { node_id: "stale-hot-work", company_id: "company-1", status: "indexed" },
+        { node_id: "current-hot-work", company_id: "company-1", status: "indexed" },
+      ],
+      approved_knowledge: [],
+      documents: [],
+    }) as never, {
+      companyId: "company-1",
+      query: "hot work procedure",
+      topK: 2,
+    });
+
+    expect(result.items[0]?.nodeId).toBe("current-hot-work");
+    const stale = result.items.find((item) => item.nodeId === "stale-hot-work");
+    expect(stale?.isStale).toBe(true);
+    expect(stale?.confidenceScore).toBeLessThanOrEqual(0.49);
+    expect(result.warnings.join(" ")).toContain("Approved graph memory includes stale items");
   });
 });

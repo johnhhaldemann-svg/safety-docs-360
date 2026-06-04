@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { MobileMe } from "@/types/mobile";
+import type { MobileJsaActivity, MobileMe, MobilePermit } from "@/types/mobile";
 
 type MobilePhoto = {
   uri: string;
@@ -39,6 +39,15 @@ export async function createJsa(body: Record<string, unknown>) {
 export async function createJsaActivity(body: Record<string, unknown>) {
   const { data } = await api.post("/jsa-activities", body);
   return data;
+}
+
+export async function listJsaActivities(params?: {
+  jsaId?: string;
+  jobsiteId?: string;
+  workDate?: string;
+}) {
+  const { data } = await api.get("/jsa-activities", { params });
+  return (data.activities ?? []) as MobileJsaActivity[];
 }
 
 export async function submitJsa(id: string) {
@@ -121,7 +130,7 @@ export async function uploadAuditPhoto(id: string, photo: MobilePhoto) {
 
 export async function listPermits() {
   const { data } = await api.get("/permits");
-  return data.permits ?? [];
+  return (data.permits ?? []) as MobilePermit[];
 }
 
 export async function createPermitRequest(body: Record<string, unknown>) {

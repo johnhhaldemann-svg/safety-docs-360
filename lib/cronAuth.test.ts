@@ -31,10 +31,10 @@ describe("isCronRequestAuthorized", () => {
     expect(isCronRequestAuthorized(req)).toBe(true);
   });
 
-  it("accepts matching secret query param", () => {
+  it("rejects secret in query param (header-only enforcement)", () => {
     process.env.CRON_SECRET = "abc123";
     const req = new Request("https://example.com/api/cron/x?secret=abc123");
-    expect(isCronRequestAuthorized(req)).toBe(true);
+    expect(isCronRequestAuthorized(req)).toBe(false);
   });
 
   it("rejects wrong bearer", () => {

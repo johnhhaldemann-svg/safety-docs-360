@@ -41,7 +41,7 @@ export function RegisterRow({
 
 function badgeTone(badge?: string) {
   const normalized = String(badge ?? "").toLowerCase();
-  if (normalized.includes("pending")) return { color: theme.warning, background: theme.warningSoft };
+  if (normalized.includes("pending") || normalized.includes("draft")) return { color: theme.warning, background: theme.warningSoft };
   if (normalized.includes("open") || normalized.includes("active")) return { color: theme.info, background: theme.infoSoft };
   if (normalized.includes("submit") || normalized.includes("complete") || normalized.includes("closed")) {
     return { color: theme.success, background: theme.successSoft };
@@ -59,23 +59,30 @@ const styles = StyleSheet.create({
   cta: {
     color: theme.white,
     backgroundColor: theme.primary,
-    padding: 14,
-    borderRadius: 10,
+    padding: 15,
+    borderRadius: theme.radiusLg,
     fontWeight: "900",
     textAlign: "center",
     overflow: "hidden",
     textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
   row: {
+    position: "relative",
     borderWidth: 1,
     borderColor: theme.borderStrong,
-    backgroundColor: theme.surface,
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: theme.surfaceRaised,
+    borderRadius: theme.radiusLg,
+    padding: 15,
     gap: 8,
     overflow: "hidden",
+    shadowColor: theme.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 2,
   },
-  rail: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4 },
+  rail: { position: "absolute", left: 0, top: 12, bottom: 12, width: 4, borderTopRightRadius: 99, borderBottomRightRadius: 99 },
   rowHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   title: { color: theme.textStrong, fontWeight: "900", fontSize: 15, flex: 1 },
   badge: {
@@ -97,7 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.panelSoft,
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: 6,
+    borderRadius: theme.radiusSm,
     paddingHorizontal: 10,
     paddingVertical: 8,
     overflow: "hidden",

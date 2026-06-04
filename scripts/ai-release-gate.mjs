@@ -43,14 +43,71 @@ function numberOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function countFrom(value) {
+  if (Array.isArray(value)) return value.length;
+  const n = numberOrNull(value);
+  return n == null ? null : n;
+}
+
+function normalizeEvalResults(metrics) {
+  const source = metrics?.evalResults && typeof metrics.evalResults === "object" ? metrics.evalResults : null;
+  if (!source) return null;
+  return {
+    totalFixtures: numberOrNull(source.totalFixtures),
+    executedFixtures: numberOrNull(source.executedFixtures ?? source.executedFixtureCount),
+    passedFixtures: numberOrNull(source.passedFixtures ?? source.passedFixtureCount),
+    failedFixtures: numberOrNull(source.failedFixtures ?? source.failedFixtureCount),
+    skippedFixtures: numberOrNull(source.skippedFixtures ?? source.skippedFixtureCount),
+    registeredAdapters: countFrom(source.registeredAdapters ?? source.registeredAdapterCount),
+    unregisteredFixtures: countFrom(source.unregisteredFixtures ?? source.unregisteredFixtureCount),
+    adapterSurfacesWithoutFixtures: countFrom(source.adapterSurfacesWithoutFixtures),
+    telemetryAvailable: typeof source.telemetryAvailable === "boolean" ? source.telemetryAvailable : null,
+  };
+}
+
+function regressionFromBaseline(currentValue, baselineValue) {
+  const current = numberOrNull(currentValue);
+  const baseline = numberOrNull(baselineValue);
+  if (current == null || baseline == null || baseline <= 0) return null;
+  return Number(((current - baseline) / baseline).toFixed(4));
+}
+
 export function evaluateAiReleaseGate(input) {
   const thresholds = { ...DEFAULT_THRESHOLDS, ...(input.thresholds ?? {}) };
   const activeSurfaces = input.activeSurfaces?.length ? input.activeSurfaces : DEFAULT_ACTIVE_SURFACES;
   const coverage = input.coverage ?? new Map();
   const metrics = input.metrics ?? {};
   const failures = [];
+  const evalResults = normalizeEvalResults(metrics);
 
-  const criticalEvalPassRate = numberOrNull(metrics.criticalEvalPassRate);
+  if (!evalResults) {
+    failures.push("eval execution results are missing; fixture files alone do not prove release readiness");
+  } else {
+    if (evalResults.totalFixtures == null || evalResults.totalFixtures < 1) {
+      failures.push(`eval total fixture count ${evalResults.totalFixtures ?? "missing"} must be at least 1`);
+    }
+    if (evalResults.executedFixtures == null || evalResults.executedFixtures < 1) {
+      failures.push(`eval executed fixture count ${evalResults.executedFixtures ?? "missing"} must be at least 1`);
+    }
+    if (evalResults.passedFixtures == null || evalResults.failedFixtures == null || evalResults.skippedFixtures == null) {
+      failures.push("eval pass/fail/skipped counts must be present in the release artifact");
+    }
+    if ((evalResults.failedFixtures ?? 0) > 0) {
+      failures.push(`eval failed fixture count ${evalResults.failedFixtures} must be 0`);
+    }
+    if ((evalResults.unregisteredFixtures ?? 0) > 0) {
+      failures.push(`eval fixtures without registered adapters: ${evalResults.unregisteredFixtures}`);
+    }
+    if (evalResults.telemetryAvailable === false || evalResults.telemetryAvailable == null) {
+      failures.push(`telemetry availability ${evalResults.telemetryAvailable ?? "missing"} must be true`);
+    }
+  }
+
+  const executedPassRate =
+    evalResults?.executedFixtures && evalResults.executedFixtures > 0 && evalResults.passedFixtures != null
+      ? evalResults.passedFixtures / evalResults.executedFixtures
+      : null;
+  const criticalEvalPassRate = executedPassRate ?? numberOrNull(metrics.criticalEvalPassRate);
   if (criticalEvalPassRate == null || criticalEvalPassRate < thresholds.criticalEvalPassRate) {
     failures.push(
       `critical eval pass rate ${criticalEvalPassRate ?? "missing"} is below ${thresholds.criticalEvalPassRate}`
@@ -67,12 +124,16 @@ export function evaluateAiReleaseGate(input) {
     failures.push(`fallback rate ${fallbackRate ?? "missing"} is above ${thresholds.fallbackRate}`);
   }
 
-  const tokenCostRegression = numberOrNull(metrics.tokenCostRegression);
+  const tokenCostRegression =
+    numberOrNull(metrics.tokenCostRegression) ??
+    regressionFromBaseline(metrics.current?.totalTokens ?? metrics.currentTotalTokens, metrics.baseline?.totalTokens ?? metrics.baselineTotalTokens);
   if (tokenCostRegression == null || tokenCostRegression > thresholds.tokenCostRegression) {
     failures.push(`token cost regression ${tokenCostRegression ?? "missing"} is above ${thresholds.tokenCostRegression}`);
   }
 
-  const p95LatencyRegression = numberOrNull(metrics.p95LatencyRegression);
+  const p95LatencyRegression =
+    numberOrNull(metrics.p95LatencyRegression) ??
+    regressionFromBaseline(metrics.current?.p95LatencyMs ?? metrics.currentP95LatencyMs, metrics.baseline?.p95LatencyMs ?? metrics.baselineP95LatencyMs);
   if (p95LatencyRegression == null || p95LatencyRegression > thresholds.p95LatencyRegression) {
     failures.push(`p95 latency regression ${p95LatencyRegression ?? "missing"} is above ${thresholds.p95LatencyRegression}`);
   }
@@ -87,6 +148,17 @@ export function evaluateAiReleaseGate(input) {
     failures,
     activeSurfaces,
     thresholds,
+    artifact: {
+      evalResults,
+      runtime: {
+        criticalEvalPassRate,
+        failureRate,
+        fallbackRate,
+        tokenCostRegression,
+        p95LatencyRegression,
+        telemetryAvailable: evalResults?.telemetryAvailable ?? null,
+      },
+    },
   };
 }
 

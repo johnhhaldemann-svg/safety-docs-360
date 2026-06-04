@@ -84,23 +84,28 @@ export function Button({
 
 export const styles = StyleSheet.create({
   group: { gap: 7 },
-  label: { color: theme.textStrong, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.6 },
+  label: { color: theme.textStrong, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
   input: {
+    minHeight: theme.tap,
     borderWidth: 1,
     borderColor: theme.borderStrong,
     backgroundColor: theme.surface,
     color: theme.textStrong,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderRadius: theme.radiusMd,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     fontSize: 15,
-    fontWeight: "600"
+    fontWeight: "700",
+    shadowColor: theme.shadow,
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
   },
-  area: { minHeight: 110, textAlignVertical: "top" },
-  button: { borderRadius: 8, paddingVertical: 14, alignItems: "center" },
-  primary: { backgroundColor: theme.primary },
+  area: { minHeight: 118, textAlignVertical: "top" },
+  button: { minHeight: 52, borderRadius: theme.radiusMd, paddingVertical: 15, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
+  primary: { backgroundColor: theme.primary, shadowColor: theme.shadowStrong, shadowOpacity: 1, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 },
   secondary: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.borderStrong },
   disabled: { opacity: 0.55 },
-  primaryText: { color: theme.white, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 },
-  secondaryText: { color: theme.textStrong, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }
+  primaryText: { color: theme.white, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4 },
+  secondaryText: { color: theme.textStrong, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.4 }
 });

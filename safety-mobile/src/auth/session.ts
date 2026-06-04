@@ -1,21 +1,18 @@
-import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { setAuthTokens } from "@/api/client";
-
-const ACCESS_TOKEN_KEY = "access_token";
-const REFRESH_TOKEN_KEY = "refresh_token";
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, deleteStoredToken, getStoredToken, setStoredToken } from "@/auth/tokenStorage";
 
 export async function saveSession(accessToken: string, refreshToken?: string | null) {
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+  await setStoredToken(ACCESS_TOKEN_KEY, accessToken);
   if (refreshToken) {
-    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    await setStoredToken(REFRESH_TOKEN_KEY, refreshToken);
   }
   setAuthTokens(accessToken, refreshToken ?? null);
 }
 
 export async function clearSession() {
-  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await deleteStoredToken(ACCESS_TOKEN_KEY);
+  await deleteStoredToken(REFRESH_TOKEN_KEY);
   setAuthTokens(null, null);
 }
 
@@ -25,7 +22,7 @@ export function useAuthToken() {
 
   useEffect(() => {
     let mounted = true;
-    SecureStore.getItemAsync(ACCESS_TOKEN_KEY)
+    getStoredToken(ACCESS_TOKEN_KEY)
       .then((value) => {
         if (value) setAuthTokens(value);
         if (mounted) setToken(value);

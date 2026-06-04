@@ -64,9 +64,11 @@ yarn-error.log*
 /.codex-docx-review/
 /.codex-prod-deploy/
 /.codex-reference-render/
+/.codex-deploy-snapshot/
 /annotated_pictures/
 /docx_work/
 /output/
+/outputs/
 /repaired-docs/
 /tmp/
 /tmp_review_notes_copy.docx

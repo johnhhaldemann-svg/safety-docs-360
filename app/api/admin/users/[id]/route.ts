@@ -8,6 +8,8 @@ import {
   normalizePermissionOverrides,
 } from "@/lib/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { recordCompanySecurityEvent } from "@/lib/companySecurityEvents";
+import { getClientIpAddress } from "@/lib/legal";
 
 export const runtime = "nodejs";
 
@@ -27,6 +29,11 @@ type CompanyLookupRow = {
 
 type ActionPayload = {
   action?: string;
+  password?: string;
+};
+
+type CompanyIdRow = {
+  company_id?: string | null;
 };
 
 function formatRoleConstraintError(message?: string | null) {
@@ -43,6 +50,83 @@ function formatRoleConstraintError(message?: string | null) {
 
 function trimText(value?: string | null) {
   return (value ?? "").trim();
+}
+
+function validateAdminPassword(password: unknown) {
+  if (typeof password !== "string") {
+    return { ok: false as const, error: "Password is required." };
+  }
+
+  if (password.length < 12) {
+    return {
+      ok: false as const,
+      error: "Password must be at least 12 characters.",
+    };
+  }
+
+  return { ok: true as const, password };
+}
+
+async function getCompanyIdForAudit(
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  userId: string
+) {
+  const roleResult = await adminClient
+    .from("user_roles")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const roleCompanyId = (roleResult.data as CompanyIdRow | null)?.company_id?.trim();
+  if (roleCompanyId) return roleCompanyId;
+
+  const membershipResult = await adminClient
+    .from("company_memberships")
+    .select("company_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return (membershipResult.data as CompanyIdRow | null)?.company_id?.trim() || null;
+}
+
+async function recordCompanyAuthAction(params: {
+  request: Request;
+  adminClient: NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
+  actorUserId: string;
+  actorRole: string;
+  targetUserId: string;
+  targetEmail: string;
+  action: "password_reset" | "set_password" | "force_sign_out" | "resend_invite";
+}) {
+  const companyId = await getCompanyIdForAudit(params.adminClient, params.targetUserId);
+  if (!companyId) return;
+
+  const actionLabel =
+    params.action === "set_password"
+      ? "Company user password set"
+      : params.action === "password_reset"
+        ? "Company user password reset link generated"
+        : params.action === "force_sign_out"
+          ? "Company user force sign-out requested"
+          : "Company user invite resent";
+
+  await recordCompanySecurityEvent({
+    supabase: params.adminClient,
+    companyId,
+    actorUserId: params.actorUserId,
+    actorRole: params.actorRole,
+    eventType: "user_access_updated",
+    resourceType: "company_user",
+    resourceId: params.targetUserId,
+    title: actionLabel,
+    detail: `${actionLabel} for ${params.targetEmail}.`,
+    ipAddress: getClientIpAddress(params.request),
+    userAgent: params.request.headers.get("user-agent"),
+    metadata: {
+      action: params.action,
+      targetEmail: params.targetEmail,
+    },
+  });
 }
 
 async function resolveCompanyAssignment(params: {
@@ -530,6 +614,16 @@ export async function POST(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    await recordCompanyAuthAction({
+      request,
+      adminClient,
+      actorUserId: auth.user.id,
+      actorRole: auth.role,
+      targetUserId: id,
+      targetEmail: email,
+      action: "resend_invite",
+    });
+
     return NextResponse.json({
       success: true,
       action: "resend_invite",
@@ -537,25 +631,64 @@ export async function POST(
   }
 
   if (action === "password_reset") {
-    const { data, error } = await adminClient.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: normalizedRedirectTo
-        ? {
-            redirectTo: normalizedRedirectTo,
-          }
-        : undefined,
+    const passwordResetRedirectTo = normalizedRedirectTo
+      ? `${normalizedRedirectTo.replace(/\/$/, "")}/reset-password`
+      : undefined;
+    const { error } = await adminClient.auth.resetPasswordForEmail(email, {
+      ...(passwordResetRedirectTo ? { redirectTo: passwordResetRedirectTo } : {}),
     });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    await recordCompanyAuthAction({
+      request,
+      adminClient,
+      actorUserId: auth.user.id,
+      actorRole: auth.role,
+      targetUserId: id,
+      targetEmail: email,
+      action: "password_reset",
+    });
+
     return NextResponse.json({
       success: true,
       action: "password_reset",
       emailSentTo: email,
-      properties: data.properties,
+      redirectTo: passwordResetRedirectTo ?? null,
+    });
+  }
+
+  if (action === "set_password") {
+    const validation = validateAdminPassword(body.password);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const { error } = await adminClient.auth.admin.updateUserById(id, {
+      password: validation.password,
+      email_confirm: true,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    await recordCompanyAuthAction({
+      request,
+      adminClient,
+      actorUserId: auth.user.id,
+      actorRole: auth.role,
+      targetUserId: id,
+      targetEmail: email,
+      action: "set_password",
+    });
+
+    return NextResponse.json({
+      success: true,
+      action: "set_password",
+      emailConfirmed: true,
     });
   }
 
@@ -567,6 +700,16 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    await recordCompanyAuthAction({
+      request,
+      adminClient,
+      actorUserId: auth.user.id,
+      actorRole: auth.role,
+      targetUserId: id,
+      targetEmail: email,
+      action: "force_sign_out",
+    });
 
     return NextResponse.json({
       success: true,

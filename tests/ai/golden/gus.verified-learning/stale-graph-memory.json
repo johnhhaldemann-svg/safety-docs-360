@@ -1,0 +1,31 @@
+{
+  "surface": "gus.verified-learning",
+  "name": "Stale graph memory needs refresh",
+  "input": {
+    "question": "What hot work control should we use?",
+    "scenario": "stale-graph-memory",
+    "now": "2026-05-26T12:00:00Z"
+  },
+  "assertions": {
+    "mustContain": [
+      "stale",
+      "Super Admin refresh",
+      "qualified safety professional"
+    ],
+    "schemaShape": [
+      "graphCitationSnippets[]"
+    ],
+    "expectedFields": [
+      {
+        "path": "unsupported",
+        "type": "boolean",
+        "equals": true
+      },
+      {
+        "path": "needsReview",
+        "type": "boolean",
+        "equals": true
+      }
+    ]
+  }
+}

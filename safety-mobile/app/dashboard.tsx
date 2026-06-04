@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getApiErrorStatus, getFriendlyApiError } from "@/api/client";
 import { getMe } from "@/api/mobile";
@@ -77,6 +78,25 @@ export default function DashboardScreen() {
       subtitle={data.user.companyName || data.user.team || "Mobile field workspace"}
       headerAside={<Text style={styles.syncPill}>Synced {formatTime(data.dashboard.lastSyncAt)}</Text>}
     >
+      <View style={styles.commandPanel}>
+        <View style={styles.commandIcon}>
+          <Ionicons name="radio-outline" size={25} color={theme.white} />
+        </View>
+        <View style={styles.commandText}>
+          <Text style={styles.commandKicker}>Field Command</Text>
+          <Text style={styles.commandTitle}>
+            {data.dashboard.openIssues > 0
+              ? `${data.dashboard.openIssues} Issue${data.dashboard.openIssues === 1 ? "" : "s"} Need Attention`
+              : "No Open Field Issues"}
+          </Text>
+          <Text style={styles.commandDetail}>
+            {data.dashboard.pendingAuditReviews
+              ? `${data.dashboard.pendingAuditReviews} audit review${data.dashboard.pendingAuditReviews === 1 ? "" : "s"} pending.`
+              : "Start work, capture evidence, and keep records synced."}
+          </Text>
+        </View>
+      </View>
+
       <StatusBanner
         title="Ready For Field Work"
         detail="Online sync is active. JSAs, field issues, and audits submit back to the platform for review."
@@ -186,6 +206,33 @@ const styles = StyleSheet.create({
   },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stack: { gap: 10 },
+  commandPanel: {
+    borderWidth: 1,
+    borderColor: theme.borderStrong,
+    backgroundColor: theme.ink,
+    borderRadius: theme.radiusXl,
+    padding: 16,
+    flexDirection: "row",
+    gap: 13,
+    alignItems: "center",
+    shadowColor: theme.shadowDeep,
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
+  },
+  commandIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: theme.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  commandText: { flex: 1, minWidth: 0 },
+  commandKicker: { color: "#9ec5ff", fontSize: 10, fontWeight: "900", letterSpacing: 1.1, textTransform: "uppercase" },
+  commandTitle: { color: theme.white, fontSize: 20, lineHeight: 25, fontWeight: "900", marginTop: 3 },
+  commandDetail: { color: "#d7e4f4", fontSize: 12, lineHeight: 18, fontWeight: "700", marginTop: 3 },
   activityRow: {
     flexDirection: "row",
     alignItems: "flex-start",

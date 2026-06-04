@@ -10,6 +10,7 @@ import {
   requireConcreteCompanyId,
 } from "@/lib/aiKnowledgeMap/guardrails";
 import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
+import { AI_KNOWLEDGE_SOURCE_TABLES, domainCoverageForNodes } from "@/lib/aiKnowledgeMap/sourceAdapters";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
 import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE } from "@/lib/aiKnowledgeMap/learningCheck";
 import {
@@ -41,19 +42,7 @@ type DbClient = Pick<SupabaseClient, "from">;
 type DbError = { message?: string | null };
 type QueryResult<T> = { data: T | null; error: DbError | null; count?: number | null };
 
-const SOURCE_TABLES = [
-  "company_permits",
-  "company_jsas",
-  "company_hazards",
-  "company_controls",
-  "company_training_requirements",
-  "company_incidents",
-  "company_sor_records",
-  "company_corrective_actions",
-  "documents",
-  "company_generated_documents",
-  "company_risk_ai_recommendations",
-] as const;
+const SOURCE_TABLES = AI_KNOWLEDGE_SOURCE_TABLES;
 
 const ALL_COMPANIES_SCOPE = "all";
 const FALLBACK_NODE_THRESHOLD = 8;
@@ -379,6 +368,7 @@ function summarize(nodes: AiKnowledgeNode[], edges: AiKnowledgeEdge[], companies
     relationshipApprovalRate: reviewed === 0 ? 0 : Number((approved.length / reviewed).toFixed(3)),
     falsePositiveRate: reviewed === 0 ? 0 : Number((rejected.length / reviewed).toFixed(3)),
     missedLinkRate: health.missedLinkRate,
+    domainCoverage: domainCoverageForNodes(nodes),
     latestUpdate,
   };
 }
@@ -1620,7 +1610,6 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
       edges = [...edges, ...fallbackGraph.edges.filter((edge) => fallbackNodeIds.has(edge.sourceNodeId) && fallbackNodeIds.has(edge.targetNodeId))];
       fallback = true;
       fallbackReason = FALLBACK_REASON;
-      warnings.push(FALLBACK_REASON);
     }
     warnings.push(...fallbackGraph.warnings.slice(0, 3));
   }

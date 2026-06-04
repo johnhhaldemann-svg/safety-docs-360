@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, View } from "react-native";
 import { useState } from "react";
 import { Button, Field } from "@/components/Form";
 import { AppCard, PhotoEvidenceButton, SelectionDropdown, StatusBanner } from "@/components/Enterprise";
@@ -193,7 +193,7 @@ export default function NewFieldIssueScreen() {
               }}
             />
           ) : null}
-          <Field label="Assigned User ID" value={assignedTo} onChangeText={setAssignedTo} placeholder="Optional platform user id" />
+          <Field label="Assign To (optional)" value={assignedTo} onChangeText={setAssignedTo} placeholder="Leave blank — admin will assign from the platform" />
           <Field label="Due Date" value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" />
         </AppCard>
 
@@ -212,18 +212,4 @@ function labelFor(options: Array<{ id: string; label: string }>, id: string) {
   return options.find((option) => option.id === id)?.label ?? id;
 }
 
-const styles = StyleSheet.create({
-  form: { gap: 12 },
-  card: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 8, padding: 14, gap: 12 },
-  cardTitle: { color: theme.textStrong, fontSize: 16, fontWeight: "900" },
-  selectorGroup: { gap: 7 },
-  selectorLabel: { color: theme.textStrong, fontSize: 13, fontWeight: "900" },
-  dropdownButton: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 11 },
-  dropdownTitle: { color: theme.textStrong, fontSize: 14, fontWeight: "900" },
-  dropdownMeta: { color: theme.muted, fontSize: 12, fontWeight: "700", marginTop: 3 },
-  dropdownPanel: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.panelSoft, borderRadius: 10, padding: 8, gap: 6 },
-  optionRow: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, gap: 2 },
-  optionText: { color: theme.textStrong, fontWeight: "900", fontSize: 13 },
-  optionMeta: { color: theme.muted, fontWeight: "700", fontSize: 11 },
-  emptyText: { color: theme.muted, fontWeight: "700", padding: 8 }
-});
+const styles = { form: { gap: 12 } } as const;
