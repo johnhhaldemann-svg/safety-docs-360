@@ -80,6 +80,22 @@ function makeSupabase() {
       if (table === "company_corrective_action_events") {
         return { insert: eventInsert };
       }
+      if (table === "company_notification_preferences") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                })),
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === "company_notifications") {
+        return { insert: vi.fn().mockResolvedValue({ error: null }) };
+      }
       throw new Error(`Unexpected table ${table}`);
     }),
   };
