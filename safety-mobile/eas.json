@@ -19,6 +19,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "john.h.haldemann@gmail.com",
+        "ascAppId": "6773332718",
+        "appleTeamId": "6YTW5RRA78"
+      }
+    }
   }
 }
