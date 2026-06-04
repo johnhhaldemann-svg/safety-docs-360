@@ -1610,7 +1610,6 @@ export async function getKnowledgeGraphPayload(client: DbClient | null, filters:
       edges = [...edges, ...fallbackGraph.edges.filter((edge) => fallbackNodeIds.has(edge.sourceNodeId) && fallbackNodeIds.has(edge.targetNodeId))];
       fallback = true;
       fallbackReason = FALLBACK_REASON;
-      warnings.push(FALLBACK_REASON);
     }
     warnings.push(...fallbackGraph.warnings.slice(0, 3));
   }
