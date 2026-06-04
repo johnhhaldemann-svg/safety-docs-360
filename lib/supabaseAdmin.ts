@@ -14,11 +14,7 @@ export function getSupabaseAnonKey() {
 }
 
 export function getSupabaseServiceRoleKey() {
-  return (
-    readEnv("SUPABASE_SERVICE_ROLE_KEY") ??
-    // Legacy typo name set in Vercel Preview/Development — remove once all envs use the canonical name
-    readEnv("SUPABASE_SERIVCE_ROLE_KEY")
-  );
+  return readEnv("SUPABASE_SERVICE_ROLE_KEY");
 }
 
 export function getSupabaseServerEnvStatus() {
@@ -37,7 +33,6 @@ export function getSupabaseServerEnvStatus() {
         null,
       serviceRoleKey:
         (readEnv("SUPABASE_SERVICE_ROLE_KEY") && "SUPABASE_SERVICE_ROLE_KEY") ||
-        (readEnv("SUPABASE_SERIVCE_ROLE_KEY") && "SUPABASE_SERIVCE_ROLE_KEY") ||
         null,
     },
   };
