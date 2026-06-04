@@ -258,6 +258,21 @@ const roleOptions = [
   "Company User",
 ];
 
+// Plain-language summary of what each invite role can actually do, shown under the
+// role picker so admins do not accidentally provision a site worker as the
+// document-only "Company User" (which cannot reach jobsites, observations, or dashboards).
+const roleAccessHints: Record<string, string> = {
+  "Company Admin": "Full company access: users, billing, jobsites, and all field tools.",
+  "Operations Manager": "Company-wide visibility across every jobsite, reports, and analytics.",
+  "Safety Manager": "Company-wide safety oversight: observations, incidents, reports, and analytics.",
+  "Project Manager": "Field tools and dashboards, scoped to assigned jobsites.",
+  "Field Supervisor": "Field tools (observations, JSAs, permits, toolbox), scoped to assigned jobsites.",
+  "Foreman": "Field tools (observations, JSAs, toolbox, inductions), scoped to assigned jobsites.",
+  "Field User": "Site worker: jobsites, observations, JSAs, and safety forms for assigned sites. Best default for crew.",
+  "Read Only": "View-only access to dashboards, reports, and assigned jobsites.",
+  "Company User": "Documents, field audits, and library only — no jobsites, observations, dashboards, or training. Use Field User for site crew.",
+};
+
 const fieldClassName =
   "w-full rounded-xl border border-[var(--app-border)] bg-white px-3.5 py-2.5 text-sm font-medium text-[var(--app-text-strong)] shadow-[0_4px_10px_rgba(76,108,161,0.035)] outline-none transition placeholder:font-normal placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)] focus:ring-2 focus:ring-[var(--app-accent-surface-18)]";
 
@@ -808,7 +823,7 @@ export default function CompanyUsersPage() {
   );
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("Company User");
+  const [inviteRole, setInviteRole] = useState("Field User");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<CompanyUser | null>(null);
   const [editRole, setEditRole] = useState("Company User");
@@ -2055,6 +2070,12 @@ export default function CompanyUsersPage() {
                 Invite
               </button>
             </div>
+            {roleAccessHints[inviteRole] ? (
+              <p className="text-xs leading-5 text-[var(--app-muted)]">
+                <strong className="text-[var(--app-text-strong)]">{inviteRole}:</strong>{" "}
+                {roleAccessHints[inviteRole]}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs leading-5 text-[var(--app-muted)]">
               <span><strong className="text-[var(--app-text-strong)]">Company-wide:</strong> admins, operations, and safety managers see every jobsite.</span>
               <span><strong className="text-[var(--app-text-strong)]">Field-scoped:</strong> project, supervisor, foreman, field, and read-only users need site picks.</span>

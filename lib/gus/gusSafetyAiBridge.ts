@@ -1,4 +1,5 @@
 import { assessSafetyRisk } from "@/lib/safety-ai/riskEngine";
+import { stripPromptInjectionText } from "@/lib/gusLearning/sanitize";
 import type { SafetyAiAssessment, SafetyAiSignal } from "@/lib/safety-ai/types";
 import type { GusContext } from "@/lib/gus/gusContext";
 import type { GusRiskLevel } from "@/lib/gus/gusTypes";
@@ -8,6 +9,13 @@ import type { AiSafetyReasoningFrame } from "@/lib/aiSafetyReasoningFrame";
 import type { AiSafetyUnifiedContext } from "@/lib/aiSafetyUnifiedContext";
 import type { SafetyDomainUnderstanding } from "@/lib/safety-ai/domainUnderstanding";
 import { buildAiActionDecisionTriggers } from "@/lib/aiActionDecisionTriggers";
+
+// User-authored free text (titles, categories, linked risks) flows into the safety AI
+// assessment. Neutralize embedded prompt-injection phrases as defense-in-depth before it
+// reaches any model-backed reasoning. Legitimate text is left untouched.
+function sanitizeSignalText<T extends string | null | undefined>(value: T): T {
+  return (typeof value === "string" ? stripPromptInjectionText(value) : value) as T;
+}
 
 function toGusRiskLevel(level: SafetyAiAssessment["level"]): GusRiskLevel {
   if (level === "critical") return "severe";
@@ -90,8 +98,8 @@ function buildSignals(dataset: SafePredictDataset, siteIds: Set<string>): Safety
       (action): SafetyAiSignal => ({
         id: action.id,
         type: "corrective_action",
-        label: action.title,
-        hazard: action.linkedRisk,
+        label: sanitizeSignalText(action.title),
+        hazard: sanitizeSignalText(action.linkedRisk),
         severity: signalSeverity(action.priority),
         controlGap: isOpenStatus(action.status) ? 4 : 1,
         status: action.status,
@@ -107,8 +115,8 @@ function buildSignals(dataset: SafePredictDataset, siteIds: Set<string>): Safety
       (incident): SafetyAiSignal => ({
         id: incident.id,
         type: incident.type === "Near Miss" ? "near_miss" : "incident",
-        label: incident.title,
-        hazard: incident.type,
+        label: sanitizeSignalText(incident.title),
+        hazard: sanitizeSignalText(incident.type),
         severity: signalSeverity(incident.severity),
         controlGap: isOpenStatus(incident.status) ? 3 : 1,
         status: incident.status,
@@ -124,8 +132,8 @@ function buildSignals(dataset: SafePredictDataset, siteIds: Set<string>): Safety
       (observation): SafetyAiSignal => ({
         id: observation.id,
         type: "observation",
-        label: observation.title,
-        hazard: observation.category,
+        label: sanitizeSignalText(observation.title),
+        hazard: sanitizeSignalText(observation.category),
         severity: signalSeverity(observation.riskLevel),
         controlGap: observation.status === "Open" ? 3 : 1,
         status: observation.status,
@@ -140,8 +148,8 @@ function buildSignals(dataset: SafePredictDataset, siteIds: Set<string>): Safety
       (inspection): SafetyAiSignal => ({
         id: inspection.id,
         type: "inspection_failure",
-        label: inspection.title,
-        hazard: inspection.checklist,
+        label: sanitizeSignalText(inspection.title),
+        hazard: sanitizeSignalText(inspection.checklist),
         severity: signalSeverity(inspection.riskLevel),
         controlGap: inspection.failedItems > 0 || inspection.status === "Overdue" || inspection.status === "Failed Check" ? 4 : 1,
         status: inspection.status,

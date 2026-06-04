@@ -91,6 +91,18 @@ function str(input: unknown): string | null {
   return s || null;
 }
 
+/**
+ * True only when the facets table itself is absent (feature not migrated) — a safe skip.
+ * A missing-column / stale "schema cache" error on an existing table is NOT a skip: it
+ * signals schema drift and must be surfaced as a failure so it isn't silently lost.
+ */
+function isMissingFacetTableError(message?: string | null) {
+  const m = (message ?? "").toLowerCase();
+  if (!m.includes("company_risk_memory_facets")) return false;
+  if (m.includes("column")) return false;
+  return m.includes("does not exist") || m.includes("could not find the table");
+}
+
 function shouldRetryFacetUpsertWithoutHierarchyColumns(message?: string | null) {
   const msg = (message ?? "").toLowerCase();
   return (
@@ -496,7 +508,10 @@ export async function upsertRiskMemoryFacet(
 
   if (error) {
     const msg = error.message ?? "";
-    if (msg.toLowerCase().includes("company_risk_memory_facets") || msg.toLowerCase().includes("schema cache")) {
+    // Only skip when the facets table is genuinely absent (feature not migrated yet).
+    // A bare "schema cache" / missing-column error on an existing table is a real
+    // failure (e.g. schema drift) and must surface as failed, not be masked as skipped.
+    if (isMissingFacetTableError(msg)) {
       serverLog("warn", "risk_memory_facet_upsert_skipped", {
         companyId: row.company_id,
         sourceModule: row.source_module,

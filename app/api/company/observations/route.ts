@@ -98,7 +98,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const auth = await authorizeRequest(request, {
-    requireAnyPermission: ["can_create_documents", "can_view_all_company_data"],
+    // Include can_manage_observations so the canonical field-reporting roles
+    // (e.g. field_user) pass the permission gate; the role check below still applies.
+    requireAnyPermission: [
+      "can_manage_observations",
+      "can_create_documents",
+      "can_view_all_company_data",
+    ],
   });
   if ("error" in auth) return auth.error;
   if (!canManageObservations(auth.role)) {

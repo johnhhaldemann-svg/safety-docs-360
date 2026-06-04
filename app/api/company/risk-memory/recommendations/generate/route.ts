@@ -12,6 +12,7 @@ import {
   listCompanyNotificationRecipients,
 } from "@/lib/companyNotifications";
 import { retrieveAiEngineBrainContext } from "@/lib/aiEngine/brain";
+import { applyAiEngineOutputSafetyGate } from "@/lib/aiEngine/applyOutputSafetyGate";
 import type { TrustedKnowledgeGraphMemoryItem } from "@/lib/aiKnowledgeMap/types";
 
 export const runtime = "nodejs";
@@ -163,6 +164,16 @@ export async function POST(request: Request) {
       }
     : { mode, trustedGraphMemoryCount: brain.graphMemoryCount, aiEngineBrainMethod: brain.method };
 
+  // AI Engine output safety gate: for high/critical company risk, recommendations must not
+  // be presented as company-specific when only fallback/stale graph memory backs them.
+  // When the gate fires we force human verification and surface the required language.
+  const riskBand = ctx?.aggregatedWithBaseline?.band ?? ctx?.aggregated.band ?? null;
+  const { gate: safetyGate } = applyAiEngineOutputSafetyGate({ riskLevel: riskBand, brain });
+  const forceHumanReview = !safetyGate.okForNormalRecommendation;
+  const humanReviewSuffix = forceHumanReview
+    ? `\n\nHuman review required:\n${safetyGate.requiredLanguage.map((line) => `- ${line}`).join("\n")}`
+    : "";
+
   const rows = drafts.map((d) => {
     const actionDraft = enrichRiskActionDraft({
       ...d,
@@ -183,16 +194,16 @@ export async function POST(request: Request) {
       jobsite_id: jobsiteId,
       kind: d.kind,
       title: d.title,
-      body: d.body,
+      body: `${d.body}${humanReviewSuffix}`,
       confidence: d.confidence,
       context_snapshot: snapshot,
       created_by: auth.user.id,
       status: "active",
-      priority: actionDraft.priority,
+      priority: forceHumanReview ? "high" : actionDraft.priority,
       action_type: actionDraft.actionType,
       target_module: actionDraft.targetModule,
       target_href: actionDraft.targetHref,
-      verification_required: actionDraft.verificationRequired,
+      verification_required: forceHumanReview ? true : actionDraft.verificationRequired,
       mitigation_state: actionDraft.mitigationState,
       risk_reduction_points: actionDraft.riskReductionPoints,
       evidence_summary: {
@@ -259,5 +270,11 @@ export async function POST(request: Request) {
     recommendations,
     mode,
     trustedGraphMemoryCount: brain.graphMemoryCount,
+    safetyGate: {
+      action: safetyGate.action,
+      okForNormalRecommendation: safetyGate.okForNormalRecommendation,
+      requiredLanguage: safetyGate.requiredLanguage,
+      warnings: safetyGate.warnings,
+    },
   });
 }

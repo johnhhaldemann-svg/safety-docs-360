@@ -120,7 +120,7 @@ RLS policies are defined in migrations. API routes should align with [`docs/api-
 
 ## Scheduled jobs (Vercel)
 
-[`vercel.json`](vercel.json) defines scheduled jobs including `/api/cron/jobsite-weather-alerts` every 5 minutes for NWS jobsite alerts. That interval requires Vercel Pro/Enterprise cron limits. Set `CRON_SECRET` in Vercel (Vercel sends `Authorization: Bearer ...` when configured). See [`docs/production-deployment.md`](docs/production-deployment.md).
+[`vercel.json`](vercel.json) defines scheduled jobs including `/api/cron/jobsite-weather-alerts`, which currently runs **once daily** (`25 6 * * *`, 06:25 UTC) for NWS jobsite alerts. Increase that cron frequency if you need near-real-time alerts (sub-hourly intervals require Vercel Pro/Enterprise cron limits). Set `CRON_SECRET` in Vercel (Vercel sends `Authorization: Bearer ...` when configured). See [`docs/production-deployment.md`](docs/production-deployment.md).
 
 ## License
 

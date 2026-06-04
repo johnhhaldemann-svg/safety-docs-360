@@ -80,6 +80,9 @@ export type BuilderProgramAiReview = {
 
 const DISCLAIMER =
   "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules, environmental obligations where applicable, and the contract documents.";
+const FALLBACK_DISCLAIMER =
+  "AUTOMATED FALLBACK — AI language-model review was unavailable, so this is a basic rule-based checklist, NOT an AI review. Treat it as a starting point only. " +
+  DISCLAIMER;
 const DEFAULT_BUILDER_REVIEW_MODEL = "gpt-4o-mini";
 const OPENAI_REVIEW_TIMEOUT_MS = 45000;
 const COMMON_REFERENCE_SECTION_LABELS = [
@@ -1272,7 +1275,7 @@ export async function generateBuilderProgramAiReview(params: {
   if (!apiKey) {
     return {
       review: buildDeterministicBuilderProgramReview(params),
-      disclaimer: DISCLAIMER,
+      disclaimer: FALLBACK_DISCLAIMER,
     };
   }
 
@@ -1561,7 +1564,7 @@ export async function generateBuilderProgramAiReview(params: {
       ) {
         return {
           review: buildDeterministicBuilderProgramReview(params),
-          disclaimer: DISCLAIMER,
+          disclaimer: FALLBACK_DISCLAIMER,
         };
       }
       throw error;

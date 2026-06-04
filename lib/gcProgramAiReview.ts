@@ -23,6 +23,9 @@ export type GcProgramAiReview = {
 
 const DISCLAIMER =
   "This AI review is for internal triage only. It is not legal advice, does not replace a competent safety professional or the AHJ, and may omit or misread content. Verify against current OSHA / state rules and the contract documents.";
+const FALLBACK_DISCLAIMER =
+  "AUTOMATED FALLBACK — AI language-model review was unavailable, so this is a basic rule-based checklist, NOT an AI review. Treat it as a starting point only. " +
+  DISCLAIMER;
 const DEFAULT_GC_REVIEW_MODEL = "gpt-4o-mini";
 
 function includesAny(text: string, tokens: string[]) {
@@ -144,7 +147,7 @@ export async function generateGcProgramAiReview(params: {
   if (!apiKey) {
     return {
       review: buildDeterministicGcProgramReview(params),
-      disclaimer: DISCLAIMER,
+      disclaimer: FALLBACK_DISCLAIMER,
     };
   }
 

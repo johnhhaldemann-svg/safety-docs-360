@@ -19,6 +19,10 @@ type RegisterPayload = {
   email?: string;
   password?: string;
   agreed?: boolean;
+  // Email the invite link was issued to (from `?email=` on the invite URL). When present
+  // it signals the user arrived via an invite, so we surface a clear error instead of
+  // silently creating an orphaned `viewer` account if no matching invite is found.
+  invitedEmail?: string;
 };
 
 type CompanyInviteLookupRow = {
@@ -170,6 +174,7 @@ export async function POST(request: Request) {
   const email = body?.email?.trim().toLowerCase() ?? "";
   const password = body?.password?.trim() ?? "";
   const agreed = body?.agreed === true;
+  const invitedEmail = body?.invitedEmail?.trim().toLowerCase() ?? "";
 
   if (!fullName || !email || !password) {
     return NextResponse.json(
@@ -190,6 +195,17 @@ export async function POST(request: Request) {
     adminClient,
     email,
   });
+
+  // The user followed an invite link but no matching pending invite was found for the
+  // email they submitted. Without this guard we silently create an orphaned `viewer`
+  // account with no company, stranding the worker. Surface an actionable error instead.
+  if (!companyInvite && invitedEmail) {
+    const message =
+      invitedEmail !== email
+        ? `This invite was issued to ${invitedEmail}. Create your account with that exact email address, or ask your administrator to reissue the invite to ${email}.`
+        : `We couldn't find a pending invite for ${email}. Ask your company administrator to (re)send your invite, then try again.`;
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   const pendingRole = companyInvite
     ? {

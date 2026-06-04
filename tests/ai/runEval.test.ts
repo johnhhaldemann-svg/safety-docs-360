@@ -24,6 +24,7 @@ import { loadAiEvalFixtures } from "@/tests/ai/golden/loadFixtures";
 import { aiEvalSurfaceRequiresOpenAi, getAiEvalAdapter, listAiEvalSurfaces } from "@/tests/ai/golden/surfaces";
 import { evaluateAiOutput, summarizeChecks } from "@/tests/ai/golden/assertions";
 import { buildAiEvalReleaseGateArtifact, type AiEvalFixtureExecution } from "@/tests/ai/golden/releaseGateArtifact";
+import { __setAiResponsesReplayForTests } from "@/lib/ai/responses";
 
 const HAS_KEY = Boolean(process.env.OPENAI_API_KEY?.trim());
 const FIXTURES = loadAiEvalFixtures();
@@ -72,7 +73,9 @@ for (const fixture of FIXTURES) {
       return;
     }
 
-    if (!HAS_KEY && aiEvalSurfaceRequiresOpenAi(fixture.surface)) {
+    const canReplay = typeof fixture.recordedOutputText === "string" && fixture.recordedOutputText.length > 0;
+
+    if (!HAS_KEY && aiEvalSurfaceRequiresOpenAi(fixture.surface) && !canReplay) {
       EXECUTIONS.push({ surface: fixture.surface, name: fixture.name, status: "skipped", reason: "OPENAI_API_KEY not set" });
       it.skip(`${fixture.name} - OPENAI_API_KEY not set, skipping live call`, () => {});
       return;
@@ -81,6 +84,10 @@ for (const fixture of FIXTURES) {
     it(
       fixture.name,
       async () => {
+        // Without a key, replay the recorded response so deterministic post-processing runs.
+        if (!HAS_KEY && canReplay) {
+          __setAiResponsesReplayForTests(() => fixture.recordedOutputText ?? null);
+        }
         try {
           const output = await adapter(fixture.input);
           const checks = evaluateAiOutput(output, fixture.assertions);
@@ -99,6 +106,8 @@ for (const fixture of FIXTURES) {
             EXECUTIONS.push({ surface: fixture.surface, name: fixture.name, status: "failed", reason: error instanceof Error ? error.message : "Fixture execution failed" });
           }
           throw error;
+        } finally {
+          __setAiResponsesReplayForTests(null);
         }
       },
       120_000,

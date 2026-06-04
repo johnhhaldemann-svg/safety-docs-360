@@ -75,6 +75,7 @@ export function loadAiEvalFixtures(rootDir: string = HERE): AiEvalFixture[] {
         input: fixture.input,
         assertions: fixture.assertions ?? {},
         notes: fixture.notes,
+        recordedOutputText: fixture.recordedOutputText,
       });
     }
   }
