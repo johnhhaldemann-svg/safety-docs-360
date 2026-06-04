@@ -153,6 +153,7 @@ function LoginPageContent() {
         email,
         password,
         agreed,
+        invitedEmail: invitedEmail || undefined,
       }),
     });
 

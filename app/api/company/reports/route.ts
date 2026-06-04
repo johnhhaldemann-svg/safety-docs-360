@@ -374,10 +374,12 @@ async function loadOpsMetrics({ auth, companyId }: ScopeContext, days: number) {
 
 export async function GET(request: Request) {
   const auth = await authorizeRequest(request, {
+    // Reports are a reporting/analytics surface. Gate reads on view permissions so
+    // document-only roles (e.g. company_user) don't get read access they can't act on
+    // — this keeps GET consistent with the POST gate (analytics / all-company-data).
     requireAnyPermission: [
       "can_view_all_company_data",
       "can_view_analytics",
-      "can_create_documents",
       "can_view_reports",
       "can_view_dashboards",
     ],
