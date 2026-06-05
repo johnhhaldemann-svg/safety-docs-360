@@ -19,6 +19,7 @@ import {
   recordApprovalDecisions,
   type ApprovalMemoryInput,
 } from "@/lib/aiApprovalMemory";
+import { scoreApprovability, type ApprovalHistoryRow } from "@/lib/aiApprovalRecall";
 
 export const runtime = "nodejs";
 
@@ -289,8 +290,40 @@ async function fetchReviewRows(params: {
       ? Number((rated.reduce((sum, row) => sum + Number(row.rating ?? 0), 0) / rated.length).toFixed(2))
       : null;
 
+  // Attach an approvability recall verdict from the memory bank (best-effort, one query).
+  let history: Array<ApprovalHistoryRow & { source_record_id?: string | null }> = [];
+  try {
+    const { data: historyData } = await admin
+      .from("ai_approval_memory")
+      .select("decision, surface, source_type, category, title, content, rating, source_record_id")
+      .eq("surface", "prediction_validation")
+      .order("created_at", { ascending: false })
+      .limit(400);
+    history = (historyData ?? []) as Array<ApprovalHistoryRow & { source_record_id?: string | null }>;
+  } catch {
+    history = [];
+  }
+  const rowsWithRecall = rows.map((row) => {
+    const comparable = history.filter((entry) => entry.source_record_id !== row.id);
+    const verdict = scoreApprovability(comparable, {
+      surface: "prediction_validation",
+      sourceType: row.sourceType,
+      category: null,
+      content: `${row.title} ${row.detail}`,
+    });
+    return {
+      ...row,
+      recall: {
+        recommendation: verdict.recommendation,
+        score: verdict.score,
+        confidence: verdict.confidence,
+        consideredCount: verdict.consideredCount,
+      },
+    };
+  });
+
   return {
-    rows,
+    rows: rowsWithRecall,
     summary: {
       pending: summaryRows.filter((row) => row.status === "pending").length,
       approved: summaryRows.filter((row) => row.status === "approved").length,

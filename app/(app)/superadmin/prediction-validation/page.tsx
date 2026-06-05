@@ -27,6 +27,12 @@ type ReviewRow = {
   createdAt: string;
   reviewedAt: string | null;
   severity: string | null;
+  recall?: {
+    recommendation: "likely_approvable" | "likely_not_approvable" | "uncertain" | "no_evidence";
+    score: number | null;
+    confidence: "none" | "low" | "medium" | "high";
+    consideredCount: number;
+  } | null;
 };
 
 type Payload = {
@@ -66,6 +72,26 @@ function sourceLabel(sourceType: ReviewRow["sourceType"]) {
   if (sourceType === "injury") return "Injury";
   if (sourceType === "corrective_action") return "Corrective Action";
   return "Incident";
+}
+
+function RecallBadge({ recall }: { recall: ReviewRow["recall"] }) {
+  if (!recall || recall.recommendation === "no_evidence" || recall.consideredCount === 0) return null;
+  const pct = recall.score == null ? null : `${Math.round(recall.score * 100)}%`;
+  const map: Record<string, { label: string; cls: string }> = {
+    likely_approvable: { label: "Likely approvable", cls: "border-emerald-500/40 bg-emerald-950/30 text-emerald-200" },
+    likely_not_approvable: { label: "Likely not approvable", cls: "border-red-500/40 bg-red-950/30 text-red-200" },
+    uncertain: { label: "Uncertain", cls: "border-slate-600/50 bg-slate-800/40 text-slate-300" },
+  };
+  const tone = map[recall.recommendation] ?? map.uncertain;
+  return (
+    <span
+      title={`Based on ${recall.consideredCount} comparable past decision${recall.consideredCount === 1 ? "" : "s"} (${recall.confidence} confidence)`}
+      className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone.cls}`}
+    >
+      AI memory: {tone.label}
+      {pct ? ` · ${pct}` : ""}
+    </span>
+  );
 }
 
 function statusClasses(status: ReviewRow["status"]) {
@@ -421,6 +447,9 @@ export default function PredictionValidationPage() {
                             <div className="mt-1 font-medium text-slate-100">{row.title}</div>
                             <div className="mt-1 text-xs text-slate-400">{row.detail || row.id}</div>
                             {row.notes ? <div className="mt-1 text-xs text-slate-500">{row.notes}</div> : null}
+                            <div>
+                              <RecallBadge recall={row.recall} />
+                            </div>
                           </td>
                           <td className="py-3 pr-4">
                             <div className="font-medium text-slate-100">{row.companyName}</div>
