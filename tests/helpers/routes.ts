@@ -50,6 +50,7 @@ export const SAFE_PREDICT_WORKSPACE_ROUTES = [
   "/safe-predict/risk-mitigation",
   "/safe-predict/safety-forms",
   "/safe-predict/settings",
+  "/safe-predict/support",
   "/safe-predict/team-access",
   "/safe-predict/training",
   "/safe-predict/training-tracker",
