@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildAiImprovementApprovalMemory,
   buildApprovalMemoryRow,
+  buildGusLearningApprovalMemory,
   buildKnowledgeCandidateApprovalMemory,
   buildKnowledgeRelationshipApprovalMemory,
   buildPredictionApprovalMemory,
@@ -113,6 +115,39 @@ describe("AI approval memory bank", () => {
     expect(input.surface).toBe("knowledge_map_relationship");
     expect(input.sourceTable).toBe("ai_knowledge_edges");
     expect(input.features).toMatchObject({ reviewStatus: "incorrect" });
+  });
+
+  it("captures an AI Improvement decision under the ai_improvement surface", () => {
+    const input = buildAiImprovementApprovalMemory(
+      { id: "imp-1", title: "Add retry to weather sync", description: "Wrap the call in exponential backoff.", affected_area: "weather", risk_level: "low" },
+      { decision: "approved", reason: "Checks failed but override justified.", reviewedBy: "super-1", reviewedAt: "2026-06-05T10:00:00.000Z" }
+    );
+    expect(input).toMatchObject({
+      decision: "approved",
+      surface: "ai_improvement",
+      sourceTable: "ai_improvement_requests",
+      sourceRecordId: "imp-1",
+      category: "weather",
+      riskLevel: "low",
+      companyId: null,
+    });
+    expect(input.features).toMatchObject({ affectedArea: "weather", riskLevel: "low" });
+  });
+
+  it("captures a Gus Learning finding under the gus_learning_finding surface", () => {
+    const input = buildGusLearningApprovalMemory(
+      { id: "rq-1", company_id: "company-1", topic: "Silica exposure limits", source_title: "OSHA 1926.1153", source_url: "https://osha.gov/x", source_type: "regulation", jurisdiction: "US-Federal", raw_summary: "PEL is 50 ug/m3." },
+      { decision: "rejected", reason: "Source is outdated.", reviewedBy: "super-1", reviewedAt: "2026-06-05T10:00:00.000Z" }
+    );
+    expect(input).toMatchObject({
+      decision: "rejected",
+      surface: "gus_learning_finding",
+      sourceTable: "research_queue",
+      sourceRecordId: "rq-1",
+      companyId: "company-1",
+      title: "OSHA 1926.1153",
+    });
+    expect(input.features).toMatchObject({ jurisdiction: "US-Federal", sourceUrl: "https://osha.gov/x" });
   });
 
   it("records decisions and tolerates insert failures without throwing", async () => {

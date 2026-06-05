@@ -17,6 +17,10 @@ export const APPROVAL_MEMORY_SURFACES = [
   "prediction_validation",
   "knowledge_map_candidate",
   "knowledge_map_relationship",
+  "ai_improvement",
+  "gus_learning_finding",
+  "owner_validation",
+  "document_review",
 ] as const;
 export type ApprovalMemorySurface = (typeof APPROVAL_MEMORY_SURFACES)[number];
 
@@ -203,6 +207,80 @@ export function buildKnowledgeRelationshipApprovalMemory(
     companyId: edge.companyId,
     title: text(edge.relationshipType),
     content: [text(edge.reason), text(edge.evidenceText)].filter(Boolean).join(" — ") || null,
+    reason: text(params.reason),
+    features,
+    reviewedBy: params.reviewedBy,
+    reviewedAt: params.reviewedAt,
+  };
+}
+
+export type AiImprovementLike = {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  affected_area?: string | null;
+  risk_level?: string | null;
+};
+
+/** Builds an approval-memory example from an AI Improvement request review. */
+export function buildAiImprovementApprovalMemory(
+  request: AiImprovementLike,
+  params: { decision: ApprovalMemoryDecision; reason: string | null; reviewedBy: string | null; reviewedAt: string | null }
+): ApprovalMemoryInput {
+  const features: Record<string, unknown> = {};
+  const area = text(request.affected_area);
+  if (area) features.affectedArea = area;
+  const risk = text(request.risk_level);
+  if (risk) features.riskLevel = risk;
+  return {
+    decision: params.decision,
+    surface: "ai_improvement",
+    sourceType: "ai_improvement_request",
+    sourceTable: "ai_improvement_requests",
+    sourceRecordId: request.id,
+    companyId: null,
+    title: text(request.title),
+    content: [text(request.title), text(request.description)].filter(Boolean).join(" — ") || null,
+    category: area,
+    riskLevel: risk,
+    reason: text(params.reason),
+    features,
+    reviewedBy: params.reviewedBy,
+    reviewedAt: params.reviewedAt,
+  };
+}
+
+export type GusLearningFindingLike = {
+  id: string;
+  company_id: string | null;
+  topic?: string | null;
+  source_title?: string | null;
+  source_url?: string | null;
+  source_type?: string | null;
+  jurisdiction?: string | null;
+  raw_summary?: string | null;
+};
+
+/** Builds an approval-memory example from a Gus Learning research finding review. */
+export function buildGusLearningApprovalMemory(
+  row: GusLearningFindingLike,
+  params: { decision: ApprovalMemoryDecision; reason: string | null; reviewedBy: string | null; reviewedAt: string | null }
+): ApprovalMemoryInput {
+  const features: Record<string, unknown> = {};
+  const jurisdiction = text(row.jurisdiction);
+  if (jurisdiction) features.jurisdiction = jurisdiction;
+  const sourceUrl = text(row.source_url);
+  if (sourceUrl) features.sourceUrl = sourceUrl;
+  return {
+    decision: params.decision,
+    surface: "gus_learning_finding",
+    sourceType: text(row.source_type),
+    sourceTable: "research_queue",
+    sourceRecordId: row.id,
+    companyId: row.company_id,
+    title: text(row.source_title) ?? text(row.topic),
+    content: [text(row.topic), text(row.source_title), text(row.raw_summary)].filter(Boolean).join(" — ") || null,
+    category: text(row.source_type),
     reason: text(params.reason),
     features,
     reviewedBy: params.reviewedBy,

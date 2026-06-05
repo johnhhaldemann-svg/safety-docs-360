@@ -11,6 +11,8 @@ import {
   requestIpAddress,
   requestUserAgent,
 } from "../../_shared";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { buildAiImprovementApprovalMemory, recordApprovalDecisions } from "@/lib/aiApprovalMemory";
 
 export const runtime = "nodejs";
 
@@ -80,6 +82,19 @@ export async function POST(request: Request, context: RouteContext) {
       ipAddress: requestIpAddress(request),
       userAgent: requestUserAgent(request),
     });
+
+    // Labeled example for the AI Approval Memory Bank (service-role, best-effort).
+    const memoryClient = createSupabaseAdminClient();
+    if (memoryClient) {
+      await recordApprovalDecisions(memoryClient, [
+        buildAiImprovementApprovalMemory(improvement, {
+          decision: "approved",
+          reason: parsed.overrideReason ?? null,
+          reviewedBy: actor.id ?? null,
+          reviewedAt: improvement.approved_at ?? null,
+        }),
+      ]);
+    }
 
     return NextResponse.json({ request: improvement });
   } catch (error) {

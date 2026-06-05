@@ -23,6 +23,7 @@ import type {
 import { normalizeDomain } from "@/lib/gusLearning/sourceValidation";
 import { validateApprovedSourceUrl } from "@/lib/aiKnowledgeMap/sourceSafety";
 import { serverLog } from "@/lib/serverLog";
+import { buildGusLearningApprovalMemory, recordApprovalDecisions } from "@/lib/aiApprovalMemory";
 
 export type GusLearningDb = Pick<SupabaseClient, "from" | "rpc">;
 
@@ -426,6 +427,16 @@ export async function approveResearchFinding(
       : Promise.resolve({ error: null }),
   ]);
 
+  // Labeled example for the AI Approval Memory Bank (best-effort).
+  await recordApprovalDecisions(db, [
+    buildGusLearningApprovalMemory(row, {
+      decision: "approved",
+      reason: input.reviewerNotes ?? null,
+      reviewedBy: input.approvedBy,
+      reviewedAt: new Date().toISOString(),
+    }),
+  ]);
+
   return { ok: true as const, knowledge: knowledgeRow };
 }
 
@@ -458,7 +469,19 @@ export async function updateResearchFindingStatus(
     .maybeSingle();
   if (error) return { ok: false as const, status: 500, error: error.message };
   if (!data) return { ok: false as const, status: 404, error: "Research finding not found." };
-  return { ok: true as const, finding: data as ResearchQueueRow };
+  const finding = data as ResearchQueueRow;
+  // Rejections are the "not approvable" label for the AI Approval Memory Bank (best-effort).
+  if (input.status === "rejected") {
+    await recordApprovalDecisions(db, [
+      buildGusLearningApprovalMemory(finding, {
+        decision: "rejected",
+        reason: input.reviewerNotes ?? null,
+        reviewedBy: input.reviewerId,
+        reviewedAt: (patch.reviewed_at as string | undefined) ?? null,
+      }),
+    ]);
+  }
+  return { ok: true as const, finding };
 }
 
 export async function archiveKnowledge(
