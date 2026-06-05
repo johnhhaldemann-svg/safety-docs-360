@@ -9,6 +9,8 @@ import {
   requestUserAgent,
   requireAiImprovementSuperadmin,
 } from "./_shared";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { recallApprovabilityBatch } from "@/lib/aiApprovalRecall";
 
 export const runtime = "nodejs";
 
@@ -22,8 +24,24 @@ export async function GET(request: Request) {
   const client = getAiImprovementClient(auth.supabase);
   const requests = await listAiImprovementRequests(client, limit);
 
+  // Attach an approvability recall verdict from the memory bank (best-effort).
+  const memoryClient = createSupabaseAdminClient();
+  const verdicts = memoryClient
+    ? await recallApprovabilityBatch(
+        memoryClient,
+        "ai_improvement",
+        requests.map((req) => ({
+          id: req.id,
+          sourceType: "ai_improvement_request",
+          category: req.affected_area,
+          content: [req.title, req.description].filter(Boolean).join(" — "),
+        }))
+      )
+    : new Map();
+  const requestsWithRecall = requests.map((req) => ({ ...req, recall: verdicts.get(req.id) ?? null }));
+
   return NextResponse.json(
-    { requests },
+    { requests: requestsWithRecall },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

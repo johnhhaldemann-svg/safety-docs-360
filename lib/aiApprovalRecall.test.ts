@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { relevanceScore, scoreApprovability, type ApprovalHistoryRow } from "@/lib/aiApprovalRecall";
+import { describe, expect, it, vi } from "vitest";
+import {
+  recallApprovabilityBatch,
+  relevanceScore,
+  scoreApprovability,
+  type ApprovalHistoryRow,
+} from "@/lib/aiApprovalRecall";
 
 const approvedFall: ApprovalHistoryRow = {
   decision: "approved",
@@ -72,6 +77,29 @@ describe("AI approval recall", () => {
     });
     expect(verdict.recommendation).toBe("likely_not_approvable");
     expect(verdict.score).toBeLessThan(0.34);
+  });
+
+  it("batch-scores items with one read and excludes each item's own prior decision", async () => {
+    const historyRows = [
+      { decision: "approved", surface: "knowledge_map_candidate", source_type: "edge", category: null, title: "fire watch mitigates hot work", content: "fire watch mitigates hot work ignition", rating: 5, source_record_id: "cand-self" },
+      { decision: "approved", surface: "knowledge_map_candidate", source_type: "edge", category: null, title: "fire watch mitigates hot work", content: "fire watch mitigates hot work ignition", rating: 5, source_record_id: "other-1" },
+    ];
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: historyRows, error: null }),
+    };
+    const admin = { from: vi.fn().mockReturnValue(builder) };
+
+    const verdicts = await recallApprovabilityBatch(admin as never, "knowledge_map_candidate", [
+      { id: "cand-self", sourceType: "edge", content: "fire watch mitigates hot work ignition" },
+    ]);
+    expect(admin.from).toHaveBeenCalledTimes(1);
+    const verdict = verdicts.get("cand-self");
+    // Its own row is excluded, leaving one comparable approved decision.
+    expect(verdict?.consideredCount).toBe(1);
+    expect(verdict?.recommendation).toBe("likely_approvable");
   });
 
   it("weights high-rated approvals more than low-rated ones", () => {

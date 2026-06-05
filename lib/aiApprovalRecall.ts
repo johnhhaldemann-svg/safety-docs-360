@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ApprovalMemoryDecision, ApprovalMemorySurface } from "@/lib/aiApprovalMemory";
 
+export type BatchRecallItem = {
+  id: string;
+  sourceType?: string | null;
+  category?: string | null;
+  content: string;
+};
+
 /**
  * AI Approval Recall — the first learning layer over the AI Approval Memory Bank.
  *
@@ -166,4 +173,45 @@ export async function recallApprovability(
   } catch {
     return scoreApprovability([], query);
   }
+}
+
+/**
+ * Scores many items against one surface's history with a single bank read. Each item is
+ * scored against history excluding its own prior decision. Best-effort: returns empty
+ * verdicts on read error. Returns a map keyed by item id.
+ */
+export async function recallApprovabilityBatch(
+  admin: RecallDbClient,
+  surface: ApprovalMemorySurface,
+  items: BatchRecallItem[],
+  opts?: { limit?: number }
+): Promise<Map<string, ApprovabilityVerdict>> {
+  const out = new Map<string, ApprovabilityVerdict>();
+  if (items.length === 0) return out;
+  const limit = Math.min(Math.max(opts?.limit ?? 400, 1), 1000);
+  let history: Array<ApprovalHistoryRow & { source_record_id?: string | null }> = [];
+  try {
+    const { data, error } = await admin
+      .from("ai_approval_memory")
+      .select("decision, surface, source_type, category, title, content, rating, source_record_id")
+      .eq("surface", surface)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error && data) history = data as Array<ApprovalHistoryRow & { source_record_id?: string | null }>;
+  } catch {
+    history = [];
+  }
+  for (const item of items) {
+    const comparable = history.filter((entry) => entry.source_record_id !== item.id);
+    out.set(
+      item.id,
+      scoreApprovability(comparable, {
+        surface,
+        sourceType: item.sourceType ?? null,
+        category: item.category ?? null,
+        content: item.content,
+      })
+    );
+  }
+  return out;
 }

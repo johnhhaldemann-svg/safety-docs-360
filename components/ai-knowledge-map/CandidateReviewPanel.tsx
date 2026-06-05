@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, FileText, Globe2, GitBranch, Loader2, XCircle } from "lucide-react";
 import { buildCandidatePromotionPreview, candidateRequiresSecondApproval } from "@/lib/aiKnowledgeMap/reviewGate";
 import type { AiKnowledgeEvidence, AiKnowledgeIngestCandidate } from "@/lib/aiKnowledgeMap/types";
+import { ApprovalRecallBadge, type ApprovalRecallSummary } from "@/components/superadmin/ApprovalRecallBadge";
 
 type CandidateResponse = {
   candidates?: AiKnowledgeIngestCandidate[];
@@ -287,6 +288,7 @@ function CandidateCard({
   const [pendingReview, setPendingReview] = useState<{ action: "reject" | "incorrect"; reason: string } | null>(null);
   const [reviewState, setReviewState] = useState<{ action: "approve" | "reject" | "incorrect"; tone: "success" | "error" | "info"; text: string } | null>(null);
   const metadata = candidate.metadata;
+  const recall = (candidate as { recall?: ApprovalRecallSummary }).recall;
   const preview = buildCandidatePromotionPreview(candidate);
   const learnedSummary = text(metadata.learnedSummary) ?? candidate.semanticSummary ?? candidate.reason ?? "Candidate needs review.";
   const confidence = typeof metadata.confidenceScore === "number" ? metadata.confidenceScore : candidate.confidenceScore;
@@ -325,6 +327,7 @@ function CandidateCard({
             </span>
           </div>
           <p className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-200">{learnedSummary}</p>
+          {recall ? <div className="mt-2"><ApprovalRecallBadge recall={recall} /></div> : null}
           {highRiskSecondApproval ? (
             <p className="mt-2 rounded-md border border-red-300/20 bg-red-300/10 p-2 text-[11px] font-black text-red-100">
               {waitingSecondApproval ? "Second Super Admin approval required before this high/critical memory can be promoted." : "High/critical memory requires two different Super Admin approvals before it can influence trusted AI memory."}
