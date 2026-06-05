@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildAiImprovementApprovalMemory,
   buildApprovalMemoryRow,
+  buildDocumentReviewApprovalMemory,
   buildGusLearningApprovalMemory,
   buildKnowledgeCandidateApprovalMemory,
   buildKnowledgeRelationshipApprovalMemory,
+  buildOwnerValidationApprovalMemory,
   buildPredictionApprovalMemory,
   recordApprovalDecisions,
 } from "@/lib/aiApprovalMemory";
@@ -148,6 +150,38 @@ describe("AI approval memory bank", () => {
       title: "OSHA 1926.1153",
     });
     expect(input.features).toMatchObject({ jurisdiction: "US-Federal", sourceUrl: "https://osha.gov/x" });
+  });
+
+  it("captures an Owner Validation decision under the owner_validation surface", () => {
+    const approved = buildOwnerValidationApprovalMemory(
+      { id: "ov-1", module_key: "login_auth", checklist_item: "MFA enforced on admin login", status: "passed", notes: "Verified on staging." },
+      { decision: "approved", reason: "Verified on staging.", reviewedBy: "super-1", reviewedAt: "2026-06-05T10:00:00.000Z" }
+    );
+    expect(approved).toMatchObject({
+      decision: "approved",
+      surface: "owner_validation",
+      sourceTable: "owner_manual_review_items",
+      sourceRecordId: "ov-1",
+      category: "login_auth",
+      title: "MFA enforced on admin login",
+    });
+    expect(approved.features).toMatchObject({ moduleKey: "login_auth", reviewStatus: "passed" });
+  });
+
+  it("captures a Document Review decision under the document_review surface", () => {
+    const input = buildDocumentReviewApprovalMemory(
+      { id: "doc-1", company_id: "company-1", title: "Hot Work Permit Procedure", document_type: "procedure", category: "permits" },
+      { decision: "approved", reason: "Looks complete.", reviewedBy: "super-1", reviewedAt: "2026-06-05T10:00:00.000Z" }
+    );
+    expect(input).toMatchObject({
+      decision: "approved",
+      surface: "document_review",
+      sourceTable: "documents",
+      sourceRecordId: "doc-1",
+      companyId: "company-1",
+      category: "permits",
+    });
+    expect(input.features).toMatchObject({ documentType: "procedure" });
   });
 
   it("records decisions and tolerates insert failures without throwing", async () => {

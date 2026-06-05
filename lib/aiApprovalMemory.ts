@@ -288,6 +288,74 @@ export function buildGusLearningApprovalMemory(
   };
 }
 
+export type OwnerManualReviewLike = {
+  id: string;
+  module_key?: string | null;
+  checklist_item?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
+
+/** Builds an approval-memory example from an Owner Validation manual-review item. */
+export function buildOwnerValidationApprovalMemory(
+  item: OwnerManualReviewLike,
+  params: { decision: ApprovalMemoryDecision; reason: string | null; reviewedBy: string | null; reviewedAt: string | null }
+): ApprovalMemoryInput {
+  const features: Record<string, unknown> = {};
+  const moduleKey = text(item.module_key);
+  if (moduleKey) features.moduleKey = moduleKey;
+  const reviewStatus = text(item.status);
+  if (reviewStatus) features.reviewStatus = reviewStatus;
+  return {
+    decision: params.decision,
+    surface: "owner_validation",
+    sourceType: moduleKey,
+    sourceTable: "owner_manual_review_items",
+    sourceRecordId: item.id,
+    companyId: null,
+    title: text(item.checklist_item),
+    content: text(item.checklist_item),
+    category: moduleKey,
+    reason: text(params.reason),
+    features,
+    reviewedBy: params.reviewedBy,
+    reviewedAt: params.reviewedAt,
+  };
+}
+
+export type DocumentReviewLike = {
+  id: string;
+  company_id?: string | null;
+  title?: string | null;
+  document_type?: string | null;
+  category?: string | null;
+};
+
+/** Builds an approval-memory example from a document review decision. */
+export function buildDocumentReviewApprovalMemory(
+  doc: DocumentReviewLike,
+  params: { decision: ApprovalMemoryDecision; reason: string | null; reviewedBy: string | null; reviewedAt: string | null }
+): ApprovalMemoryInput {
+  const docType = text(doc.document_type);
+  const features: Record<string, unknown> = {};
+  if (docType) features.documentType = docType;
+  return {
+    decision: params.decision,
+    surface: "document_review",
+    sourceType: docType ?? "document",
+    sourceTable: "documents",
+    sourceRecordId: doc.id,
+    companyId: text(doc.company_id),
+    title: text(doc.title),
+    content: [text(doc.title), docType].filter(Boolean).join(" — ") || null,
+    category: text(doc.category) ?? docType,
+    reason: text(params.reason),
+    features,
+    reviewedBy: params.reviewedBy,
+    reviewedAt: params.reviewedAt,
+  };
+}
+
 /**
  * Appends approval/rejection examples to the memory bank. Best-effort: returns the count
  * recorded and any error string, but never throws — callers should not await this on a path
