@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(
-  join(process.cwd(), "supabase/migrations/20260501120000_prediction_validation_queue.sql"),
+  // Migrations were squashed into a single baseline; the historical incremental
+  // file (whose DDL this test guards) now lives in the archive.
+  join(process.cwd(), "supabase/migrations_archive/20260501120000_prediction_validation_queue.sql"),
   "utf8"
 );
 
