@@ -5,8 +5,10 @@ import {
   SettingsProfileHub,
   type SettingsUserContext,
 } from "@/components/safe-predict/SafePredictNativeWorkspace";
+import { SafePredictShell as NativeSafePredictShell } from "@/components/safe-predict/SafePredictShell";
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/safe-predict/support",
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -84,6 +86,15 @@ describe("SafePredictNativeWorkspace analytics", () => {
     expect(html).toContain("Workspace Data Mode");
     expect(html).toContain("Predictability Engine");
     expect(html).toContain("Risk Thresholds");
+  });
+});
+
+describe("SafePredictShell", () => {
+  it("keeps Help & Support inside the native SafePredict shell", () => {
+    const html = renderToStaticMarkup(<NativeSafePredictShell>Support content</NativeSafePredictShell>);
+
+    expect(html).toContain('href="/safe-predict/support"');
+    expect(html).not.toContain('href="/support"');
   });
 });
 

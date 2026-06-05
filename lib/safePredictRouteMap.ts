@@ -26,6 +26,7 @@ const nativeOperationRouteMap: Record<string, string> = {
   "/upload": "/safe-predict/reports",
   "/marketplace-preview-approvals": "/safe-predict/reports",
   "/settings/risk-memory": "/safe-predict/risk-memory",
+  "/support": "/safe-predict/support",
 };
 
 const nativeSurfaceRouteMap: Record<string, string> = {

@@ -19,6 +19,7 @@ describe("safePredictRouteMap", () => {
     expect(mapSafePredictOperationHref("/peshep")).toBe("/safe-predict/peshep");
     expect(mapSafePredictOperationHref("/training-matrix")).toBe("/safe-predict/training-tracker");
     expect(mapSafePredictOperationHref("/settings/risk-memory")).toBe("/safe-predict/risk-memory");
+    expect(mapSafePredictOperationHref("/support")).toBe("/safe-predict/support");
   });
 
   it("preserves jobsite identity and leaves SafePredict routes alone", () => {

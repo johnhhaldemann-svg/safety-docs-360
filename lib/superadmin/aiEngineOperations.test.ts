@@ -152,23 +152,23 @@ describe("AI Engine Operations", () => {
   it("keeps AI telemetry and feedback tables unavailable to anon and authenticated roles", () => {
     const root = join(import.meta.dirname, "..", "..");
     const callLogMigration = readFileSync(
-      join(root, "supabase", "migrations", "20260425130000_ai_call_log.sql"),
+      join(root, "supabase", "migrations_archive", "20260425130000_ai_call_log.sql"),
       "utf8"
     );
     const feedbackMigration = readFileSync(
-      join(root, "supabase", "migrations", "20260430123000_ai_output_feedback.sql"),
+      join(root, "supabase", "migrations_archive", "20260430123000_ai_output_feedback.sql"),
       "utf8"
     );
     const recommendationMigration = readFileSync(
-      join(root, "supabase", "migrations", "20260430160000_ai_engine_recommendation_snapshots.sql"),
+      join(root, "supabase", "migrations_archive", "20260430160000_ai_engine_recommendation_snapshots.sql"),
       "utf8"
     );
     const feedbackMetadataMigration = readFileSync(
-      join(root, "supabase", "migrations", "20260430170000_ai_feedback_signal_metadata.sql"),
+      join(root, "supabase", "migrations_archive", "20260430170000_ai_feedback_signal_metadata.sql"),
       "utf8"
     );
     const observabilityMigration = readFileSync(
-      join(root, "supabase", "migrations", "20260521010144_ai_reliability_observability_jobs.sql"),
+      join(root, "supabase", "migrations_archive", "20260521010144_ai_reliability_observability_jobs.sql"),
       "utf8"
     );
 

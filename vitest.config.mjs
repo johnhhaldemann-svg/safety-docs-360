@@ -15,6 +15,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // The threads pool segfaults under Node on Windows with this suite
+    // (vitest v4). Use the forks pool on Windows; keep the faster threads
+    // pool on Linux/CI. An explicit --pool flag still overrides this.
+    pool: process.platform === "win32" ? "forks" : "threads",
     include: [
       "lib/**/*.test.ts",
       "app/**/*.test.ts",
