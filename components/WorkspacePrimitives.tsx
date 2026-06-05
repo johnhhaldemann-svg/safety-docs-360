@@ -30,7 +30,7 @@ function getSurfaceToneClassName(tone: "panel" | "elevated" | "attention") {
     return "border-[rgba(121,151,196,0.34)] bg-white shadow-[0_12px_28px_rgba(44,58,86,0.07)]";
   }
   if (tone === "attention") {
-    return "border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] shadow-[0_14px_30px_rgba(37,99,235,0.08)]";
+    return "sa-surface border-[var(--app-accent-border-24)] bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] shadow-[0_14px_30px_rgba(37,99,235,0.08)]";
   }
   return "border border-[var(--app-border)] bg-white/96 shadow-[0_10px_24px_rgba(44,58,86,0.055)]";
 }
@@ -49,7 +49,7 @@ export function PageHero({
   const displayTitle = formatTitleCase(title) || title;
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_58%,_rgba(232,247,239,0.86)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
+    <section className="sa-surface relative overflow-hidden rounded-3xl border border-[rgba(121,151,196,0.42)] bg-[linear-gradient(135deg,_rgba(255,255,255,0.99)_0%,_rgba(239,246,255,0.98)_58%,_rgba(232,247,239,0.86)_100%)] p-6 shadow-[var(--app-shadow)] sm:p-8">
       <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_var(--semantic-success)_54%,_var(--semantic-warning)_100%)]" />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
@@ -188,7 +188,7 @@ export function EmptyState({
     align === "left" ? "mb-4 flex h-11 w-11" : "mx-auto mb-4 flex h-11 w-11";
   return (
     <div
-      className={`rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 shadow-[var(--app-shadow-soft)] ${textAlign} ${className}`.trim()}
+      className={`sa-surface rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(241,247,255,0.9)_100%)] p-8 shadow-[var(--app-shadow-soft)] ${textAlign} ${className}`.trim()}
     >
       <div
         className={`${iconBox} items-center justify-center rounded-2xl border border-[var(--app-accent-surface-18)] bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]`}
@@ -231,7 +231,7 @@ export function StartChecklist({
   const displayTitle = formatTitleCase(title) || title;
 
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+    <div className="sa-surface rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.94)_0%,_rgba(244,249,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
       <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       <div className="mt-4 space-y-3">
         {items.map((item) => (
@@ -344,7 +344,7 @@ export function ActivityFeed({
   const displayTitle = formatTitleCase(title) || title;
 
   return (
-    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+    <div className="sa-surface rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.97)_0%,_rgba(241,247,255,0.94)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
       <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       {description ? (
         <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
@@ -353,7 +353,7 @@ export function ActivityFeed({
         {items.map((item) => (
           <div
             key={item.id}
-            className="relative overflow-hidden rounded-xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.72)_0%,_var(--app-panel)_100%)] px-4 py-4.5 shadow-[0_8px_18px_rgba(76,108,161,0.05)]"
+            className="sa-surface relative overflow-hidden rounded-xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.72)_0%,_var(--app-panel)_100%)] px-4 py-4.5 shadow-[0_8px_18px_rgba(76,108,161,0.05)]"
           >
             <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--app-accent-primary)] opacity-55" />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -389,7 +389,7 @@ export function WorkflowPath({
   const displayTitle = formatTitleCase(title) || title;
 
   return (
-    <div className="rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
+    <div className="sa-surface rounded-2xl border border-[var(--app-border-strong)] bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(241,247,255,0.9)_100%)] p-5 shadow-[var(--app-shadow-soft)]">
       <h3 className="text-base font-semibold text-[var(--app-text-strong)]">{displayTitle}</h3>
       {description ? (
         <p className="mt-2 text-sm leading-6 text-[var(--app-text)]">{description}</p>
@@ -510,7 +510,7 @@ export function WorkspaceScopedNav({
   return (
     <div
       className={cx(
-        "rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] p-4 shadow-[var(--app-shadow-soft)]",
+        "sa-surface rounded-2xl border border-[var(--app-border)] bg-[linear-gradient(180deg,_#f7fbff_0%,_#edf4ff_55%,_#e7f0fb_100%)] p-4 shadow-[var(--app-shadow-soft)]",
         sticky && "sticky top-0 z-20 backdrop-blur-md"
       )}
     >

@@ -4,8 +4,7 @@ The AI Knowledge Map is an additive Super Admin intelligence layer for SafetyDoc
 
 ## Routes
 
-- Page: `/super-admin/ai-knowledge-map`
-- Existing Super Admin alias: `/superadmin/ai-knowledge-map`
+- Page: `/superadmin/ai-knowledge-map`
 - API reads: `/api/ai-knowledge-map/nodes`, `/api/ai-knowledge-map/edges`, `/api/ai-knowledge-map/summary`, `/api/ai-knowledge-map/node/[id]`
 - API actions: `/api/ai-knowledge-map/rebuild-index`, `/api/ai-knowledge-map/recalculate-risk-connections`, `/api/ai-knowledge-map/validate-relationship`, `/api/ai-knowledge-map/save-view`
 

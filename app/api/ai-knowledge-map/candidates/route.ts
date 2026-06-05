@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listKnowledgeIngestCandidates } from "@/lib/aiKnowledgeMap/repository";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { authorizeSuperadminAiEngineRequest } from "@/lib/superadmin/aiEngineAuth";
+import { recallApprovabilityBatch } from "@/lib/aiApprovalRecall";
 import type { AiKnowledgeCandidateStatus, AiKnowledgeCandidateType } from "@/lib/aiKnowledgeMap/types";
 
 export const runtime = "nodejs";
@@ -22,5 +23,21 @@ export async function GET(request: Request) {
     limit: Number(searchParams.get("limit") ?? 100),
   });
 
-  return NextResponse.json(result);
+  // Attach an approvability recall verdict per candidate (best-effort, one extra query).
+  const verdicts = await recallApprovabilityBatch(
+    admin,
+    "knowledge_map_candidate",
+    result.candidates.map((candidate) => ({
+      id: candidate.id,
+      sourceType: candidate.candidateType,
+      category: candidate.relationshipType,
+      content: [candidate.title, candidate.semanticSummary].filter(Boolean).join(" — "),
+    }))
+  );
+  const candidates = result.candidates.map((candidate) => ({
+    ...candidate,
+    recall: verdicts.get(candidate.id) ?? null,
+  }));
+
+  return NextResponse.json({ ...result, candidates });
 }

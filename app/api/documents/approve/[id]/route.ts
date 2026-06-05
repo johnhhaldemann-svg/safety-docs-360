@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { buildMarketplaceNotes } from "@/lib/marketplace";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { buildDocumentReviewApprovalMemory, recordApprovalDecisions } from "@/lib/aiApprovalMemory";
 
 export const runtime = "nodejs";
 
@@ -51,7 +53,7 @@ export async function POST(
 
     const { data: currentDocument } = await auth.supabase
       .from("documents")
-      .select("notes")
+      .select("notes, title, document_type, category, company_id")
       .eq("id", id)
       .single();
     const filePath = `final/${id}/${file.name}`;
@@ -94,6 +96,29 @@ export async function POST(
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    // Capture the approval into the AI Approval Memory Bank (service-role, best-effort).
+    const memoryClient = createSupabaseAdminClient();
+    if (memoryClient) {
+      const doc = (currentDocument ?? {}) as Record<string, unknown>;
+      await recordApprovalDecisions(memoryClient, [
+        buildDocumentReviewApprovalMemory(
+          {
+            id,
+            company_id: typeof doc.company_id === "string" ? doc.company_id : null,
+            title: typeof doc.title === "string" ? doc.title : null,
+            document_type: typeof doc.document_type === "string" ? doc.document_type : null,
+            category: typeof doc.category === "string" ? doc.category : null,
+          },
+          {
+            decision: "approved",
+            reason: reviewNotes,
+            reviewedBy: auth.user.id,
+            reviewedAt: approvedAt,
+          }
+        ),
+      ]);
     }
 
     return NextResponse.json({

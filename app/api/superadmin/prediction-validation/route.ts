@@ -14,6 +14,12 @@ import {
   normalizePredictionValidationStatus,
   type PredictionValidationStatus,
 } from "@/lib/predictionValidation";
+import {
+  buildPredictionApprovalMemory,
+  recordApprovalDecisions,
+  type ApprovalMemoryInput,
+} from "@/lib/aiApprovalMemory";
+import { scoreApprovability, type ApprovalHistoryRow } from "@/lib/aiApprovalRecall";
 
 export const runtime = "nodejs";
 
@@ -284,8 +290,40 @@ async function fetchReviewRows(params: {
       ? Number((rated.reduce((sum, row) => sum + Number(row.rating ?? 0), 0) / rated.length).toFixed(2))
       : null;
 
+  // Attach an approvability recall verdict from the memory bank (best-effort, one query).
+  let history: Array<ApprovalHistoryRow & { source_record_id?: string | null }> = [];
+  try {
+    const { data: historyData } = await admin
+      .from("ai_approval_memory")
+      .select("decision, surface, source_type, category, title, content, rating, source_record_id")
+      .eq("surface", "prediction_validation")
+      .order("created_at", { ascending: false })
+      .limit(400);
+    history = (historyData ?? []) as Array<ApprovalHistoryRow & { source_record_id?: string | null }>;
+  } catch {
+    history = [];
+  }
+  const rowsWithRecall = rows.map((row) => {
+    const comparable = history.filter((entry) => entry.source_record_id !== row.id);
+    const verdict = scoreApprovability(comparable, {
+      surface: "prediction_validation",
+      sourceType: row.sourceType,
+      category: null,
+      content: `${row.title} ${row.detail}`,
+    });
+    return {
+      ...row,
+      recall: {
+        recommendation: verdict.recommendation,
+        score: verdict.score,
+        confidence: verdict.confidence,
+        consideredCount: verdict.consideredCount,
+      },
+    };
+  });
+
   return {
-    rows,
+    rows: rowsWithRecall,
     summary: {
       pending: summaryRows.filter((row) => row.status === "pending").length,
       approved: summaryRows.filter((row) => row.status === "approved").length,
@@ -402,6 +440,8 @@ export async function PATCH(request: Request) {
 
   const updated = results.reduce((sum, result) => sum + (result.data?.length ?? 0), 0);
   const facetUpdates: Array<Promise<unknown>> = [];
+  // Permanent labeled examples for the AI Approval Memory Bank (best-effort).
+  const memoryInputs: ApprovalMemoryInput[] = [];
   for (const result of results) {
     for (const row of (result.data ?? []) as Array<Record<string, unknown>>) {
       const companyId = String(row.company_id ?? "");
@@ -409,6 +449,25 @@ export async function PATCH(request: Request) {
       if (!companyId || !sourceId) continue;
       const isSor = "project" in row || "hazard_category_code" in row;
       const isCorrectiveAction = "assigned_user_id" in row || ("due_at" in row && "title" in row && !("injury_type" in row));
+      const sourceType: SourceType = isSor
+        ? "sor"
+        : isCorrectiveAction
+          ? "corrective_action"
+          : isIncidentInjurySubtype(row)
+            ? "injury"
+            : "incident";
+      memoryInputs.push(
+        buildPredictionApprovalMemory({
+          decision: status === "approved" ? "approved" : "rejected",
+          sourceType,
+          row,
+          rating,
+          notes,
+          tags,
+          reviewedBy: auth.user.id,
+          reviewedAt,
+        })
+      );
       if (status === "approved") {
         facetUpdates.push(
           upsertRiskMemoryFacetSafe(
@@ -435,6 +494,8 @@ export async function PATCH(request: Request) {
     }
   }
   await Promise.allSettled(facetUpdates);
+  // Best-effort: never let memory capture block the approval response.
+  await recordApprovalDecisions(admin, memoryInputs);
   return NextResponse.json({
     success: true,
     updated,

@@ -21,6 +21,7 @@ import {
   appButtonQuietClassName,
   appButtonSecondaryClassName,
 } from "@/components/WorkspacePrimitives";
+import { ApprovalRecallBadge, type ApprovalRecallSummary } from "@/components/superadmin/ApprovalRecallBadge";
 
 type AiImprovementStatus =
   | "draft"
@@ -60,6 +61,7 @@ type AiImprovementRequest = {
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
+  recall?: ApprovalRecallSummary;
 };
 
 function formatDate(value: string | null) {
@@ -145,6 +147,7 @@ function AiImprovementCard({
             <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass(request.status)}`}>
               {label(request.status)}
             </span>
+            <ApprovalRecallBadge recall={request.recall} />
             <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${riskClass(request.risk_level)}`}>
               {label(request.risk_level)} risk
             </span>

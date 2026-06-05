@@ -67,6 +67,30 @@ describe("AI Knowledge Map normalization", () => {
     expect(first).toEqual(second);
   });
 
+  it("gates prediction-reviewed tables to approved rows and weights confidence by rating", () => {
+    const rows = [
+      { id: "incident-approved", company_id: "company-1", title: "Approved incident", description: "Reviewed and approved.", prediction_validation_status: "approved", prediction_review_rating: 5 },
+      { id: "incident-pending", company_id: "company-1", title: "Pending incident", description: "Not yet reviewed.", prediction_validation_status: "pending" },
+      { id: "incident-rejected", company_id: "company-1", title: "Rejected incident", description: "Reviewed and rejected.", prediction_validation_status: "rejected" },
+      { id: "incident-missing", company_id: "company-1", title: "Unreviewed incident", description: "No status at all." },
+    ];
+    const nodes = normalizeSourceRowsToKnowledgeNodes("company_incidents", rows);
+    expect(nodes.map((node) => node.sourceId)).toEqual(["incident-approved"]);
+
+    const approved = nodes[0];
+    const baseline = normalizeSourceRowToKnowledgeNode("company_incidents", {
+      id: "incident-baseline",
+      company_id: "company-1",
+      title: "Approved incident",
+      description: "Reviewed and approved.",
+      prediction_validation_status: "approved",
+      prediction_review_rating: 3,
+    });
+    expect(approved.confidenceScore).toBeGreaterThan(baseline?.confidenceScore ?? 0);
+    expect(approved.metadata.predictionValidationStatus).toBe("approved");
+    expect(approved.metadata.predictionReviewRating).toBe(5);
+  });
+
   it("normalizes batches and preserves source keys", () => {
     const nodes = normalizeSourceRowsToKnowledgeNodes("company_controls", [
       { id: "control-1", company_id: "company-1", name: "Guardrail" },

@@ -12,6 +12,7 @@ import {
   Star,
   XCircle,
 } from "lucide-react";
+import { ApprovalRecallBadge } from "@/components/superadmin/ApprovalRecallBadge";
 
 type ReviewRow = {
   id: string;
@@ -27,6 +28,12 @@ type ReviewRow = {
   createdAt: string;
   reviewedAt: string | null;
   severity: string | null;
+  recall?: {
+    recommendation: "likely_approvable" | "likely_not_approvable" | "uncertain" | "no_evidence";
+    score: number | null;
+    confidence: "none" | "low" | "medium" | "high";
+    consideredCount: number;
+  } | null;
 };
 
 type Payload = {
@@ -421,6 +428,9 @@ export default function PredictionValidationPage() {
                             <div className="mt-1 font-medium text-slate-100">{row.title}</div>
                             <div className="mt-1 text-xs text-slate-400">{row.detail || row.id}</div>
                             {row.notes ? <div className="mt-1 text-xs text-slate-500">{row.notes}</div> : null}
+                            <div>
+                              <ApprovalRecallBadge recall={row.recall} className="mt-1" />
+                            </div>
                           </td>
                           <td className="py-3 pr-4">
                             <div className="font-medium text-slate-100">{row.companyName}</div>

@@ -1703,3 +1703,107 @@ html[data-table-density="compact"] .workspace-content :where(table) {
   background: rgba(255, 241, 244, 0.96) !important;
   border-color: rgba(212, 102, 140, 0.2) !important;
 }
+
+/* ============================================================
+ * Superadmin Command Center — dark shell scope (.sa-cc)
+ * Self-contained dark tokens so the redesign does not depend on
+ * the light app theme. Applied only on /superadmin routes for
+ * super_admin users (see AppWorkspaceLayout takeover branch).
+ * ============================================================ */
+.sa-cc {
+  --sa-canvas: #0a0e17;
+  --sa-rail: #0d121d;
+  --sa-panel: #111726;
+  --sa-panel-soft: #0f1422;
+  --sa-border: rgba(148, 163, 184, 0.12);
+  --sa-border-strong: rgba(148, 163, 184, 0.2);
+  --sa-accent: #22d3ee;
+  background:
+    radial-gradient(900px 480px at 78% -8%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(720px 420px at 8% 0%, rgba(168, 85, 247, 0.06), transparent 55%),
+    var(--sa-canvas);
+}
+
+/* ------------------------------------------------------------
+ * Light-theme content rendered inside the dark console.
+ * Several /superadmin pages — including the Organizations and
+ * Users screens (re-exported from the light /admin pages) and
+ * everything built on WorkspacePrimitives — were authored for the
+ * light app theme. They paint surfaces with literal white
+ * backgrounds while colouring text with the --app-* tokens, which
+ * produced white-on-white / faint-label text inside the dark shell.
+ * Remap the light --app-* tokens (and opaque white panel fills) to
+ * dark equivalents so that content stays legible. Scoped to .sa-cc,
+ * so the light theme everywhere else is untouched.
+ * ---------------------------------------------------------- */
+.sa-cc {
+  --app-canvas: transparent;
+  --app-canvas-glow: none;
+  --app-surface: var(--sa-panel);
+  --app-surface-solid: var(--sa-panel);
+  --app-elevated: #161d2e;
+  --app-panel: var(--sa-panel);
+  --app-panel-soft: var(--sa-panel-soft);
+  --app-surface-panel: var(--sa-panel);
+  --app-surface-elevated: var(--sa-panel-soft);
+  --app-surface-attention: var(--sa-panel);
+  --app-border: var(--sa-border);
+  --app-border-strong: var(--sa-border-strong);
+  --app-border-subtle: rgba(148, 163, 184, 0.1);
+  --app-text-strong: #f1f5f9;
+  --app-text: #cbd5e1;
+  --app-muted: #94a3b8;
+  --app-link: var(--sa-accent);
+  --app-link-hover: #67e8f9;
+}
+
+/* Opaque white panel fills from the light theme become dark console
+ * panels. Translucent white tints (bg-white/10, bg-white/20) are
+ * intentional dark-mode overlays and are deliberately left alone.
+ * Hover utilities (.hover\:bg-white*) carry the hover\: prefix and so
+ * do not match these selectors — hover states keep working. */
+.sa-cc .bg-white,
+.sa-cc .bg-white\/55,
+.sa-cc .bg-white\/60,
+.sa-cc .bg-white\/72,
+.sa-cc .bg-white\/80,
+.sa-cc .bg-white\/85,
+.sa-cc .bg-white\/86,
+.sa-cc .bg-white\/90,
+.sa-cc .bg-white\/92,
+.sa-cc .bg-white\/95,
+.sa-cc .bg-white\/96 {
+  background-color: var(--sa-panel) !important;
+}
+
+/* WorkspacePrimitives paint several surfaces with arbitrary white
+ * gradient classes that no token can reach. They carry the
+ * `sa-surface` marker so the dark shell can flatten them to a panel
+ * fill. The marker only does anything inside .sa-cc. */
+.sa-cc .sa-surface {
+  background-image: none !important;
+  background-color: var(--sa-panel) !important;
+}
+
+.sa-cc ::selection {
+  background: rgba(34, 211, 238, 0.28);
+}
+
+/* Tabular figures for the metric/console numerals. */
+.sa-cc .sa-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Slim dark scrollbars inside the console. */
+.sa-cc *::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.sa-cc *::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+}
+.sa-cc *::-webkit-scrollbar-track {
+  background: transparent;
+}
