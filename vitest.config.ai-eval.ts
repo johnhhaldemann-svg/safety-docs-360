@@ -19,6 +19,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/ai/**/*.test.ts"],
+    // Threads pool segfaults under Node on Windows (vitest v4); use forks
+    // there, keep threads on Linux/CI. An explicit --pool flag overrides this.
+    pool: process.platform === "win32" ? "forks" : "threads",
     /** Each fixture sets its own per-test timeout; this is just a global ceiling. */
     testTimeout: 180_000,
     hookTimeout: 60_000,
