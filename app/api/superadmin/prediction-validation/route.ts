@@ -14,6 +14,11 @@ import {
   normalizePredictionValidationStatus,
   type PredictionValidationStatus,
 } from "@/lib/predictionValidation";
+import {
+  buildPredictionApprovalMemory,
+  recordApprovalDecisions,
+  type ApprovalMemoryInput,
+} from "@/lib/aiApprovalMemory";
 
 export const runtime = "nodejs";
 
@@ -402,6 +407,8 @@ export async function PATCH(request: Request) {
 
   const updated = results.reduce((sum, result) => sum + (result.data?.length ?? 0), 0);
   const facetUpdates: Array<Promise<unknown>> = [];
+  // Permanent labeled examples for the AI Approval Memory Bank (best-effort).
+  const memoryInputs: ApprovalMemoryInput[] = [];
   for (const result of results) {
     for (const row of (result.data ?? []) as Array<Record<string, unknown>>) {
       const companyId = String(row.company_id ?? "");
@@ -409,6 +416,25 @@ export async function PATCH(request: Request) {
       if (!companyId || !sourceId) continue;
       const isSor = "project" in row || "hazard_category_code" in row;
       const isCorrectiveAction = "assigned_user_id" in row || ("due_at" in row && "title" in row && !("injury_type" in row));
+      const sourceType: SourceType = isSor
+        ? "sor"
+        : isCorrectiveAction
+          ? "corrective_action"
+          : isIncidentInjurySubtype(row)
+            ? "injury"
+            : "incident";
+      memoryInputs.push(
+        buildPredictionApprovalMemory({
+          decision: status === "approved" ? "approved" : "rejected",
+          sourceType,
+          row,
+          rating,
+          notes,
+          tags,
+          reviewedBy: auth.user.id,
+          reviewedAt,
+        })
+      );
       if (status === "approved") {
         facetUpdates.push(
           upsertRiskMemoryFacetSafe(
@@ -435,6 +461,8 @@ export async function PATCH(request: Request) {
     }
   }
   await Promise.allSettled(facetUpdates);
+  // Best-effort: never let memory capture block the approval response.
+  await recordApprovalDecisions(admin, memoryInputs);
   return NextResponse.json({
     success: true,
     updated,

@@ -1703,3 +1703,46 @@ html[data-table-density="compact"] .workspace-content :where(table) {
   background: rgba(255, 241, 244, 0.96) !important;
   border-color: rgba(212, 102, 140, 0.2) !important;
 }
+
+/* ============================================================
+ * Superadmin Command Center — dark shell scope (.sa-cc)
+ * Self-contained dark tokens so the redesign does not depend on
+ * the light app theme. Applied only on /superadmin routes for
+ * super_admin users (see AppWorkspaceLayout takeover branch).
+ * ============================================================ */
+.sa-cc {
+  --sa-canvas: #0a0e17;
+  --sa-rail: #0d121d;
+  --sa-panel: #111726;
+  --sa-panel-soft: #0f1422;
+  --sa-border: rgba(148, 163, 184, 0.12);
+  --sa-border-strong: rgba(148, 163, 184, 0.2);
+  --sa-accent: #22d3ee;
+  background:
+    radial-gradient(900px 480px at 78% -8%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(720px 420px at 8% 0%, rgba(168, 85, 247, 0.06), transparent 55%),
+    var(--sa-canvas);
+}
+
+.sa-cc ::selection {
+  background: rgba(34, 211, 238, 0.28);
+}
+
+/* Tabular figures for the metric/console numerals. */
+.sa-cc .sa-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Slim dark scrollbars inside the console. */
+.sa-cc *::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.sa-cc *::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+}
+.sa-cc *::-webkit-scrollbar-track {
+  background: transparent;
+}

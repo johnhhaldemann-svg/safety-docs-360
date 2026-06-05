@@ -44,6 +44,8 @@ import { AppShellHeader } from "@/components/app-shell/AppShellHeader";
 import { AppShellSidebar } from "@/components/app-shell/AppShellSidebar";
 import type { ProfileSummary } from "@/components/app-shell/ProfileAvatar";
 import { GusAssistant } from "@/components/gus/GusAssistant";
+import { CommandCenterDataProvider } from "@/components/superadmin/CommandCenterDataProvider";
+import { SuperadminCommandShell } from "@/components/superadmin/SuperadminCommandShell";
 
 const supabase = getSupabaseBrowserClient();
 
@@ -976,6 +978,32 @@ export function AppWorkspaceLayout({
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Super admins on /superadmin routes get a dedicated full-bleed dark "Command Center"
+  // shell instead of the light enterprise chrome. All auth/terms/role gating above still
+  // applies; this only swaps the visual chrome. Non-super_admin users who can reach
+  // /superadmin/cyber-security keep the standard light shell below.
+  if (isSuperadminRoute && userRole === "super_admin") {
+    return (
+      <div className="min-h-screen bg-[#0a0e17] text-slate-200">
+        <CommandCenterDataProvider>
+          <SuperadminCommandShell>{children}</SuperadminCommandShell>
+        </CommandCenterDataProvider>
+        <Toaster richColors theme="dark" position="top-center" closeButton />
+        <AppCommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={setCommandPaletteOpen}
+          items={commandPaletteItems}
+        />
+        <GusAssistant
+          currentPage={currentNavItem.label}
+          route={pathname}
+          companyId={companyId}
+        />
+        <ServiceWorkerRegister />
       </div>
     );
   }

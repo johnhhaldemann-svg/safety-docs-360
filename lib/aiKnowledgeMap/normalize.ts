@@ -1,5 +1,7 @@
 import type { AiKnowledgeNode, AiKnowledgeNodeType, AiKnowledgeRiskLevel, AiKnowledgeSourceRow } from "@/lib/aiKnowledgeMap/types";
 import { nodeTypeForSourceTable } from "@/lib/aiKnowledgeMap/sourceAdapters";
+import { isPredictionGatedTable, passesPredictionGate, predictionConfidenceDelta } from "@/lib/aiKnowledgeMap/predictionGate";
+import { normalizePredictionReviewRating, normalizePredictionValidationStatus } from "@/lib/predictionValidation";
 
 function text(value: unknown, fallback = ""): string {
   if (Array.isArray(value)) return value.filter(Boolean).map((item) => text(item)).filter(Boolean).join(", ");
@@ -193,6 +195,8 @@ function confidenceFor(table: string, row: AiKnowledgeSourceRow, summary: string
   if (table === "company_jobsite_chemicals" && text(row.sds_file_path)) confidence += 0.08;
   if (table === "company_jobsite_visual_zones") confidence += 0.04;
   if (table === "safety_data_bucket" && row.ai_ready === true) confidence += 0.08;
+  // Prediction Validation quality rating (1–5) weights records it reviews.
+  if (isPredictionGatedTable(table)) confidence += predictionConfidenceDelta(row);
   if (!summary) confidence -= 0.12;
   return Math.max(0.45, Math.min(0.9, Number(confidence.toFixed(2))));
 }
@@ -257,6 +261,12 @@ export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledg
       sourceEvidence: sourceEvidenceFor(table, row, title, semanticSummary),
       indexedSourceFamily: categoryFor(table, row),
       rawMetadata: row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {},
+      ...(isPredictionGatedTable(table)
+        ? {
+            predictionValidationStatus: normalizePredictionValidationStatus(row.prediction_validation_status),
+            predictionReviewRating: normalizePredictionReviewRating(row.prediction_review_rating),
+          }
+        : {}),
     },
     semanticSummary: semanticSummary || title,
     vectorStatus: "pending",
@@ -268,5 +278,10 @@ export function normalizeSourceRowToKnowledgeNode(table: string, row: AiKnowledg
 }
 
 export function normalizeSourceRowsToKnowledgeNodes(table: string, rows: AiKnowledgeSourceRow[]) {
-  return rows.map((row) => normalizeSourceRowToKnowledgeNode(table, row)).filter((node): node is AiKnowledgeNode => Boolean(node));
+  // Strict prediction gate: records from Prediction-Validation-reviewed tables only
+  // enter the graph once approved. Non-gated tables pass through unchanged.
+  return rows
+    .filter((row) => passesPredictionGate(table, row))
+    .map((row) => normalizeSourceRowToKnowledgeNode(table, row))
+    .filter((node): node is AiKnowledgeNode => Boolean(node));
 }

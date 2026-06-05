@@ -10,6 +10,12 @@ import {
   requireConcreteCompanyId,
 } from "@/lib/aiKnowledgeMap/guardrails";
 import { normalizeRiskLevel, normalizeSourceRowsToKnowledgeNodes, sourceKey, vectorCoordinatesForNode } from "@/lib/aiKnowledgeMap/normalize";
+import {
+  buildKnowledgeCandidateApprovalMemory,
+  buildKnowledgeRelationshipApprovalMemory,
+  recordApprovalDecisions,
+  type ApprovalMemoryInput,
+} from "@/lib/aiApprovalMemory";
 import { AI_KNOWLEDGE_SOURCE_TABLES, domainCoverageForNodes } from "@/lib/aiKnowledgeMap/sourceAdapters";
 import { generateKnowledgeRelationships } from "@/lib/aiKnowledgeMap/relationships";
 import { AI_KNOWLEDGE_LEARNING_CHECK_BATCH_TYPE } from "@/lib/aiKnowledgeMap/learningCheck";
@@ -1036,6 +1042,16 @@ export async function updateKnowledgeRelationshipValidation(client: DbClient, pa
     },
   });
   await recalculateGraphRiskFromRelationships(client, edge.companyId, params.actorUserId).catch(() => undefined);
+  // Labeled example for the AI Approval Memory Bank (best-effort).
+  await recordApprovalDecisions(client, [
+    buildKnowledgeRelationshipApprovalMemory(edge, {
+      edgeId: params.edgeId,
+      status: params.status,
+      reason: params.reason,
+      reviewedBy: params.actorUserId,
+      reviewedAt,
+    }),
+  ]);
   return { ok: true, edge, reviewedAt };
 }
 
@@ -1199,6 +1215,8 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
   const reviewedAt = new Date().toISOString();
   const results: AiKnowledgeIngestCandidate[] = [];
   const errors: Array<{ candidateId: string; error: string }> = [];
+  // Labeled examples for the AI Approval Memory Bank (terminal decisions only).
+  const memoryInputs: ApprovalMemoryInput[] = [];
   for (const candidateId of params.candidateIds) {
     try {
       const loaded = await getKnowledgeIngestCandidate(client, candidateId);
@@ -1305,10 +1323,26 @@ export async function reviewKnowledgeIngestCandidates(client: DbClient, params: 
         }
       }
       results.push(candidate);
+      // Capture only terminal outcomes: a first high-risk approval is still pending a
+      // second approval, so it is not yet an "approvable" decision.
+      const isTerminalApproval = params.status === "approved" && !firstHighRiskApproval;
+      const isTerminalRejection = params.status === "rejected" || params.status === "incorrect";
+      if (isTerminalApproval || isTerminalRejection) {
+        memoryInputs.push(
+          buildKnowledgeCandidateApprovalMemory(candidate, {
+            status: params.status,
+            reason: params.reason,
+            reviewedBy: params.actorUserId,
+            reviewedAt,
+          })
+        );
+      }
     } catch (error) {
       errors.push({ candidateId, error: error instanceof Error ? error.message : "Review failed." });
     }
   }
+  // Best-effort: never let memory capture affect the review result.
+  await recordApprovalDecisions(client, memoryInputs);
   return { ok: errors.length === 0, reviewed: results, errors };
 }
 
