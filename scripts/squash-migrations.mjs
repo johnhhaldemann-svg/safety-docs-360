@@ -21,7 +21,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,8 +47,13 @@ function main() {
   }
 
   // 1 + 2: link and dump. stdio is inherited so the interactive DB-password prompt works.
+  // Dump BOTH custom schemas: `public` holds the app tables/policies, `private`
+  // holds SECURITY DEFINER trigger functions referenced by public triggers.
+  // Dumping `public` alone leaves triggers pointing at a non-existent `private`
+  // schema, so a fresh DB fails. (Supabase-managed schemas — auth, storage,
+  // realtime, etc. — are intentionally excluded.)
   run(`npx --no-install supabase link --project-ref ${PROJECT_REF}`);
-  run(`npx --no-install supabase db dump --linked --schema public -f "${BASELINE_PATH}"`);
+  run(`npx --no-install supabase db dump --linked --schema public,private -f "${BASELINE_PATH}"`);
 
   // 3: sanity-check the dump.
   if (!existsSync(BASELINE_PATH) || statSync(BASELINE_PATH).size < MIN_BASELINE_BYTES) {
@@ -57,6 +62,30 @@ function main() {
         `Aborting before archiving any migrations.`
     );
   }
+
+  // 3b: re-add CREATE EXTENSION statements. `supabase db dump` omits them (the
+  // extensions live in the `extensions` schema, outside the dumped schemas), but
+  // the schema references the pgvector type as "extensions"."vector". Without
+  // these, a fresh DB fails on the first such reference. Injected right before
+  // the first CREATE SCHEMA so the extensions exist before any object uses them.
+  const dumped = readFileSync(BASELINE_PATH, "utf8");
+  const EXTENSIONS_PREAMBLE =
+    `-- Extensions required by this schema. \`supabase db dump\` omits CREATE EXTENSION\n` +
+    `-- statements (they live outside the dumped schemas), so they are re-added here.\n` +
+    `-- Without these, a fresh database fails on the first reference to the\n` +
+    `-- "extensions"."vector" type (pgvector). Matches the archived migrations.\n` +
+    `CREATE SCHEMA IF NOT EXISTS "extensions";\n` +
+    `CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";\n` +
+    `CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "extensions";\n\n\n`;
+  if (!dumped.includes(`CREATE EXTENSION IF NOT EXISTS "vector"`)) {
+    const anchor = dumped.indexOf("CREATE SCHEMA");
+    if (anchor === -1) {
+      throw new Error(`No CREATE SCHEMA found in dump — cannot place extensions preamble. Aborting before archiving.`);
+    }
+    writeFileSync(BASELINE_PATH, dumped.slice(0, anchor) + EXTENSIONS_PREAMBLE + dumped.slice(anchor));
+    console.log(`✓ Injected CREATE EXTENSION preamble (pgcrypto, vector).`);
+  }
+
   console.log(`\n✓ Baseline written: ${BASELINE_PATH} (${statSync(BASELINE_PATH).size} bytes)`);
 
   // 4: archive the incremental migrations (everything except the new baseline).
