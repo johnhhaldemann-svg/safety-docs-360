@@ -11,7 +11,6 @@ import {
   Crosshair,
   Database,
   HardDrive,
-  Info,
   LibraryBig,
   ListChecks,
   Server,
@@ -46,32 +45,15 @@ function relativeTime(iso: string | null): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-/** Marks a widget (or value) as representative sample data, not yet wired to a live source. */
-function SampleTag({ className }: { className?: string }) {
-  return (
-    <span
-      title="Sample data — not yet wired to a live source"
-      className={cx(
-        "inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-amber-300",
-        className
-      )}
-    >
-      <Info className="h-2.5 w-2.5" strokeWidth={2.5} aria-hidden />
-      Sample
-    </span>
-  );
-}
 
 function Panel({
   title,
   action,
-  sample = false,
   children,
   className,
 }: {
   title: string;
   action?: React.ReactNode;
-  sample?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -83,10 +65,7 @@ function Panel({
       )}
     >
       <header className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold tracking-tight text-white">{title}</h2>
-          {sample ? <SampleTag /> : null}
-        </div>
+        <h2 className="text-sm font-bold tracking-tight text-white">{title}</h2>
         {action}
       </header>
       {children}
@@ -121,14 +100,12 @@ function KpiCard({
   sub,
   tone,
   loading,
-  sample = false,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone: KpiTone;
   loading: boolean;
-  sample?: boolean;
 }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--sa-border)] bg-[var(--sa-panel)] p-4">
@@ -137,7 +114,6 @@ function KpiCard({
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
           {label}
         </p>
-        {sample ? <SampleTag /> : null}
       </div>
       <p className={cx("sa-nums mt-2 text-3xl font-black tracking-tight", KPI_ACCENT[tone])}>
         {loading ? <span className="text-slate-600">—</span> : value}
@@ -444,14 +420,16 @@ export default function SuperadminCommandCenterPage() {
           {metrics && metrics.topOrgs.length > 0 ? (
             <ul className="space-y-1.5">
               {metrics.topOrgs.map((org) => (
-                <li
-                  key={org.companyId}
-                  className="flex items-center gap-3 rounded-lg border border-[var(--sa-border)] bg-[var(--sa-panel-soft)] px-3 py-2.5"
-                >
-                  <Building2 className="h-4 w-4 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-200">{org.name}</span>
-                  <span className="sa-nums text-xs font-bold text-rose-300">{org.openIncidents}</span>
-                  <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">incidents</span>
+                <li key={org.companyId}>
+                  <Link
+                    href="/superadmin/organizations"
+                    className="group flex items-center gap-3 rounded-lg border border-[var(--sa-border)] bg-[var(--sa-panel-soft)] px-3 py-2.5 transition hover:border-cyan-400/30"
+                  >
+                    <Building2 className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-cyan-300" strokeWidth={2} aria-hidden />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-200">{org.name}</span>
+                    <span className="sa-nums text-xs font-bold text-rose-300">{org.openIncidents}</span>
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">incidents</span>
+                  </Link>
                 </li>
               ))}
             </ul>

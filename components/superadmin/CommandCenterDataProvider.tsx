@@ -186,6 +186,12 @@ export function CommandCenterDataProvider({ children }: { children: React.ReactN
 
   useEffect(() => deferEffect(() => void load()), [load]);
 
+  // Refresh every 5 minutes so the dashboard stays current without a manual reload.
+  useEffect(() => {
+    const id = setInterval(() => void load(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [load]);
+
   const value = useMemo<CommandCenterContextValue>(
     () => ({ data, loading, error, refresh: () => void load() }),
     [data, loading, error, load]

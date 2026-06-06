@@ -84,20 +84,15 @@ export async function GET(request: Request) {
     countRows(admin, "ai_approval_memory", (q) => q.eq("decision", "rejected")),
   ]);
 
-  // Organizations needing attention — top by recent incident volume.
+  // Organizations needing attention — top by incident volume via SQL GROUP BY.
   let topOrgs: Array<{ companyId: string; name: string; openIncidents: number }> = [];
   try {
-    const { data } = await admin.from("company_incidents").select("company_id").limit(3000);
-    const tally = new Map<string, number>();
-    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-      const id = String(row.company_id ?? "");
-      if (id) tally.set(id, (tally.get(id) ?? 0) + 1);
-    }
-    const top = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    if (top.length > 0) {
-      const { data: companies } = await admin.from("companies").select("id, name").in("id", top.map(([id]) => id));
+    const { data: counts } = await admin.rpc("superadmin_top_incident_orgs", { limit_count: 5 });
+    const rows = (counts ?? []) as Array<{ company_id: string; incident_count: number }>;
+    if (rows.length > 0) {
+      const { data: companies } = await admin.from("companies").select("id, name").in("id", rows.map((r) => r.company_id));
       const names = new Map(((companies ?? []) as Array<Record<string, unknown>>).map((c) => [String(c.id), String(c.name ?? "Unknown")]));
-      topOrgs = top.map(([companyId, openIncidents]) => ({ companyId, name: names.get(companyId) ?? "Unknown company", openIncidents }));
+      topOrgs = rows.map((r) => ({ companyId: r.company_id, name: names.get(r.company_id) ?? "Unknown company", openIncidents: r.incident_count }));
     }
   } catch {
     topOrgs = [];
@@ -144,6 +139,6 @@ export async function GET(request: Request) {
         deadlines,
       },
     },
-    { headers: { "Cache-Control": "no-store" } }
+    { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30" } }
   );
 }
