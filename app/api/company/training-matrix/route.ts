@@ -970,14 +970,34 @@ async function getTrainingMatrix(request: Request) {
   }
 
   const adminClient = createSupabaseAdminClient();
+  const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
 
-  const reqFetch = await fetchCompanyTrainingRequirements(auth.supabase, companyScope.companyId, false);
+  // Phase 1: training requirements + workspace directory in parallel
+  const [reqFetch, directory] = await Promise.all([
+    fetchCompanyTrainingRequirements(auth.supabase, companyScope.companyId, false),
+    adminClient
+      ? loadCompanyWorkspaceUsers({
+          adminClient,
+          authUser: auth.user,
+          companyId: companyScope.companyId,
+          scopeTeam,
+        })
+      : loadCompanyWorkspaceUsersRls({
+          supabase: auth.supabase,
+          authUser: auth.user,
+          companyId: companyScope.companyId,
+          scopeTeam,
+        }),
+  ]);
 
   if (reqFetch.error) {
     return NextResponse.json(
       { error: reqFetch.error || "Failed to load training requirements." },
       { status: 500 }
     );
+  }
+  if (directory.error) {
+    return NextResponse.json({ error: directory.error }, { status: 500 });
   }
 
   const allRequirementRows = reqFetch.rows;
@@ -1022,26 +1042,6 @@ async function getTrainingMatrix(request: Request) {
     !reqFetch.taskScopeColumnsAvailable ||
     !reqFetch.generatedColumnsAvailable;
 
-  const scopeTeam = companyScope.companyName?.trim() || auth.team || "General";
-
-  const directory = adminClient
-    ? await loadCompanyWorkspaceUsers({
-        adminClient,
-        authUser: auth.user,
-        companyId: companyScope.companyId,
-        scopeTeam,
-      })
-    : await loadCompanyWorkspaceUsersRls({
-        supabase: auth.supabase,
-        authUser: auth.user,
-        companyId: companyScope.companyId,
-        scopeTeam,
-      });
-
-  if (directory.error) {
-    return NextResponse.json({ error: directory.error }, { status: 500 });
-  }
-
   const userIds = directory.users.map((u) => u.id);
   const profileClient = adminClient ?? auth.supabase;
   const profileSelectAttempts = [
@@ -1050,27 +1050,31 @@ async function getTrainingMatrix(request: Request) {
     "user_id, certifications, job_title, trade_specialty, readiness_status",
   ];
 
-  let profileData: ProfileRow[] | null = null;
-  let profileError: { message: string } | null = null;
-  if (userIds.length === 0) {
-    profileData = [];
-  } else {
-    for (const columns of profileSelectAttempts) {
-      const res = await profileClient.from("user_profiles").select(columns).in("user_id", userIds);
-      if (!res.error) {
-        profileData = res.data as unknown as ProfileRow[] | null;
-        profileError = null;
-        break;
+  // Phase 2: user profiles + tracked employees in parallel
+  const [profileResult, tracked] = await Promise.all([
+    (async (): Promise<{ profileData: ProfileRow[] | null; profileError: { message: string } | null }> => {
+      if (userIds.length === 0) return { profileData: [], profileError: null };
+      let lastError: { message: string } | null = null;
+      for (const columns of profileSelectAttempts) {
+        const res = await profileClient.from("user_profiles").select(columns).in("user_id", userIds);
+        if (!res.error) return { profileData: res.data as unknown as ProfileRow[] | null, profileError: null };
+        lastError = res.error;
       }
-      profileError = res.error;
-    }
-  }
+      return { profileData: null, profileError: lastError };
+    })(),
+    loadTrackedCompanyEmployees({ db: profileClient, companyId: companyScope.companyId }),
+  ]);
+
+  const { profileData, profileError } = profileResult;
 
   if (profileError && adminClient) {
     return NextResponse.json(
       { error: profileError.message || "Failed to load user profiles." },
       { status: 500 }
     );
+  }
+  if (tracked.error) {
+    return NextResponse.json({ error: tracked.error }, { status: 500 });
   }
 
   const directoryNotice: string | null = adminClient
@@ -1081,6 +1085,9 @@ async function getTrainingMatrix(request: Request) {
     profileError && !adminClient
       ? "Construction profiles could not be loaded for every row (permissions or configuration)."
       : null;
+  if (tracked.warning) {
+    warning = warning ? `${warning} ${tracked.warning}` : tracked.warning;
+  }
 
   const profileMap = new Map<string, ProfileRow>();
   for (const row of (profileData as ProfileRow[] | null) ?? []) {
@@ -1154,17 +1161,6 @@ async function getTrainingMatrix(request: Request) {
       trainingSummary: stage1.trainingSummary,
     };
   });
-
-  const tracked = await loadTrackedCompanyEmployees({
-    db: profileClient,
-    companyId: companyScope.companyId,
-  });
-  if (tracked.error) {
-    return NextResponse.json({ error: tracked.error }, { status: 500 });
-  }
-  if (tracked.warning) {
-    warning = warning ? `${warning} ${tracked.warning}` : tracked.warning;
-  }
 
   const trackedRows = tracked.employees.map((employee) => {
     const profile = buildTrackedEmployeeMatrixProfile(employee, employee.trainingRecords);

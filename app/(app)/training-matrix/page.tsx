@@ -508,6 +508,49 @@ function readWorkerProfileTab(value: string | null): WorkerProfileTab {
     : "summary";
 }
 
+type SortKey =
+  | "name"
+  | "required"
+  | "complete"
+  | "missing"
+  | "expiringSoon"
+  | "overdue"
+  | "permitLinkedGaps"
+  | "overallStatus"
+  | "nextDueDate";
+
+function exportStage1WorkerCsv(rows: MatrixRow[]): string {
+  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const headers = [
+    "Worker", "Email", "Worker type", "Login access", "Company / department",
+    "Job title / trade", "Jobsite", "Supervisor / manager",
+    "Required", "Complete", "Missing", "Expiring soon", "Overdue", "Permit-linked gaps",
+    "Overall status", "Next due date",
+  ];
+  const csvRows = rows.map((row) => {
+    const s = row.trainingSummary;
+    return [
+      row.name,
+      row.email,
+      row.workerType ?? (row.personType === "tracked_employee" ? "External Worker" : "Employee"),
+      row.loginAccessStatus ?? "Active User",
+      row.companyOrDepartment ?? "",
+      row.jobTitleOrTrade || [row.profileFields.jobTitle, row.profileFields.tradeSpecialty].filter(Boolean).join(" / "),
+      row.assignedJobsites?.join("; ") ?? "",
+      row.supervisorOrManager ?? "",
+      s?.requiredCount ?? 0,
+      s?.completeCount ?? 0,
+      s?.missingCount ?? 0,
+      s?.expiringSoonCount ?? 0,
+      s?.overdueCount ?? 0,
+      s?.permitLinkedGaps ?? 0,
+      s?.overallStatus ?? "",
+      s?.nextDueDate ?? "",
+    ].map(escape).join(",");
+  });
+  return [headers.map(escape).join(","), ...csvRows].join("\n");
+}
+
 function Stage1ComplianceGrid({
   rows,
   requirements,
@@ -531,6 +574,16 @@ function Stage1ComplianceGrid({
 }) {
   const [expandedWorkerId, setExpandedWorkerId] = useState<string | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("overdue");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const handleSortClick = useCallback((key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }, [sortKey]);
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -539,6 +592,25 @@ function Stage1ComplianceGrid({
       return stage1RowText(row).includes(query);
     });
   }, [rows, search, statusFilter]);
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      const as = a.trainingSummary;
+      const bs = b.trainingSummary;
+      let cmp = 0;
+      switch (sortKey) {
+        case "name": cmp = a.name.localeCompare(b.name); break;
+        case "required": cmp = (as?.requiredCount ?? 0) - (bs?.requiredCount ?? 0); break;
+        case "complete": cmp = (as?.completeCount ?? 0) - (bs?.completeCount ?? 0); break;
+        case "missing": cmp = (as?.missingCount ?? 0) - (bs?.missingCount ?? 0); break;
+        case "expiringSoon": cmp = (as?.expiringSoonCount ?? 0) - (bs?.expiringSoonCount ?? 0); break;
+        case "overdue": cmp = (as?.overdueCount ?? 0) - (bs?.overdueCount ?? 0); break;
+        case "permitLinkedGaps": cmp = (as?.permitLinkedGaps ?? 0) - (bs?.permitLinkedGaps ?? 0); break;
+        case "overallStatus": cmp = (as?.overallStatus ?? "").localeCompare(bs?.overallStatus ?? ""); break;
+        case "nextDueDate": cmp = (as?.nextDueDate ?? "9999-99-99").localeCompare(bs?.nextDueDate ?? "9999-99-99"); break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filteredRows, sortKey, sortDir]);
   const courseRollups = useMemo(
     () =>
       buildStage1CourseRollups(filteredRows, requirements).filter((rollup) => {
@@ -616,21 +688,41 @@ function Stage1ComplianceGrid({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {quickFilters.map((filter) => (
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {quickFilters.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => onStatusFilterChange(filter.id)}
+              className={
+                statusFilter === filter.id
+                  ? "rounded-lg bg-[var(--app-accent-primary)] px-3 py-1.5 text-xs font-bold text-white"
+                  : "rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] hover:bg-[var(--app-panel-soft)]"
+              }
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        {mode === "worker" ? (
           <button
-            key={filter.id}
             type="button"
-            onClick={() => onStatusFilterChange(filter.id)}
-            className={
-              statusFilter === filter.id
-                ? "rounded-lg bg-[var(--app-accent-primary)] px-3 py-1.5 text-xs font-bold text-white"
-                : "rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] hover:bg-[var(--app-panel-soft)]"
-            }
+            onClick={() => {
+              const csv = exportStage1WorkerCsv(filteredRows);
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "training-matrix-compliance.csv";
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="shrink-0 rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] hover:bg-[var(--app-panel-soft)]"
           >
-            {filter.label}
+            Export CSV ({filteredRows.length})
           </button>
-        ))}
+        ) : null}
       </div>
 
       {mode === "worker" ? (
@@ -638,32 +730,40 @@ function Stage1ComplianceGrid({
           <table className="min-w-[1500px] border-collapse text-left text-sm">
             <thead className="bg-[var(--app-panel-soft)] text-xs font-semibold uppercase tracking-wide text-[var(--app-muted)]">
               <tr>
-                {[
-                  "Worker",
-                  "Worker type",
-                  "Login access",
-                  "Company / department",
-                  "Job title / trade",
-                  "Jobsite",
-                  "Supervisor / manager",
-                  "Required",
-                  "Complete",
-                  "Missing",
-                  "Expiring soon",
-                  "Overdue",
-                  "Permit-linked gaps",
-                  "Overall status",
-                  "Next due date",
-                  "Actions",
-                ].map((header) => (
-                  <th key={header} className="border-b border-[var(--app-border)] px-3 py-3">
-                    {header}
+                <th
+                  className="border-b border-[var(--app-border)] cursor-pointer select-none px-3 py-3 hover:text-[var(--app-text-strong)]"
+                  onClick={() => handleSortClick("name")}
+                >
+                  Worker{sortKey === "name" ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                </th>
+                {["Worker type", "Login access", "Company / department", "Job title / trade", "Jobsite", "Supervisor / manager"].map((h) => (
+                  <th key={h} className="border-b border-[var(--app-border)] px-3 py-3">{h}</th>
+                ))}
+                {(
+                  [
+                    ["Required", "required"],
+                    ["Complete", "complete"],
+                    ["Missing", "missing"],
+                    ["Expiring soon", "expiringSoon"],
+                    ["Overdue", "overdue"],
+                    ["Permit-linked gaps", "permitLinkedGaps"],
+                    ["Overall status", "overallStatus"],
+                    ["Next due date", "nextDueDate"],
+                  ] as Array<[string, SortKey]>
+                ).map(([label, key]) => (
+                  <th
+                    key={key}
+                    className="border-b border-[var(--app-border)] cursor-pointer select-none px-3 py-3 hover:text-[var(--app-text-strong)]"
+                    onClick={() => handleSortClick(key)}
+                  >
+                    {label}{sortKey === key ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
                   </th>
                 ))}
+                <th className="border-b border-[var(--app-border)] px-3 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => {
+              {sortedRows.map((row) => {
                 const summary = row.trainingSummary;
                 const expanded = expandedWorkerId === row.userId;
                 return (
@@ -743,7 +843,7 @@ function Stage1ComplianceGrid({
                   </Fragment>
                 );
               })}
-              {filteredRows.length === 0 ? (
+              {sortedRows.length === 0 ? (
                 <tr>
                   <td colSpan={16} className="px-4 py-8 text-center text-sm text-[var(--app-muted)]">
                     {statusFilter === "overdue" ? "No overdue training found. Workers in this view are currently compliant." : "No workforce records match the current filters."}
@@ -1801,7 +1901,10 @@ export default function TrainingMatrixPage() {
   const [stage1Search, setStage1Search] = useState("");
   const [stage1StatusFilter, setStage1StatusFilter] = useState<Stage1StatusFilter>(() => {
     const status = searchParams.get("status");
-    if (status === "complete" || status === "expiring_soon" || status === "overdue") return status;
+    if (
+      status === "complete" || status === "expiring_soon" || status === "overdue" ||
+      status === "missing" || status === "permit_critical" || status === "no_portal"
+    ) return status as Stage1StatusFilter;
     return "all";
   });
   const [canMutate, setCanMutate] = useState(false);
@@ -1893,8 +1996,11 @@ export default function TrainingMatrixPage() {
 
   useEffect(() => deferEffect(() => {
     const status = searchParams.get("status");
-    if (status === "complete" || status === "expiring_soon" || status === "overdue") {
-      setStage1StatusFilter(status);
+    if (
+      status === "complete" || status === "expiring_soon" || status === "overdue" ||
+      status === "missing" || status === "permit_critical" || status === "no_portal"
+    ) {
+      setStage1StatusFilter(status as Stage1StatusFilter);
     }
   }), [searchParams]);
 
@@ -2139,12 +2245,9 @@ export default function TrainingMatrixPage() {
     void loadMatrix();
   }), [loadMatrix]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadReadiness();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [loadReadiness]);
+  useEffect(() => deferEffect(() => {
+    void loadReadiness();
+  }), [loadReadiness]);
 
   const handleTradeFilterChange = useCallback((value: string) => {
     setSelectedTradeFilter(value);
@@ -2475,10 +2578,13 @@ export default function TrainingMatrixPage() {
     return rows.filter((row) => (row.personType ?? "licensed_user") === matrixPersonTypeFilter);
   }, [matrixPersonTypeFilter, rows]);
 
-  const licensedMatrixRows = rows.filter(
-    (row) => (row.personType ?? "licensed_user") !== "tracked_employee"
-  ).length;
-  const trackedMatrixRows = rows.filter((row) => row.personType === "tracked_employee").length;
+  const { licensedMatrixRows, trackedMatrixRows } = useMemo(
+    () => ({
+      licensedMatrixRows: rows.filter((row) => (row.personType ?? "licensed_user") !== "tracked_employee").length,
+      trackedMatrixRows: rows.filter((row) => row.personType === "tracked_employee").length,
+    }),
+    [rows]
+  );
 
   const trackerStats = useMemo(() => {
     if (!filteredMatrixRows.length || !requirements.length) return null;
