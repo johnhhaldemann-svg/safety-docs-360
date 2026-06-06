@@ -11,6 +11,7 @@ import {
   Crosshair,
   Database,
   HardDrive,
+  LifeBuoy,
   LibraryBig,
   ListChecks,
   Server,
@@ -221,6 +222,7 @@ const SYSTEM_HEALTH_TILES: Array<{
   { key: "dataQuality", label: "Data Quality", icon: Database },
   { key: "predictionValue", label: "Prediction Value", icon: HardDrive },
   { key: "ownerValidation", label: "Owner Validation", icon: ClipboardCheck },
+  { key: "helpTickets", label: "Help Tickets", icon: LifeBuoy },
 ];
 
 function healthDot(score: number | null, status: string): string {
@@ -515,7 +517,7 @@ export default function SuperadminCommandCenterPage() {
             </Link>
           }
         >
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
             {SYSTEM_HEALTH_TILES.map((tile) => {
               const cat = data?.healthCategories?.[tile.key];
               const score = cat?.score ?? null;

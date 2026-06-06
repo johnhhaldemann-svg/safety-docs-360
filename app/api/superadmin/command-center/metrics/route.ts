@@ -84,16 +84,15 @@ export async function GET(request: Request) {
     countRows(admin, "ai_approval_memory", (q) => q.eq("decision", "rejected")),
   ]);
 
-  // Organizations needing attention — top by incident volume via SQL GROUP BY.
+  // Organizations needing attention — top by incident volume via SQL GROUP BY + JOIN.
   let topOrgs: Array<{ companyId: string; name: string; openIncidents: number }> = [];
   try {
     const { data: counts } = await admin.rpc("superadmin_top_incident_orgs", { limit_count: 5 });
-    const rows = (counts ?? []) as Array<{ company_id: string; incident_count: number }>;
-    if (rows.length > 0) {
-      const { data: companies } = await admin.from("companies").select("id, name").in("id", rows.map((r) => r.company_id));
-      const names = new Map(((companies ?? []) as Array<Record<string, unknown>>).map((c) => [String(c.id), String(c.name ?? "Unknown")]));
-      topOrgs = rows.map((r) => ({ companyId: r.company_id, name: names.get(r.company_id) ?? "Unknown company", openIncidents: r.incident_count }));
-    }
+    topOrgs = ((counts ?? []) as Array<{ company_id: string; company_name: string; incident_count: number }>).map((r) => ({
+      companyId: r.company_id,
+      name: r.company_name,
+      openIncidents: r.incident_count,
+    }));
   } catch {
     topOrgs = [];
   }
