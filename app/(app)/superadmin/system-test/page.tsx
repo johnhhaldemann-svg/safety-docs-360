@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
@@ -15,66 +15,14 @@ import {
   Users,
 } from "lucide-react";
 import {
+  PageHero,
+  SectionCard,
   InlineMessage,
   StatusBadge,
   appNativeSelectClassName,
 } from "@/components/WorkspacePrimitives";
 
 const supabase = getSupabaseBrowserClient();
-
-// Dark-theme wrappers. The shared PageHero/SectionCard primitives are light-only and
-// render muddy inside the dark Command Center shell, so this superadmin-only page uses
-// panels that match the console (var(--sa-panel) / var(--sa-border)).
-function Hero({
-  eyebrow,
-  title,
-  description,
-  actions,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  actions?: ReactNode;
-}) {
-  return (
-    <section className="relative overflow-hidden rounded-2xl border border-[var(--sa-border)] bg-[var(--sa-panel)] p-6 sm:p-8">
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400" />
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300">{eyebrow}</p>
-      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
-        </div>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
-      </div>
-    </section>
-  );
-}
-
-function Section({
-  title,
-  description,
-  aside,
-  children,
-}: {
-  title: string;
-  description?: string;
-  aside?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-[var(--sa-border)] bg-[var(--sa-panel)] p-5 sm:p-6">
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-bold tracking-tight text-white">{title}</h2>
-          {description ? <p className="mt-1 text-sm leading-6 text-slate-400">{description}</p> : null}
-        </div>
-        {aside ? <div className="shrink-0">{aside}</div> : null}
-      </header>
-      {children}
-    </section>
-  );
-}
 
 type CheckStatus = "green" | "yellow" | "red";
 
@@ -533,7 +481,7 @@ export default function SafetyObservationHub() {
 
   return (
     <div className="space-y-6">
-      <Hero
+      <PageHero
         eyebrow="Superadmin / System test"
         title="Full system function test"
         description="Run a read-only smoke pass across session, environment, agreement settings, company data, user access, document queues, credit records, and archive history. Pick any user below and the test will evaluate that user's workspace context."
@@ -550,7 +498,7 @@ export default function SafetyObservationHub() {
         }
       />
 
-      <Section
+      <SectionCard
         title="Select user"
         description="Choose any user from the directory, then run the smoke test against that account's scope."
       >
@@ -646,9 +594,9 @@ export default function SafetyObservationHub() {
             <InlineMessage tone="error">{usersError}</InlineMessage>
           </div>
         ) : null}
-      </Section>
+      </SectionCard>
 
-      <Section
+      <SectionCard
         title="Test instructions"
         description="Click the button when you want a fresh read-only pass. The page does not auto-refresh, so the result you see is the result you asked for."
         aside={
@@ -678,10 +626,10 @@ export default function SafetyObservationHub() {
             </div>
           ))}
         </div>
-      </Section>
+      </SectionCard>
 
       {result ? (
-        <Section
+        <SectionCard
           title="Red flag summary"
           description="Grouped by the main failure modes so you can spot the risky areas first."
           aside={
@@ -702,7 +650,7 @@ export default function SafetyObservationHub() {
               <GroupedSummaryCard key={group.key} group={group} />
             ))}
           </div>
-        </Section>
+        </SectionCard>
       ) : null}
 
       {error ? (
@@ -717,7 +665,7 @@ export default function SafetyObservationHub() {
       ) : null}
 
       {result ? (
-        <Section
+        <SectionCard
           title={`Environment and summary for ${result.targetUser.name}`}
           description={`Last run at ${formatRunTime(result.ranAt)} for ${result.targetUser.email || result.targetUser.id}. This pass completed in ${formatDuration(result.durationMs)}.`}
           aside={
@@ -768,9 +716,9 @@ export default function SafetyObservationHub() {
               </p>
             </div>
           </div>
-        </Section>
+        </SectionCard>
       ) : (
-        <Section
+        <SectionCard
           title="Ready when you are"
           description="Nothing runs automatically here. Click the button above to generate the next set of green lights."
         >
@@ -783,10 +731,10 @@ export default function SafetyObservationHub() {
               This keeps the page quiet until you want a fresh read-only smoke check.
             </p>
           </div>
-        </Section>
+        </SectionCard>
       )}
 
-      <Section
+      <SectionCard
         title="Color guide"
         description="These colors stay consistent across the test cards so it is easy to tell what needs attention for the selected user."
       >
@@ -825,10 +773,10 @@ export default function SafetyObservationHub() {
             </div>
           ))}
         </div>
-      </Section>
+      </SectionCard>
 
       {result ? (
-        <Section
+        <SectionCard
           title="Function checks"
           description={`Each card is a single function or system path for ${result.targetUser.name}. Green means the function answered successfully.`}
         >
@@ -837,7 +785,7 @@ export default function SafetyObservationHub() {
               <CheckCard key={check.id} check={check} />
             ))}
           </div>
-        </Section>
+        </SectionCard>
       ) : null}
     </div>
   );

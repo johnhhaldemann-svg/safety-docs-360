@@ -14,6 +14,25 @@ export type CommandActivityEntry = {
   createdAt: string | null;
 };
 
+export type CommandCenterMetrics = {
+  findingsByType: {
+    correctiveActions: number | null;
+    incidents: number | null;
+    observations: number | null;
+    inspections: number | null;
+  };
+  inspectionsMtd: { current: number | null; previous: number | null };
+  reviewBacklog: {
+    predictionValidation: number;
+    knowledgeCandidates: number;
+    aiImprovements: number;
+    ownerValidations: number;
+  };
+  approvalMemory: { total: number; approved: number; rejected: number };
+  topOrgs: Array<{ companyId: string; name: string; openIncidents: number }>;
+  deadlines: Array<{ title: string; dueDate: string; meta: string }>;
+};
+
 export type CommandCenterData = {
   /** Overall platform health score, used as "Platform Compliance". */
   healthScore: number | null;
@@ -27,6 +46,7 @@ export type CommandCenterData = {
   pendingOnboard: number | null;
   activeUsers: number | null;
   activity: CommandActivityEntry[];
+  metrics: CommandCenterMetrics | null;
 };
 
 type CommandCenterContextValue = {
@@ -48,6 +68,7 @@ const EMPTY: CommandCenterData = {
   pendingOnboard: null,
   activeUsers: null,
   activity: [],
+  metrics: null,
 };
 
 const CommandCenterContext = createContext<CommandCenterContextValue>({
@@ -91,7 +112,7 @@ export function CommandCenterDataProvider({ children }: { children: React.ReactN
         }
       };
 
-      const [score, tickets, owners, events, companies, users] = await Promise.all([
+      const [score, tickets, owners, events, companies, users, metricsResp] = await Promise.all([
         settle<SuperadminHealthScore>(fetch("/api/superadmin/health/score", { headers })),
         settle<{ summary?: PlatformHelpTicketSummary }>(
           fetch("/api/superadmin/help-tickets?limit=1", { headers })
@@ -107,6 +128,9 @@ export function CommandCenterDataProvider({ children }: { children: React.ReactN
         ),
         settle<{ users?: Array<Record<string, unknown>> }>(
           fetch("/api/admin/users", { headers })
+        ),
+        settle<{ metrics?: CommandCenterMetrics }>(
+          fetch("/api/superadmin/command-center/metrics", { headers })
         ),
       ]);
 
@@ -150,6 +174,7 @@ export function CommandCenterDataProvider({ children }: { children: React.ReactN
           ? userRows.filter((u) => isActiveStatus(u.account_status ?? u.status)).length
           : null,
         activity,
+        metrics: metricsResp?.metrics ?? null,
       });
       setError(false);
     } catch {
@@ -160,6 +185,12 @@ export function CommandCenterDataProvider({ children }: { children: React.ReactN
   }, []);
 
   useEffect(() => deferEffect(() => void load()), [load]);
+
+  // Refresh every 5 minutes so the dashboard stays current without a manual reload.
+  useEffect(() => {
+    const id = setInterval(() => void load(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const value = useMemo<CommandCenterContextValue>(
     () => ({ data, loading, error, refresh: () => void load() }),
