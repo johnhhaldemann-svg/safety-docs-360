@@ -140,7 +140,8 @@ export async function POST(request: Request) {
       read: false,
     }));
 
-    await supabase.from("company_notifications").insert(notifications).then(() => {});
+    await Promise.resolve(supabase.from("company_notifications").insert(notifications))
+      .catch((err: unknown) => console.error("[twilio-sms] Notification insert failed:", err));
   }
 
   const confirmMsg = `✅ Incident logged: "${draft.title}" (${draft.severity} severity). Your safety team has been notified. Ref: ${(incident.id as string).slice(0, 8).toUpperCase()}`;

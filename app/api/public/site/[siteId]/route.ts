@@ -9,8 +9,12 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ siteId: string }> },
 ) {
-  const { siteId } = await params;
-  if (!siteId?.trim()) {
+  const { siteId: rawSiteId } = await params;
+  // Validate siteId to prevent SQL injection via .or() string interpolation.
+  // Only allow UUID format or safe slug characters (alphanumeric + hyphens/underscores, max 120 chars).
+  const siteId = rawSiteId?.trim() ?? "";
+  const isSafeId = /^[a-zA-Z0-9_-]{1,120}$/.test(siteId);
+  if (!siteId || !isSafeId) {
     return NextResponse.json({ error: "Site not found." }, { status: 404 });
   }
 

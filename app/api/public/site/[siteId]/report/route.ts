@@ -9,11 +9,15 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ siteId: string }> },
 ) {
-  const { siteId } = await params;
+  const { siteId: rawSiteId } = await params;
   const body = (await request.json().catch(() => null)) as { message?: string } | null;
   const message = body?.message?.trim().slice(0, 2_000);
 
-  if (!siteId?.trim() || !message) {
+  // Validate siteId to prevent SQL injection via .or() string interpolation
+  const siteId = rawSiteId?.trim() ?? "";
+  const isSafeId = /^[a-zA-Z0-9_-]{1,120}$/.test(siteId);
+
+  if (!siteId || !isSafeId || !message) {
     return NextResponse.json({ error: "siteId and message are required." }, { status: 400 });
   }
 
@@ -76,7 +80,8 @@ export async function POST(
       link: `/field-id-exchange?incident=${(incident as { id: string }).id}`,
       read: false,
     }));
-    await supabase.from("company_notifications").insert(notifications);
+    await Promise.resolve(supabase.from("company_notifications").insert(notifications))
+      .catch((err: unknown) => console.error("[qr-report] Notification insert failed:", err));
   }
 
   return NextResponse.json({ ok: true, incidentId: (incident as { id: string }).id });

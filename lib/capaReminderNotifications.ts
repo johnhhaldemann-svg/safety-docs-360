@@ -5,6 +5,15 @@ import { createCompanyNotification } from "@/lib/companyNotifications";
 // Negative = overdue.
 export type CapaReminderMilestone = "7d" | "3d" | "due" | "overdue";
 
+type CapaSessionRow = {
+  corrective_action_id: string | null;
+  corrective_action?: Array<{
+    id: string;
+    title: string;
+    created_by: string | null;
+  }> | { id: string; title: string; created_by: string | null } | null;
+};
+
 type CapaItemRow = {
   id: string;
   title: string;
@@ -14,14 +23,7 @@ type CapaItemRow = {
   reminder_milestones_sent: Record<string, string>;
   company_id: string;
   session_id: string;
-  session: {
-    corrective_action_id: string | null;
-    corrective_action?: {
-      id: string;
-      title: string;
-      created_by: string | null;
-    } | null;
-  } | null;
+  session: CapaSessionRow | CapaSessionRow[] | null;
 };
 
 type CronResult = {
@@ -116,7 +118,11 @@ export async function runCapaReminderNotificationsCron(options?: {
   let notificationsSent = 0;
   let skipped = 0;
 
-  const supabase = createSupabaseAdminClient();
+  const supabaseOrNull = createSupabaseAdminClient();
+  if (!supabaseOrNull) {
+    return { ok: false, error: "Supabase admin client could not be initialised — check service role env vars.", itemsSeen: 0, notificationsSent: 0, skipped: 0 };
+  }
+  const supabase = supabaseOrNull;
   const now = new Date();
 
   // Lower bound: don't send overdue reminders for items more than 60 days past due
@@ -147,7 +153,7 @@ export async function runCapaReminderNotificationsCron(options?: {
     return { ok: false, error: error.message, itemsSeen: 0, notificationsSent: 0, skipped: 0 };
   }
 
-  const rows = (items ?? []) as CapaItemRow[];
+  const rows = (items ?? []) as unknown as CapaItemRow[];
   itemsSeen = rows.length;
 
   for (const item of rows) {
