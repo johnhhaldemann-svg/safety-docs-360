@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Eye,
   Flag,
+  GitBranch,
   History,
   ListFilter,
   Menu,
@@ -28,6 +29,7 @@ import { FieldMetricRankedList } from "@/components/metrics/FieldMetricRankedLis
 import { FieldMetricTrendChart } from "@/components/metrics/FieldMetricTrendChart";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
+import { RcaPanel } from "@/components/corrective-actions/RcaPanel";
 import {
   ActivityFeed,
   EmptyState,
@@ -60,6 +62,41 @@ import { useTableDensity } from "@/hooks/useTableDensity";
 import { fieldIdMatrixTableLayout } from "@/lib/tableDensityLayout";
 
 const supabase = getSupabaseBrowserClient();
+
+function RcaSlideover({
+  action,
+  onClose,
+  getAuthHeaders,
+}: {
+  action: { id: string; title: string; category: string; severity: string };
+  onClose: () => void;
+  getAuthHeaders: () => Promise<Record<string, string>>;
+}) {
+  const [headers, setHeaders] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    void getAuthHeaders().then(setHeaders);
+  }, [getAuthHeaders]);
+
+  if (!headers) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/50 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Close RCA panel"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+      <aside className="relative flex h-full w-full max-w-xl flex-col">
+        <RcaPanel
+          action={{ ...action, rca_session_id: null }}
+          onClose={onClose}
+          authHeaders={headers}
+        />
+      </aside>
+    </div>
+  );
+}
 
 type FieldIssueLogTab = "board" | "analytics";
 type CorrectionHubView = "consolidated" | "location" | "mine" | "overdue" | "completed";
@@ -552,6 +589,7 @@ export default function FieldIdExchangePage() {
     created: number;
     apiFailures: { sheetRow: number; message: string }[];
   } | null>(null);
+  const [rcaAction, setRcaAction] = useState<CorrectiveActionRow | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -1779,6 +1817,16 @@ export default function FieldIdExchangePage() {
             Incident
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setRcaAction(item)}
+          disabled={busy}
+          title="Root Cause Analysis"
+          className={`${buttonClass} border-violet-200 text-violet-700 hover:border-violet-300 hover:text-violet-800`}
+        >
+          <GitBranch aria-hidden="true" className="h-3.5 w-3.5" />
+          RCA
+        </button>
       </div>
     );
   }
@@ -1862,6 +1910,17 @@ export default function FieldIdExchangePage() {
         {item.description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{item.description}</p> : null}
         {renderProofTools(item)}
       </div>
+    );
+  }
+
+  function renderRcaPanel() {
+    if (!rcaAction) return null;
+    return (
+      <RcaSlideover
+        action={rcaAction}
+        onClose={() => setRcaAction(null)}
+        getAuthHeaders={getAuthHeaders}
+      />
     );
   }
 
@@ -2075,6 +2134,7 @@ export default function FieldIdExchangePage() {
 
   return (
     <div className="space-y-8">
+      {renderRcaPanel()}
       {renderCreatePanel()}
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(76,108,161,0.10)]">
