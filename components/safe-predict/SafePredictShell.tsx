@@ -22,6 +22,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  TrendingUp,
   TriangleAlert,
   Users,
   X,
@@ -91,6 +92,7 @@ const navGroups: NavGroup[] = [
     icon: ClipboardCheck,
     items: [
       { href: "/safe-predict/permits", label: "Permits", icon: FileText },
+      { href: "/safe-predict/osha-300", label: "OSHA 300 Log", icon: ClipboardCheck },
       { href: "/safe-predict/training", label: "Training", icon: GraduationCap },
       { href: "/safe-predict/training-tracker", label: "Training Tracker", icon: GraduationCap },
       { href: "/safe-predict/inductions", label: "Inductions", icon: ClipboardCheck },
@@ -122,6 +124,7 @@ const navGroups: NavGroup[] = [
     label: "Insights & Reporting",
     icon: BarChart3,
     items: [
+      { href: "/safe-predict/leading-indicators", label: "Leading Indicators", icon: TrendingUp },
       { href: "/safe-predict/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/safe-predict/reports", label: "Reports", icon: BarChart3 },
     ],
