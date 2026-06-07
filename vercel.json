@@ -41,6 +41,10 @@
     {
       "path": "/api/cron/ai-knowledge-learning-check",
       "schedule": "0 0,11,12,23 * * *"
+    },
+    {
+      "path": "/api/cron/capa-due-reminders",
+      "schedule": "0 9 * * *"
     }
   ]
 }
