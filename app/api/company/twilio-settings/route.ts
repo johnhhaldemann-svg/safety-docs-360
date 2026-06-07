@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { encryptTwilioAuthToken } from "@/lib/twilioEncryption";
 
 export const runtime = "nodejs";
 
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
     company_id: companyScope.companyId,
     phone_number: phoneNumber,
     account_sid: accountSid,
-    auth_token: authToken,
+    auth_token: encryptTwilioAuthToken(authToken), // encrypted at rest
     enabled: body?.enabled !== false,
     updated_at: new Date().toISOString(),
   };

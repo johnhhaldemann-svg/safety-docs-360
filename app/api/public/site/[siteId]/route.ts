@@ -65,9 +65,22 @@ export async function GET(
         .limit(3)
     : { data: [] };
 
+  // Strip internal IDs from public response to avoid enumeration
+  const js = jobsite as Record<string, unknown>;
+  const company = (Array.isArray(js.company) ? js.company[0] : js.company) as { name?: string; logo_url?: string } | null;
+
   return NextResponse.json({
     site: {
-      ...(jobsite as object),
+      id: js.id,
+      name: js.name,
+      address: js.address,
+      city: js.city,
+      state: js.state,
+      status: js.status,
+      emergency_contact_name: js.emergency_contact_name,
+      emergency_contact_phone: js.emergency_contact_phone,
+      company: company ? { name: company.name ?? null, logo_url: company.logo_url ?? null } : null,
+      // company_id intentionally omitted from public response
       activeHazards: hazardRows ?? [],
       recentNotices: noticeRows ?? [],
     },

@@ -18,8 +18,17 @@ export async function POST(request: Request) {
     entityType?: string;
   } | null;
 
-  const title = body?.title?.trim().slice(0, 300) ?? "";
-  const description = body?.description?.trim().slice(0, 1_500) ?? "";
+  // Strip control characters and common prompt-injection markers to reduce LLM manipulation risk
+  function sanitizeForPrompt(value: string): string {
+    return value
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // strip control chars (keep \t \n \r)
+      .replace(/(-{3,}|={3,}|\*{3,})/g, "---") // collapse horizontal rule injection
+      .replace(/\[SYSTEM\]|\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>/gi, "") // strip injection tokens
+      .trim();
+  }
+
+  const title = sanitizeForPrompt(body?.title?.trim().slice(0, 300) ?? "");
+  const description = sanitizeForPrompt(body?.description?.trim().slice(0, 1_500) ?? "");
   const entityType = body?.entityType === "corrective_action" ? "corrective_action" : "incident";
 
   if (!title && !description) {

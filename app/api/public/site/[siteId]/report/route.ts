@@ -3,12 +3,44 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+// ── Simple in-process rate limiter ───────────────────────────────────────────
+// 5 requests per 10 minutes per IP. Works within a single Vercel instance;
+// for multi-instance deployments, upgrade to Upstash Redis in a later pass.
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1_000; // 10 minutes
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > RATE_LIMIT_MAX;
+}
+
+// Prune expired entries periodically to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitStore.entries()) {
+    if (now > entry.resetAt) rateLimitStore.delete(ip);
+  }
+}, RATE_LIMIT_WINDOW_MS);
+
 // POST /api/public/site/[siteId]/report — anonymous hazard/near-miss report from QR page
 // Body: { message: string }
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ siteId: string }> },
 ) {
+  // Rate limiting
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (isRateLimited(clientIp)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   const { siteId: rawSiteId } = await params;
   const body = (await request.json().catch(() => null)) as { message?: string } | null;
   const message = body?.message?.trim().slice(0, 2_000);

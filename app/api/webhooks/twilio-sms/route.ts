@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { validateTwilioSignature, buildTwimlReply, parseSmsToIncident } from "@/lib/twilioSms";
+import { decryptTwilioAuthToken } from "@/lib/twilioEncryption";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,10 +56,26 @@ export async function POST(request: Request) {
     });
   }
 
+  // Decrypt the stored auth token (may be encrypted at rest)
+  let authToken: string;
+  try {
+    authToken = decryptTwilioAuthToken(settings.auth_token as string);
+  } catch (err) {
+    console.error("[twilio-sms] Failed to decrypt auth token:", err);
+    return new Response(buildTwimlReply("Internal configuration error."), {
+      status: 500,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }
+
   // Validate Twilio signature
-  const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://app.safetydocs360.com"}/api/webhooks/twilio-sms`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!appUrl) {
+    console.error("[twilio-sms] NEXT_PUBLIC_APP_URL is not set — Twilio signature validation will fail for all requests.");
+  }
+  const webhookUrl = `${appUrl ?? "https://app.safetydocs360.com"}/api/webhooks/twilio-sms`;
   const isValid = validateTwilioSignature({
-    authToken: settings.auth_token,
+    authToken,
     twilioSignature,
     url: webhookUrl,
     params,
