@@ -45,6 +45,14 @@
     {
       "path": "/api/cron/capa-due-reminders",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/near-miss-velocity-check",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/ca-escalation",
+      "schedule": "0 10 * * *"
     }
   ]
 }

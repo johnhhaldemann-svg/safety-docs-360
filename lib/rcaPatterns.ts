@@ -37,6 +37,7 @@ type RawCaRow = {
   status: string;
   created_at: string;
   rca_session_id: string | null;
+  jobsite_id: string | null;
   jobsite?: { name?: string } | null;
 };
 
@@ -77,7 +78,7 @@ export async function detectRepeatPatterns(params: {
   const { data: rows } = await supabase
     .from("company_corrective_actions")
     .select(`
-      id, title, category, severity, status, created_at, rca_session_id,
+      id, title, category, severity, status, created_at, rca_session_id, jobsite_id,
       jobsite:jobsite_id ( name )
     `)
     .eq("company_id", companyId)
@@ -99,7 +100,7 @@ export async function detectRepeatPatterns(params: {
     const { data: wideRows } = await supabase
       .from("company_corrective_actions")
       .select(`
-        id, title, category, severity, status, created_at, rca_session_id,
+        id, title, category, severity, status, created_at, rca_session_id, jobsite_id,
         jobsite:jobsite_id ( name )
       `)
       .eq("company_id", companyId)
@@ -115,8 +116,9 @@ export async function detectRepeatPatterns(params: {
   const allMatches = matches.length > 0 ? matches : wideMatches;
   const totalMatches = allMatches.length;
 
+  // Count how many matching CAs occurred at the same jobsite as the current CA
   const sameJobsiteCount = jobsiteId
-    ? 0 // jobsite matching done via join — simplified: count all for now
+    ? allMatches.filter((row) => row.jobsite_id === jobsiteId).length
     : 0;
 
   const recentMatches: PatternMatch[] = allMatches.slice(0, 5).map((row) => {

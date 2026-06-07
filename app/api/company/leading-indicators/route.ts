@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
     // Positive safety observations
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).eq("observation_type", "positive").gte("created_at", since);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
 
     // Negative observations / hazards identified
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).in("observation_type", ["negative"]).gte("created_at", since);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
 
     // Open corrective actions
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).in("status", ["open", "in_progress"]);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
     // Overdue corrective actions
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).in("status", ["open", "in_progress"]).lt("due_at", now);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 
     // Closed corrective actions in window
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).eq("status", "closed").gte("updated_at", since);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
 
     // Total corrective actions created in window
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).gte("created_at", since);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
 
     // SIF-potential items
     (() => {
-      let q = db.from("corrective_actions").select("id", { count: "exact", head: true })
+      let q = db.from("company_corrective_actions").select("id", { count: "exact", head: true })
         .eq("company_id", companyId).eq("sif_potential", "yes").gte("created_at", since);
       if (siteId) q = q.eq("jobsite_id", siteId);
       return q;
@@ -183,5 +183,12 @@ export async function GET(request: Request) {
     trend: trendData,
   };
 
-  return NextResponse.json(metrics);
+  return NextResponse.json(metrics, {
+    headers: {
+      // Leading indicators don't change second-to-second; allow the browser to
+      // reuse the response for up to 60 s, and serve stale while revalidating
+      // for up to 5 minutes. "private" because the data is company-scoped.
+      "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+    },
+  });
 }

@@ -28,6 +28,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const year = parseInt(url.searchParams.get("year") ?? String(new Date().getFullYear()), 10);
   const recordableOnly = url.searchParams.get("recordableOnly") !== "false";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+  const PAGE_SIZE = 100;
 
   if (!Number.isFinite(year) || year < 2000 || year > 2100) {
     return NextResponse.json({ error: "Invalid year." }, { status: 400 });
@@ -36,7 +38,19 @@ export async function GET(request: Request) {
   const yearStart = `${year}-01-01T00:00:00.000Z`;
   const yearEnd = `${year + 1}-01-01T00:00:00.000Z`;
 
-  let query = auth.supabase
+  const rangeFrom = (page - 1) * PAGE_SIZE;
+  const rangeTo = rangeFrom + PAGE_SIZE - 1;
+
+  // Build both queries, then fire in parallel
+  let countQuery = auth.supabase
+    .from("company_incidents")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyScope.companyId)
+    .gte("occurred_at", yearStart)
+    .lt("occurred_at", yearEnd);
+  if (recordableOnly) countQuery = countQuery.eq("recordable", true);
+
+  let dataQuery = auth.supabase
     .from("company_incidents")
     .select(`
       id, title, description, category, severity,
@@ -53,13 +67,14 @@ export async function GET(request: Request) {
     .gte("occurred_at", yearStart)
     .lt("occurred_at", yearEnd)
     .order("occurred_at", { ascending: true })
-    .limit(500);
+    .range(rangeFrom, rangeTo);
+  if (recordableOnly) dataQuery = dataQuery.eq("recordable", true);
 
-  if (recordableOnly) {
-    query = query.eq("recordable", true);
-  }
+  const [{ count: totalCount }, { data, error }] = await Promise.all([
+    countQuery,
+    dataQuery,
+  ]);
 
-  const { data, error } = await query;
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -114,6 +129,9 @@ export async function GET(request: Request) {
     (r) => !r.recordable && !r.osha_autofilled_at
   ).length;
 
+  const total = totalCount ?? rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return NextResponse.json({
     year,
     entries,
@@ -124,6 +142,13 @@ export async function GET(request: Request) {
       totalDaysAwayCount,
       totalDaysRestrictedCount,
       unclassifiedCount,
+    },
+    pagination: {
+      page,
+      pageSize: PAGE_SIZE,
+      totalCount: total,
+      totalPages,
+      hasMore: page < totalPages,
     },
     rawCount: rows.length,
   });

@@ -45,7 +45,7 @@ export async function GET(
   // Active hazards (open corrective actions tagged to this jobsite, high/critical)
   const { data: hazardRows } = companyId
     ? await supabase
-        .from("corrective_actions")
+        .from("company_corrective_actions")
         .select("id, title, severity, description")
         .eq("jobsite_id", (jobsite as { id: string }).id)
         .in("status", ["open", "in_progress"])

@@ -26,6 +26,14 @@ type LogSummary = {
   unclassifiedCount: number;
 };
 
+type Pagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -51,36 +59,43 @@ export default function Osha300Page() {
   const [year, setYear] = useState(currentYear);
   const [entries, setEntries] = useState<Osha300Entry[]>([]);
   const [summary, setSummary] = useState<LogSummary | null>(null);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [recordableOnly, setRecordableOnly] = useState(true);
   const [autofilling, setAutofilling] = useState<string | null>(null);
   const [autofillAllRunning, setAutofillAllRunning] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPdf300a, setExportingPdf300a] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(
-        `/api/company/osha-300?year=${year}&recordableOnly=${recordableOnly}`,
+        `/api/company/osha-300?year=${year}&recordableOnly=${recordableOnly}&page=${page}`,
         { headers }
       );
       const data = (await res.json().catch(() => null)) as {
         entries?: Osha300Entry[];
         summary?: LogSummary;
+        pagination?: Pagination;
       } | null;
       if (res.ok && data) {
         setEntries(data.entries ?? []);
         setSummary(data.summary ?? null);
+        setPagination(data.pagination ?? null);
       } else {
         toast.error("Failed to load OSHA 300 log.");
       }
     } finally {
       setLoading(false);
     }
-  }, [year, recordableOnly]);
+  }, [year, recordableOnly, page]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [year, recordableOnly]);
   useEffect(() => { void load(); }, [load]);
 
   async function autofillSingle(incidentId: string) {
@@ -121,11 +136,15 @@ export default function Osha300Page() {
       toast.info("No unclassified incidents to process.");
       return;
     }
+    const batch = unclassified.slice(0, 20);
+    if (!window.confirm(
+      `AI Auto-fill will classify ${batch.length} unclassified incident${batch.length === 1 ? "" : "s"} for OSHA recordability. This will update each incident record. Continue?`
+    )) return;
     setAutofillAllRunning(true);
     let done = 0;
     try {
       const headers = await getAuthHeaders();
-      for (const entry of unclassified.slice(0, 20)) {
+      for (const entry of batch) {
         await fetch("/api/company/osha-300/autofill", {
           method: "POST",
           headers,
@@ -140,24 +159,32 @@ export default function Osha300Page() {
     }
   }
 
-  async function exportPdf() {
-    setExportingPdf(true);
+  async function downloadPdf(endpoint: string, fallbackName: string, setLoading: (v: boolean) => void) {
+    setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/company/osha-300/export-pdf?year=${year}`, { headers });
+      const res = await fetch(`${endpoint}?year=${year}`, { headers });
       if (!res.ok) { toast.error("Failed to generate PDF."); return; }
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? `osha-300-log-${year}.pdf`;
+      const filename = match?.[1] ?? fallbackName;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } finally {
-      setExportingPdf(false);
+      setLoading(false);
     }
+  }
+
+  async function exportPdf() {
+    await downloadPdf("/api/company/osha-300/export-pdf", `osha-300-log-${year}.pdf`, setExportingPdf);
+  }
+
+  async function export300aPdf() {
+    await downloadPdf("/api/company/osha-300/export-300a-pdf", `osha-300a-summary-${year}.pdf`, setExportingPdf300a);
   }
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -196,12 +223,13 @@ export default function Osha300Page() {
           <div className="flex items-center gap-2">
             {summary && summary.unclassifiedCount > 0 && (
               <button
-                onClick={autofillAll}
+                type="button"
+                onClick={() => void autofillAll()}
                 disabled={autofillAllRunning || loading}
                 className="flex items-center gap-2 rounded-xl border border-sky-700/60 px-3 py-2 text-sm font-semibold text-sky-400 transition-colors hover:bg-sky-950/40 disabled:opacity-50"
               >
                 {autofillAllRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                AI Auto-fill ({summary.unclassifiedCount})
+                {autofillAllRunning ? "Processing…" : `AI Auto-fill (${summary.unclassifiedCount})`}
               </button>
             )}
             <button
@@ -212,12 +240,23 @@ export default function Osha300Page() {
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </button>
             <button
-              onClick={exportPdf}
+              type="button"
+              onClick={() => void export300aPdf()}
+              disabled={exportingPdf300a || entries.filter((e) => e.recordable).length === 0}
+              title="Export OSHA 300A Annual Summary — post Feb 1–Apr 30"
+              className="flex items-center gap-2 rounded-xl border border-sky-700/60 px-4 py-2 text-sm font-semibold text-sky-300 transition-colors hover:bg-sky-950/40 disabled:opacity-50"
+            >
+              {exportingPdf300a ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exportingPdf300a ? "Generating…" : "Export 300A"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportPdf()}
               disabled={exportingPdf || entries.filter((e) => e.recordable).length === 0}
               className="flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-600 disabled:opacity-50"
             >
               {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Export PDF
+              {exportingPdf ? "Generating…" : "Export 300 Log"}
             </button>
           </div>
         </div>
@@ -328,8 +367,9 @@ export default function Osha300Page() {
                           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                             {!entry.recordable && (
                               <button
+                                type="button"
                                 onClick={() => void autofillSingle(entry.incidentId)}
-                                disabled={autofilling === entry.incidentId}
+                                disabled={autofilling !== null || autofillAllRunning}
                                 title="AI Auto-fill OSHA classification"
                                 className="flex items-center gap-1 rounded-lg border border-sky-700/50 px-2 py-1 text-[10px] font-semibold text-sky-400 transition-colors hover:bg-sky-950/40 disabled:opacity-50"
                               >
@@ -379,6 +419,38 @@ export default function Osha300Page() {
             </div>
           )}
         </SectionCard>
+
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3">
+            <span className="text-xs text-slate-400">
+              Showing {(pagination.page - 1) * pagination.pageSize + 1}–
+              {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} of{" "}
+              <span className="font-semibold text-slate-300">{pagination.totalCount}</span> entries
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={pagination.page <= 1 || loading}
+                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <span className="text-xs text-slate-500">
+                Page {pagination.page} / {pagination.totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                disabled={!pagination.hasMore || loading}
+                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-center text-[11px] text-slate-600">
           OSHA Form 300 — Log of Work-Related Injuries and Illnesses — 29 CFR Part 1904.

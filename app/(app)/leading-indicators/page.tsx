@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
-  Eye, ShieldCheck, Clock, ChevronDown,
+  Eye, ShieldCheck, Clock, ChevronDown, RefreshCw,
 } from "lucide-react";
 
 type Metrics = {
@@ -113,11 +113,15 @@ export default function LeadingIndicatorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { forceRefresh?: boolean }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/company/leading-indicators?days=${days}`);
+      const res = await fetch(`/api/company/leading-indicators?days=${days}`, {
+        // When the user explicitly hits Refresh, bypass the Cache-Control header
+        // so they always get live data. Normal auto-loads respect the 60 s cache.
+        cache: opts?.forceRefresh ? "no-cache" : "default",
+      });
       const data = await res.json() as Metrics & { error?: string };
       if (data.error) { setError(data.error); return; }
       setMetrics(data);
@@ -158,10 +162,13 @@ export default function LeadingIndicatorsPage() {
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           </div>
           <button
-            onClick={() => void load()}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+            type="button"
+            onClick={() => void load({ forceRefresh: true })}
+            disabled={loading}
+            className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
           >
-            Refresh
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>
