@@ -102,7 +102,7 @@
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "^16.2.6",
-    "supabase": "^2.102.0",
+    "supabase": "^2.105.0",
     "tailwindcss": "^4",
     "typescript": "^5.7.3",
     "vitest": "^4.1.2"
