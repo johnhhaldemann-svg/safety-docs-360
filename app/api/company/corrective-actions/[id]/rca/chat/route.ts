@@ -8,6 +8,7 @@ import {
   buildChatMessages,
   buildStepPrompt,
   nextStep,
+  parseRcaAiResponse,
   type RcaMethod,
   type RcaStepKey,
   type RcaMessage,
@@ -161,9 +162,14 @@ export async function POST(request: Request, { params }: RouteParams) {
     maxAttempts: 2,
   });
 
-  const assistantContent =
+  const rawAiText =
     aiResponse.text?.trim() ||
-    "I was unable to generate a response. Please try again or continue with your next answer.";
+    '{"message":"I was unable to generate a response. Please try again or continue with your next answer.","suggestions":[]}';
+
+  // Parse structured response { message, suggestions[] }
+  const parsed = parseRcaAiResponse(rawAiText);
+  const assistantContent = parsed.message;
+  const suggestions = parsed.suggestions;
 
   // Determine whether the step should advance
   let newStep = session.current_step;
@@ -172,7 +178,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     if (next) newStep = next;
   }
 
-  // Persist the assistant reply
+  // Persist the assistant reply (store only the human-readable message, not JSON)
   await auth.supabase.from("ca_rca_messages").insert({
     session_id: session.id,
     company_id: companyScope.companyId,
@@ -196,6 +202,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   return NextResponse.json({
     reply: assistantContent,
+    suggestions,
     currentStep: newStep,
     stepAdvanced: newStep !== session.current_step,
     meta: aiResponse.meta,

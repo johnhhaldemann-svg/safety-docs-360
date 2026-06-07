@@ -87,6 +87,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   const [signOffForm, setSignOffForm] = useState({ rootCauseConfirmed: "", reviewNotes: "" });
   const [signingOff, setSigningOff] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [lastSuggestions, setLastSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -141,6 +142,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
       } else {
         toast.success("RCA session started.");
       }
+      setLastSuggestions([]);
       await load();
     } finally {
       setStarting(false);
@@ -151,6 +153,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
     const content = draft.trim();
     if (!content || sending) return;
     setDraft("");
+    setLastSuggestions([]);
     setSending(true);
 
     const optimistic: RcaMessage = {
@@ -170,6 +173,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
       });
       const data = (await res.json().catch(() => null)) as {
         reply?: string;
+        suggestions?: string[];
         currentStep?: RcaStepKey;
         stepAdvanced?: boolean;
         error?: string;
@@ -190,6 +194,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev.filter((m) => m.id !== optimistic.id), optimistic, aiMessage]);
+      setLastSuggestions(data.suggestions ?? []);
 
       if (data.stepAdvanced && data.currentStep) {
         setSession((prev) => prev ? { ...prev, current_step: data.currentStep! } : prev);
@@ -558,6 +563,29 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
               {/* Input */}
               {session.status !== "closed" && (
                 <div className="border-t border-slate-700/80 p-3 space-y-2">
+                  {/* AI suggestion chips */}
+                  {lastSuggestions.length > 0 && !sending && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        AI suggestions — pick one or write your own
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lastSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setDraft(suggestion)}
+                            className={`rounded-xl border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              draft === suggestion
+                                ? "border-sky-500 bg-sky-900/50 text-sky-300"
+                                : "border-slate-600 bg-slate-800/60 text-slate-300 hover:border-sky-600 hover:bg-sky-950/40 hover:text-sky-300"
+                            }`}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-400">
                     <input
                       type="checkbox"
@@ -577,7 +605,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
                           void sendMessage();
                         }
                       }}
-                      placeholder="Your response…"
+                      placeholder={lastSuggestions.length > 0 ? "Select a suggestion above or type your own response…" : "Your response…"}
                       rows={2}
                       disabled={sending}
                       className="flex-1 resize-none rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none disabled:opacity-50"

@@ -76,6 +76,31 @@ export function nextStep(current: RcaStepKey, method: RcaMethod): RcaStepKey | n
   return idx >= 0 && idx < steps.length - 1 ? steps[idx + 1] : null;
 }
 
+export type RcaAiResponse = {
+  message: string;
+  suggestions: string[];
+};
+
+export function parseRcaAiResponse(text: string): RcaAiResponse {
+  try {
+    const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const parsed = JSON.parse(stripped);
+    if (!parsed || typeof parsed !== "object") throw new Error("not object");
+    const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim() : "";
+    const suggestions = Array.isArray(parsed.suggestions)
+      ? parsed.suggestions
+          .filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
+          .map((s: string) => s.trim())
+          .slice(0, 5)
+      : [];
+    if (!message) throw new Error("no message");
+    return { message, suggestions };
+  } catch {
+    // Fallback: treat entire response as plain message with no suggestions
+    return { message: text.trim(), suggestions: [] };
+  }
+}
+
 export function buildSystemPrompt(params: {
   caTitle: string;
   caDescription: string | null;
@@ -96,14 +121,24 @@ export function buildSystemPrompt(params: {
     `  Severity: ${caSeverity}`,
     `  RCA Method: ${getMethodLabel(method)}`,
     "",
-    "Your role:",
+    "RESPONSE FORMAT — you MUST always respond with valid JSON only, no prose outside JSON:",
+    '{"message": "<your question or acknowledgment>", "suggestions": ["<option 1>", "<option 2>", "<option 3>"]}',
+    "",
+    "Suggestions rules:",
+    "- Provide 3 to 4 short, specific, selectable options relevant to this investigation step and the corrective action details above.",
+    "- Each suggestion should be a plausible answer a field worker might give — not generic filler.",
+    "- Tailor suggestions to the category and severity (e.g. for a fall_hazard suggest fall-related causes).",
+    "- Always include one open-ended option like 'Other — I'll describe it below' as the last suggestion.",
+    "- At the review and approved steps, suggestions can be confirmation choices like 'Yes, this is accurate' or 'I need to make a correction'.",
+    "",
+    "Facilitation rules:",
     "- Ask one focused question per message — do not overwhelm the user.",
     "- If an answer is vague or contradicts earlier answers, gently ask a follow-up before moving on.",
     "- Do not invent facts, regulations, or root causes. Work only from what the user tells you.",
     "- When moving between steps, briefly acknowledge the user's answer and explain what you are doing next.",
-    "- Keep responses clear and professional. Avoid jargon the user hasn't used first.",
-    "- At the capa step, suggest corrective actions based on the root causes you have identified together.",
-    "- At the review step, summarize all findings concisely and ask the user to confirm before closing.",
+    "- Keep the message clear and professional. Avoid jargon the user hasn't used first.",
+    "- At the capa step, suggest corrective actions based on the root causes identified together.",
+    "- At the review step, summarise all findings concisely and ask the user to confirm before closing.",
   ]
     .filter((line) => line !== null)
     .join("\n");
