@@ -59,4 +59,6 @@ export type GusContext = {
   scheduleUploadedToday?: boolean;
   voiceEnabled?: boolean;
   quietMode?: boolean;
+  /** Compact plaintext snapshot of recent company safety data injected server-side. */
+  companySafetySnapshot?: string;
 };

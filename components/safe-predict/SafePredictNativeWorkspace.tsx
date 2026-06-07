@@ -822,6 +822,48 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
   const [settingsUser, setSettingsUser] = useState<SettingsUserContext | null>(null);
   const [settingsUserLoading, setSettingsUserLoading] = useState(false);
   const [settingsUserMessage, setSettingsUserMessage] = useState("");
+
+  // ── AI auto-categorise state ──────────────────────────────────────────────
+  type AutoCatResult = { category: string; severity: string; confidence: number; reasoning: string } | null;
+  const [incidentAutoCat, setIncidentAutoCat] = useState<AutoCatResult>(null);
+  const [incidentAutoCatLoading, setIncidentAutoCatLoading] = useState(false);
+  const [caAutoCat, setCaAutoCat] = useState<AutoCatResult>(null);
+  const [caAutoCatLoading, setCaAutoCatLoading] = useState(false);
+
+  async function triggerIncidentAutoCat() {
+    const { title, description } = incidentDraft;
+    if (!title.trim() && !description.trim()) return;
+    setIncidentAutoCatLoading(true);
+    try {
+      const res = await fetch("/api/company/ai/auto-categorise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description, entityType: "incident" }),
+      });
+      const data = await res.json() as AutoCatResult & { error?: string };
+      if (!data?.error) setIncidentAutoCat(data as AutoCatResult);
+    } catch { /* silent */ } finally {
+      setIncidentAutoCatLoading(false);
+    }
+  }
+
+  async function triggerCaAutoCat() {
+    const { title, description } = correctiveDraft;
+    if (!title.trim() && !description.trim()) return;
+    setCaAutoCatLoading(true);
+    try {
+      const res = await fetch("/api/company/ai/auto-categorise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description, entityType: "corrective_action" }),
+      });
+      const data = await res.json() as AutoCatResult & { error?: string };
+      if (!data?.error) setCaAutoCat(data as AutoCatResult);
+    } catch { /* silent */ } finally {
+      setCaAutoCatLoading(false);
+    }
+  }
+
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -1736,11 +1778,43 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
                 <span className="mb-1 block text-xs font-bold text-slate-600">Description</span>
                 <textarea
                   value={incidentDraft.description}
-                  onChange={(event) => setIncidentDraft((current) => ({ ...current, description: event.target.value }))}
+                  onChange={(event) => { setIncidentDraft((current) => ({ ...current, description: event.target.value })); setIncidentAutoCat(null); }}
+                  onBlur={() => void triggerIncidentAutoCat()}
                   placeholder="What happened, immediate controls, and who was notified"
                   rows={3}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-blue-500"
                 />
+                {incidentAutoCatLoading && (
+                  <p className="mt-1 text-xs text-slate-400 animate-pulse">AI classifying…</p>
+                )}
+                {incidentAutoCat && !incidentAutoCatLoading && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                    <span className="text-xs font-bold text-blue-700">AI suggestion:</span>
+                    <button
+                      type="button"
+                      onClick={() => { setIncidentDraft((c) => ({ ...c, category: incidentAutoCat.category as IncidentDraft["category"] })); setIncidentAutoCat(null); }}
+                      className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 hover:bg-blue-200"
+                    >
+                      Category: {incidentAutoCat.category.replace(/_/g, " ")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIncidentDraft((c) => ({ ...c, severity: incidentAutoCat.severity as SafePredictRiskLevel })); setIncidentAutoCat(null); }}
+                      className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 hover:bg-blue-200"
+                    >
+                      Severity: {incidentAutoCat.severity}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIncidentDraft((c) => ({ ...c, category: incidentAutoCat.category as IncidentDraft["category"], severity: incidentAutoCat.severity as SafePredictRiskLevel })); setIncidentAutoCat(null); }}
+                      className="rounded-md bg-blue-600 px-2 py-0.5 text-xs font-bold text-white hover:bg-blue-700"
+                    >
+                      Apply both
+                    </button>
+                    <span className="text-xs text-slate-400 ml-auto">{Math.round(incidentAutoCat.confidence * 100)}% confidence</span>
+                    <button type="button" onClick={() => setIncidentAutoCat(null)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+                )}
               </label>
               <div className="flex flex-wrap gap-3 lg:col-span-4">
                 {[
@@ -1985,10 +2059,42 @@ export function SafePredictNativeWorkspace({ workspace }: { workspace: SafePredi
                   <span className="mb-1 block text-xs font-bold text-slate-600">Description</span>
                   <input
                     value={correctiveDraft.description}
-                    onChange={(event) => setCorrectiveDraft((current) => ({ ...current, description: event.target.value }))}
+                    onChange={(event) => { setCorrectiveDraft((current) => ({ ...current, description: event.target.value })); setCaAutoCat(null); }}
+                    onBlur={() => void triggerCaAutoCat()}
                     placeholder="Location, condition, immediate control, or evidence notes"
                     className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                   />
+                  {caAutoCatLoading && (
+                    <p className="mt-1 text-xs text-slate-400 animate-pulse">AI classifying…</p>
+                  )}
+                  {caAutoCat && !caAutoCatLoading && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                      <span className="text-xs font-bold text-blue-700">AI suggestion:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setCorrectiveDraft((c) => ({ ...c, category: caAutoCat.category })); setCaAutoCat(null); }}
+                        className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 hover:bg-blue-200"
+                      >
+                        Category: {caAutoCat.category.replace(/_/g, " ")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCorrectiveDraft((c) => ({ ...c, severity: caAutoCat.severity as SafePredictRiskLevel })); setCaAutoCat(null); }}
+                        className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 hover:bg-blue-200"
+                      >
+                        Severity: {caAutoCat.severity}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCorrectiveDraft((c) => ({ ...c, category: caAutoCat.category, severity: caAutoCat.severity as SafePredictRiskLevel })); setCaAutoCat(null); }}
+                        className="rounded-md bg-blue-600 px-2 py-0.5 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        Apply both
+                      </button>
+                      <span className="text-xs text-slate-400 ml-auto">{Math.round(caAutoCat.confidence * 100)}% confidence</span>
+                      <button type="button" onClick={() => setCaAutoCat(null)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                    </div>
+                  )}
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-bold text-slate-600">Due date</span>

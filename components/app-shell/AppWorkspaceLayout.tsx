@@ -651,7 +651,7 @@ export function AppWorkspaceLayout({
       }
 
       if (canManageCompanyIncidents(userRole, permissionMap)) {
-        companyAllowedRoutes.push("/incidents", "/osha-300");
+        companyAllowedRoutes.push("/incidents", "/osha-300", "/leading-indicators");
       }
 
       if (canViewCompanyTrainingMatrix(userRole, permissionMap)) {

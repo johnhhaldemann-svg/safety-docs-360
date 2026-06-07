@@ -6,6 +6,7 @@ import {
 } from "@/lib/gus/gusConversation";
 import { updateGusSafetyPreferenceMemory } from "@/lib/gus/gusMemory";
 import { authorizeRequest } from "@/lib/rbac";
+import { buildGusCompanyContext, companyContextToString } from "@/lib/gus/gusCompanyContext";
 
 export const runtime = "nodejs";
 
@@ -32,6 +33,11 @@ export async function POST(request: Request) {
   const requestContext = parsed.request.context ?? {};
   const companyId = companyScope.companyId ?? requestContext.companyId ?? null;
   const jobsiteId = requestContext.jobsiteId ?? null;
+
+  // Enrich GUS with live company safety data (non-blocking; degrades gracefully on failure)
+  const companyCtx = await buildGusCompanyContext(auth.supabase, companyId).catch(() => null);
+  const companySafetySnapshot = companyCtx ? companyContextToString(companyCtx) : undefined;
+
   const result = await runGusConversation({
     ...parsed.request,
     context: {
@@ -39,6 +45,10 @@ export async function POST(request: Request) {
       companyId: companyId ?? undefined,
       jobsiteId: jobsiteId ?? undefined,
       userId: auth.user.id,
+      // Hydrate known GUS context fields from live data
+      openCorrectiveActionCount: companyCtx?.openCaCount ?? requestContext.openCorrectiveActionCount,
+      openHighPriorityActionCount: companyCtx?.sifOpenCount ?? requestContext.openHighPriorityActionCount,
+      companySafetySnapshot,
     },
   });
   const safetyPreferences = updateGusSafetyPreferenceMemory(

@@ -165,9 +165,9 @@ export default function Osha300Page() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <PageHero
+        eyebrow="Compliance"
         title="OSHA 300 Log"
-        subtitle="Work-related injury and illness log — 29 CFR 1904"
-        tone="dark"
+        description="Work-related injury and illness log — 29 CFR 1904"
       />
 
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
@@ -252,7 +252,7 @@ export default function Osha300Page() {
         )}
 
         {/* Log table */}
-        <SectionCard>
+        <SectionCard title="OSHA 300 Log Entries">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-slate-500" />

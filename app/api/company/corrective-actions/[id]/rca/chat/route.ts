@@ -267,7 +267,7 @@ export async function POST(request: Request, { params }: RouteParams) {
               sourceId: actionId,
             });
           }
-        }).catch(() => { /* non-fatal */ }),
+        }, () => { /* non-fatal */ }),
     ]);
   }
 

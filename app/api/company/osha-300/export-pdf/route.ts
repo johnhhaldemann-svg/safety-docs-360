@@ -124,6 +124,7 @@ export async function GET(request: Request) {
     title: "OSHA 300 Log",
     subtitle: `Log of Work-Related Injuries and Illnesses — ${year}`,
     companyName,
+    jobsiteName: "All Jobsites",
     reportStatus: "approved",
     metadata: [
       { label: "Regulation", value: "29 CFR Part 1904" },

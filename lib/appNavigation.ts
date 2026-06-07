@@ -366,6 +366,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
       { href: "/osha-300", label: "OSHA 300 Log", short: "O3" },
+      { href: "/leading-indicators", label: "Leading Indicators", short: "LI" },
     ],
   },
   {
@@ -440,6 +441,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
       { href: "/osha-300", label: "OSHA 300 Log", short: "O3" },
+      { href: "/leading-indicators", label: "Leading Indicators", short: "LI" },
     ],
   },
   {
