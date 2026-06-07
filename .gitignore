@@ -100,3 +100,13 @@ next-env.d.ts
 supabase/.temp/
 
 .vercel
+
+# Marketing / QA assets (root-level, not part of source)
+/*.pptx
+/*.pdf
+/*.jpg
+/_qa/
+/_qa2/
+/mockups/
+/slide-*.jpg
+/v2_slide*.jpg
