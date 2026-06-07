@@ -365,6 +365,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
+      { href: "/osha-300", label: "OSHA 300 Log", short: "O3" },
     ],
   },
   {
@@ -438,6 +439,7 @@ export const companyManagerSideSections: NavSection[] = [
       { href: "/jsa", label: "JSA Builder", short: "JA" },
       { href: "/permits", label: "Permit Center", short: "PM" },
       { href: "/incidents", label: "Incident Log", short: "IN" },
+      { href: "/osha-300", label: "OSHA 300 Log", short: "O3" },
     ],
   },
   {
