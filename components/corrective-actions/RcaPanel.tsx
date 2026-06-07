@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Download, FileText, Loader2, Plus, Send, ShieldCheck, User, X } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Download, FileText, Loader2, Plus, RefreshCw, Send, ShieldCheck, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { getStepLabel, getMethodLabel, getStepsForMethod, type RcaMethod, type RcaStepKey } from "@/lib/rcaAi";
 
@@ -33,6 +33,25 @@ type CapaItem = {
   assigned_to: string | null;
   due_at: string | null;
   completed_at: string | null;
+};
+
+type PatternMatch = {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  jobsite_name: string | null;
+  created_at: string;
+  has_rca: boolean;
+};
+
+type PatternResult = {
+  patternFound: boolean;
+  totalMatches: number;
+  windowDays: number;
+  recentMatches: PatternMatch[];
+  insight: string | null;
+  category: string;
 };
 
 type CorrectiveActionBasic = {
@@ -89,6 +108,9 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [lastSuggestions, setLastSuggestions] = useState<string[]>([]);
   const [userCanSignOff, setUserCanSignOff] = useState(false);
+  const [pattern, setPattern] = useState<PatternResult | null>(null);
+  const [patternLoading, setPatternLoading] = useState(false);
+  const [patternExpanded, setPatternExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -116,6 +138,22 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Fetch repeat pattern data once on mount — runs independently of session state
+  useEffect(() => {
+    let cancelled = false;
+    setPatternLoading(true);
+    fetch(`/api/company/corrective-actions/${action.id}/rca/patterns`, {
+      headers: authHeaders,
+    })
+      .then((r) => r.json().catch(() => null))
+      .then((data: PatternResult | null) => {
+        if (!cancelled && data) setPattern(data);
+      })
+      .catch(() => { /* non-fatal */ })
+      .finally(() => { if (!cancelled) setPatternLoading(false); });
+    return () => { cancelled = true; };
+  }, [action.id, authHeaders]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -451,6 +489,65 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
         <div className="flex items-center gap-2 border-b border-emerald-900/40 bg-emerald-950/30 px-4 py-2 text-xs text-emerald-300">
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           HSE team notified on {new Date(session.hse_notified_at).toLocaleDateString()}
+        </div>
+      )}
+
+      {/* Repeat pattern banner */}
+      {patternLoading && !pattern && (
+        <div className="flex items-center gap-2 border-b border-slate-700/60 bg-slate-900/40 px-4 py-2 text-xs text-slate-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Checking for repeat patterns…
+        </div>
+      )}
+      {pattern?.patternFound && (
+        <div className="border-b border-orange-900/40 bg-orange-950/30">
+          <button
+            onClick={() => setPatternExpanded((p) => !p)}
+            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-left"
+          >
+            <div className="flex items-center gap-2 text-xs font-semibold text-orange-300">
+              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+              Repeat pattern — {pattern.totalMatches} similar {pattern.totalMatches === 1 ? "incident" : "incidents"} in the last {pattern.windowDays} days
+            </div>
+            <ChevronRight
+              className={`h-3.5 w-3.5 shrink-0 text-orange-400 transition-transform ${patternExpanded ? "rotate-90" : ""}`}
+            />
+          </button>
+          {patternExpanded && (
+            <div className="space-y-2 px-4 pb-3">
+              {pattern.insight && (
+                <p className="text-xs leading-relaxed text-orange-200/80">{pattern.insight}</p>
+              )}
+              <div className="space-y-1">
+                {pattern.recentMatches.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-orange-900/30 bg-orange-950/20 px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-medium text-orange-100">{m.title}</div>
+                      <div className="text-[10px] text-orange-300/60">
+                        {new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        {m.jobsite_name ? ` · ${m.jobsite_name}` : ""}
+                        {m.has_rca ? " · RCA conducted" : ""}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                        m.severity === "critical"
+                          ? "bg-rose-900/60 text-rose-300"
+                          : m.severity === "high"
+                            ? "bg-orange-900/60 text-orange-300"
+                            : "bg-slate-700 text-slate-400"
+                      }`}
+                    >
+                      {m.severity}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
