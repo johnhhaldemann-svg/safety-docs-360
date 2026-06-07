@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Loader2, Plus, Send, User, X } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Download, FileText, Loader2, Plus, Send, ShieldCheck, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { getStepLabel, getMethodLabel, getStepsForMethod, type RcaMethod, type RcaStepKey } from "@/lib/rcaAi";
 
@@ -20,6 +20,8 @@ type RcaSession = {
   current_step: RcaStepKey;
   hse_notified_at: string | null;
   hse_notified_user_ids: string[];
+  summary: string | null;
+  approved_at: string | null;
 };
 
 type CapaItem = {
@@ -81,6 +83,10 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   const [showCapaForm, setShowCapaForm] = useState(false);
   const [capaForm, setCapaForm] = useState({ title: "", description: "", priority: "medium" as CapaItem["priority"], dueAt: "" });
   const [savingCapa, setSavingCapa] = useState(false);
+  const [showSignOff, setShowSignOff] = useState(false);
+  const [signOffForm, setSignOffForm] = useState({ rootCauseConfirmed: "", reviewNotes: "" });
+  const [signingOff, setSigningOff] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -197,6 +203,71 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
     }
   }
 
+  async function submitSignOff() {
+    setSigningOff(true);
+    try {
+      const res = await fetch(`/api/company/corrective-actions/${action.id}/rca/approve`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rootCauseConfirmed: signOffForm.rootCauseConfirmed || undefined,
+          reviewNotes: signOffForm.reviewNotes || undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        approved?: boolean;
+        summary?: string;
+        approvedAt?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.approved) {
+        toast.error(data?.error ?? "Failed to sign off on RCA.");
+        return;
+      }
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "approved",
+              approved_at: data.approvedAt ?? new Date().toISOString(),
+              summary: data.summary ?? prev.summary,
+            }
+          : prev
+      );
+      setShowSignOff(false);
+      toast.success("RCA signed off and approved.");
+    } finally {
+      setSigningOff(false);
+    }
+  }
+
+  async function downloadPdf() {
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(`/api/company/corrective-actions/${action.id}/rca/report-pdf`, {
+        headers: authHeaders,
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate RCA report.");
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? "rca-report.pdf";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   async function saveCapa() {
     if (!capaForm.title.trim()) {
       toast.error("CAPA title is required.");
@@ -275,8 +346,96 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
         </button>
       </div>
 
+      {/* Approved banner */}
+      {session?.status === "approved" && (
+        <div className="flex items-center justify-between gap-2 border-b border-emerald-900/40 bg-emerald-950/30 px-4 py-2">
+          <div className="flex items-center gap-2 text-xs text-emerald-300">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            RCA approved{session.approved_at ? ` · ${new Date(session.approved_at).toLocaleDateString()}` : ""}
+          </div>
+          <button
+            onClick={downloadPdf}
+            disabled={downloadingPdf}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-700/60 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-900/40 disabled:opacity-50"
+          >
+            {downloadingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            Download Report
+          </button>
+        </div>
+      )}
+
+      {/* Pending review banner — sign-off prompt */}
+      {session?.status === "pending_review" && !showSignOff && (
+        <div className="flex items-center justify-between gap-2 border-b border-amber-900/40 bg-amber-950/30 px-4 py-2">
+          <div className="flex items-center gap-2 text-xs text-amber-300">
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            Investigation complete — awaiting HSE sign-off
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSignOff(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-700/60 px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition-colors hover:bg-amber-900/40"
+            >
+              <ShieldCheck className="h-3 w-3" />
+              Sign Off
+            </button>
+            <button
+              onClick={downloadPdf}
+              disabled={downloadingPdf}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-600 px-2.5 py-1 text-[11px] font-semibold text-slate-400 transition-colors hover:text-slate-200 disabled:opacity-50"
+            >
+              {downloadingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              Preview PDF
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sign-off form */}
+      {showSignOff && (
+        <div className="border-b border-slate-700/80 bg-slate-900/60 p-4 space-y-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400">HSE Sign-off</div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Confirmed root cause (optional)</label>
+            <input
+              type="text"
+              value={signOffForm.rootCauseConfirmed}
+              onChange={(e) => setSignOffForm((p) => ({ ...p, rootCauseConfirmed: e.target.value }))}
+              placeholder="Summarise the root cause in one sentence…"
+              className="w-full rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Review notes (optional)</label>
+            <textarea
+              rows={2}
+              value={signOffForm.reviewNotes}
+              onChange={(e) => setSignOffForm((p) => ({ ...p, reviewNotes: e.target.value }))}
+              placeholder="Any additional notes for the record…"
+              className="w-full resize-none rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={submitSignOff}
+              disabled={signingOff}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {signingOff ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {signingOff ? "Approving…" : "Approve & Sign Off"}
+            </button>
+            <button
+              onClick={() => setShowSignOff(false)}
+              className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-400 hover:text-slate-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HSE notified banner */}
-      {session?.hse_notified_at && (
+      {session?.hse_notified_at && session.status !== "approved" && (
         <div className="flex items-center gap-2 border-b border-emerald-900/40 bg-emerald-950/30 px-4 py-2 text-xs text-emerald-300">
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           HSE team notified on {new Date(session.hse_notified_at).toLocaleDateString()}
