@@ -1,5 +1,9 @@
-import { SafePredictWorkspaceRoute } from "@/components/safe-predict/SafePredictWorkspaceRoute";
+import AnalyticsPage from "@/app/(app)/analytics/page";
 
 export default function SafePredictAnalyticsPage() {
-  return <SafePredictWorkspaceRoute workspace="analytics" />;
+  return (
+    <div className="min-h-[calc(100vh-5rem)]">
+      <AnalyticsPage />
+    </div>
+  );
 }

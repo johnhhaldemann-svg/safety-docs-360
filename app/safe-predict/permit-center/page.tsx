@@ -1,5 +1,6 @@
-import { SafePredictWorkspaceRoute } from "@/components/safe-predict/SafePredictWorkspaceRoute";
+import { redirect } from "next/navigation";
 
+// permit-center is not in the SafePredict nav — redirect to the canonical permits page.
 export default function SafePredictPermitCenterPage() {
-  return <SafePredictWorkspaceRoute workspace="permits" />;
+  redirect("/safe-predict/permits");
 }

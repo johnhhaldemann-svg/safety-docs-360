@@ -168,7 +168,7 @@ export default function SafePredictPredictiveRiskPage() {
             <RefreshCw className="h-6 w-6 text-slate-500" />
             <span>
               <span className="block text-sm font-black text-slate-800">{hasForecast ? "Model updated" : "Waiting for data"}</span>
-              <span className="text-xs text-slate-500">{hasForecast ? "Today, 7:30 AM" : "No forecast generated yet"}</span>
+              <span className="text-xs text-slate-500">{hasForecast ? `Today, ${new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "No forecast generated yet"}</span>
             </span>
           </div>
         </div>

@@ -1,5 +1,9 @@
-import { SafePredictWorkspaceRoute } from "@/components/safe-predict/SafePredictWorkspaceRoute";
+import TrainingPage from "@/app/(app)/training/page";
 
 export default function SafePredictTrainingPage() {
-  return <SafePredictWorkspaceRoute workspace="training" />;
+  return (
+    <div className="min-h-[calc(100vh-5rem)]">
+      <TrainingPage />
+    </div>
+  );
 }
