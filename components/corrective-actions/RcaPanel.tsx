@@ -88,6 +88,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   const [signingOff, setSigningOff] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [lastSuggestions, setLastSuggestions] = useState<string[]>([]);
+  const [userCanSignOff, setUserCanSignOff] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -99,11 +100,13 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
         session?: RcaSession | null;
         messages?: RcaMessage[];
         capaItems?: CapaItem[];
+        userCanSignOff?: boolean;
       } | null;
       if (res.ok && data) {
         setSession(data.session ?? null);
         setMessages(data.messages ?? []);
         setCapaItems(data.capaItems ?? []);
+        setUserCanSignOff(data.userCanSignOff ?? false);
       }
     } finally {
       setLoading(false);
@@ -374,16 +377,20 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
         <div className="flex items-center justify-between gap-2 border-b border-amber-900/40 bg-amber-950/30 px-4 py-2">
           <div className="flex items-center gap-2 text-xs text-amber-300">
             <FileText className="h-3.5 w-3.5 shrink-0" />
-            Investigation complete — awaiting HSE sign-off
+            {userCanSignOff
+              ? "Investigation complete — awaiting your HSE sign-off"
+              : "Investigation complete — awaiting HSE sign-off"}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSignOff(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-700/60 px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition-colors hover:bg-amber-900/40"
-            >
-              <ShieldCheck className="h-3 w-3" />
-              Sign Off
-            </button>
+            {userCanSignOff && (
+              <button
+                onClick={() => setShowSignOff(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-amber-700/60 px-2.5 py-1 text-[11px] font-semibold text-amber-300 transition-colors hover:bg-amber-900/40"
+              >
+                <ShieldCheck className="h-3 w-3" />
+                Sign Off
+              </button>
+            )}
             <button
               onClick={downloadPdf}
               disabled={downloadingPdf}
@@ -397,7 +404,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
       )}
 
       {/* Sign-off form */}
-      {showSignOff && (
+      {showSignOff && userCanSignOff && (
         <div className="border-b border-slate-700/80 bg-slate-900/60 p-4 space-y-3">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-400">HSE Sign-off</div>
           <div>

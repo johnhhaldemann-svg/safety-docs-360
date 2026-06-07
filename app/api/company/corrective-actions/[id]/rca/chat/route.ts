@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeRequest } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
+import { createCompanyNotification } from "@/lib/companyNotifications";
 import { requestAiResponsesText } from "@/lib/ai/responses";
 import { resolveCompanyAiDefaultModel } from "@/lib/ai/defaultModel";
 import {
@@ -9,10 +10,14 @@ import {
   buildStepPrompt,
   nextStep,
   parseRcaAiResponse,
+  buildFindingsExtractionPrompt,
+  parseRcaFindings,
   type RcaMethod,
   type RcaStepKey,
   type RcaMessage,
 } from "@/lib/rcaAi";
+
+const HSE_ROLES = ["company_admin", "safety_manager", "manager"];
 
 export const runtime = "nodejs";
 
@@ -188,8 +193,9 @@ export async function POST(request: Request, { params }: RouteParams) {
   });
 
   // Update session step if advanced
+  const stepAdvanced = newStep !== session.current_step;
   const sessionUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (newStep !== session.current_step) {
+  if (stepAdvanced) {
     sessionUpdate.current_step = newStep;
     if (newStep === "review") {
       sessionUpdate.status = "pending_review";
@@ -200,11 +206,76 @@ export async function POST(request: Request, { params }: RouteParams) {
     .update(sessionUpdate)
     .eq("id", session.id);
 
+  // When the investigation reaches the review step, extract structured findings
+  // and notify HSE team that sign-off is needed — both run in parallel.
+  if (stepAdvanced && newStep === "review") {
+    // Build transcript of user responses for the AI extractor
+    const userResponses = [...history, { role: "user" as const, content: userMessage, step_key: session.current_step }]
+      .filter((m) => m.role === "user")
+      .map((m) => `[${((m.step_key as string | null) ?? "").replace(/_/g, " ")}] ${m.content}`)
+      .join("\n");
+
+    const extractionPrompt = buildFindingsExtractionPrompt(userResponses);
+
+    // Run findings extraction + HSE notifications in parallel — don't block the response
+    void Promise.all([
+      // 1. Extract and persist findings
+      requestAiResponsesText({
+        model,
+        input: extractionPrompt,
+        surface: "corrective-actions.rca-findings-extract",
+        maxAttempts: 2,
+      }).then(async (res) => {
+        const findings = parseRcaFindings(res.text ?? "");
+        if (findings.length === 0) return;
+        await auth.supabase.from("ca_rca_findings").insert(
+          findings.map((f) => ({
+            session_id: session.id,
+            company_id: companyScope.companyId,
+            finding_type: f.finding_type,
+            category: f.category,
+            description: f.description,
+            why_level: f.why_level,
+            sort_order: f.sort_order,
+          }))
+        );
+      }).catch(() => { /* non-fatal */ }),
+
+      // 2. Notify HSE team that sign-off is ready
+      auth.supabase
+        .from("company_users")
+        .select("user_id, role")
+        .eq("company_id", companyScope.companyId)
+        .eq("status", "active")
+        .in("role", HSE_ROLES)
+        .then(async ({ data: hseMembers }) => {
+          if (!hseMembers) return;
+          const rows = hseMembers as Array<{ user_id: string; role: string }>;
+          for (const row of rows) {
+            if (row.user_id === auth.user.id) continue;
+            await createCompanyNotification({
+              supabase: auth.supabase,
+              companyId: companyScope.companyId,
+              recipientUserId: row.user_id,
+              actorUserId: auth.user.id,
+              eventType: "ca_rca_pending_review",
+              title: "RCA Ready for Sign-off",
+              body: `The root cause analysis for "${action.title}" is complete and awaiting your HSE sign-off.`,
+              priority: action.severity === "critical" || action.severity === "high" ? "high" : "normal",
+              href: `/field-id-exchange?rca=${actionId}`,
+              sourceTable: "company_corrective_actions",
+              sourceId: actionId,
+            });
+          }
+        }).catch(() => { /* non-fatal */ }),
+    ]);
+  }
+
   return NextResponse.json({
     reply: assistantContent,
     suggestions,
     currentStep: newStep,
-    stepAdvanced: newStep !== session.current_step,
+    stepAdvanced,
     meta: aiResponse.meta,
   });
 }

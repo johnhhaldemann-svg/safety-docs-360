@@ -84,12 +84,17 @@ export async function GET(request: Request, { params }: RouteParams) {
       .order("created_at", { ascending: true }),
   ]);
 
+  const userCanSignOff =
+    HSE_ROLES.has(auth.role ?? "") ||
+    (auth.role ?? "").toLowerCase().includes("admin");
+
   return NextResponse.json({
     action,
     session: sessionResult.data ?? null,
     messages: messagesResult.data ?? [],
     findings: findingsResult.data ?? [],
     capaItems: capaResult.data ?? [],
+    userCanSignOff,
   });
 }
 

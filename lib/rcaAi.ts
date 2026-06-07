@@ -201,6 +201,68 @@ export function buildChatMessages(
   return messages;
 }
 
+export type RcaFindingRow = {
+  finding_type: "immediate_cause" | "contributing_factor" | "root_cause" | "systemic_factor";
+  category: string | null;
+  description: string;
+  why_level: number | null;
+  sort_order: number;
+};
+
+export function buildFindingsExtractionPrompt(transcript: string): string {
+  return [
+    "You are a certified safety professional reviewing a completed Root Cause Analysis investigation.",
+    "Extract and categorise the key findings from the transcript below.",
+    "Return ONLY a valid JSON array — no prose, no markdown fences.",
+    "",
+    "Each object must have these exact keys:",
+    '  finding_type: "immediate_cause" | "contributing_factor" | "root_cause" | "systemic_factor"',
+    "  description: a clear, concise sentence describing the finding (max 300 chars)",
+    "  category: optional sub-category string (e.g. 'equipment', 'human_factors', 'procedure') or null",
+    "  why_level: for root_cause findings reached via 5 Whys, the why number (1-5); otherwise null",
+    "  sort_order: integer starting at 1, ordering findings from immediate to systemic",
+    "",
+    "Rules:",
+    "- Include at least one finding if there is any investigation content.",
+    "- Do not invent findings that are not supported by the transcript.",
+    "- Root cause is the deepest underlying reason — not the immediate cause.",
+    "- Keep descriptions factual and professional.",
+    "",
+    "Investigation transcript:",
+    transcript || "(No investigation responses recorded.)",
+  ].join("\n");
+}
+
+export function parseRcaFindings(text: string): RcaFindingRow[] {
+  try {
+    const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const parsed = JSON.parse(stripped);
+    if (!Array.isArray(parsed)) return [];
+    const VALID_TYPES = new Set(["immediate_cause", "contributing_factor", "root_cause", "systemic_factor"]);
+    return parsed
+      .filter(
+        (item): item is Record<string, unknown> =>
+          item &&
+          typeof item === "object" &&
+          typeof item.description === "string" &&
+          item.description.trim().length > 0 &&
+          VALID_TYPES.has(item.finding_type as string)
+      )
+      .map((item, idx) => ({
+        finding_type: item.finding_type as RcaFindingRow["finding_type"],
+        description: String(item.description).trim().slice(0, 300),
+        category: typeof item.category === "string" && item.category.trim() ? item.category.trim().slice(0, 80) : null,
+        why_level:
+          typeof item.why_level === "number" && item.why_level >= 1 && item.why_level <= 5
+            ? item.why_level
+            : null,
+        sort_order: typeof item.sort_order === "number" ? item.sort_order : idx + 1,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export function parseCapaSuggestions(text: string): Array<{
   title: string;
   description: string;
