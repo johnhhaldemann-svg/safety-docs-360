@@ -120,6 +120,7 @@ const detailTabs = [
   "Predictive Risk",
   "Corrective Actions",
   "Workforce",
+  "Inductions",
   "Schedule",
   "Permits",
   "Inspections",
@@ -195,6 +196,36 @@ type IncidentObservationLogForm = {
   injuryType: InjuryType | "";
   bodyPart: BodyPart | "";
   sifPotential: boolean;
+};
+
+// ── Induction types ───────────────────────────────────────────────────────────
+type InductionProgram = {
+  id: string;
+  name: string;
+  description: string | null;
+  audience: string;
+  active: boolean;
+};
+type InductionRequirement = {
+  id: string;
+  program_id: string;
+  jobsite_id: string | null;
+  active: boolean;
+};
+type InductionCompletion = {
+  id: string;
+  program_id: string;
+  jobsite_id: string | null;
+  user_id: string | null;
+  visitor_display_name: string | null;
+  completed_at: string;
+  notes: string | null;
+};
+const INDUCTION_AUDIENCE_STYLE: Record<string, { color: string; bg: string; border: string }> = {
+  worker:        { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200" },
+  visitor:       { color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200" },
+  subcontractor: { color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200" },
+  supervisor:    { color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" },
 };
 
 type IncidentObservationLogChange = <K extends keyof IncidentObservationLogForm>(
@@ -3787,6 +3818,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
         </div>
       ) : null}
 
+      {activeTab === "Inductions" ? (
+        <JobsiteInductionsTab site={site} mode={mode} />
+      ) : null}
+
       {activeTab === "Permits" ? (
         <div className="space-y-5">
           <PermitReadinessBoard
@@ -4807,6 +4842,327 @@ function IncidentObservationLogPanel({
         </p>
       ) : null}
     </Card>
+  );
+}
+
+// ── JobsiteInductionsTab ──────────────────────────────────────────────────────
+function JobsiteInductionsTab({ site, mode }: { site: SafePredictJobsiteRecord; mode: "demo" | "live" }) {
+  const [programs, setPrograms] = useState<InductionProgram[]>([]);
+  const [requirements, setRequirements] = useState<InductionRequirement[]>([]);
+  const [completions, setCompletions] = useState<InductionCompletion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [logName, setLogName] = useState("");
+  const [logProgramId, setLogProgramId] = useState("");
+  const [logNotes, setLogNotes] = useState("");
+  const [logSaving, setLogSaving] = useState(false);
+  const [logMessage, setLogMessage] = useState<string | null>(null);
+  const [logTone, setLogTone] = useState<"success" | "error">("success");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const [pRes, rRes, cRes] = await Promise.all([
+        fetch("/api/company/inductions/programs", { headers }),
+        fetch("/api/company/inductions/requirements", { headers }),
+        fetch(`/api/company/inductions/completions?jobsiteId=${encodeURIComponent(site.id)}`, { headers }),
+      ]);
+      const pData = await pRes.json().catch(() => null) as { programs?: InductionProgram[] } | null;
+      const rData = await rRes.json().catch(() => null) as { requirements?: InductionRequirement[] } | null;
+      const cData = await cRes.json().catch(() => null) as { completions?: InductionCompletion[] } | null;
+      setPrograms(pData?.programs ?? []);
+      setRequirements(rData?.requirements ?? []);
+      setCompletions(cData?.completions ?? []);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : "Could not load induction data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [site.id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Active requirements scoped to this site or company-wide (null jobsite_id)
+  const siteRequirements = useMemo(
+    () => requirements.filter((r) => r.active && (r.jobsite_id === site.id || r.jobsite_id === null)),
+    [requirements, site.id]
+  );
+
+  // Completions grouped by program_id
+  const completionsByProgram = useMemo(() => {
+    const map = new Map<string, InductionCompletion[]>();
+    completions.forEach((c) => {
+      const existing = map.get(c.program_id) ?? [];
+      map.set(c.program_id, [...existing, c]);
+    });
+    return map;
+  }, [completions]);
+
+  // Programs required for this site
+  const requiredPrograms = useMemo(() => {
+    const programIds = new Set(siteRequirements.map((r) => r.program_id));
+    return programs.filter((p) => programIds.has(p.id) && p.active);
+  }, [programs, siteRequirements]);
+
+  const gapPrograms = requiredPrograms.filter((p) => (completionsByProgram.get(p.id)?.length ?? 0) === 0);
+  const companyWideCount = siteRequirements.filter((r) => r.jobsite_id === null).length;
+
+  async function logCompletion() {
+    if (!logName.trim() || !logProgramId) return;
+    setLogSaving(true);
+    setLogMessage(null);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      if (mode === "live" && token) {
+        const res = await fetch("/api/company/inductions/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ programId: logProgramId, jobsiteId: site.id, visitorDisplayName: logName.trim(), notes: logNotes.trim() || null }),
+        });
+        const data = await res.json().catch(() => null) as { error?: string } | null;
+        if (!res.ok) throw new Error(data?.error ?? "Could not log completion.");
+        setLogTone("success");
+        setLogMessage(`Completion recorded for ${logName.trim()}.`);
+        setLogName(""); setLogNotes("");
+        await load();
+      } else {
+        // Demo / no auth — local optimistic update
+        const local: InductionCompletion = {
+          id: `local-${Math.random().toString(36).slice(2)}`,
+          program_id: logProgramId,
+          jobsite_id: site.id,
+          user_id: null,
+          visitor_display_name: logName.trim(),
+          completed_at: new Date().toISOString(),
+          notes: logNotes.trim() || null,
+        };
+        setCompletions((prev) => [local, ...prev]);
+        setLogTone("success");
+        setLogMessage(`Completion recorded locally for ${logName.trim()}.`);
+        setLogName(""); setLogNotes("");
+      }
+    } catch (e) {
+      setLogTone("error");
+      setLogMessage(e instanceof Error ? e.message : "Could not log completion.");
+    } finally {
+      setLogSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card className="p-5">
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+          <RefreshCw className="h-4 w-4 animate-spin" /> Loading induction data…
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* ── Summary metric cards ── */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Required Programs"
+          value={requiredPrograms.length}
+          detail={companyWideCount > 0 ? `${companyWideCount} company-wide` : "Assigned to this site"}
+          tone="blue"
+          icon={<ClipboardCheck className="h-7 w-7" />}
+        />
+        <MetricCard
+          title="Total Completions"
+          value={completions.length}
+          detail="Recorded for this site"
+          tone={completions.length > 0 ? "blue" : "orange"}
+          icon={<CheckCircle2 className="h-7 w-7" />}
+        />
+        <MetricCard
+          title="Induction Gaps"
+          value={gapPrograms.length}
+          detail="Required programs with no completions"
+          tone={gapPrograms.length > 0 ? "red" : "blue"}
+          icon={<AlertTriangle className="h-7 w-7" />}
+        />
+        <MetricCard
+          title="Available Programs"
+          value={programs.filter((p) => p.active).length}
+          detail="Active in company library"
+          tone="blue"
+          icon={<Users className="h-7 w-7" />}
+        />
+      </div>
+
+      {fetchError ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{fetchError}</p>
+      ) : null}
+
+      {/* ── Log Completion form ── */}
+      <Card className="p-5">
+        <SectionTitle
+          title="Log Induction Completion"
+          hint="Record that a worker, visitor, or subcontractor completed a program before starting work on this site."
+        />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block xl:col-span-2">
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-500">Person name *</span>
+            <input
+              value={logName}
+              onChange={(e) => setLogName(e.target.value)}
+              placeholder="e.g. John Smith or Visitor #3"
+              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-500">Program *</span>
+            <select
+              value={logProgramId}
+              onChange={(e) => setLogProgramId(e.target.value)}
+              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Select program…</option>
+              {requiredPrograms.length > 0 && (
+                <optgroup label="Required for this site">
+                  {requiredPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {programs.filter((p) => p.active && !requiredPrograms.some((rp) => rp.id === p.id)).length > 0 && (
+                <optgroup label="Other active programs">
+                  {programs.filter((p) => p.active && !requiredPrograms.some((rp) => rp.id === p.id)).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-500">Notes (optional)</span>
+            <input
+              value={logNotes}
+              onChange={(e) => setLogNotes(e.target.value)}
+              placeholder="Supervisor, ID number, etc."
+              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void logCompletion()}
+            disabled={logSaving || !logName.trim() || !logProgramId}
+            className="inline-flex h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50 hover:bg-blue-700"
+          >
+            {logSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {logSaving ? "Saving…" : "Log Completion"}
+          </button>
+          <Link
+            href="/safe-predict/inductions"
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Manage Programs
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+        {logMessage ? (
+          <p className={cx(
+            "mt-3 rounded-lg border px-3 py-2 text-sm font-bold",
+            logTone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"
+          )}>
+            {logMessage}
+          </p>
+        ) : null}
+      </Card>
+
+      {/* ── Required Programs status grid ── */}
+      <Card className="p-5">
+        <SectionTitle
+          title="Required Programs for This Site"
+          hint="Programs with no completions are gaps — no one has been recorded completing them for this site yet."
+        />
+        {requiredPrograms.length === 0 ? (
+          <EmptyTabPanel
+            title="No Programs Required for This Site"
+            detail="Assign induction programs to this jobsite in the Inductions management page so supervisors know what every worker, visitor, and subcontractor must complete before starting work."
+            actionLabel="Manage Inductions"
+            href="/safe-predict/inductions"
+          />
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {requiredPrograms.map((p) => {
+              const programCompletions = completionsByProgram.get(p.id) ?? [];
+              const style = INDUCTION_AUDIENCE_STYLE[p.audience] ?? INDUCTION_AUDIENCE_STYLE.worker;
+              const hasGap = programCompletions.length === 0;
+              const latest = programCompletions[0];
+              return (
+                <article
+                  key={p.id}
+                  className={cx(
+                    "rounded-lg border p-4 shadow-sm",
+                    hasGap ? "border-red-200 bg-red-50/60" : "border-slate-200 bg-white"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-black leading-5 text-slate-950">{p.name}</p>
+                      <span className={cx("mt-1.5 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-black capitalize", style.bg, style.color, style.border)}>
+                        {p.audience}
+                      </span>
+                    </div>
+                    <span className={cx(
+                      "shrink-0 rounded-full border px-2.5 py-1 text-xs font-black",
+                      hasGap ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    )}>
+                      {hasGap ? "No completions" : `${programCompletions.length} completed`}
+                    </span>
+                  </div>
+                  {latest ? (
+                    <p className="mt-3 text-xs font-semibold text-slate-500">
+                      Last: {latest.visitor_display_name ?? "Team member"} — {new Date(latest.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs font-semibold text-red-600">No one has completed this program for this site yet.</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setLogProgramId(p.id)}
+                    className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-black text-blue-700 hover:bg-blue-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Log completion
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Recent completions ── */}
+      {completions.length > 0 ? (
+        <DataTable
+          title="Recent Completions"
+          headers={["Person", "Program", "Completed", "Notes", "Action"]}
+          rows={completions.slice(0, 20).map((c) => [
+            c.visitor_display_name ?? "Team member",
+            programs.find((p) => p.id === c.program_id)?.name ?? `Program ${c.program_id.slice(0, 6)}…`,
+            new Date(c.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            c.notes ?? "—",
+          ])}
+          actions={completions.slice(0, 20).map(() => ({ label: "Manage", href: "/safe-predict/inductions" }))}
+          emptyTitle="No completions yet"
+          emptyDetail="Log completions above to see the full record here."
+        />
+      ) : null}
+    </div>
   );
 }
 
