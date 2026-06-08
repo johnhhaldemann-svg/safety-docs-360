@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  BookOpen, CheckCircle2, ClipboardList, GraduationCap, HardHat,
+  BookOpen, Check, CheckCircle2, ClipboardList, GraduationCap, HardHat,
   Plus, RefreshCw, ShieldAlert, Star, ToggleLeft, ToggleRight, Users,
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -51,8 +51,8 @@ export default function SafePredictInductionsPage() {
   // New program state
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newAudience, setNewAudience] = useState("worker");
-  const [defaultAudience, setDefaultAudience] = useState("worker"); // persisted default
+  const [newAudiences, setNewAudiences] = useState<string[]>(["worker"]);
+  const [defaultAudiences, setDefaultAudiences] = useState<string[]>(["worker"]);
   const [creating, setCreating] = useState(false);
 
   // New requirement state
@@ -90,27 +90,48 @@ export default function SafePredictInductionsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Keep newAudience in sync with default when panel opens
+  // Keep newAudiences in sync with defaults when panel opens
   useEffect(() => {
-    if (showCreate) setNewAudience(defaultAudience);
-  }, [showCreate, defaultAudience]);
+    if (showCreate) setNewAudiences([...defaultAudiences]);
+  }, [showCreate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleAudienceSelection(key: string) {
+    setNewAudiences((prev) =>
+      prev.includes(key) ? (prev.length > 1 ? prev.filter((a) => a !== key) : prev) : [...prev, key]
+    );
+  }
+
+  function toggleDefaultAudience(key: string) {
+    setDefaultAudiences((prev) =>
+      prev.includes(key) ? (prev.length > 1 ? prev.filter((a) => a !== key) : prev) : [...prev, key]
+    );
+  }
 
   async function handleCreate() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || newAudiences.length === 0) return;
     setCreating(true);
     setError(null);
     setSuccess(null);
     try {
       const h = await authHeaders();
-      const res = await fetch("/api/company/inductions/programs", {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify({ name: newName.trim(), audience: newAudience }),
-      });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) throw new Error(data?.error ?? "Create failed.");
-      setSuccess(`"${newName.trim()}" program created.`);
+      // Create one program per selected audience type
+      const results = await Promise.all(
+        newAudiences.map((aud) =>
+          fetch("/api/company/inductions/programs", {
+            method: "POST",
+            headers: h,
+            body: JSON.stringify({ name: newName.trim(), audience: aud }),
+          }).then((r) => r.json().catch(() => null) as Promise<{ error?: string } | null>)
+        )
+      );
+      const failed = results.filter((r) => r && "error" in r && r.error);
+      if (failed.length > 0) throw new Error((failed[0] as { error: string }).error);
+      const label = newAudiences.length > 1
+        ? `${newAudiences.length} programs created for "${newName.trim()}"`
+        : `"${newName.trim()}" program created.`;
+      setSuccess(label);
       setNewName("");
+      setNewAudiences([...defaultAudiences]);
       setShowCreate(false);
       await load(true);
     } catch (e) {
@@ -238,24 +259,28 @@ export default function SafePredictInductionsPage() {
         <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             <Star className="h-4 w-4 shrink-0 text-amber-500" />
-            <p className="text-sm font-semibold text-slate-700">Default audience type for new programs:</p>
+            <p className="text-sm font-semibold text-slate-700">Default audience types for new programs:</p>
             <div className="flex flex-wrap gap-2">
               {AUDIENCE_KEYS.map((key) => {
                 const cfg = AUDIENCE_CONFIG[key];
                 const Icon = cfg.icon;
+                const selected = defaultAudiences.includes(key);
                 return (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { setDefaultAudience(key); setNewAudience(key); }}
+                    onClick={() => toggleDefaultAudience(key)}
                     className={cx(
                       "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition",
-                      defaultAudience === key
+                      selected
                         ? `${cfg.bg} ${cfg.color} ${cfg.border} ring-2 ring-offset-1 ring-blue-300`
                         : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    {selected
+                      ? <Check className="h-3.5 w-3.5" />
+                      : <Icon className="h-3.5 w-3.5" />
+                    }
                     {cfg.label}
                   </button>
                 );
@@ -263,7 +288,7 @@ export default function SafePredictInductionsPage() {
             </div>
           </div>
           <p className="mt-1.5 text-xs text-slate-400 pl-7">
-            This pre-selects the audience when you create a new program. You can change it per program.
+            Select one or more — these pre-select when you open &quot;New Program&quot;. At least one must remain selected.
           </p>
         </div>
 
@@ -301,36 +326,48 @@ export default function SafePredictInductionsPage() {
                   </div>
                 </div>
 
-                {/* Audience */}
+                {/* Audience — multi-select */}
                 <div>
                   <label className="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-500">
                     Audience Type
+                    <span className="ml-1.5 normal-case font-semibold text-slate-400">(select all that apply)</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {AUDIENCE_KEYS.map((key) => {
                       const cfg = AUDIENCE_CONFIG[key];
                       const Icon = cfg.icon;
+                      const selected = newAudiences.includes(key);
                       return (
                         <button
                           key={key}
                           type="button"
-                          onClick={() => setNewAudience(key)}
+                          onClick={() => toggleAudienceSelection(key)}
                           className={cx(
-                            "flex items-center gap-2 rounded-lg border p-2.5 text-sm font-semibold transition",
-                            newAudience === key
+                            "relative flex items-center gap-2 rounded-lg border p-2.5 text-sm font-semibold transition",
+                            selected
                               ? `${cfg.bg} ${cfg.color} ${cfg.border} ring-2 ring-blue-200`
                               : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                           )}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
                           {cfg.label}
-                          {key === defaultAudience && (
+                          {selected && (
+                            <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-blue-600">
+                              <Check className="h-2.5 w-2.5 text-white" />
+                            </span>
+                          )}
+                          {!selected && defaultAudiences.includes(key) && (
                             <Star className="ml-auto h-3 w-3 text-amber-400" />
                           )}
                         </button>
                       );
                     })}
                   </div>
+                  {newAudiences.length > 1 && (
+                    <p className="mt-2 text-[11px] font-semibold text-blue-700">
+                      ✓ Will create {newAudiences.length} separate programs (one per audience type)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -338,11 +375,16 @@ export default function SafePredictInductionsPage() {
                 <button
                   type="button"
                   onClick={() => void handleCreate()}
-                  disabled={creating || !newName.trim()}
+                  disabled={creating || !newName.trim() || newAudiences.length === 0}
                   className="flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
                 >
                   {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  {creating ? "Creating…" : "Create Program"}
+                  {creating
+                    ? "Creating…"
+                    : newAudiences.length > 1
+                      ? `Create ${newAudiences.length} Programs`
+                      : "Create Program"
+                  }
                 </button>
                 <button
                   type="button"
