@@ -878,33 +878,35 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
       <!-- Audits gap -->
-      <div style="width:240px;flex-shrink:0;padding:18px 22px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;background:#fafafa;">
+      <div style="flex:1;padding:18px 22px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;background:#fafafa;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:18px;">🔍</span>
           <span style="font-size:13px;font-weight:700;color:#1e293b;${FONT}">Site Audits</span>
+          <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;${FONT}">DATA GAP</span>
         </div>
-        <div style="flex:1;background:#fff7ed;border:2px dashed #f97316;border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;">
-          <div style="font-size:28px;">📭</div>
-          <div style="font-size:12px;font-weight:700;color:#c2410c;${FONT}">Data Gap</div>
-          <div style="font-size:11px;color:#9a3412;line-height:1.5;${FONT}">Jobsite audit records are not yet populated for this portfolio. Audit scores cannot be reported this period.</div>
+        <div style="flex:1;background:#fff7ed;border:2px dashed #f97316;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;">
+          <div style="font-size:36px;">📭</div>
+          <div style="font-size:13px;font-weight:700;color:#c2410c;${FONT}">No audit records populated</div>
+          <div style="font-size:11.5px;color:#9a3412;line-height:1.6;max-width:280px;${FONT}">Jobsite audit scores are not yet in the platform. ISO 45001 requires a minimum of 4 site audits per site per year — this cannot be verified until data is loaded.</div>
         </div>
-        <div style="padding:8px 12px;background:#fff7ed;border-radius:7px;border:1px solid #fed7aa;">
-          <div style="font-size:10px;color:#c2410c;font-weight:600;${FONT}">▶ Recommended action: populate audit data to unlock compliance scoring next period.</div>
+        <div style="padding:10px 14px;background:#fff7ed;border-radius:7px;border:1px solid #fed7aa;">
+          <div style="font-size:10.5px;color:#c2410c;font-weight:600;${FONT}">▶ Action: assign a data-entry owner and load audit records before the next management review.</div>
         </div>
       </div>
       <!-- Training gap -->
-      <div style="width:240px;flex-shrink:0;padding:18px 22px 46px;display:flex;flex-direction:column;gap:12px;background:#fafafa;">
+      <div style="flex:1;padding:18px 22px 46px;display:flex;flex-direction:column;gap:12px;background:#fafafa;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:18px;">🎓</span>
           <span style="font-size:13px;font-weight:700;color:#1e293b;${FONT}">Employee Training</span>
+          <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;${FONT}">DATA GAP</span>
         </div>
-        <div style="flex:1;background:#fff7ed;border:2px dashed #f97316;border-radius:10px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;">
-          <div style="font-size:28px;">📭</div>
-          <div style="font-size:12px;font-weight:700;color:#c2410c;${FONT}">Data Gap</div>
-          <div style="font-size:11px;color:#9a3412;line-height:1.5;${FONT}">Training completion records are not yet populated. Training-completion % cannot be reported this period.</div>
+        <div style="flex:1;background:#fff7ed;border:2px dashed #f97316;border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;">
+          <div style="font-size:36px;">📭</div>
+          <div style="font-size:13px;font-weight:700;color:#c2410c;${FONT}">No training records populated</div>
+          <div style="font-size:11.5px;color:#9a3412;line-height:1.6;max-width:280px;${FONT}">Training completion data is absent for all 5 portfolio companies. ISO 45001 §7.2 competency compliance cannot be demonstrated this period.</div>
         </div>
-        <div style="padding:8px 12px;background:#fff7ed;border-radius:7px;border:1px solid #fed7aa;">
-          <div style="font-size:10px;color:#c2410c;font-weight:600;${FONT}">▶ Recommended action: populate training records to unlock compliance scoring next period.</div>
+        <div style="padding:10px 14px;background:#fff7ed;border-radius:7px;border:1px solid #fed7aa;">
+          <div style="font-size:10.5px;color:#c2410c;font-weight:600;${FONT}">▶ Action: load training records before H2 2026 review — this is a mandatory ISO 45001 metric.</div>
         </div>
       </div>
     </div>
@@ -940,6 +942,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:10px 12px;">
           <div style="font-size:10px;font-weight:700;color:#0369a1;margin-bottom:3px;${FONT}">Jurisdiction</div>
           <div style="font-size:10px;color:#0c4a6e;line-height:1.45;${FONT}">${LEGAL.jurisdiction}</div>
+        </div>
+        <div style="margin-top:auto;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:800;color:#dc2626;margin-bottom:5px;${FONT}">🚨 OVERDUE — Action Required</div>
+          <div style="font-size:10px;color:#9a1515;line-height:1.5;${FONT}">Confined space code of practice update (Feb 2026) — site procedures and retraining are past due. Q3 2026 regulations take effect imminently. <strong>Escalate to HSE Manager immediately.</strong></div>
         </div>
       </div>
       <!-- Right: regulatory updates -->
@@ -1110,7 +1116,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     ${slideHeader("Open Issues &amp; Critical Gaps","H1 2026  ·  What needs immediate attention")}
     <div style="flex:1;display:flex;gap:0;">
       <!-- Left: Top 5 gaps -->
-      <div style="flex:1.1;padding:16px 22px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:10px;">
+      <div style="flex:1;padding:16px 22px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:10px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#dc2626;margin-bottom:2px;${FONT}">🚩 Top 5 Gaps — What We Are Lacking</div>
         ${[
           {n:"1",title:"Training records not loaded",body:"Employee training completion is entirely absent. ISO 45001 §7.2 compliance cannot be demonstrated until data is populated.",col:"#dc2626",bg:"#fef2f2",bdr:"#fca5a5"},
@@ -1145,7 +1151,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
       <!-- Right: Upcoming high-risk activities -->
-      <div style="width:290px;flex-shrink:0;padding:16px 20px 46px;background:#f8fafc;display:flex;flex-direction:column;gap:9px;">
+      <div style="width:310px;flex-shrink:0;padding:16px 20px 46px;background:#f8fafc;display:flex;flex-direction:column;gap:9px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-bottom:2px;${FONT}">⚡ Upcoming High-Risk Activities</div>
         ${[
           {icon:"🏗️",title:"Crane lifts &amp; rigging",risk:"HIGH",body:"H1 hand-crush SIF event. Verify lift plans, exclusion zones, and rigger competencies before every pick.",col:"#dc2626",bg:"#fef2f2",bdr:"#fca5a5"},
