@@ -106,10 +106,15 @@ type SafePredictDataContextValue = {
     name: string;
     code: string;
     address: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
     projectManager: string;
     safetyLead: string;
     customerName: string;
     customerReportEmail: string;
+    startDate?: string;
+    status?: SafePredictJobsiteStatus;
   }) => SafePredictJobsiteRecord;
   updateJobsite: (id: string, input: SafePredictJobsiteUpdateInput) => Promise<{ success: boolean; error?: string }>;
 };
@@ -995,18 +1000,27 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
       name: string;
       code: string;
       address: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
       projectManager: string;
       safetyLead: string;
       customerName: string;
       customerReportEmail: string;
+      startDate?: string;
+      status?: SafePredictJobsiteStatus;
     }) => {
       const id = `draft-site-${Date.now()}`;
+      const cityStateParts = [input.city, input.state].filter(Boolean);
+      const cityState = cityStateParts.length > 0
+        ? cityStateParts.join(", ")
+        : (input.address || "Location pending");
       const draft: SafePredictJobsiteRecord = {
         id,
         name: input.name,
         code: input.code || "DRAFT",
-        address: input.address || "Address pending",
-        cityState: input.address || "Location pending",
+        address: [input.address, input.zipCode].filter(Boolean).join(" ") || "Address pending",
+        cityState,
         projectType: "Construction",
         phase: "Planning",
         riskScore: 52,
@@ -1016,11 +1030,11 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
         activePermits: 0,
         siteLead: input.safetyLead || "Unassigned",
         safetyManager: "",
-        status: "planned",
+        status: input.status ?? "planned",
         projectManager: input.projectManager || "Unassigned",
         customerName: input.customerName || "Customer pending",
         customerReportEmail: input.customerReportEmail || "Not set",
-        startDate: "",
+        startDate: input.startDate ?? "",
         endDate: "",
         inspectionGaps: 0,
         incidentCount: 0,
@@ -1038,11 +1052,15 @@ export function SafePredictDataProvider({ children }: { children: React.ReactNod
             name: input.name,
             projectNumber: input.code,
             location: input.address,
+            city: input.city,
+            state: input.state,
+            zipCode: input.zipCode,
             projectManager: input.projectManager,
             safetyLead: input.safetyLead,
             customerCompanyName: input.customerName,
             customerReportEmail: input.customerReportEmail,
-            status: "planned",
+            startDate: input.startDate,
+            status: input.status ?? "planned",
           }),
         }).catch(() => undefined);
       }
