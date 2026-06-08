@@ -681,37 +681,36 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
 
   const s3 = `<div style="${SS}background:white;">
     ${slideHeader("Safety Performance Scorecard","H1 2026  ·  All Companies  ·  All Jobsites")}
-    <div style="flex:1;display:flex;gap:0;">
-      <div style="flex:1;padding:16px 32px 46px;">
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;${FONT}">
-          <thead>
-            <tr style="background:#0f172a;">
-              ${["METRIC","VALUE","NOTES"].map(h => `<th style="padding:10px 14px;text-align:left;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.65);letter-spacing:.1em;text-transform:uppercase;">${h}</th>`).join("")}
-            </tr>
-          </thead>
-          <tbody>
-            ${scorecardRows.map((r, i) => `
-            <tr style="background:${i%2===0?"white":"#f8fafc"};border-bottom:1px solid #f1f5f9;">
-              <td style="padding:10px 14px;font-weight:600;color:#1e293b;">${r[0]}</td>
-              <td style="padding:10px 14px;font-size:18px;font-weight:900;color:${r[3]};">${r[1]}</td>
-              <td style="padding:10px 14px;color:#64748b;font-size:11.5px;">${r[2]}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>
-      <div style="width:280px;flex-shrink:0;background:#f8fafc;border-left:1px solid #e2e8f0;padding:20px 20px 46px;display:flex;flex-direction:column;gap:12px;">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Rate Metrics</div>
-        <div style="background:#fffbeb;border:1px solid #fde047;border-radius:10px;padding:14px 16px;">
-          <div style="font-size:11px;font-weight:700;color:#854d0e;margin-bottom:6px;${FONT}">📊 TRIR &amp; DART</div>
-          <div style="font-size:11px;color:#92400e;line-height:1.55;${FONT}">TRIR and DART rates require total hours worked, which is not yet in the platform. Add hours data and these calculate automatically next period.</div>
+    <div style="flex:1;display:flex;flex-direction:column;padding:12px 40px 46px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;${FONT}">
+        <thead>
+          <tr style="background:#0f172a;">
+            <th style="padding:10px 16px;text-align:left;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.65);letter-spacing:.1em;text-transform:uppercase;width:34%;">METRIC</th>
+            <th style="padding:10px 16px;text-align:left;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.65);letter-spacing:.1em;text-transform:uppercase;width:12%;">VALUE</th>
+            <th style="padding:10px 16px;text-align:left;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.65);letter-spacing:.1em;text-transform:uppercase;width:54%;">NOTES</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${scorecardRows.map((r, i) => `
+          <tr style="background:${i%2===0?"white":"#f8fafc"};border-bottom:1px solid #f1f5f9;">
+            <td style="padding:9px 16px;font-weight:600;color:#1e293b;">${r[0]}</td>
+            <td style="padding:9px 16px;font-size:20px;font-weight:900;color:${r[3]};">${r[1]}</td>
+            <td style="padding:9px 16px;color:#64748b;font-size:12px;">${r[2]}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <div style="flex:1;background:#fffbeb;border:1px solid #fde047;border-radius:8px;padding:10px 14px;display:flex;gap:8px;align-items:flex-start;">
+          <span style="font-size:14px;">📊</span>
+          <div><div style="font-size:10px;font-weight:700;color:#854d0e;${FONT}">TRIR &amp; DART — Data Gap</div><div style="font-size:10px;color:#92400e;margin-top:2px;${FONT}">Hours-worked data not yet loaded. Rates will calculate automatically once added.</div></div>
         </div>
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;">
-          <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px;${FONT}">📈 Near-Miss Ratio</div>
-          <div style="font-size:11px;color:#1e40af;line-height:1.55;${FONT}">12 near misses to 19 incidents = <strong>0.63 near-miss reporting ratio</strong>. A healthy leading-indicator signal. Industry best practice is ≥ 1:1.</div>
+        <div style="flex:1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;display:flex;gap:8px;align-items:flex-start;">
+          <span style="font-size:14px;">📈</span>
+          <div><div style="font-size:10px;font-weight:700;color:#1d4ed8;${FONT}">Near-Miss Ratio: 0.63 : 1</div><div style="font-size:10px;color:#1e40af;margin-top:2px;${FONT}">Trending right — industry best practice target is ≥ 1:1.</div></div>
         </div>
-        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:14px 16px;">
-          <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:6px;${FONT}">⚡ SIF Watch</div>
-          <div style="font-size:11px;color:#991b1b;line-height:1.55;${FONT}">4 SIF-potential events in 6 months. Management attention and targeted controls are the priority action from this review.</div>
+        <div style="flex:1;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;display:flex;gap:8px;align-items:flex-start;">
+          <span style="font-size:14px;">⚡</span>
+          <div><div style="font-size:10px;font-weight:700;color:#dc2626;${FONT}">SIF Watch — 4 Events</div><div style="font-size:10px;color:#991b1b;margin-top:2px;${FONT}">Management attention and targeted controls are the priority action from this review.</div></div>
         </div>
       </div>
     </div>
