@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  BookOpen, Check, CheckCircle2, ClipboardList, GraduationCap, HardHat,
-  Plus, RefreshCw, ShieldAlert, Star, ToggleLeft, ToggleRight, Users,
+  BookOpen, Check, CheckCircle2, ChevronDown, ChevronUp, ClipboardList,
+  GraduationCap, HardHat, Pencil, Plus, RefreshCw, ShieldAlert, Star,
+  ToggleLeft, ToggleRight, Users, X,
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { Card, PageHeader, SectionTitle, cx } from "@/components/safe-predict/SafePredictPrimitives";
@@ -17,7 +18,15 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
-type Program = { id: string; name: string; description: string | null; audience: string; active: boolean };
+type Program = {
+  id: string; name: string; description: string | null;
+  audience: string; active: boolean; required_docs?: string[];
+};
+type Completion = {
+  id: string; program_id: string; jobsite_id: string | null;
+  user_id: string | null; visitor_display_name: string | null;
+  completed_at: string; notes: string | null;
+};
 type Requirement = { id: string; program_id: string; jobsite_id: string | null; active: boolean };
 type Jobsite = { id: string; name: string };
 
@@ -59,6 +68,18 @@ export default function SafePredictInductionsPage() {
   const [reqProgramId, setReqProgramId] = useState("");
   const [reqJobsiteId, setReqJobsiteId] = useState("");
   const [addingReq, setAddingReq] = useState(false);
+
+  // Program detail expand
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [completions, setCompletions] = useState<Record<string, Completion[]>>({});
+  const [loadingCompletions, setLoadingCompletions] = useState<Record<string, boolean>>({});
+  // Inline description editing
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [editingDescVal, setEditingDescVal] = useState("");
+  const [savingDesc, setSavingDesc] = useState(false);
+  // Required docs inline editing
+  const [newDocInput, setNewDocInput] = useState<Record<string, string>>({});
+  const descRef = useRef<HTMLTextAreaElement | null>(null);
 
   const load = useCallback(async (forceRefresh = false) => {
     setLoading(true);
@@ -164,6 +185,77 @@ export default function SafePredictInductionsPage() {
     } finally {
       setAddingReq(false);
     }
+  }
+
+  async function toggleExpand(p: Program) {
+    if (expandedId === p.id) { setExpandedId(null); return; }
+    setExpandedId(p.id);
+    // Load completions if not already fetched
+    if (!completions[p.id]) {
+      setLoadingCompletions((prev) => ({ ...prev, [p.id]: true }));
+      try {
+        const h = await authHeaders();
+        const res = await fetch(`/api/company/inductions/completions`, { headers: h });
+        const data = (await res.json().catch(() => null)) as { completions?: Completion[] } | null;
+        const all = data?.completions ?? [];
+        // Group by program_id
+        const byProgram: Record<string, Completion[]> = {};
+        all.forEach((c) => { (byProgram[c.program_id] ??= []).push(c); });
+        setCompletions((prev) => ({ ...prev, ...byProgram }));
+      } catch { /* ignore */ } finally {
+        setLoadingCompletions((prev) => ({ ...prev, [p.id]: false }));
+      }
+    }
+  }
+
+  function startEditDesc(p: Program) {
+    setEditingDescId(p.id);
+    setEditingDescVal(p.description ?? "");
+    setTimeout(() => descRef.current?.focus(), 50);
+  }
+
+  async function saveDesc(p: Program) {
+    setSavingDesc(true);
+    try {
+      const h = await authHeaders();
+      await fetch(`/api/company/inductions/programs/${encodeURIComponent(p.id)}`, {
+        method: "PATCH", headers: h,
+        body: JSON.stringify({ description: editingDescVal }),
+      });
+      setPrograms((prev) =>
+        prev.map((x) => x.id === p.id ? { ...x, description: editingDescVal || null } : x)
+      );
+      setEditingDescId(null);
+    } catch { /* ignore */ } finally {
+      setSavingDesc(false);
+    }
+  }
+
+  async function addRequiredDoc(p: Program, doc: string) {
+    const trimmed = doc.trim();
+    if (!trimmed) return;
+    const updated = [...(p.required_docs ?? []), trimmed];
+    const h = await authHeaders();
+    await fetch(`/api/company/inductions/programs/${encodeURIComponent(p.id)}`, {
+      method: "PATCH", headers: h,
+      body: JSON.stringify({ requiredDocs: updated }),
+    });
+    setPrograms((prev) =>
+      prev.map((x) => x.id === p.id ? { ...x, required_docs: updated } : x)
+    );
+    setNewDocInput((prev) => ({ ...prev, [p.id]: "" }));
+  }
+
+  async function removeRequiredDoc(p: Program, idx: number) {
+    const updated = (p.required_docs ?? []).filter((_, i) => i !== idx);
+    const h = await authHeaders();
+    await fetch(`/api/company/inductions/programs/${encodeURIComponent(p.id)}`, {
+      method: "PATCH", headers: h,
+      body: JSON.stringify({ requiredDocs: updated }),
+    });
+    setPrograms((prev) =>
+      prev.map((x) => x.id === p.id ? { ...x, required_docs: updated } : x)
+    );
   }
 
   async function toggleActive(p: Program) {
@@ -428,36 +520,196 @@ export default function SafePredictInductionsPage() {
           )}
 
           {!loading && programs.length > 0 && (
-            <ul className="divide-y divide-slate-50">
+            <ul className="divide-y divide-slate-100">
               {programs.map((p) => {
                 const cfg = AUDIENCE_CONFIG[p.audience] ?? AUDIENCE_CONFIG.worker;
                 const Icon = cfg.icon;
+                const isExpanded = expandedId === p.id;
+                const progCompletions = completions[p.id] ?? [];
+                const isLoadingC = loadingCompletions[p.id];
+                const docs = p.required_docs ?? [];
+
                 return (
-                  <li key={p.id} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/60 transition-colors">
-                    <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-lg", cfg.bg)}>
-                      <Icon className={cx("h-5 w-5", cfg.color)} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900 leading-5">{p.name}</p>
-                      <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold mt-0.5", cfg.bg, cfg.color, cfg.border)}>
-                        {cfg.label}
-                      </span>
-                    </div>
+                  <li key={p.id}>
+                    {/* Row header — click anywhere to expand */}
                     <button
                       type="button"
-                      onClick={() => void toggleActive(p)}
-                      className={cx(
-                        "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition",
-                        p.active
-                          ? "border-slate-200 bg-white text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      )}
+                      onClick={() => void toggleExpand(p)}
+                      className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-slate-50/60 transition-colors"
                     >
-                      {p.active
-                        ? <><ToggleRight className="h-3.5 w-3.5" /> Active</>
-                        : <><ToggleLeft className="h-3.5 w-3.5" /> Inactive</>
-                      }
+                      <span className={cx("grid h-9 w-9 shrink-0 place-items-center rounded-lg", cfg.bg)}>
+                        <Icon className={cx("h-5 w-5", cfg.color)} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 leading-5">{p.name}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className={cx("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold", cfg.bg, cfg.color, cfg.border)}>
+                            {cfg.label}
+                          </span>
+                          {p.description && (
+                            <span className="text-xs text-slate-400 truncate max-w-[240px]">{p.description}</span>
+                          )}
+                          {!p.description && (
+                            <span className="text-xs text-slate-300 italic">No description — click to add</span>
+                          )}
+                          {docs.length > 0 && (
+                            <span className="text-[11px] font-semibold text-slate-400">{docs.length} required doc{docs.length !== 1 ? "s" : ""}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(p)}
+                          className={cx(
+                            "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition",
+                            p.active
+                              ? "border-slate-200 bg-white text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          )}
+                        >
+                          {p.active ? <><ToggleRight className="h-3.5 w-3.5" /> Active</> : <><ToggleLeft className="h-3.5 w-3.5" /> Inactive</>}
+                        </button>
+                        {isExpanded
+                          ? <ChevronUp className="h-4 w-4 text-slate-400" />
+                          : <ChevronDown className="h-4 w-4 text-slate-400" />
+                        }
+                      </div>
                     </button>
+
+                    {/* Expand panel */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-5 space-y-5">
+                        {/* Description */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Description</p>
+                            {editingDescId !== p.id && (
+                              <button type="button" onClick={() => startEditDesc(p)}
+                                className="flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:border-blue-200 transition">
+                                <Pencil className="h-3 w-3" /> Edit
+                              </button>
+                            )}
+                          </div>
+                          {editingDescId === p.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                ref={descRef}
+                                value={editingDescVal}
+                                onChange={(e) => setEditingDescVal(e.target.value)}
+                                rows={3}
+                                placeholder="Describe what this induction program covers…"
+                                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                              />
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => void saveDesc(p)} disabled={savingDesc}
+                                  className="flex h-7 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50">
+                                  {savingDesc ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Save
+                                </button>
+                                <button type="button" onClick={() => setEditingDescId(null)}
+                                  className="h-7 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                              {p.description || <span className="text-slate-400 italic">No description yet.</span>}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Required documents */}
+                        <div>
+                          <p className="mb-1.5 text-xs font-black uppercase tracking-wide text-slate-500">Required Documents / Steps</p>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {docs.length === 0 && (
+                              <span className="text-xs text-slate-400 italic">None listed yet.</span>
+                            )}
+                            {docs.map((doc, idx) => (
+                              <span key={idx} className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                {doc}
+                                <button type="button" onClick={() => void removeRequiredDoc(p, idx)}
+                                  className="ml-0.5 text-slate-400 hover:text-red-600 transition">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              value={newDocInput[p.id] ?? ""}
+                              onChange={(e) => setNewDocInput((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === "Enter") void addRequiredDoc(p, newDocInput[p.id] ?? ""); }}
+                              placeholder="Add document or step (press Enter)"
+                              className="h-8 flex-1 max-w-xs rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-400 focus:outline-none"
+                            />
+                            <button type="button"
+                              onClick={() => void addRequiredDoc(p, newDocInput[p.id] ?? "")}
+                              className="flex h-8 items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100">
+                              <Plus className="h-3.5 w-3.5" /> Add
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Completions */}
+                        <div>
+                          <p className="mb-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+                            Completions
+                            {progCompletions.length > 0 && (
+                              <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
+                                {progCompletions.length}
+                              </span>
+                            )}
+                          </p>
+                          {isLoadingC && (
+                            <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                              <RefreshCw className="h-3 w-3 animate-spin" /> Loading completions…
+                            </p>
+                          )}
+                          {!isLoadingC && progCompletions.length === 0 && (
+                            <p className="text-xs text-slate-400 italic">No completions recorded yet for this program.</p>
+                          )}
+                          {!isLoadingC && progCompletions.length > 0 && (
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-slate-100 text-left text-[11px] font-black text-slate-400">
+                                    <th className="px-3 py-2">Person</th>
+                                    <th className="px-3 py-2 hidden sm:table-cell">Jobsite</th>
+                                    <th className="px-3 py-2">Completed</th>
+                                    <th className="px-3 py-2 hidden md:table-cell">Notes</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                  {progCompletions.slice(0, 10).map((c) => (
+                                    <tr key={c.id} className="hover:bg-slate-50/60">
+                                      <td className="px-3 py-2 font-semibold text-slate-700">
+                                        {c.visitor_display_name ?? (c.user_id ? c.user_id.slice(0, 8) + "…" : "—")}
+                                      </td>
+                                      <td className="px-3 py-2 text-slate-500 hidden sm:table-cell">
+                                        {jobsiteName(c.jobsite_id)}
+                                      </td>
+                                      <td className="px-3 py-2 text-slate-500">
+                                        {new Date(c.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                      </td>
+                                      <td className="px-3 py-2 text-slate-400 hidden md:table-cell">
+                                        {c.notes ?? "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {progCompletions.length > 10 && (
+                                <p className="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-400">
+                                  Showing 10 of {progCompletions.length} completions
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
