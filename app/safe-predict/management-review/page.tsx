@@ -225,7 +225,6 @@ export default function ManagementReviewPage() {
       <PageHeader
         title="Management Review"
         subtitle="Periodic executive review of safety performance, objectives, and continuous improvement outcomes."
-        icon={<Calendar className="w-6 h-6 text-sky-600" />}
       />
 
       {/* Period Selector */}

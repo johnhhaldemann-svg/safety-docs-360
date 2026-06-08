@@ -298,8 +298,7 @@ export default function SafePredictToolboxTalksPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Toolbox Talks"
-        description="Log and track short safety briefings held at the start of each shift."
-        icon={<BookOpen className="h-6 w-6 text-blue-600" />}
+        subtitle="Log and track short safety briefings held at the start of each shift."
         actions={
           <div className="flex items-center gap-2">
             {demoMode && (
