@@ -273,7 +273,7 @@ export default function IncidentDetailPage() {
 
       {/* Main detail card */}
       <Card>
-        <SectionTitle>Incident Details</SectionTitle>
+        <SectionTitle title="Incident Details" />
         <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
           <DetailItem label="Category" value={incident.category} />
           <DetailItem label="Severity" value={incident.severity} />
@@ -347,7 +347,7 @@ export default function IncidentDetailPage() {
 
       {/* Status update card */}
       <Card>
-        <SectionTitle>Update Status</SectionTitle>
+        <SectionTitle title="Update Status" />
         <div className="mt-4 flex flex-wrap gap-2">
           {STATUS_ORDER.map((s) => (
             <button
@@ -382,7 +382,7 @@ export default function IncidentDetailPage() {
 
       {/* Corrective action cross-link */}
       <Card>
-        <SectionTitle>Corrective Actions</SectionTitle>
+        <SectionTitle title="Corrective Actions" />
         <p className="mt-2 text-sm text-slate-500">
           Track corrective actions linked to this incident in the Corrective Actions module.
         </p>

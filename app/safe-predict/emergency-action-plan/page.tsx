@@ -387,7 +387,7 @@ export default function EmergencyActionPlanPage() {
         {/* New Plan Form */}
         {showForm && (
           <Card className="mb-6 p-5">
-            <SectionTitle>Create / Update Emergency Action Plan</SectionTitle>
+            <SectionTitle title="Create / Update Emergency Action Plan" />
             <form onSubmit={(e) => void handleSave(e)} className="mt-4 grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <InputField
@@ -503,7 +503,7 @@ export default function EmergencyActionPlanPage() {
           </Card>
         ) : (
           <div className="flex flex-col gap-3">
-            <SectionTitle>Plans by Jobsite</SectionTitle>
+            <SectionTitle title="Plans by Jobsite" />
             {plans.map((plan) => {
               const status = planStatus(plan.last_reviewed);
               const isExpanded = expandedId === plan.id;
