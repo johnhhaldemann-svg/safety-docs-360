@@ -376,7 +376,7 @@ export default function SafePredictToolboxTalksPage() {
       {/* Log new talk form */}
       {showForm && (
         <Card className="p-5">
-          <SectionTitle className="mb-4">Log New Toolbox Talk</SectionTitle>
+          <SectionTitle title="Log New Toolbox Talk" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -484,7 +484,7 @@ export default function SafePredictToolboxTalksPage() {
 
       {/* Talks list */}
       <div>
-        <SectionTitle className="mb-3">Talk Log</SectionTitle>
+        <SectionTitle title="Talk Log" />
 
         {loading ? (
           <Card className="flex items-center justify-center gap-2 py-12 text-slate-400">

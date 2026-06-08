@@ -247,10 +247,7 @@ export default function ManagementReviewPage() {
 
       {/* KPI Summary */}
       <section>
-        <SectionTitle
-          title="Key Performance Summary"
-          subtitle={`Safety metrics for ${PERIOD_LABELS[period].toLowerCase()}`}
-        />
+        <SectionTitle title="Key Performance Summary" hint={`Safety metrics for ${PERIOD_LABELS[period].toLowerCase()}`} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mt-4">
           {metrics.map((m) => (
             <Card key={m.label} className="p-4 flex flex-col gap-3">
@@ -296,10 +293,7 @@ export default function ManagementReviewPage() {
 
       {/* Review Agenda */}
       <section>
-        <SectionTitle
-          title="Review Agenda"
-          subtitle="Standard ISO 45001 management review agenda — check off each item as it is discussed."
-        />
+        <SectionTitle title="Review Agenda" hint="Standard ISO 45001 management review agenda — check off each item as it is discussed." />
         <Card className="mt-4 divide-y divide-slate-100">
           {AGENDA_ITEMS.map((item, i) => {
             const checked = checkedItems.has(i);
@@ -334,10 +328,7 @@ export default function ManagementReviewPage() {
 
       {/* Minutes / Notes */}
       <section>
-        <SectionTitle
-          title="Minutes &amp; Review Outcomes"
-          subtitle="Record key decisions, action items, and outcomes from this management review."
-        />
+        <SectionTitle title="Minutes &amp; Review Outcomes" hint="Record key decisions, action items, and outcomes from this management review." />
         <Card className="mt-4 p-5">
           <textarea
             value={notes}
