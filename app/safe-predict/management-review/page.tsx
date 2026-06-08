@@ -1660,6 +1660,8 @@ export default function ManagementReviewPage() {
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
   const [saved, setSaved] = useState(false);
+  const [pptxLoading, setPptxLoading] = useState(false);
+  const [pptxError,   setPptxError]   = useState<string | null>(null);
 
   useEffect(() => {
     async function loadJobsites() {
@@ -1682,12 +1684,14 @@ export default function ManagementReviewPage() {
     const siteQ = site !== "all" ? `&jobsiteId=${site}` : "";
     try {
       const headers = await getAuthHeaders();
-      const incRes = await fetch(`/api/company/incidents?period=${param}${siteQ}`, { headers });
+      const [incRes, caRes] = await Promise.all([
+        fetch(`/api/company/incidents?period=${param}${siteQ}`, { headers }),
+        fetch(`/api/company/corrective-actions?status=open${siteQ}`, { headers }),
+      ]);
       if (incRes.ok) {
         const d = (await incRes.json()) as { incidents?: unknown[] } | unknown[];
         setIncidents(Array.isArray(d) ? d.length : Array.isArray((d as { incidents?: unknown[] }).incidents) ? (d as { incidents: unknown[] }).incidents.length : DEMO_METRICS[p].incidents);
       } else setIncidents(DEMO_METRICS[p].incidents);
-      const caRes = await fetch(`/api/company/corrective-actions?status=open${siteQ}`, { headers });
       if (caRes.ok) {
         const d = (await caRes.json()) as { corrective_actions?: unknown[] } | unknown[];
         setOpenCAs(Array.isArray(d) ? d.length : Array.isArray((d as { corrective_actions?: unknown[] }).corrective_actions) ? (d as { corrective_actions: unknown[] }).corrective_actions.length : DEMO_METRICS[p].openCAs);
@@ -1736,9 +1740,6 @@ export default function ManagementReviewPage() {
     setTimeout(() => URL.revokeObjectURL(url), 120_000);
     setSaved(true); setTimeout(() => setSaved(false), 3000);
   }
-
-  const [pptxLoading, setPptxLoading] = useState(false);
-  const [pptxError,   setPptxError]   = useState<string | null>(null);
 
   async function handlePptxExport() {
     setPptxLoading(true); setPptxError(null);
