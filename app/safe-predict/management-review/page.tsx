@@ -1298,7 +1298,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     slide.addText(sub,   { x:0.4,y:0.42,w:8.5,h:0.2,  fontSize:8.5,color:"aaaaaa",fontFace:"Calibri" });
     slide.addShape("rect", { x:0,y:5.28,w:10,h:0.345, fill:{color:"f1f5f9"} });
     slide.addText("SafePredict  ·  H1 2026 Management Review  ·  CONFIDENTIAL", { x:0.3,y:5.3,w:8,h:0.2, fontSize:7.5,color:C.faint,fontFace:"Calibri" });
-    slide.addText(`${n} / 14`, { x:9.3,y:5.3,w:0.5,h:0.2, fontSize:7.5,color:C.faint,fontFace:"Calibri",align:"right" });
+    slide.addText(`${n} / 16`, { x:9.3,y:5.3,w:0.5,h:0.2, fontSize:7.5,color:C.faint,fontFace:"Calibri",align:"right" });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1322,7 +1322,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     sl1.addText(v,{x,y:2.68,w:2.2,h:0.3,fontSize:10,color:C.white,bold:true,align:"center",fontFace:"Calibri"});
   });
   sl1.addText("CONFIDENTIAL  ·  FOR EXECUTIVE REVIEW ONLY",{x:0.5,y:5.2,w:7,h:0.2,fontSize:8,color:"444444",fontFace:"Calibri"});
-  sl1.addText("1 / 14",{x:9.3,y:5.2,w:0.5,h:0.2,fontSize:8,color:"444444",align:"right",fontFace:"Calibri"});
+  sl1.addText("1 / 16",{x:9.3,y:5.2,w:0.5,h:0.2,fontSize:8,color:"444444",align:"right",fontFace:"Calibri"});
 
   // ── Slide 2 — PREVIOUS REVIEW ACTIONS ───────────────────────────────────────
   const sl2 = pres.addSlide();
@@ -1436,12 +1436,18 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   });
   sl7.addShape("rect",{x:0.4,y:4.88,w:5.8,h:0.32,fill:{color:"fef9c3"},line:{color:"fde047",width:1}});
   sl7.addText("📌 Training completion is a key leading indicator not yet loaded — will appear here once data is populated.",{x:0.55,y:4.9,w:5.6,h:0.25,fontSize:9,color:"854d0e",fontFace:"Calibri"});
-  sl7.addShape("rect",{x:6.55,y:0.78,w:3.1,h:1.0,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
-  sl7.addText("3 Stop-Work Authorities issued",{x:6.65,y:0.85,w:2.9,h:0.28,fontSize:10,bold:true,color:C.red,fontFace:"Calibri"});
-  sl7.addText("Workers exercising SWA rights — positive safety culture signal.",{x:6.65,y:1.15,w:2.9,h:0.5,fontSize:9,color:C.muted,fontFace:"Calibri"});
-  sl7.addShape("rect",{x:6.55,y:1.92,w:3.1,h:1.0,fill:{color:"fff7ed"},line:{color:"fed7aa",width:1}});
-  sl7.addText("Near-miss ratio: 0.63 : 1",{x:6.65,y:1.99,w:2.9,h:0.28,fontSize:10,bold:true,color:C.orange,fontFace:"Calibri"});
-  sl7.addText("Below the ≥1:1 industry best-practice target. Goal is to increase near-miss reporting.",{x:6.65,y:2.29,w:2.9,h:0.5,fontSize:9,color:C.muted,fontFace:"Calibri"});
+  sl7.addShape("rect",{x:6.55,y:0.78,w:3.1,h:0.92,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
+  sl7.addText("3 Stop-Work Authorities issued",{x:6.65,y:0.84,w:2.9,h:0.26,fontSize:10,bold:true,color:C.red,fontFace:"Calibri"});
+  sl7.addText("Workers exercising SWA rights — positive safety culture signal.",{x:6.65,y:1.12,w:2.9,h:0.44,fontSize:9,color:C.muted,fontFace:"Calibri"});
+  sl7.addShape("rect",{x:6.55,y:1.82,w:3.1,h:0.92,fill:{color:"fff7ed"},line:{color:"fed7aa",width:1}});
+  sl7.addText("Near-miss ratio: 0.63 : 1",{x:6.65,y:1.88,w:2.9,h:0.26,fontSize:10,bold:true,color:C.orange,fontFace:"Calibri"});
+  sl7.addText("12 near misses : 19 incidents. Below ≥1:1 industry target — improve reporting culture.",{x:6.65,y:2.16,w:2.9,h:0.44,fontSize:9,color:C.muted,fontFace:"Calibri"});
+  sl7.addShape("rect",{x:6.55,y:2.86,w:3.1,h:0.92,fill:{color:"f0fdf4"},line:{color:"86efac",width:1}});
+  sl7.addText("Pre-Task RAs: 104% ✓",{x:6.65,y:2.92,w:2.9,h:0.26,fontSize:10,bold:true,color:C.green,fontFace:"Calibri"});
+  sl7.addText("312 filed vs 300 planned — safety planning is ahead of target across the portfolio.",{x:6.65,y:3.20,w:2.9,h:0.44,fontSize:9,color:C.muted,fontFace:"Calibri"});
+  sl7.addShape("rect",{x:6.55,y:3.90,w:3.1,h:0.92,fill:{color:"fffbeb"},line:{color:"fde047",width:1}});
+  sl7.addText("Hazard Reports: 76% ⚠️",{x:6.65,y:3.96,w:2.9,h:0.26,fontSize:10,bold:true,color:C.amber,fontFace:"Calibri"});
+  sl7.addText("38 of 50 planned submitted. Improve visibility and reporting cadence at underperforming sites.",{x:6.65,y:4.24,w:2.9,h:0.44,fontSize:9,color:C.muted,fontFace:"Calibri"});
 
   // ── Slide 8 — INCIDENT REVIEW ────────────────────────────────────────────────
   const sl8 = pres.addSlide();
