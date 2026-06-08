@@ -242,7 +242,7 @@ function tagChip(tag: string, ai: boolean): string {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function generatePresentation(exportDate: string, checkedItems: Set<number>, notes: string): string {
-  const SS = `width:1200px;height:675px;overflow:hidden;position:relative;display:flex;flex-direction:column;${FONT}`;
+  const SS = `width:1200px;min-height:675px;position:relative;display:flex;flex-direction:column;${FONT}`;
 
   // ── SLIDE 1 — TITLE ────────────────────────────────────────────────────────
   const s1 = `<div style="${SS}background:linear-gradient(135deg,#0f172a 0%,#0c4a6e 55%,#0369a1 100%);">
@@ -284,7 +284,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
 
   const s2 = `<div style="${SS}background:white;">
     ${slideHeader("Executive Summary","H1 2026  ·  5 Companies  ·  11 Jobsites")}
-    <div style="flex:1;display:flex;flex-direction:column;padding:18px 40px 46px;gap:16px;overflow:hidden;">
+    <div style="flex:1;display:flex;flex-direction:column;padding:18px 40px 46px;gap:16px;">
       <div style="display:flex;gap:14px;">
         ${statBox(31,"Total Safety Events","19 incidents + 12 near misses","#0ea5e9","#f0f9ff")}
         ${statBox(0,"Fatalities","No fatalities this period","#10b981","#f0fdf4")}
@@ -333,8 +333,8 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
 
   const s3 = `<div style="${SS}background:white;">
     ${slideHeader("Safety Performance Scorecard","H1 2026  ·  All Companies  ·  All Jobsites")}
-    <div style="flex:1;display:flex;gap:0;overflow:hidden;">
-      <div style="flex:1;padding:16px 32px 46px;overflow:hidden;">
+    <div style="flex:1;display:flex;gap:0;">
+      <div style="flex:1;padding:16px 32px 46px;">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;${FONT}">
           <thead>
             <tr style="background:#0f172a;">
@@ -380,7 +380,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
 
   const s4 = `<div style="${SS}background:white;">
     ${slideHeader("Incident Review","H1 2026  ·  31 events  ·  19 incidents  ·  12 near misses")}
-    <div style="flex:1;display:flex;overflow:hidden;">
+    <div style="flex:1;display:flex;">
       <!-- Left: charts -->
       <div style="width:360px;flex-shrink:0;padding:18px 24px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:18px;">
         <div>
@@ -413,7 +413,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
       <!-- Right: notable events -->
-      <div style="flex:1;padding:18px 28px 46px;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+      <div style="flex:1;padding:18px 28px 46px;display:flex;flex-direction:column;gap:10px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Notable &amp; SIF-Potential Events</div>
         ${H1.incidents.notable.map((ev) => `
         <div style="padding:11px 14px;background:${ev.ai ? "#fdf4ff" : ev.tags.some(t=>t.includes("SIF")) ? "#fff7f7" : "#f8fafc"};border-radius:9px;border:1px solid ${ev.ai ? "#e9d5ff" : ev.tags.some(t=>t.includes("SIF")) ? "#fecaca" : "#e2e8f0"};">
@@ -434,7 +434,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
   // ── SLIDE 5 — COMPLIANCE STATUS ────────────────────────────────────────────
   const s5 = `<div style="${SS}background:white;">
     ${slideHeader("Compliance Status","Permits  ·  Audits  ·  Training  ·  H1 2026")}
-    <div style="flex:1;display:flex;gap:0;overflow:hidden;">
+    <div style="flex:1;display:flex;gap:0;">
       <!-- Permits -->
       <div style="flex:1;padding:18px 28px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:14px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
@@ -495,7 +495,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
   const hm = heatMapSVG();
   const s6 = `<div style="${SS}background:white;">
     ${slideHeader("Risk Matrix — Portfolio Overview","30 scored risk items  ·  All jobsites  ·  H1 2026")}
-    <div style="flex:1;display:flex;gap:0;overflow:hidden;">
+    <div style="flex:1;display:flex;gap:0;">
       <!-- Heat map -->
       <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:10px 16px 46px;">
         ${hm}
@@ -545,7 +545,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
 
   const s7 = `<div style="${SS}background:white;">
     ${slideHeader("Corrective Action Management","54 total  ·  H1 2026  ·  All jobsites")}
-    <div style="flex:1;display:flex;overflow:hidden;">
+    <div style="flex:1;display:flex;">
       <!-- Big number -->
       <div style="width:220px;flex-shrink:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:12px;border-right:1px solid rgba(255,255,255,.08);">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.45);text-align:center;${FONT}">TOTAL<br/>CORRECTIVE ACTIONS</div>
@@ -647,8 +647,8 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
       <div style="font-size:20px;font-weight:800;color:white;letter-spacing:-.02em;${FONT}">Next Steps &amp; Priorities</div>
       <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;font-weight:500;${FONT}">Actions to carry forward from this review</div>
     </div>
-    <div style="flex:1;display:flex;gap:0;overflow:hidden;">
-      <div style="flex:1;padding:18px 28px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start;overflow:hidden;">
+    <div style="flex:1;display:flex;gap:0;">
+      <div style="flex:1;padding:18px 28px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start;">
         ${priorities.map(p => `
         <div style="padding:15px 17px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;">
           <div style="font-size:18px;margin-bottom:7px;">${p.icon}</div>
@@ -713,7 +713,7 @@ body{padding:32px;display:flex;flex-direction:column;align-items:center;gap:32px
 @media print{
   html,body{background:white;padding:0;gap:0;}
   @page{size:landscape;margin:0;}
-  .slide{width:100%;height:100vh;border-radius:0;box-shadow:none;page-break-after:always;}
+  .slide{width:100%;height:100vh;min-height:unset;overflow:hidden;border-radius:0;box-shadow:none;page-break-after:always;}
 }
 </style>
 </head>
