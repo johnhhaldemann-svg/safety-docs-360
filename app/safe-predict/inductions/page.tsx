@@ -69,6 +69,12 @@ export default function SafePredictInductionsPage() {
   const [reqJobsiteId, setReqJobsiteId] = useState("");
   const [addingReq, setAddingReq] = useState(false);
 
+  // All completions (loaded once for gap analysis)
+  const [allCompletions, setAllCompletions] = useState<Completion[]>([]);
+  const [loadingAllCompletions, setLoadingAllCompletions] = useState(false);
+  // AI sync
+  const [syncingAI, setSyncingAI] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   // Program detail expand
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completions, setCompletions] = useState<Record<string, Completion[]>>({});
@@ -87,14 +93,16 @@ export default function SafePredictInductionsPage() {
     try {
       const h = await authHeaders();
       const opts = { headers: h, cache: forceRefresh ? ("no-cache" as RequestCache) : ("default" as RequestCache) };
-      const [pRes, rRes, jRes] = await Promise.all([
+      const [pRes, rRes, jRes, cRes] = await Promise.all([
         fetch("/api/company/inductions/programs", opts),
         fetch("/api/company/inductions/requirements", opts),
         fetch("/api/company/jobsites", opts),
+        fetch("/api/company/inductions/completions", opts),
       ]);
       const pData = (await pRes.json().catch(() => null)) as { programs?: Program[] } | null;
       const rData = (await rRes.json().catch(() => null)) as { requirements?: Requirement[] } | null;
       const jData = (await jRes.json().catch(() => null)) as { jobsites?: Array<{ id?: string; name?: string }> } | null;
+      const cData = (await cRes.json().catch(() => null)) as { completions?: Completion[] } | null;
       setPrograms(pData?.programs ?? []);
       setRequirements(rData?.requirements ?? []);
       setJobsites(
@@ -102,6 +110,12 @@ export default function SafePredictInductionsPage() {
           .map((j) => ({ id: String(j.id ?? ""), name: String(j.name ?? "Jobsite") }))
           .filter((j) => j.id)
       );
+      const allC = cData?.completions ?? [];
+      setAllCompletions(allC);
+      // Pre-populate per-program completions map
+      const byProg: Record<string, Completion[]> = {};
+      allC.forEach((c) => { (byProg[c.program_id] ??= []).push(c); });
+      setCompletions(byProg);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -185,6 +199,52 @@ export default function SafePredictInductionsPage() {
     } finally {
       setAddingReq(false);
     }
+  }
+
+  async function handleSyncAI() {
+    setSyncingAI(true);
+    setSyncResult(null);
+    try {
+      const h = await authHeaders();
+      // Trigger AI knowledge map rebuild so induction data is re-indexed
+      const res = await fetch("/api/ai-knowledge-map/rebuild-index", { method: "POST", headers: h });
+      const data = (await res.json().catch(() => null)) as { nodesIndexed?: number; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "Sync failed.");
+      setSyncResult(`AI knowledge map updated — ${data?.nodesIndexed ?? "all"} nodes indexed. The AI will now factor induction gaps into risk recommendations.`);
+    } catch (e) {
+      setSyncResult(`Note: ${e instanceof Error ? e.message : "Could not reach AI index endpoint."}`);
+    } finally {
+      setSyncingAI(false);
+    }
+  }
+
+  // Gap analysis: derive coverage issues from loaded data
+  function computeGaps() {
+    const activeReqs = requirements.filter((r) => r.active);
+    const activePrograms = programs.filter((p) => p.active);
+
+    // Programs with no requirements at all
+    const undeployed = activePrograms.filter(
+      (p) => !activeReqs.some((r) => r.program_id === p.id)
+    );
+
+    // Requirements with zero completions
+    const uncompleted = activeReqs.filter(
+      (r) => !allCompletions.some((c) => c.program_id === r.program_id)
+    );
+
+    // Jobsites that have at least one requirement but zero completions scoped to them
+    const jobsitesWithReqs = new Set(
+      activeReqs.filter((r) => r.jobsite_id).map((r) => r.jobsite_id!)
+    );
+    const jobsitesWithCompletions = new Set(
+      allCompletions.filter((c) => c.jobsite_id).map((c) => c.jobsite_id!)
+    );
+    const jobsiteGaps = Array.from(jobsitesWithReqs).filter(
+      (jid) => !jobsitesWithCompletions.has(jid)
+    );
+
+    return { undeployed, uncompleted, jobsiteGaps };
   }
 
   async function toggleExpand(p: Program) {
@@ -284,6 +344,8 @@ export default function SafePredictInductionsPage() {
   }
 
   const activePrograms = programs.filter((p) => p.active);
+  const gaps = computeGaps();
+  const totalGaps = gaps.undeployed.length + gaps.uncompleted.length + gaps.jobsiteGaps.length;
 
   return (
     <div className="min-h-[calc(100vh-5rem)]">
@@ -715,6 +777,139 @@ export default function SafePredictInductionsPage() {
               })}
             </ul>
           )}
+        </Card>
+
+        {/* AI Gap Analysis */}
+        <Card>
+          <div className="border-b border-slate-100 px-5 py-4">
+            <SectionTitle
+              title="AI Gap Analysis"
+              hint="Automatically computed from your active programs, requirements, and completion records. Sync to AI so recommendations include induction gaps."
+              action={
+                <button
+                  type="button"
+                  onClick={() => void handleSyncAI()}
+                  disabled={syncingAI}
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                >
+                  {syncingAI
+                    ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Syncing…</>
+                    : <><BookOpen className="h-3.5 w-3.5" /> Sync to AI</>
+                  }
+                </button>
+              }
+            />
+          </div>
+
+          {syncResult && (
+            <div className={cx(
+              "mx-5 mt-4 rounded-lg border px-4 py-3 text-xs font-semibold",
+              syncResult.startsWith("Note:")
+                ? "border-amber-200 bg-amber-50 text-amber-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            )}>
+              {syncResult}
+            </div>
+          )}
+
+          <div className="p-5 space-y-3">
+            {loading && (
+              <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                <RefreshCw className="h-3 w-3 animate-spin" /> Analysing…
+              </p>
+            )}
+
+            {!loading && totalGaps === 0 && (
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">No gaps detected</p>
+                  <p className="text-xs text-emerald-700">All active programs are deployed and have completions recorded.</p>
+                </div>
+              </div>
+            )}
+
+            {!loading && gaps.undeployed.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-2 text-xs font-black uppercase tracking-wide text-amber-700">
+                  ⚠ Undeployed Programs ({gaps.undeployed.length})
+                </p>
+                <p className="mb-3 text-xs text-amber-700">
+                  These programs are active but have no jobsite requirements assigned — crews won&apos;t be prompted to complete them.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {gaps.undeployed.map((p) => {
+                    const cfg = AUDIENCE_CONFIG[p.audience] ?? AUDIENCE_CONFIG.worker;
+                    return (
+                      <span key={p.id} className={cx("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold", cfg.bg, cfg.color, cfg.border)}>
+                        {p.name}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11px] text-amber-600">
+                  Fix: go to Jobsite Requirements below → assign each program to jobsites or company-wide.
+                </p>
+              </div>
+            )}
+
+            {!loading && gaps.uncompleted.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="mb-2 text-xs font-black uppercase tracking-wide text-red-700">
+                  🔴 Required but Zero Completions ({gaps.uncompleted.length})
+                </p>
+                <p className="mb-3 text-xs text-red-700">
+                  These requirements are active but no one has been recorded as completing them yet.
+                </p>
+                <ul className="space-y-1">
+                  {gaps.uncompleted.map((r) => {
+                    const prog = programs.find((p) => p.id === r.program_id);
+                    return (
+                      <li key={r.id} className="flex items-center gap-2 text-xs text-red-800">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="font-semibold">{prog?.name ?? r.program_id.slice(0, 8) + "…"}</span>
+                        <span className="text-red-500">→ {jobsiteName(r.jobsite_id)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-2 text-[11px] text-red-600">
+                  The AI will flag these as training gaps when generating risk recommendations.
+                </p>
+              </div>
+            )}
+
+            {!loading && gaps.jobsiteGaps.length > 0 && (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <p className="mb-2 text-xs font-black uppercase tracking-wide text-orange-700">
+                  ⚡ Jobsites With No Completions ({gaps.jobsiteGaps.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {gaps.jobsiteGaps.map((jid) => (
+                    <span key={jid} className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-xs font-bold text-orange-700">
+                      {jobsiteName(jid)}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] text-orange-600">
+                  These jobsites have induction requirements but no completions on record. Ensure crews are completing inductions on arrival.
+                </p>
+              </div>
+            )}
+
+            {!loading && (
+              <div className="rounded-lg border border-violet-100 bg-violet-50/60 px-4 py-3">
+                <p className="text-xs font-bold text-violet-800">How the AI uses this data</p>
+                <p className="mt-1 text-[11px] text-violet-700 leading-relaxed">
+                  Induction programs, requirements, and completions are indexed in the AI Knowledge Map under the
+                  <strong> "training"</strong> node type. The AI links them to active risk patterns using the
+                  <strong> risk_increased_by_training_gap</strong> relationship — so when you generate Risk Memory
+                  recommendations, gaps here will surface as prioritised action items. Click <strong>Sync to AI</strong> after
+                  any changes to ensure the index is current.
+                </p>
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* Requirements */}
