@@ -107,6 +107,61 @@ const H1 = {
   },
 };
 
+// ── H2 2025 comparison dataset (prior period) ─────────────────────────────────
+
+const H2_PREV = {
+  period: "H2 2025  ·  Jun 2025 – Nov 2025",
+  incidents: {
+    total: 38, incidents: 24, nearMisses: 14,
+    recordable: 22, lostTime: 8, fatalities: 0, sifPotential: 6,
+    closed: 33, closePct: 87,
+    bySeverity: { critical: 3, high: 18, medium: 13, low: 4 },
+  },
+  cas: { total: 46, overdue: 9, actionedPct: 68 },
+};
+
+// ── Previous review actions (H2 2025 review) ──────────────────────────────────
+
+const PREV_ACTIONS = [
+  { ref:"A1", action:"Mandatory pre-task hazard assessments at all crane/lifting operations", owner:"Site Managers", due:"Feb 2026", status:"closed" as const },
+  { ref:"A2", action:"Chemical handling refresher training — all process operators", owner:"Safety Team", due:"Jan 2026", status:"carried" as const },
+  { ref:"A3", action:"Confined space procedure review and re-issue to all sites", owner:"HSE Manager", due:"Dec 2025", status:"closed" as const },
+  { ref:"A4", action:"Establish monthly corrective action close-out review cadence", owner:"Operations Mgr", due:"Jan 2026", status:"partial" as const },
+  { ref:"A5", action:"Load total hours-worked data into SafePredict for rate reporting", owner:"HR / Payroll", due:"Mar 2026", status:"carried" as const },
+  { ref:"A6", action:"Deploy SafePredict platform to 2 additional portfolio companies", owner:"CEO / IT", due:"Mar 2026", status:"closed" as const },
+];
+
+// ── Site-level performance data ────────────────────────────────────────────────
+
+const SITES = [
+  { name:"Riverside Bridge Project",    company:"Bridgeworks Co.",    events:7, incidents:5, nearMisses:2, sif:2, overdueCAs:2, risk:"critical" as const },
+  { name:"Southgate Industrial",        company:"Southgate Ind.",     events:5, incidents:3, nearMisses:2, sif:1, overdueCAs:2, risk:"high" as const },
+  { name:"Metro Rail — Package C",      company:"Metro Civil Grp.",   events:4, incidents:3, nearMisses:1, sif:1, overdueCAs:1, risk:"high" as const },
+  { name:"Harbour Precinct Dev.",       company:"Harbour Build.",     events:4, incidents:2, nearMisses:2, sif:0, overdueCAs:1, risk:"high" as const },
+  { name:"Western Terminal",            company:"Western Logistics",  events:3, incidents:2, nearMisses:1, sif:0, overdueCAs:0, risk:"medium" as const },
+  { name:"Greenfield Chemical Plant",   company:"Southgate Ind.",     events:3, incidents:2, nearMisses:1, sif:0, overdueCAs:0, risk:"medium" as const },
+  { name:"North Park Utilities",        company:"Bridgeworks Co.",    events:2, incidents:1, nearMisses:1, sif:0, overdueCAs:0, risk:"medium" as const },
+  { name:"CBD Tower A",                 company:"Metro Civil Grp.",   events:1, incidents:1, nearMisses:0, sif:0, overdueCAs:0, risk:"low" as const },
+  { name:"Eastern Logistics Hub",       company:"Western Logistics",  events:1, incidents:0, nearMisses:1, sif:0, overdueCAs:0, risk:"low" as const },
+  { name:"Coastal Treatment Works",     company:"Harbour Build.",     events:1, incidents:1, nearMisses:0, sif:0, overdueCAs:0, risk:"low" as const },
+  { name:"Airport Ground Services",     company:"Western Logistics",  events:0, incidents:0, nearMisses:0, sif:0, overdueCAs:0, risk:"clear" as const },
+];
+
+// ── Leading indicators data ────────────────────────────────────────────────────
+
+const LEADING = {
+  inspections:     { completed: 47, target: 55, pct: 85 },
+  toolboxTalks:    { completed: 124, target: 140, pct: 89 },
+  hazardReports:   { completed: 38, target: 50, pct: 76 },
+  nearMissRate:    { value: 0.63, benchmark: 1.0 },
+  safetyObs:       { completed: 203, target: 180, pct: 113 },
+  preTaskRAs:      { completed: 312, target: 300, pct: 104 },
+  stopWorkOrders:  { issued: 3 },
+  prevPeriod: {
+    inspections: 79, toolboxTalks: 89, hazardReports: 28, safetyObs: 156, preTaskRAs: 271,
+  },
+};
+
 // ── SVG helpers ───────────────────────────────────────────────────────────────
 
 function heatMapSVG(): string {
@@ -217,7 +272,7 @@ function slideHeader(title: string, sub: string): string {
 function slideFooter(n: number): string {
   return `<div style="position:absolute;bottom:0;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:7px 48px;display:flex;justify-content:space-between;">
     <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">SafePredict  ·  Safety & Compliance Review  ·  H1 2026  ·  CONFIDENTIAL</span>
-    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 10</span>
+    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 14</span>
   </div>`;
 }
 
@@ -270,11 +325,268 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:16px 80px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">CONFIDENTIAL  ·  FOR EXECUTIVE REVIEW ONLY</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 10</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 14</span>
     </div>
   </div>`;
 
-  // ── SLIDE 2 — EXECUTIVE SUMMARY ────────────────────────────────────────────
+  // ── SLIDE 2 — PREVIOUS REVIEW ACTION CLOSEOUT ────────────────────────────────
+  const statusCfg = {
+    closed:  { bg:"#f0fdf4", col:"#16a34a", bdr:"#86efac", label:"CLOSED" },
+    partial: { bg:"#fffbeb", col:"#d97706", bdr:"#fde047", label:"PARTIAL" },
+    carried: { bg:"#fef2f2", col:"#dc2626", bdr:"#fca5a5", label:"CARRIED FWD" },
+  } as const;
+  const closedCount  = PREV_ACTIONS.filter(a => a.status === "closed").length;
+  const partialCount = PREV_ACTIONS.filter(a => a.status === "partial").length;
+  const carriedCount = PREV_ACTIONS.filter(a => a.status === "carried").length;
+
+  const sPrevReview = `<div style="${SS}background:white;">
+    ${slideHeader("Previous Review — Action Closeout","H2 2025 management review  ·  Status at H1 2026 review date")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Action table -->
+      <div style="flex:1;padding:16px 32px 46px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;${FONT}">
+          <thead>
+            <tr style="background:#0f172a;">
+              ${["REF","ACTION","OWNER","DUE","STATUS"].map(h=>`<th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;">${h}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${PREV_ACTIONS.map((a,i)=>{
+              const cfg = statusCfg[a.status];
+              return `<tr style="background:${i%2===0?"white":"#f8fafc"};border-bottom:1px solid #f1f5f9;">
+                <td style="padding:10px 12px;font-size:11px;font-weight:800;color:#64748b;">${a.ref}</td>
+                <td style="padding:10px 12px;font-weight:500;color:#1e293b;max-width:380px;">${a.action}</td>
+                <td style="padding:10px 12px;color:#64748b;font-size:11px;white-space:nowrap;">${a.owner}</td>
+                <td style="padding:10px 12px;color:#64748b;font-size:11px;white-space:nowrap;">${a.due}</td>
+                <td style="padding:10px 12px;">
+                  <span style="display:inline-block;padding:3px 9px;border-radius:20px;background:${cfg.bg};color:${cfg.col};border:1px solid ${cfg.bdr};font-size:9.5px;font-weight:800;letter-spacing:.06em;white-space:nowrap;${FONT}">${cfg.label}</span>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <!-- Summary panel -->
+      <div style="width:260px;flex-shrink:0;padding:20px 20px 46px;background:#f8fafc;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Closeout Summary</div>
+        ${[
+          [closedCount,"Closed","Actions fully completed before this review","#10b981","#f0fdf4","#86efac"],
+          [partialCount,"Partial","Started but not fully verified at review date","#d97706","#fffbeb","#fde047"],
+          [carriedCount,"Carried Forward","Not actioned — re-listed as open issues","#dc2626","#fef2f2","#fca5a5"],
+        ].map(([v,l,d,c,bg,bdr])=>`
+        <div style="background:${bg};border:1px solid ${bdr};border-radius:10px;padding:12px 14px;">
+          <div style="font-size:32px;font-weight:900;color:${c};line-height:1;${FONT}">${v}</div>
+          <div style="font-size:12px;font-weight:700;color:#1e293b;margin:3px 0 2px;${FONT}">${l}</div>
+          <div style="font-size:10px;color:#475569;line-height:1.45;${FONT}">${d}</div>
+        </div>`).join("")}
+        <div style="margin-top:4px;padding:10px 12px;background:#fef9c3;border-radius:8px;border:1px solid #fde047;">
+          <div style="font-size:10px;color:#854d0e;font-weight:600;line-height:1.5;${FONT}">⚠️ A2 (training) and A5 (hours) carried forward — both remain data gaps this period. See slide 13.</div>
+        </div>
+      </div>
+    </div>
+    ${slideFooter(2)}
+  </div>`;
+
+  // ── SLIDE 4 — TREND COMPARISON (H2 2025 → H1 2026) ───────────────────────────
+  const trendRow = (
+    label: string,
+    prev: number, curr: number,
+    lowerIsBetter: boolean,
+    fmt: (n: number) => string = (n) => String(n)
+  ): string => {
+    const improved = lowerIsBetter ? curr < prev : curr > prev;
+    const same = curr === prev;
+    const delta = curr - prev;
+    const arrow = same ? "→" : improved ? "↓" : "↑";
+    const arrowCol = same ? "#64748b" : improved ? "#16a34a" : "#dc2626";
+    const rowBg = same ? "white" : improved ? "#f0fdf4" : "#fff5f5";
+    const deltaStr = (delta > 0 ? "+" : "") + fmt(delta);
+    return `<tr style="border-bottom:1px solid #f1f5f9;background:${rowBg};">
+      <td style="padding:9px 14px;font-size:12px;font-weight:600;color:#1e293b;">${label}</td>
+      <td style="padding:9px 14px;font-size:15px;font-weight:800;color:#64748b;text-align:center;">${fmt(prev)}</td>
+      <td style="padding:9px 14px;font-size:15px;font-weight:800;color:#0f172a;text-align:center;">${fmt(curr)}</td>
+      <td style="padding:9px 14px;text-align:center;">
+        <span style="font-size:16px;font-weight:900;color:${arrowCol};">${arrow}</span>
+      </td>
+      <td style="padding:9px 14px;font-size:12px;font-weight:700;color:${arrowCol};text-align:right;">${same?"—":deltaStr}</td>
+    </tr>`;
+  };
+
+  const sTrend = `<div style="${SS}background:white;">
+    ${slideHeader("Period-over-Period Trend","H2 2025 vs H1 2026  ·  All companies  ·  All jobsites")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Trend table -->
+      <div style="flex:1;padding:16px 28px 46px;">
+        <table style="width:100%;border-collapse:collapse;${FONT}">
+          <thead>
+            <tr style="background:#0f172a;">
+              <th style="padding:10px 14px;text-align:left;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;width:35%;">METRIC</th>
+              <th style="padding:10px 14px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;">H2 2025</th>
+              <th style="padding:10px 14px;text-align:center;font-size:9px;font-weight:700;color:white;letter-spacing:.1em;text-transform:uppercase;">H1 2026</th>
+              <th style="padding:10px 14px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;width:40px;">DIR</th>
+              <th style="padding:10px 14px;text-align:right;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;">CHANGE</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${trendRow("Total Safety Events",    H2_PREV.incidents.total,       H1.incidents.total,       true)}
+            ${trendRow("Incidents",              H2_PREV.incidents.incidents,   H1.incidents.incidents,   true)}
+            ${trendRow("Near Misses",            H2_PREV.incidents.nearMisses,  H1.incidents.nearMisses,  false)}
+            ${trendRow("Recordable Injuries",    H2_PREV.incidents.recordable,  H1.incidents.recordable,  true)}
+            ${trendRow("Lost-Time Cases",        H2_PREV.incidents.lostTime,    H1.incidents.lostTime,    true)}
+            ${trendRow("Fatalities",             H2_PREV.incidents.fatalities,  H1.incidents.fatalities,  true)}
+            ${trendRow("SIF-Potential Events",   H2_PREV.incidents.sifPotential,H1.incidents.sifPotential,true)}
+            ${trendRow("Incident Close Rate",    H2_PREV.incidents.closePct,    H1.incidents.closePct,    false, n=>`${n}%`)}
+            ${trendRow("CAs Overdue",            H2_PREV.cas.overdue,           H1.cas.overdue,           true)}
+            ${trendRow("CA Actioned %",          H2_PREV.cas.actionedPct,       H1.cas.actionedPct,       false, n=>`${n}%`)}
+          </tbody>
+        </table>
+      </div>
+      <!-- Verdict panel -->
+      <div style="width:290px;flex-shrink:0;padding:20px 20px 46px;background:#f8fafc;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Trend Verdict</div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 16px;">
+          <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;${FONT}">✅ Positive direction overall</div>
+          <div style="font-size:11px;color:#166534;line-height:1.55;${FONT}">Total events ↓18% (38→31), recordable injuries ↓18% (22→18), lost-time cases ↓38% (8→5), and incident close rate ↑7 pts (87%→94%). The program is moving in the right direction.</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde047;border-radius:10px;padding:14px 16px;">
+          <div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:6px;${FONT}">⚠️ Still needs attention</div>
+          <div style="font-size:11px;color:#92400e;line-height:1.55;${FONT}">Near-miss reporting dipped slightly (14→12) — the goal is to <em>increase</em> near-miss reports over time. SIF events reduced (6→4) but 4 is still high. Both warrant sustained focus.</div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;">
+          <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px;${FONT}">📈 CA performance improving</div>
+          <div style="font-size:11px;color:#1e40af;line-height:1.55;${FONT}">CA actioned rate improved 10 pts (68%→78%) and overdue count fell (9→6). Still needs clearing — but the trend is right.</div>
+        </div>
+        <div style="padding:8px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+          <div style="font-size:10px;color:#475569;${FONT}">↓ = improvement for incidents/risk · ↑ = improvement for close rates / near misses</div>
+        </div>
+      </div>
+    </div>
+    ${slideFooter(4)}
+  </div>`;
+
+  // ── SLIDE 6 — SITE-LEVEL BREAKDOWN ────────────────────────────────────────────
+  const riskCfg = {
+    critical: { bg:"#fef2f2", col:"#dc2626", bdr:"#fca5a5", dot:"#dc2626" },
+    high:     { bg:"#fff7ed", col:"#c2410c", bdr:"#fed7aa", dot:"#f97316" },
+    medium:   { bg:"#fffbeb", col:"#92400e", bdr:"#fde047", dot:"#f59e0b" },
+    low:      { bg:"#f0fdf4", col:"#166534", bdr:"#86efac", dot:"#22c55e" },
+    clear:    { bg:"#f0fdf4", col:"#166534", bdr:"#86efac", dot:"#10b981" },
+  } as const;
+
+  const sSites = `<div style="${SS}background:white;">
+    ${slideHeader("Site-Level Performance Breakdown","H1 2026  ·  11 jobsites  ·  5 companies")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Site table -->
+      <div style="flex:1;padding:14px 28px 46px;">
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px;${FONT}">
+          <thead>
+            <tr style="background:#0f172a;">
+              ${["SITE","COMPANY","EVENTS","INC","NM","SIF","OVERDUE CAs","RISK"].map(h=>`<th style="padding:9px 12px;text-align:${h==="SITE"||h==="COMPANY"?"left":"center"};font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.09em;text-transform:uppercase;">${h}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${SITES.map((s,i)=>{
+              const cfg = riskCfg[s.risk];
+              return `<tr style="background:${i%2===0?"white":"#f8fafc"};border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 12px;font-weight:600;color:#1e293b;">${s.name}</td>
+                <td style="padding:9px 12px;color:#64748b;font-size:11px;">${s.company}</td>
+                <td style="padding:9px 12px;text-align:center;font-size:15px;font-weight:900;color:${s.events>4?"#dc2626":s.events>2?"#f97316":"#1e293b"};">${s.events}</td>
+                <td style="padding:9px 12px;text-align:center;font-weight:700;color:#475569;">${s.incidents}</td>
+                <td style="padding:9px 12px;text-align:center;font-weight:700;color:#8b5cf6;">${s.nearMisses}</td>
+                <td style="padding:9px 12px;text-align:center;font-weight:800;color:${s.sif>0?"#dc2626":"#10b981"};">${s.sif>0?s.sif:"—"}</td>
+                <td style="padding:9px 12px;text-align:center;font-weight:800;color:${s.overdueCAs>0?"#f97316":"#10b981"};">${s.overdueCAs>0?s.overdueCAs:"—"}</td>
+                <td style="padding:9px 12px;text-align:center;">
+                  <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;background:${cfg.bg};color:${cfg.col};border:1px solid ${cfg.bdr};font-size:9px;font-weight:800;letter-spacing:.06em;${FONT}">
+                    <span style="width:6px;height:6px;border-radius:50%;background:${cfg.dot};flex-shrink:0;"></span>
+                    ${s.risk.toUpperCase()}
+                  </span>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <!-- Insight panel -->
+      <div style="width:250px;flex-shrink:0;padding:18px 18px 46px;background:#f8fafc;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Site Insights</div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:5px;${FONT}">🔴 2 critical sites</div>
+          <div style="font-size:10px;color:#991b1b;line-height:1.5;${FONT}">Riverside Bridge &amp; Southgate Industrial account for <strong>12 of 31 events (39%)</strong> and both SIF flags that had injuries. Prioritise management visits and targeted controls.</div>
+        </div>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:700;color:#c2410c;margin-bottom:5px;${FONT}">🟠 3 high-risk sites</div>
+          <div style="font-size:10px;color:#9a3412;line-height:1.5;${FONT}">Metro Rail C, Harbour Precinct, and Western Terminal each logged 3–4 events. No fatalities but trends need monitoring.</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:5px;${FONT}">✅ 1 site — zero events</div>
+          <div style="font-size:10px;color:#166534;line-height:1.5;${FONT}">Airport Ground Services recorded zero safety events this period. Benchmark their practices across the portfolio.</div>
+        </div>
+        <div style="padding:9px 11px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;">
+          <div style="font-size:10px;color:#1d4ed8;font-weight:600;line-height:1.5;${FONT}">📌 All 4 overdue CAs sit across the 2 critical sites only.</div>
+        </div>
+      </div>
+    </div>
+    ${slideFooter(6)}
+  </div>`;
+
+  // ── SLIDE 7 — LEADING INDICATORS DASHBOARD ────────────────────────────────────
+  const liBar = (label: string, done: number, target: number, pct: number, prevDone: number, color: string): string => {
+    const trend = done >= prevDone;
+    const trendStr = done === prevDone ? "—" : (done > prevDone ? `▲${done-prevDone}` : `▼${prevDone-done}`);
+    const trendCol = done === prevDone ? "#64748b" : trend ? "#16a34a" : "#dc2626";
+    const capped = Math.min(pct, 100);
+    return `<div style="display:flex;flex-direction:column;gap:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-size:12px;font-weight:600;color:#1e293b;${FONT}">${label}</span>
+        <span style="font-size:11px;font-weight:800;color:${color};${FONT}">${done}<span style="font-size:10px;color:#94a3b8;font-weight:500;"> / ${target}</span></span>
+      </div>
+      <div style="height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;">
+        <div style="height:100%;width:${capped}%;background:${color};border-radius:5px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:10px;color:#64748b;${FONT}">${pct}% of target</span>
+        <span style="font-size:10px;font-weight:700;color:${trendCol};${FONT}">vs H2 2025: ${trendStr}</span>
+      </div>
+    </div>`;
+  };
+
+  const sLeading = `<div style="${SS}background:white;">
+    ${slideHeader("Leading Indicators Dashboard","H1 2026  ·  Proactive safety performance metrics")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Bars -->
+      <div style="flex:1;padding:18px 32px 46px;display:flex;flex-direction:column;gap:18px;justify-content:center;">
+        ${liBar("Site Inspections Completed",       LEADING.inspections.completed,  LEADING.inspections.target,  LEADING.inspections.pct,  LEADING.prevPeriod.inspections,  "#3b82f6")}
+        ${liBar("Toolbox Talks Delivered",           LEADING.toolboxTalks.completed, LEADING.toolboxTalks.target, LEADING.toolboxTalks.pct, LEADING.prevPeriod.toolboxTalks, "#8b5cf6")}
+        ${liBar("Hazard Reports Submitted",          LEADING.hazardReports.completed,LEADING.hazardReports.target,LEADING.hazardReports.pct,LEADING.prevPeriod.hazardReports,"#f97316")}
+        ${liBar("Safety Observations Logged",        LEADING.safetyObs.completed,    LEADING.safetyObs.target,    LEADING.safetyObs.pct,    LEADING.prevPeriod.safetyObs,    "#10b981")}
+        ${liBar("Pre-Task Risk Assessments Filed",   LEADING.preTaskRAs.completed,   LEADING.preTaskRAs.target,   LEADING.preTaskRAs.pct,   LEADING.prevPeriod.preTaskRAs,   "#0ea5e9")}
+      </div>
+      <!-- Right panel -->
+      <div style="width:310px;flex-shrink:0;padding:18px 20px 46px;background:#f8fafc;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Standout Metrics</div>
+        ${[
+          {icon:"🛑",label:"Stop-Work Authorities",val:"3 issued",sub:"Workers exercising SWA rights — a positive safety culture signal.",col:"#dc2626",bg:"#fef2f2",bdr:"#fca5a5"},
+          {icon:"📋",label:"Near-Miss Ratio",val:"0.63 : 1",sub:"12 near-misses to 19 incidents. Improving but below the ≥ 1:1 industry best-practice target.",col:"#f97316",bg:"#fff7ed",bdr:"#fed7aa"},
+          {icon:"✅",label:"Pre-Task RAs",val:"104% of target",sub:"312 filed vs 300 planned — safety planning is ahead of target across the portfolio.",col:"#10b981",bg:"#f0fdf4",bdr:"#86efac"},
+          {icon:"⚠️",label:"Hazard Reports",val:"76% of target",sub:"38 of 50 planned hazard reports filed. Gap likely tied to training data absence — improve visibility.",col:"#f59e0b",bg:"#fffbeb",bdr:"#fde047"},
+        ].map(m=>`
+        <div style="background:${m.bg};border:1px solid ${m.bdr};border-radius:9px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="font-size:13px;">${m.icon}</span>
+            <span style="font-size:11px;font-weight:700;color:#1e293b;flex:1;${FONT}">${m.label}</span>
+            <span style="font-size:12px;font-weight:900;color:${m.col};${FONT}">${m.val}</span>
+          </div>
+          <div style="font-size:10px;color:#475569;line-height:1.45;padding-left:19px;${FONT}">${m.sub}</div>
+        </div>`).join("")}
+        <div style="margin-top:auto;padding:9px 11px;background:#fef9c3;border-radius:8px;border:1px solid #fde047;">
+          <div style="font-size:10px;color:#854d0e;font-weight:600;line-height:1.5;${FONT}">📌 Training completion is a leading indicator not yet loaded — once populated it will appear here automatically.</div>
+        </div>
+      </div>
+    </div>
+    ${slideFooter(7)}
+  </div>`;
+
+  // ── SLIDE 3 — EXECUTIVE SUMMARY ────────────────────────────────────────────
   const statBox = (val: string|number, label: string, sub: string, col: string, bg: string) =>
     `<div style="flex:1;background:${bg};border-radius:12px;padding:20px 18px;display:flex;flex-direction:column;gap:4px;border:1px solid ${col}22;">
       <div style="font-size:42px;font-weight:900;color:${col};line-height:1;${FONT}">${val}</div>
@@ -314,10 +626,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(2)}
+    ${slideFooter(3)}
   </div>`;
 
-  // ── SLIDE 3 — SAFETY SCORECARD ─────────────────────────────────────────────
+  // ── SLIDE 5 — SAFETY SCORECARD ─────────────────────────────────────────────
   const scorecardRows = [
     ["Total Safety Events",    "31",    "19 incidents + 12 near misses",                "#0ea5e9"],
     ["Total Incidents",        "19",    "Recordable + non-recordable",                   "#3b82f6"],
@@ -367,10 +679,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(3)}
+    ${slideFooter(5)}
   </div>`;
 
-  // ── SLIDE 4 — INCIDENT REVIEW ──────────────────────────────────────────────
+  // ── SLIDE 8 — INCIDENT REVIEW ──────────────────────────────────────────────
   const sevBars = hBarSVG([
     { label:"Critical", value:1,  color:"#dc2626" },
     { label:"High",     value:14, color:"#f97316" },
@@ -428,10 +740,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(4)}
+    ${slideFooter(8)}
   </div>`;
 
-  // ── SLIDE 5 — COMPLIANCE STATUS ────────────────────────────────────────────
+  // ── SLIDE 9 — COMPLIANCE STATUS ────────────────────────────────────────────
   const s5 = `<div style="${SS}background:white;">
     ${slideHeader("Compliance Status","Permits  ·  Audits  ·  Training  ·  H1 2026")}
     <div style="flex:1;display:flex;gap:0;">
@@ -488,10 +800,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(5)}
+    ${slideFooter(9)}
   </div>`;
 
-  // ── SLIDE 6 — RISK HEAT MAP ────────────────────────────────────────────────
+  // ── SLIDE 10 — RISK HEAT MAP ────────────────────────────────────────────────
   const hm = heatMapSVG();
   const s6 = `<div style="${SS}background:white;">
     ${slideHeader("Risk Matrix — Portfolio Overview","30 scored risk items  ·  All jobsites  ·  H1 2026")}
@@ -525,10 +837,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(6)}
+    ${slideFooter(10)}
   </div>`;
 
-  // ── SLIDE 7 — CORRECTIVE ACTIONS ───────────────────────────────────────────
+  // ── SLIDE 11 — CORRECTIVE ACTIONS ───────────────────────────────────────────
   const caStatusBars = hBarSVG([
     { label:"Verified closed", value:25, color:"#10b981" },
     { label:"Corrected",       value:17, color:"#3b82f6" },
@@ -584,10 +896,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(7)}
+    ${slideFooter(11)}
   </div>`;
 
-  // ── SLIDE 8 — ASKS / DECISIONS NEEDED ─────────────────────────────────────
+  // ── SLIDE 12 — ASKS / DECISIONS NEEDED ─────────────────────────────────────
   const asks = [
     {
       letter:"a",
@@ -627,10 +939,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         <span style="font-size:12px;color:#166534;font-weight:600;${FONT}">Each ask is tied to specific numbers. Decisions and owners should be recorded in the minutes (Slide 9) before this meeting closes.</span>
       </div>
     </div>
-    ${slideFooter(8)}
+    ${slideFooter(12)}
   </div>`;
 
-  // ── SLIDE 9 — OPEN ISSUES & GAPS ──────────────────────────────────────────
+  // ── SLIDE 13 — OPEN ISSUES & GAPS ──────────────────────────────────────────
   const sGaps = `<div style="${SS}background:white;">
     ${slideHeader("Open Issues &amp; Critical Gaps","H1 2026  ·  What needs immediate attention")}
     <div style="flex:1;display:flex;gap:0;">
@@ -689,10 +1001,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>`).join("")}
       </div>
     </div>
-    ${slideFooter(9)}
+    ${slideFooter(13)}
   </div>`;
 
-  // ── SLIDE 10 — NEXT STEPS & CLOSE ──────────────────────────────────────────
+  // ── SLIDE 14 — NEXT STEPS & CLOSE ──────────────────────────────────────────
   const priorities = [
     { icon:"🔴", title:"SIF prevention — immediate",
       body:"Conduct targeted reviews of the four SIF hazard types flagged this period: hand/crush during crane picks, arc flash, chemical exposure, and work-at-height. Implement or verify engineered controls before next period." },
@@ -744,7 +1056,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:10px 48px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">10 / 10</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">14 / 14</span>
     </div>
   </div>`;
 
@@ -755,7 +1067,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     <div style="flex:1;padding:22px 48px 46px;display:flex;flex-direction:column;gap:12px;overflow:hidden;">
       <div style="flex:1;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:16px;font-size:12px;color:#334155;line-height:1.75;white-space:pre-wrap;overflow:auto;${FONT}">${notes.trim()}</div>
     </div>
-    ${slideFooter(11)}
+    ${slideFooter(15)}
   </div>` : "";
 
   // ── FULL HTML ──────────────────────────────────────────────────────────────
@@ -781,8 +1093,12 @@ body{padding:32px;display:flex;flex-direction:column;align-items:center;gap:32px
 </head>
 <body>
   <div class="slide">${s1}</div>
+  <div class="slide">${sPrevReview}</div>
   <div class="slide">${s2}</div>
+  <div class="slide">${sTrend}</div>
   <div class="slide">${s3}</div>
+  <div class="slide">${sSites}</div>
+  <div class="slide">${sLeading}</div>
   <div class="slide">${s4}</div>
   <div class="slide">${s5}</div>
   <div class="slide">${s6}</div>
