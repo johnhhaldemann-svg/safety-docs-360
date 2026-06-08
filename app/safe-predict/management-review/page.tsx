@@ -147,6 +147,42 @@ const SITES = [
   { name:"Airport Ground Services",     company:"Western Logistics",  events:0, incidents:0, nearMisses:0, sif:0, overdueCAs:0, risk:"clear" as const },
 ];
 
+// ── Objectives & targets data ─────────────────────────────────────────────────
+
+const OBJECTIVES = [
+  { obj:"Zero fatalities",                       target:"0",      actual:"0",    status:"met"    as const, note:"No fatal events recorded — target held" },
+  { obj:"Recordable injuries ↓15% vs H2 2025",  target:"≤19",    actual:"18",   status:"met"    as const, note:"Was 22 in H2 2025 — target achieved" },
+  { obj:"Lost-time cases ↓ vs H2 2025",         target:"≤6",     actual:"5",    status:"met"    as const, note:"Was 8 in H2 2025 — target achieved" },
+  { obj:"Incident close rate",                   target:"≥90%",   actual:"94%",  status:"met"    as const, note:"Strong performance — above target" },
+  { obj:"SIF-potential events",                  target:"≤2",     actual:"4",    status:"missed" as const, note:"Remains priority area — targeted controls required H2" },
+  { obj:"Overdue corrective actions",            target:"≤5",     actual:"6",    status:"watch"  as const, note:"Improved (9→6) but target of ≤5 not hit" },
+  { obj:"Near-miss reporting ratio",             target:"≥1.0",   actual:"0.63", status:"watch"  as const, note:"Trending right, below ≥1:1 industry target" },
+  { obj:"Site inspection completion",            target:"≥90%",   actual:"85%",  status:"watch"  as const, note:"5 sites below target — improve monitoring cadence" },
+  { obj:"Training completion",                   target:"≥95%",   actual:"N/A",  status:"gap"    as const, note:"Data not yet loaded into platform" },
+  { obj:"Site audit completion",                 target:"4/site", actual:"N/A",  status:"gap"    as const, note:"Audit records not yet populated" },
+];
+
+// ── Legal & regulatory data ────────────────────────────────────────────────────
+
+const LEGAL = {
+  jurisdiction: "Australia — Work Health & Safety Act 2011 (model law)",
+  noEnforcementNotices: true,
+  certifications: [
+    { name:"ISO 45001:2018", status:"In maintenance", expiry:"Nov 2026", ok:true  },
+    { name:"ISO 9001:2015",  status:"In maintenance", expiry:"Mar 2027", ok:true  },
+    { name:"WHS Licence",    status:"Current",        expiry:"Jan 2027", ok:true  },
+  ],
+  updates: [
+    { date:"Jan 2026", item:"Safe Work Australia published updated guidance on plant & equipment inspection frequencies.", action:"Review and update internal procedures", due:"Q3 2026", status:"in-progress" as const },
+    { date:"Feb 2026", item:"State regulator revised confined space code of practice — updated atmospheric monitoring requirements.", action:"Update site procedures and retrain affected personnel", due:"Q2 2026", status:"overdue" as const },
+    { date:"Apr 2026", item:"WHS Regulations amendment — fall-protection requirements for work at heights below 2m clarified.", action:"Verify all edge-protection risk assessments reference updated standard", due:"Q3 2026", status:"pending" as const },
+  ],
+  upcoming: [
+    "Q3 2026 — New confined space regulations take effect (refer Feb 2026 update above)",
+    "Q4 2026 — Mandatory psychosocial hazard risk assessment requirements effective",
+  ],
+};
+
 // ── Leading indicators data ────────────────────────────────────────────────────
 
 const LEADING = {
@@ -272,7 +308,7 @@ function slideHeader(title: string, sub: string): string {
 function slideFooter(n: number): string {
   return `<div style="position:absolute;bottom:0;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:7px 48px;display:flex;justify-content:space-between;">
     <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">SafePredict  ·  Safety & Compliance Review  ·  H1 2026  ·  CONFIDENTIAL</span>
-    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 14</span>
+    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 16</span>
   </div>`;
 }
 
@@ -325,7 +361,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:16px 80px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">CONFIDENTIAL  ·  FOR EXECUTIVE REVIEW ONLY</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 14</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 16</span>
     </div>
   </div>`;
 
@@ -526,10 +562,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(6)}
+    ${slideFooter(7)}
   </div>`;
 
-  // ── SLIDE 7 — LEADING INDICATORS DASHBOARD ────────────────────────────────────
+  // ── SLIDE 8 — LEADING INDICATORS DASHBOARD ────────────────────────────────────
   const liBar = (label: string, done: number, target: number, pct: number, prevDone: number, color: string): string => {
     const trend = done >= prevDone;
     const trendStr = done === prevDone ? "—" : (done > prevDone ? `▲${done-prevDone}` : `▼${prevDone-done}`);
@@ -583,7 +619,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(7)}
+    ${slideFooter(8)}
   </div>`;
 
   // ── SLIDE 3 — EXECUTIVE SUMMARY ────────────────────────────────────────────
@@ -682,6 +718,66 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     ${slideFooter(5)}
   </div>`;
 
+  // ── SLIDE 6 — OBJECTIVES & TARGETS ────────────────────────────────────────────
+  const objStatusCfg = {
+    met:    { bg:"#f0fdf4", col:"#16a34a", bdr:"#86efac", badge:"MET ✓"     },
+    watch:  { bg:"#fffbeb", col:"#d97706", bdr:"#fde047", badge:"MONITOR ⚠️" },
+    missed: { bg:"#fef2f2", col:"#dc2626", bdr:"#fca5a5", badge:"MISSED ✗"  },
+    gap:    { bg:"#f8fafc", col:"#64748b", bdr:"#e2e8f0", badge:"DATA GAP"  },
+  } as const;
+  const metCount    = OBJECTIVES.filter(o => o.status === "met").length;
+  const watchCount  = OBJECTIVES.filter(o => o.status === "watch").length;
+  const missedCount = OBJECTIVES.filter(o => o.status === "missed").length;
+  const gapCount    = OBJECTIVES.filter(o => o.status === "gap").length;
+
+  const sObjectives = `<div style="${SS}background:white;">
+    ${slideHeader("Objectives &amp; Targets — H1 2026 vs Plan","Annual safety objectives set at H2 2025 review  ·  RAG status at period end")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Objective table -->
+      <div style="flex:1;padding:14px 28px 46px;">
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px;${FONT}">
+          <thead>
+            <tr style="background:#0f172a;">
+              ${["OBJECTIVE","TARGET","ACTUAL","STATUS","NOTES"].map(h=>`<th style="padding:9px 12px;text-align:left;font-size:9px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.09em;text-transform:uppercase;">${h}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${OBJECTIVES.map((o,i)=>{
+              const cfg = objStatusCfg[o.status];
+              return `<tr style="background:${i%2===0?"white":"#f8fafc"};border-bottom:1px solid #f1f5f9;">
+                <td style="padding:9px 12px;font-weight:600;color:#1e293b;">${o.obj}</td>
+                <td style="padding:9px 12px;font-weight:700;color:#475569;white-space:nowrap;">${o.target}</td>
+                <td style="padding:9px 12px;font-size:14px;font-weight:900;color:${cfg.col};white-space:nowrap;">${o.actual}</td>
+                <td style="padding:9px 12px;white-space:nowrap;">
+                  <span style="display:inline-block;padding:3px 9px;border-radius:20px;background:${cfg.bg};color:${cfg.col};border:1px solid ${cfg.bdr};font-size:9px;font-weight:800;letter-spacing:.05em;${FONT}">${cfg.badge}</span>
+                </td>
+                <td style="padding:9px 12px;color:#64748b;font-size:11px;">${o.note}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <!-- Summary panel -->
+      <div style="width:230px;flex-shrink:0;padding:18px 18px 46px;background:#f8fafc;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Target Summary</div>
+        ${([
+          [metCount,   "Targets Met",           "#f0fdf4","#16a34a","#86efac"],
+          [watchCount, "Monitor / Partial",      "#fffbeb","#d97706","#fde047"],
+          [missedCount,"Targets Missed",         "#fef2f2","#dc2626","#fca5a5"],
+          [gapCount,   "Data Gap — not reported","#f8fafc","#64748b","#e2e8f0"],
+        ] as [number,string,string,string,string][]).map(([v,l,bg,col,bdr])=>`
+        <div style="background:${bg};border:1px solid ${bdr};border-radius:9px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+          <div style="font-size:30px;font-weight:900;color:${col};line-height:1;min-width:36px;${FONT}">${v}</div>
+          <div style="font-size:11px;font-weight:600;color:#1e293b;${FONT}">${l}</div>
+        </div>`).join("")}
+        <div style="margin-top:4px;padding:10px 12px;background:#fef9c3;border-radius:8px;border:1px solid #fde047;">
+          <div style="font-size:10px;color:#854d0e;font-weight:600;line-height:1.5;${FONT}">📌 Training and audit targets cannot be assessed until records are loaded into the platform.</div>
+        </div>
+      </div>
+    </div>
+    ${slideFooter(6)}
+  </div>`;
+
   // ── SLIDE 8 — INCIDENT REVIEW ──────────────────────────────────────────────
   const sevBars = hBarSVG([
     { label:"Critical", value:1,  color:"#dc2626" },
@@ -740,10 +836,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(8)}
+    ${slideFooter(9)}
   </div>`;
 
-  // ── SLIDE 9 — COMPLIANCE STATUS ────────────────────────────────────────────
+  // ── SLIDE 10 — COMPLIANCE STATUS ────────────────────────────────────────────
   const s5 = `<div style="${SS}background:white;">
     ${slideHeader("Compliance Status","Permits  ·  Audits  ·  Training  ·  H1 2026")}
     <div style="flex:1;display:flex;gap:0;">
@@ -800,10 +896,65 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(9)}
+    ${slideFooter(10)}
   </div>`;
 
-  // ── SLIDE 10 — RISK HEAT MAP ────────────────────────────────────────────────
+  // ── SLIDE 11 — LEGAL & REGULATORY STATUS ──────────────────────────────────────
+  const legalUpdateStatusCfg = {
+    "in-progress": { bg:"#eff6ff", col:"#1d4ed8", bdr:"#bfdbfe", label:"IN PROGRESS" },
+    "overdue":     { bg:"#fef2f2", col:"#dc2626", bdr:"#fca5a5", label:"OVERDUE"     },
+    "pending":     { bg:"#f8fafc", col:"#64748b", bdr:"#e2e8f0", label:"PENDING"     },
+  } as const;
+
+  const sLegal = `<div style="${SS}background:white;">
+    ${slideHeader("Legal &amp; Regulatory Status","H1 2026  ·  WHS Act 2011  ·  ISO 45001 obligations")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Left: standing + certifications -->
+      <div style="width:290px;flex-shrink:0;padding:16px 20px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Compliance Standing</div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px;${FONT}">✅ No enforcement notices</div>
+          <div style="font-size:10px;color:#166534;line-height:1.5;${FONT}">No improvement notices, prohibition notices, or penalty infringement notices received this period.</div>
+        </div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Certifications &amp; Licences</div>
+        ${LEGAL.certifications.map(c=>`
+        <div style="background:${c.ok?"#f0fdf4":"#fef2f2"};border:1px solid ${c.ok?"#86efac":"#fca5a5"};border-radius:9px;padding:10px 12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+            <span style="font-size:11px;font-weight:700;color:#1e293b;${FONT}">${c.name}</span>
+            <span style="font-size:9px;font-weight:800;color:${c.ok?"#16a34a":"#dc2626"};${FONT}">${c.ok?"CURRENT":"EXPIRED"}</span>
+          </div>
+          <div style="font-size:10px;color:#64748b;${FONT}">${c.status}  ·  Expiry: ${c.expiry}</div>
+        </div>`).join("")}
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:700;color:#0369a1;margin-bottom:3px;${FONT}">Jurisdiction</div>
+          <div style="font-size:10px;color:#0c4a6e;line-height:1.45;${FONT}">${LEGAL.jurisdiction}</div>
+        </div>
+      </div>
+      <!-- Right: regulatory updates -->
+      <div style="flex:1;padding:16px 24px 46px;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;${FONT}">Regulatory Updates — H1 2026</div>
+        ${LEGAL.updates.map(u=>{
+          const cfg = legalUpdateStatusCfg[u.status];
+          return `<div style="padding:11px 14px;background:${cfg.bg};border:1px solid ${cfg.bdr};border-radius:9px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px;">
+              <div style="font-size:10px;font-weight:700;color:#475569;flex-shrink:0;${FONT}">${u.date}</div>
+              <span style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:12px;background:${cfg.bg};color:${cfg.col};border:1px solid ${cfg.bdr};flex-shrink:0;${FONT}">${cfg.label}</span>
+            </div>
+            <div style="font-size:11px;font-weight:600;color:#1e293b;margin-bottom:4px;line-height:1.4;${FONT}">${u.item}</div>
+            <div style="font-size:10px;color:#64748b;line-height:1.4;${FONT}">▶ Required action: ${u.action}  ·  Due: ${u.due}</div>
+          </div>`;
+        }).join("")}
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-top:4px;${FONT}">⚡ Upcoming Obligations</div>
+        ${LEGAL.upcoming.map(u=>`
+        <div style="padding:8px 12px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;">
+          <div style="font-size:11px;color:#4c1d95;line-height:1.4;${FONT}">• ${u}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+    ${slideFooter(11)}
+  </div>`;
+
+  // ── SLIDE 12 — RISK HEAT MAP ────────────────────────────────────────────────
   const hm = heatMapSVG();
   const s6 = `<div style="${SS}background:white;">
     ${slideHeader("Risk Matrix — Portfolio Overview","30 scored risk items  ·  All jobsites  ·  H1 2026")}
@@ -837,10 +988,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(10)}
+    ${slideFooter(12)}
   </div>`;
 
-  // ── SLIDE 11 — CORRECTIVE ACTIONS ───────────────────────────────────────────
+  // ── SLIDE 13 — CORRECTIVE ACTIONS ───────────────────────────────────────────
   const caStatusBars = hBarSVG([
     { label:"Verified closed", value:25, color:"#10b981" },
     { label:"Corrected",       value:17, color:"#3b82f6" },
@@ -896,10 +1047,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>
       </div>
     </div>
-    ${slideFooter(11)}
+    ${slideFooter(13)}
   </div>`;
 
-  // ── SLIDE 12 — ASKS / DECISIONS NEEDED ─────────────────────────────────────
+  // ── SLIDE 14 — ASKS / DECISIONS NEEDED ─────────────────────────────────────
   const asks = [
     {
       letter:"a",
@@ -939,10 +1090,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         <span style="font-size:12px;color:#166534;font-weight:600;${FONT}">Each ask is tied to specific numbers. Decisions and owners should be recorded in the minutes (Slide 9) before this meeting closes.</span>
       </div>
     </div>
-    ${slideFooter(12)}
+    ${slideFooter(14)}
   </div>`;
 
-  // ── SLIDE 13 — OPEN ISSUES & GAPS ──────────────────────────────────────────
+  // ── SLIDE 15 — OPEN ISSUES & GAPS ──────────────────────────────────────────
   const sGaps = `<div style="${SS}background:white;">
     ${slideHeader("Open Issues &amp; Critical Gaps","H1 2026  ·  What needs immediate attention")}
     <div style="flex:1;display:flex;gap:0;">
@@ -1001,10 +1152,10 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
         </div>`).join("")}
       </div>
     </div>
-    ${slideFooter(13)}
+    ${slideFooter(15)}
   </div>`;
 
-  // ── SLIDE 14 — NEXT STEPS & CLOSE ──────────────────────────────────────────
+  // ── SLIDE 16 — NEXT STEPS & CLOSE ──────────────────────────────────────────
   const priorities = [
     { icon:"🔴", title:"SIF prevention — immediate",
       body:"Conduct targeted reviews of the four SIF hazard types flagged this period: hand/crush during crane picks, arc flash, chemical exposure, and work-at-height. Implement or verify engineered controls before next period." },
@@ -1056,7 +1207,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:10px 48px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">14 / 14</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">16 / 16</span>
     </div>
   </div>`;
 
@@ -1067,7 +1218,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     <div style="flex:1;padding:22px 48px 46px;display:flex;flex-direction:column;gap:12px;overflow:hidden;">
       <div style="flex:1;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:16px;font-size:12px;color:#334155;line-height:1.75;white-space:pre-wrap;overflow:auto;${FONT}">${notes.trim()}</div>
     </div>
-    ${slideFooter(15)}
+    ${slideFooter(17)}
   </div>` : "";
 
   // ── FULL HTML ──────────────────────────────────────────────────────────────
@@ -1097,10 +1248,12 @@ body{padding:32px;display:flex;flex-direction:column;align-items:center;gap:32px
   <div class="slide">${s2}</div>
   <div class="slide">${sTrend}</div>
   <div class="slide">${s3}</div>
+  <div class="slide">${sObjectives}</div>
   <div class="slide">${sSites}</div>
   <div class="slide">${sLeading}</div>
   <div class="slide">${s4}</div>
   <div class="slide">${s5}</div>
+  <div class="slide">${sLegal}</div>
   <div class="slide">${s6}</div>
   <div class="slide">${s7}</div>
   <div class="slide">${s8}</div>
@@ -1228,9 +1381,22 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     ...scData.map(([m,v,n,c],i)=>[{text:m,options:{color:C.dark,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:v,options:{bold:true,fontSize:16,color:c,align:"center" as const,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:n,options:{color:C.muted,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}}]),
   ] as any,{x:0.4,y:0.73,w:9.2,h:4.6,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[3.2,1.1,4.9],fontFace:"Calibri",fontSize:11,rowH:0.42});
 
-  // ── Slide 6 — SITE BREAKDOWN ─────────────────────────────────────────────────
+  // ── Slide 6 — OBJECTIVES & TARGETS ──────────────────────────────────────────
+  const sl6obj = pres.addSlide();
+  hdr(sl6obj,"Objectives & Targets — H1 2026 vs Plan","Annual safety objectives  ·  RAG status at period end",6);
+  const objStatCfgP = { met:{col:C.green,lbl:"MET ✓"}, watch:{col:"d97706",lbl:"MONITOR ⚠️"}, missed:{col:C.red,lbl:"MISSED ✗"}, gap:{col:C.muted,lbl:"DATA GAP"} };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sl6obj.addTable([
+    [{text:"OBJECTIVE",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"TARGET",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"ACTUAL",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"STATUS",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NOTES",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
+    ...OBJECTIVES.map((o,i)=>{const cfg=objStatCfgP[o.status];const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:o.obj,options:{color:C.dark,fill:{color:rf}}},{text:o.target,options:{bold:true,color:C.muted,align:"center" as const,fill:{color:rf}}},{text:o.actual,options:{bold:true,fontSize:14,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:cfg.lbl,options:{bold:true,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:o.note,options:{color:C.muted,fill:{color:rf}}}];}),
+  ] as any,{x:0.4,y:0.73,w:9.2,h:4.55,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.8,1.0,1.0,1.2,3.2],fontFace:"Calibri",fontSize:10,rowH:0.42});
+  const [mc,wc,xc,gc]=[OBJECTIVES.filter(o=>o.status==="met").length,OBJECTIVES.filter(o=>o.status==="watch").length,OBJECTIVES.filter(o=>o.status==="missed").length,OBJECTIVES.filter(o=>o.status==="gap").length];
+  sl6obj.addShape("rect",{x:0.4,y:5.0,w:9.2,h:0.22,fill:{color:"f0fdf4"},line:{color:"86efac",width:1}});
+  sl6obj.addText(`✅ ${mc} met  |  ⚠️ ${wc} monitor  |  ✗ ${xc} missed  |  📭 ${gc} data gaps (training + audit not yet loaded)`,{x:0.55,y:5.02,w:9.0,h:0.18,fontSize:9,color:C.dark,fontFace:"Calibri"});
+
+  // ── Slide 7 — SITE BREAKDOWN ─────────────────────────────────────────────────
   const sl6 = pres.addSlide();
-  hdr(sl6,"Site-Level Performance Breakdown","H1 2026  ·  11 jobsites  ·  5 companies",6);
+  hdr(sl6,"Site-Level Performance Breakdown","H1 2026  ·  11 jobsites  ·  5 companies",7);
   const rCol={critical:C.red,high:C.orange,medium:C.amber,low:C.green,clear:C.green};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sl6.addTable([
@@ -1240,7 +1406,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 7 — LEADING INDICATORS ─────────────────────────────────────────────
   const sl7 = pres.addSlide();
-  hdr(sl7,"Leading Indicators Dashboard","H1 2026  ·  Proactive safety performance metrics",7);
+  hdr(sl7,"Leading Indicators Dashboard","H1 2026  ·  Proactive safety performance metrics",8);
   ([
     ["Site Inspections",       LEADING.inspections.completed,  LEADING.inspections.target,  LEADING.inspections.pct,  LEADING.prevPeriod.inspections,  C.blue],
     ["Toolbox Talks Delivered",LEADING.toolboxTalks.completed, LEADING.toolboxTalks.target, LEADING.toolboxTalks.pct, LEADING.prevPeriod.toolboxTalks, "8b5cf6"],
@@ -1267,7 +1433,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 8 — INCIDENT REVIEW ────────────────────────────────────────────────
   const sl8 = pres.addSlide();
-  hdr(sl8,"Incident Review","H1 2026  ·  31 events  ·  19 incidents  ·  12 near misses",8);
+  hdr(sl8,"Incident Review","H1 2026  ·  31 events  ·  19 incidents  ·  12 near misses",9);
   sl8.addText("By Severity",{x:0.4,y:0.73,w:4.0,h:0.25,fontSize:9,bold:true,color:C.muted,fontFace:"Calibri"});
   ([{l:"Critical",v:1,c:C.red},{l:"High",v:14,c:C.orange},{l:"Medium",v:12,c:C.amber},{l:"Low",v:4,c:C.green}]).forEach((s,i)=>{
     const y=1.02+i*0.65; const bw=Math.max(0.1,(s.v/14)*3.0);
@@ -1291,7 +1457,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 9 — COMPLIANCE ─────────────────────────────────────────────────────
   const sl9 = pres.addSlide();
-  hdr(sl9,"Compliance Status","Permits  ·  Audits  ·  Training  ·  H1 2026",9);
+  hdr(sl9,"Compliance Status","Permits  ·  Audits  ·  Training  ·  H1 2026",10);
   sl9.addText("📋  Permits to Work",{x:0.4,y:0.75,w:4.0,h:0.3,fontSize:12,bold:true,color:C.dark,fontFace:"Calibri"});
   ([["38","Total",C.blue,"f0f9ff"],["7","Active","3b82f6","eff6ff"],["30","Closed",C.green,"f0fdf4"],["1","Draft",C.amber,"fffbeb"]] as [string,string,string,string][]).forEach(([v,l,c,bg],i)=>{
     const x=0.4+i*1.05;
@@ -1308,9 +1474,35 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   sl9.addText("🎓  Employee Training — DATA GAP",{x:4.9,y:0.83,w:4.6,h:0.3,fontSize:11,bold:true,color:C.orange,fontFace:"Calibri"});
   sl9.addText("Training completion records are not yet populated.\n\nTraining completion % cannot be reported this period.\n\nThis is a mandatory ISO 45001 §7.2 metric.\n\nAction: assign data-entry ownership and set a deadline before the next management review.",{x:4.9,y:1.22,w:4.6,h:3.5,fontSize:11,color:"9a3412",fontFace:"Calibri"});
 
-  // ── Slide 10 — RISK MATRIX ───────────────────────────────────────────────────
+  // ── Slide 11 — LEGAL & REGULATORY STATUS ─────────────────────────────────────
+  const sl11leg = pres.addSlide();
+  hdr(sl11leg,"Legal & Regulatory Status","H1 2026  ·  WHS Act 2011  ·  ISO 45001 obligations",11);
+  sl11leg.addShape("rect",{x:0.4,y:0.72,w:3.8,h:0.36,fill:{color:C.green},line:{color:C.green,width:0}});
+  sl11leg.addText("✅  NO ENFORCEMENT NOTICES — PERIOD CLEAR",{x:0.5,y:0.75,w:3.6,h:0.28,fontSize:11,bold:true,color:C.white,fontFace:"Calibri"});
+  sl11leg.addText("Jurisdiction",{x:0.4,y:1.16,w:1.6,h:0.22,fontSize:10,bold:true,color:C.muted,fontFace:"Calibri"});
+  sl11leg.addText(LEGAL.jurisdiction,{x:0.4,y:1.38,w:3.8,h:0.3,fontSize:10,color:C.dark,fontFace:"Calibri"});
+  sl11leg.addText("CERTIFICATIONS",{x:0.4,y:1.78,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sl11leg.addTable([
+    [{text:"Certification",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Expiry",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
+    ...LEGAL.certifications.map((c,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:c.name,options:{color:C.dark,fill:{color:rf}}},{text:c.status,options:{color:c.ok?C.green:C.red,fill:{color:rf}}},{text:c.expiry,options:{color:C.muted,fill:{color:rf}}}];}),
+  ] as any,{x:0.4,y:2.04,w:3.8,h:1.0,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[1.9,1.1,0.8],fontFace:"Calibri",fontSize:10,rowH:0.25});
+  sl11leg.addText("UPCOMING OBLIGATIONS",{x:0.4,y:3.14,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
+  LEGAL.upcoming.forEach((u,i)=>{sl11leg.addText(`• ${u}`,{x:0.4,y:3.4+i*0.35,w:3.8,h:0.3,fontSize:10,color:"9a3412",fontFace:"Calibri"});});
+  sl11leg.addText("REGULATORY UPDATES — H1 2026",{x:4.5,y:0.72,w:5.1,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
+  const statusColor = (s:string) => s==="overdue"?C.red:s==="in-progress"?C.amber:"94a3b8";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sl11leg.addTable([
+    [{text:"Date",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Update / Obligation",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Action Required",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Due",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
+    ...LEGAL.updates.map((u,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:u.date,options:{color:C.muted,fill:{color:rf}}},{text:u.item,options:{color:C.dark,fill:{color:rf}}},{text:u.action,options:{color:C.muted,fill:{color:rf}}},{text:u.due,options:{color:C.muted,fill:{color:rf}}},{text:u.status.toUpperCase(),options:{bold:true,color:statusColor(u.status),fill:{color:rf}}}];}),
+  ] as any,{x:4.5,y:1.0,w:5.1,h:1.3,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[0.6,1.9,1.5,0.6,0.5],fontFace:"Calibri",fontSize:9,rowH:0.33});
+  sl11leg.addText("KEY COMPLIANCE RISK — PRIORITY ACTION",{x:4.5,y:2.4,w:5.1,h:0.22,fontSize:10,bold:true,color:C.red,fontFace:"Calibri"});
+  sl11leg.addShape("rect",{x:4.5,y:2.66,w:5.1,h:1.6,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
+  sl11leg.addText("Confined Space Regulations (Feb 2026 update) — OVERDUE\n\nState regulator revised atmospheric monitoring requirements. Site procedures must be updated and all affected personnel retrained before new confined space regulations take effect in Q3 2026.\n\nResponsible: HSE Manager  |  Deadline: Q2 2026 (OVERDUE)  |  Escalate immediately.",{x:4.6,y:2.72,w:4.9,h:1.48,fontSize:10,color:"9a3412",fontFace:"Calibri"});
+
+  // ── Slide 12 — RISK MATRIX ───────────────────────────────────────────────────
   const sl10 = pres.addSlide();
-  hdr(sl10,"Risk Matrix — Portfolio Overview","30 scored risk items  ·  All jobsites  ·  H1 2026",10);
+  hdr(sl10,"Risk Matrix — Portfolio Overview","30 scored risk items  ·  All jobsites  ·  H1 2026",12);
   ([["2","Critical / Extreme","Immediate controls required",C.red,"fef2f2","fca5a5"],["14","High","Targeted risk treatment needed",C.orange,"fff7ed","fed7aa"],["13","Moderate","Manage & monitor",C.amber,"fffbeb","fde047"],["1","Low","Accept with periodic review",C.green,"f0fdf4","86efac"]] as [string,string,string,string,string,string][]).forEach(([v,l,d,c,bg,bdr],i)=>{
     const y=0.78+i*1.05;
     sl10.addShape("rect",{x:0.4,y,w:4.5,h:0.97,fill:{color:bg},line:{color:bdr,width:1}});
@@ -1329,11 +1521,11 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   (["Fatal","Major","Moderate","Minor","Neglg."]).forEach((l,i)=>sl10.addText(l,{x:gx-1.05,y:gy+i*cs+0.22,w:1.0,h:0.28,fontSize:8.5,color:C.muted,align:"right",fontFace:"Calibri"}));
   (["Rare","Unlikely","Possible","Likely","A.Certain"]).forEach((l,i)=>sl10.addText(l,{x:gx+i*cs,y:gy+5*cs+0.05,w:cs,h:0.24,fontSize:8,color:C.muted,align:"center",fontFace:"Calibri"}));
   sl10.addShape("rect",{x:0.4,y:4.97,w:9.2,h:0.22,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
-  sl10.addText("🔴  Key finding: 16 of 30 items (53%) in the high/critical band — this is the visual that drives the resourcing ask on slide 12.",{x:0.5,y:4.98,w:9.0,h:0.19,fontSize:9,bold:true,color:C.red,fontFace:"Calibri"});
+  sl10.addText("🔴  Key finding: 16 of 30 items (53%) in the high/critical band — this is the visual that drives the resourcing ask on slide 14.",{x:0.5,y:4.98,w:9.0,h:0.19,fontSize:9,bold:true,color:C.red,fontFace:"Calibri"});
 
   // ── Slide 11 — CORRECTIVE ACTIONS ───────────────────────────────────────────
   const sl11 = pres.addSlide();
-  hdr(sl11,"Corrective Action Management","54 total  ·  H1 2026  ·  All jobsites",11);
+  hdr(sl11,"Corrective Action Management","54 total  ·  H1 2026  ·  All jobsites",13);
   sl11.addShape("rect",{x:0.4,y:0.73,w:2.0,h:4.22,fill:{color:C.navy}});
   sl11.addText("TOTAL\nCORRECTIVE\nACTIONS",{x:0.4,y:0.9,w:2.0,h:0.65,fontSize:9,bold:true,color:"888888",align:"center",fontFace:"Calibri"});
   sl11.addText("54",{x:0.4,y:1.62,w:2.0,h:1.0,fontSize:58,bold:true,color:C.amber,align:"center",fontFace:"Calibri"});
@@ -1364,7 +1556,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 12 — ASKS & DECISIONS ──────────────────────────────────────────────
   const sl12 = pres.addSlide();
-  hdr(sl12,"Asks & Decisions Required","Three specific actions needed from this review",12);
+  hdr(sl12,"Asks & Decisions Required","Three specific actions needed from this review",14);
   ([
     ["a","Resource to clear overdue corrective actions","6 overdue CAs require owner assignment and expedited closure. 17 CAs marked 'corrected' need independent verification. Recommend a 2-week sprint.",C.red,"fef2f2","fca5a5"],
     ["b","Targeted controls for the high/critical risk band","2 critical and 14 high risk-band items (53% of all scored work) require active risk treatment. Assign controls for SIF hazard types: hand/crush, arc flash, chemical exposure, work-at-height.",C.orange,"fff7ed","fed7aa"],
@@ -1382,7 +1574,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 13 — OPEN ISSUES & GAPS ───────────────────────────────────────────
   const sl13 = pres.addSlide();
-  hdr(sl13,"Open Issues & Critical Gaps","H1 2026  ·  What needs immediate attention",13);
+  hdr(sl13,"Open Issues & Critical Gaps","H1 2026  ·  What needs immediate attention",15);
   sl13.addText("Top 5 Gaps",{x:0.4,y:0.73,w:3.4,h:0.25,fontSize:9,bold:true,color:C.red,fontFace:"Calibri"});
   ([["1","Training records not loaded","ISO 45001 §7.2 cannot be demonstrated.",C.red,"fef2f2","fca5a5"],["2","Site audit data missing","Data gap — not zero performance.",C.orange,"fff7ed","fed7aa"],["3","6 CAs overdue","Linked to SIF-potential events.",C.orange,"fff7ed","fed7aa"],["4","Hours worked not tracked","TRIR/DART rates cannot be calculated.",C.amber,"fffbeb","fde047"],["5","SIF controls unverified","4 events; controls not formally verified.","7c3aed","faf5ff","e9d5ff"]] as [string,string,string,string,string,string][]).forEach(([n,t,d,c,bg,bdr],i)=>{
     const y=1.02+i*0.78;
@@ -1427,7 +1619,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     sl14.addText(d, {x:x+0.15,y:y+1.03,w:4.22,h:0.78,fontSize:9.5,color:"aaaaaa",fontFace:"Calibri"});
   });
   sl14.addShape("rect",{x:0,y:5.28,w:10,h:0.345,fill:{color:"0c2244"}});
-  sl14.addText(`Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential  |  ${checkedItems.size}/${AGENDA_ITEMS.length} agenda items reviewed  |  14 / 14`,{x:0.4,y:5.3,w:9.4,h:0.2,fontSize:7.5,color:"444444",fontFace:"Calibri"});
+  sl14.addText(`Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential  |  ${checkedItems.size}/${AGENDA_ITEMS.length} agenda items reviewed  |  16 / 16`,{x:0.4,y:5.3,w:9.4,h:0.2,fontSize:7.5,color:"444444",fontFace:"Calibri"});
 
   await pres.writeFile({ fileName: `safepredict-review-h1-2026-${new Date().toISOString().split("T")[0] ?? "export"}.pptx` });
 }
