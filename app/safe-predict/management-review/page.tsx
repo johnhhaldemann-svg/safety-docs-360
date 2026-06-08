@@ -217,7 +217,7 @@ function slideHeader(title: string, sub: string): string {
 function slideFooter(n: number): string {
   return `<div style="position:absolute;bottom:0;left:0;right:0;background:#f8fafc;border-top:1px solid #e2e8f0;padding:7px 48px;display:flex;justify-content:space-between;">
     <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">SafePredict  ·  Safety & Compliance Review  ·  H1 2026  ·  CONFIDENTIAL</span>
-    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 9</span>
+    <span style="font-size:10px;color:#94a3b8;font-weight:500;${FONT}">${n} / 10</span>
   </div>`;
 }
 
@@ -270,7 +270,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:16px 80px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">CONFIDENTIAL  ·  FOR EXECUTIVE REVIEW ONLY</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 9</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.3);font-weight:500;${FONT}">1 / 10</span>
     </div>
   </div>`;
 
@@ -630,7 +630,69 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     ${slideFooter(8)}
   </div>`;
 
-  // ── SLIDE 9 — NEXT STEPS & CLOSE ──────────────────────────────────────────
+  // ── SLIDE 9 — OPEN ISSUES & GAPS ──────────────────────────────────────────
+  const sGaps = `<div style="${SS}background:white;">
+    ${slideHeader("Open Issues &amp; Critical Gaps","H1 2026  ·  What needs immediate attention")}
+    <div style="flex:1;display:flex;gap:0;">
+      <!-- Left: Top 5 gaps -->
+      <div style="flex:1.1;padding:16px 22px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#dc2626;margin-bottom:2px;${FONT}">🚩 Top 5 Gaps — What We Are Lacking</div>
+        ${[
+          {n:"1",title:"Training records not loaded",body:"Employee training completion is entirely absent. ISO 45001 §7.2 compliance cannot be demonstrated until data is populated.",col:"#dc2626",bg:"#fef2f2",bdr:"#fca5a5"},
+          {n:"2",title:"Site audit data missing",body:"No jobsite audit scores recorded this period. Compliance rate reports as zero — this is a data gap, not zero performance.",col:"#f97316",bg:"#fff7ed",bdr:"#fed7aa"},
+          {n:"3",title:"6 corrective actions overdue",body:"Past-due CAs linked to recordable and SIF-potential events. Each day unresolved increases re-injury risk at affected sites.",col:"#f97316",bg:"#fff7ed",bdr:"#fed7aa"},
+          {n:"4",title:"Hours worked not tracked",body:"TRIR and DART rates cannot be calculated. Without total hours, industry benchmarking is impossible.",col:"#f59e0b",bg:"#fffbeb",bdr:"#fde047"},
+          {n:"5",title:"SIF controls unverified",body:"4 SIF-potential events logged; engineered control implementation has not been formally verified or documented in the system.",col:"#7c3aed",bg:"#faf5ff",bdr:"#e9d5ff"},
+        ].map(g => `
+        <div style="background:${g.bg};border:1px solid ${g.bdr};border-radius:9px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:24px;height:24px;background:${g.col};border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="font-size:11px;font-weight:900;color:white;${FONT}">${g.n}</span>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;margin-bottom:2px;${FONT}">${g.title}</div>
+            <div style="font-size:10px;color:#475569;line-height:1.45;${FONT}">${g.body}</div>
+          </div>
+        </div>`).join("")}
+      </div>
+      <!-- Center: Incident & near-miss summaries -->
+      <div style="flex:1;padding:16px 20px 46px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:2px;${FONT}">📋 Key Injuries &amp; Near-Miss Summaries</div>
+        ${H1.incidents.notable.map((ev) => `
+        <div style="padding:8px 10px;background:${ev.ai?"#fdf4ff":ev.tags.some(t=>t.includes("SIF"))?"#fff7f7":"#f8fafc"};border-radius:8px;border:1px solid ${ev.ai?"#e9d5ff":ev.tags.some(t=>t.includes("SIF"))?"#fecaca":"#e2e8f0"};display:flex;gap:7px;align-items:flex-start;">
+          <span style="font-size:12px;flex-shrink:0;margin-top:1px;">${ev.ai?"🤖":ev.tags.some(t=>t.includes("SIF"))?"🔴":"📋"}</span>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:#1e293b;line-height:1.35;margin-bottom:3px;${FONT}">${ev.title}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:2px;">${ev.tags.map(t=>tagChip(t,ev.ai)).join("")}</div>
+          </div>
+        </div>`).join("")}
+        <div style="margin-top:2px;padding:8px 10px;background:#f0fdf4;border-radius:7px;border:1px solid #bbf7d0;">
+          <div style="font-size:10px;color:#166534;font-weight:600;${FONT}">🤖 2 events AI-detected before human report — Gus auto-flagged the open panel &amp; O₂ deficiency.</div>
+        </div>
+      </div>
+      <!-- Right: Upcoming high-risk activities -->
+      <div style="width:290px;flex-shrink:0;padding:16px 20px 46px;background:#f8fafc;display:flex;flex-direction:column;gap:9px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-bottom:2px;${FONT}">⚡ Upcoming High-Risk Activities</div>
+        ${[
+          {icon:"🏗️",title:"Crane lifts &amp; rigging",risk:"HIGH",body:"H1 hand-crush SIF event. Verify lift plans, exclusion zones, and rigger competencies before every pick.",col:"#dc2626",bg:"#fef2f2",bdr:"#fca5a5"},
+          {icon:"⚡",title:"Energised electrical work",risk:"HIGH",body:"Open 277V panel + arc-flash burn recorded H1. LOTO mandatory; PPE sign-offs required before all energised work.",col:"#f97316",bg:"#fff7ed",bdr:"#fed7aa"},
+          {icon:"🌬️",title:"Confined space entries",risk:"HIGH",body:"O₂ deficiency reading recorded H1. Atmospheric testing and trained standby rescuer mandatory for every entry.",col:"#f97316",bg:"#fff7ed",bdr:"#fed7aa"},
+          {icon:"🧪",title:"Chemical handling",risk:"MEDIUM",body:"Process operator splash recorded H1. Review SDS access, PPE adequacy, and emergency eyewash station locations.",col:"#f59e0b",bg:"#fffbeb",bdr:"#fde047"},
+          {icon:"🪜",title:"Working at height",risk:"MEDIUM",body:"Level 9 near-fall harness-arrested H1. Edge-protection and pre-use harness inspection required before each task.",col:"#f59e0b",bg:"#fffbeb",bdr:"#fde047"},
+        ].map(a=>`
+        <div style="background:${a.bg};border:1px solid ${a.bdr};border-radius:9px;padding:9px 11px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="font-size:13px;">${a.icon}</span>
+            <span style="font-size:11px;font-weight:700;color:#1e293b;flex:1;${FONT}">${a.title}</span>
+            <span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;background:${a.col}22;color:${a.col};${FONT}">${a.risk}</span>
+          </div>
+          <div style="font-size:10px;color:#475569;line-height:1.45;padding-left:19px;${FONT}">${a.body}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+    ${slideFooter(9)}
+  </div>`;
+
+  // ── SLIDE 10 — NEXT STEPS & CLOSE ──────────────────────────────────────────
   const priorities = [
     { icon:"🔴", title:"SIF prevention — immediate",
       body:"Conduct targeted reviews of the four SIF hazard types flagged this period: hand/crush during crane picks, arc flash, chemical exposure, and work-at-height. Implement or verify engineered controls before next period." },
@@ -682,7 +744,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     </div>
     <div style="padding:10px 48px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;">
       <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">9 / 9</span>
+      <span style="font-size:10px;color:rgba(255,255,255,.25);${FONT}">10 / 10</span>
     </div>
   </div>`;
 
@@ -693,7 +755,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     <div style="flex:1;padding:22px 48px 46px;display:flex;flex-direction:column;gap:12px;overflow:hidden;">
       <div style="flex:1;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:16px;font-size:12px;color:#334155;line-height:1.75;white-space:pre-wrap;overflow:auto;${FONT}">${notes.trim()}</div>
     </div>
-    ${slideFooter(10)}
+    ${slideFooter(11)}
   </div>` : "";
 
   // ── FULL HTML ──────────────────────────────────────────────────────────────
@@ -726,6 +788,7 @@ body{padding:32px;display:flex;flex-direction:column;align-items:center;gap:32px
   <div class="slide">${s6}</div>
   <div class="slide">${s7}</div>
   <div class="slide">${s8}</div>
+  <div class="slide">${sGaps}</div>
   <div class="slide">${s9}</div>
   ${notes.trim() ? `<div class="slide">${notesSlide}</div>` : ""}
 </body>
