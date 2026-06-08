@@ -1,6 +1,5 @@
 "use client";
 
-import { deferEffect } from "@/lib/deferredEffect";
 import { useCallback, useEffect, useState } from "react";
 import {
   BarChart3,
@@ -145,7 +144,7 @@ export default function ManagementReviewPage() {
     }
   }, []);
 
-  deferEffect(() => {
+  useEffect(() => {
     void fetchMetrics(period);
   }, [period, fetchMetrics]);
 
