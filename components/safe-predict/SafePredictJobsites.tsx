@@ -1062,10 +1062,15 @@ export function SafePredictJobsitesPortfolio() {
     name: "",
     code: "",
     address: "",
+    city: "",
+    state: "",
+    zipCode: "",
     projectManager: "",
     safetyLead: "",
     customerName: "",
     customerReportEmail: "",
+    startDate: "",
+    status: "active" as SafePredictJobsiteStatus,
   });
   const summary = summarizeSafePredictDataset(dataset);
   const normalizedQuery = query.trim().toLowerCase();
@@ -1100,26 +1105,36 @@ export function SafePredictJobsitesPortfolio() {
       name: newJobsite.name.trim(),
       code: newJobsite.code.trim(),
       address: newJobsite.address.trim(),
+      city: newJobsite.city.trim(),
+      state: newJobsite.state.trim(),
+      zipCode: newJobsite.zipCode.trim(),
       projectManager: newJobsite.projectManager.trim(),
       safetyLead: newJobsite.safetyLead.trim(),
       customerName: newJobsite.customerName.trim(),
       customerReportEmail: newJobsite.customerReportEmail.trim(),
+      startDate: newJobsite.startDate,
+      status: newJobsite.status,
     });
     setShowCreateJobsite(false);
     setNewJobsite({
       name: "",
       code: "",
       address: "",
+      city: "",
+      state: "",
+      zipCode: "",
       projectManager: "",
       safetyLead: "",
       customerName: "",
       customerReportEmail: "",
+      startDate: "",
+      status: "active",
     });
     router.push(`/safe-predict/jobsites/${encodeURIComponent(draft.id)}`);
   }
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
+    <div className="app-shell-light min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
         title="Jobsites"
         subtitle="Project command centers for risk, people, permits, inspections, and actions."
@@ -1145,24 +1160,42 @@ export function SafePredictJobsitesPortfolio() {
         <Card className="mb-5 p-5">
           <SectionTitle title="Create Jobsite" action={<span className="text-xs font-black uppercase tracking-wide text-blue-600">{mode === "live" ? "Posts to live API and keeps local draft" : "Local draft"}</span>} />
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["name", "Jobsite name"],
-              ["code", "Project code"],
-              ["address", "Location"],
-              ["projectManager", "Project manager"],
-              ["safetyLead", "Safety lead"],
-              ["customerName", "Customer"],
-              ["customerReportEmail", "Report email"],
-            ].map(([key, label]) => (
+            {([
+              ["name", "Jobsite name *", "text"],
+              ["code", "Project code", "text"],
+              ["address", "Street address", "text"],
+              ["city", "City", "text"],
+              ["state", "State", "text"],
+              ["zipCode", "ZIP code", "text"],
+              ["projectManager", "Project manager", "text"],
+              ["safetyLead", "Safety lead", "text"],
+              ["customerName", "Customer", "text"],
+              ["customerReportEmail", "Report email", "email"],
+              ["startDate", "Start date", "date"],
+            ] as const).map(([key, label, type]) => (
               <label key={key} className="block">
                 <span className="mb-1 block text-xs font-bold text-slate-600">{label}</span>
                 <input
+                  type={type}
                   value={newJobsite[key as keyof typeof newJobsite]}
                   onChange={(event) => setNewJobsite((current) => ({ ...current, [key]: event.target.value }))}
                   className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
                 />
               </label>
             ))}
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold text-slate-600">Status</span>
+              <select
+                value={newJobsite.status}
+                onChange={(event) => setNewJobsite((current) => ({ ...current, status: event.target.value as SafePredictJobsiteStatus }))}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
+              >
+                <option value="planned">Planned</option>
+                <option value="active">Active</option>
+                <option value="action-needed">Action Needed</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={createJobsite} disabled={!newJobsite.name.trim()} className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
@@ -1311,8 +1344,8 @@ export function SafePredictJobsitesPortfolio() {
                     </div>
                   </div>
                   <h2 className="mt-4 text-lg font-black text-slate-950">{site.name}</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">{site.code} - {site.cityState}</p>
-                  <p className="mt-2 text-sm leading-5 text-slate-600">{site.phase}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">{[site.code, site.cityState].filter(Boolean).join(" · ") || "Location not set"}</p>
+                  {site.phase ? <p className="mt-2 text-sm leading-5 text-slate-600">{site.phase}</p> : null}
                   <div className={cx("mt-4 rounded-lg border px-3 py-2", attentionToneClass(primaryAttention.tone))}>
                     <p className="text-xs font-black uppercase tracking-wide">Needs attention</p>
                     <p className="mt-1 text-sm font-black leading-5">{formatTitleCase(primaryAttention.title) || primaryAttention.title}</p>
@@ -3426,10 +3459,10 @@ export function SafePredictJobsiteDetail({ jobsiteId }: { jobsiteId: string }) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
+    <div className="app-shell-light min-h-[calc(100vh-5rem)] px-4 pb-8 sm:px-7">
       <PageHeader
         title={site.name}
-        subtitle={`${site.phase} - ${site.address}, ${site.cityState}`}
+        subtitle={[site.phase, [site.address, site.cityState].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "Jobsite details"}
         actions={
           <>
             <Link href="/safe-predict/jobsites" className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm">
