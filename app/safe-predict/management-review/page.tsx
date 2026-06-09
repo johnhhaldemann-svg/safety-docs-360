@@ -1423,11 +1423,12 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   const sl6obj = pres.addSlide();
   hdr(sl6obj,"Objectives & Targets — H1 2026 vs Plan","Annual safety objectives  ·  RAG status at period end",6);
   const objStatCfgP = { met:{col:C.green,lbl:"MET ✓"}, watch:{col:"d97706",lbl:"MONITOR ⚠️"}, missed:{col:C.red,lbl:"MISSED ✗"}, gap:{col:C.muted,lbl:"DATA GAP"} };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl6obj.addTable([
     [{text:"OBJECTIVE",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"TARGET",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"ACTUAL",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"STATUS",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NOTES",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...OBJECTIVES.map((o,i)=>{const cfg=objStatCfgP[o.status];const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:o.obj,options:{color:C.dark,fill:{color:rf}}},{text:o.target,options:{bold:true,color:C.muted,align:"center" as const,fill:{color:rf}}},{text:o.actual,options:{bold:true,fontSize:14,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:cfg.lbl,options:{bold:true,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:o.note,options:{color:C.muted,fill:{color:rf}}}];}),
   ] as any,{x:0.4,y:0.73,w:9.2,h:4.55,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.8,1.0,1.0,1.2,3.2],fontFace:"Calibri",fontSize:10,rowH:0.42});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   const [mc,wc,xc,gc]=[OBJECTIVES.filter(o=>o.status==="met").length,OBJECTIVES.filter(o=>o.status==="watch").length,OBJECTIVES.filter(o=>o.status==="missed").length,OBJECTIVES.filter(o=>o.status==="gap").length];
   sl6obj.addShape("rect",{x:0.4,y:5.0,w:9.2,h:0.22,fill:{color:"f0fdf4"},line:{color:"86efac",width:1}});
   sl6obj.addText(`✅ ${mc} met  |  ⚠️ ${wc} monitor  |  ✗ ${xc} missed  |  📭 ${gc} data gaps (training + audit not yet loaded)`,{x:0.55,y:5.02,w:9.0,h:0.18,fontSize:9,color:C.dark,fontFace:"Calibri"});
@@ -1436,11 +1437,12 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   const sl6 = pres.addSlide();
   hdr(sl6,"Site-Level Performance Breakdown","H1 2026  ·  11 jobsites  ·  5 companies",7);
   const rCol={critical:C.red,high:C.orange,medium:C.amber,low:C.green,clear:C.green};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl6.addTable([
     [{text:"SITE",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"COMPANY",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"EVENTS",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"INC",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NM",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"SIF",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"OVERDUE",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"RISK",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}}],
     ...SITES.map((s,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";const rc=rCol[s.risk];return[{text:s.name,options:{color:C.dark,bold:true,fill:{color:rf}}},{text:s.company,options:{color:C.muted,fill:{color:rf}}},{text:String(s.events),options:{bold:true,fontSize:13,color:s.events>4?C.red:s.events>2?C.orange:C.dark,align:"center" as const,fill:{color:rf}}},{text:String(s.incidents),options:{bold:true,color:C.mid,align:"center" as const,fill:{color:rf}}},{text:String(s.nearMisses),options:{bold:true,color:"8b5cf6",align:"center" as const,fill:{color:rf}}},{text:s.sif>0?String(s.sif):"—",options:{bold:true,color:s.sif>0?C.red:C.green,align:"center" as const,fill:{color:rf}}},{text:s.overdueCAs>0?String(s.overdueCAs):"—",options:{bold:true,color:s.overdueCAs>0?C.orange:C.green,align:"center" as const,fill:{color:rf}}},{text:s.risk.toUpperCase(),options:{bold:true,color:rc,align:"center" as const,fill:{color:rf}}}];}),
   ] as any,{x:0.3,y:0.73,w:9.4,h:4.6,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.4,1.5,0.75,0.6,0.6,0.6,0.8,0.95],fontFace:"Calibri",fontSize:10,rowH:0.4});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // ── Slide 7 — LEADING INDICATORS ─────────────────────────────────────────────
   const sl7 = pres.addSlide();
@@ -1526,20 +1528,22 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   sl11leg.addText("Jurisdiction",{x:0.4,y:1.16,w:1.6,h:0.22,fontSize:10,bold:true,color:C.muted,fontFace:"Calibri"});
   sl11leg.addText(LEGAL.jurisdiction,{x:0.4,y:1.38,w:3.8,h:0.3,fontSize:10,color:C.dark,fontFace:"Calibri"});
   sl11leg.addText("CERTIFICATIONS",{x:0.4,y:1.78,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl11leg.addTable([
     [{text:"Certification",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Expiry",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...LEGAL.certifications.map((c,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:c.name,options:{color:C.dark,fill:{color:rf}}},{text:c.status,options:{color:c.ok?C.green:C.red,fill:{color:rf}}},{text:c.expiry,options:{color:C.muted,fill:{color:rf}}}];}),
   ] as any,{x:0.4,y:2.04,w:3.8,h:1.0,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[1.9,1.1,0.8],fontFace:"Calibri",fontSize:10,rowH:0.25});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   sl11leg.addText("UPCOMING OBLIGATIONS",{x:0.4,y:3.14,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
   LEGAL.upcoming.forEach((u,i)=>{sl11leg.addText(`• ${u}`,{x:0.4,y:3.4+i*0.35,w:3.8,h:0.3,fontSize:10,color:"9a3412",fontFace:"Calibri"});});
   sl11leg.addText("REGULATORY UPDATES — H1 2026",{x:4.5,y:0.72,w:5.1,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
   const statusColor = (s:string) => s==="overdue"?C.red:s==="in-progress"?C.amber:"94a3b8";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl11leg.addTable([
     [{text:"Date",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Update / Obligation",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Action Required",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Due",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...LEGAL.updates.map((u,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:u.date,options:{color:C.muted,fill:{color:rf}}},{text:u.item,options:{color:C.dark,fill:{color:rf}}},{text:u.action,options:{color:C.muted,fill:{color:rf}}},{text:u.due,options:{color:C.muted,fill:{color:rf}}},{text:u.status.toUpperCase(),options:{bold:true,color:statusColor(u.status),fill:{color:rf}}}];}),
   ] as any,{x:4.5,y:1.0,w:5.1,h:1.3,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[0.6,1.9,1.5,0.6,0.5],fontFace:"Calibri",fontSize:9,rowH:0.33});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   sl11leg.addText("KEY COMPLIANCE RISK — PRIORITY ACTION",{x:4.5,y:2.4,w:5.1,h:0.22,fontSize:10,bold:true,color:C.red,fontFace:"Calibri"});
   sl11leg.addShape("rect",{x:4.5,y:2.66,w:5.1,h:1.6,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
   sl11leg.addText("Confined Space Regulations (Feb 2026 update) — OVERDUE\n\nState regulator revised atmospheric monitoring requirements. Site procedures must be updated and all affected personnel retrained before new confined space regulations take effect in Q3 2026.\n\nResponsible: HSE Manager  |  Deadline: Q2 2026 (OVERDUE)  |  Escalate immediately.",{x:4.6,y:2.72,w:4.9,h:1.48,fontSize:10,color:"9a3412",fontFace:"Calibri"});
