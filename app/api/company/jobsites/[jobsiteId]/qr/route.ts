@@ -5,11 +5,11 @@ import QRCode from "qrcode";
 
 export const runtime = "nodejs";
 
-// GET /api/company/jobsites/[id]/qr
+// GET /api/company/jobsites/[jobsiteId]/qr
 // Returns a PNG QR code image that encodes the public site check-in URL.
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ jobsiteId: string }> },
 ) {
   const auth = await authorizeRequest(request, {
     requireAnyPermission: ["can_access_field_work", "can_view_dashboards"],
@@ -26,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Not linked to a company workspace." }, { status: 400 });
   }
 
-  const { id: jobsiteId } = await params;
+  const { jobsiteId } = await params;
 
   const { data: jobsite } = await auth.supabase
     .from("jobsites")
