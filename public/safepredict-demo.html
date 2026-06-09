@@ -2716,6 +2716,7 @@ function showPage(pageId) {
   document.querySelectorAll(".page").forEach(el => el.classList.remove("active"));
   const el = document.getElementById("page-" + pageId);
   if (el) { el.classList.add("active"); currentPage = pageId; }
+  if (pageId === "training") setTrainingTab("overview");
   // Auto-expand the nav group that owns this page and build breadcrumb
   const ownerGroup = navConfig.find(g => g.items.some(i => i.page === pageId));
   if (ownerGroup) expandedGroup = ownerGroup.id;
