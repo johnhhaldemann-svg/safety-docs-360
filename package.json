@@ -101,7 +101,7 @@
     "cross-env": "^10.1.0",
     "electron": "^42.3.0",
     "electron-builder": "^26.0.12",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "^16.2.6",
     "javascript-obfuscator": "^5.4.3",
     "supabase": "^2.102.0",
