@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const path = require('path');
 const JavaScriptObfuscator = require('javascript-obfuscator');
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const srcPath  = path.join(__dirname, '..', 'public', 'safepredict-demo.html');
 const outPath  = path.join(__dirname, '..', 'public', 'safepredict-demo-protected.html');

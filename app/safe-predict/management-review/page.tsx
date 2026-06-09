@@ -24,6 +24,10 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
+// ── Export slug — update each new review period ───────────────────────────────
+
+const REVIEW_SLUG = "h1-2026";
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type WeekPeriod = "1w" | "2w" | "4w" | "8w" | "12w";
@@ -500,7 +504,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     ${slideFooter(4)}
   </div>`;
 
-  // ── SLIDE 6 — SITE-LEVEL BREAKDOWN ────────────────────────────────────────────
+  // ── SLIDE 7 — SITE-LEVEL BREAKDOWN ────────────────────────────────────────────
   const riskCfg = {
     critical: { bg:"#fef2f2", col:"#dc2626", bdr:"#fca5a5", dot:"#dc2626" },
     high:     { bg:"#fff7ed", col:"#c2410c", bdr:"#fed7aa", dot:"#f97316" },
@@ -790,7 +794,7 @@ function generatePresentation(exportDate: string, checkedItems: Set<number>, not
     ${slideFooter(6)}
   </div>`;
 
-  // ── SLIDE 8 — INCIDENT REVIEW ──────────────────────────────────────────────
+  // ── SLIDE 9 — INCIDENT REVIEW ──────────────────────────────────────────────
   const sevBars = hBarSVG([
     { label:"Critical", value:1,  color:"#dc2626" },
     { label:"High",     value:14, color:"#f97316" },
@@ -1393,21 +1397,38 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     ["SIF-Potential Events","4","Serious injury or fatality potential",C.red],["Days Away From Work","29","Total across all lost-time cases",C.amber],
     ["Days Restricted/Transfer","39","Total restricted or transferred duties",C.amber],["Incident Close Rate","94%","29 of 31 incidents closed",C.green],
   ];
+  const scLeft  = scData.slice(0, 5);
+  const scRight = scData.slice(5);
+  const scHdr = [{text:"METRIC",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"VAL",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NOTES",options:{bold:true,color:C.white,fill:{color:C.navy}}}];
+  const scRow = ([m,v,n,c]:[string,string,string,string],i:number)=>[{text:m,options:{color:C.dark,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:v,options:{bold:true,fontSize:14,color:c,align:"center" as const,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:n,options:{color:C.muted,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}}];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sl5.addTable([
-    [{text:"METRIC",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"VALUE",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NOTES",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
-    ...scData.map(([m,v,n,c],i)=>[{text:m,options:{color:C.dark,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:v,options:{bold:true,fontSize:16,color:c,align:"center" as const,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}},{text:n,options:{color:C.muted,fill:{color:i%2===0?"FFFFFF":"f8fafc"}}}]),
-  ] as any,{x:0.4,y:0.73,w:9.2,h:4.6,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[3.2,1.1,4.9],fontFace:"Calibri",fontSize:11,rowH:0.42});
+  sl5.addTable([scHdr,...scLeft.map(scRow)]  as any,{x:0.3,y:0.73,w:4.55,h:2.64,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.0,0.65,1.9],fontFace:"Calibri",fontSize:10,rowH:0.44});
+  sl5.addShape("line",{x:5.0,y:0.73,w:0,h:2.64,line:{color:"e2e8f0",width:1}});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sl5.addTable([scHdr,...scRight.map(scRow)] as any,{x:5.15,y:0.73,w:4.55,h:2.64,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.0,0.65,1.9],fontFace:"Calibri",fontSize:10,rowH:0.44});
+  // 3 info cards
+  const infoCfg:[string,string,string,string,string,string][]=[
+    ["TRIR Gap","TRIR/DART rates cannot be calculated — hours worked data is missing.","fef9c3","fde047","854d0e","⚠️"],
+    ["Near-Miss Ratio","0.63 : 1  (target ≥ 1 : 1) — improve hazard reporting culture.","eff6ff","bfdbfe","1e40af","📊"],
+    ["SIF Watch","4 SIF-potential events recorded — controls require formal verification.","fef2f2","fca5a5","991b1b","🔴"],
+  ];
+  infoCfg.forEach(([title,note,bg,bdr,tc,ic],i)=>{
+    const x=0.3+i*3.2;
+    sl5.addShape("rect",{x,y:3.55,w:3.0,h:1.62,fill:{color:bg},line:{color:bdr,width:1}});
+    sl5.addText(`${ic}  ${title}`,{x:x+0.12,y:3.63,w:2.76,h:0.3,fontSize:11,bold:true,color:tc,fontFace:"Calibri"});
+    sl5.addText(note,{x:x+0.12,y:4.0,w:2.76,h:0.9,fontSize:9.5,color:tc,fontFace:"Calibri"});
+  });
 
   // ── Slide 6 — OBJECTIVES & TARGETS ──────────────────────────────────────────
   const sl6obj = pres.addSlide();
   hdr(sl6obj,"Objectives & Targets — H1 2026 vs Plan","Annual safety objectives  ·  RAG status at period end",6);
   const objStatCfgP = { met:{col:C.green,lbl:"MET ✓"}, watch:{col:"d97706",lbl:"MONITOR ⚠️"}, missed:{col:C.red,lbl:"MISSED ✗"}, gap:{col:C.muted,lbl:"DATA GAP"} };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl6obj.addTable([
     [{text:"OBJECTIVE",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"TARGET",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"ACTUAL",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"STATUS",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NOTES",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...OBJECTIVES.map((o,i)=>{const cfg=objStatCfgP[o.status];const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:o.obj,options:{color:C.dark,fill:{color:rf}}},{text:o.target,options:{bold:true,color:C.muted,align:"center" as const,fill:{color:rf}}},{text:o.actual,options:{bold:true,fontSize:14,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:cfg.lbl,options:{bold:true,color:cfg.col,align:"center" as const,fill:{color:rf}}},{text:o.note,options:{color:C.muted,fill:{color:rf}}}];}),
   ] as any,{x:0.4,y:0.73,w:9.2,h:4.55,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.8,1.0,1.0,1.2,3.2],fontFace:"Calibri",fontSize:10,rowH:0.42});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   const [mc,wc,xc,gc]=[OBJECTIVES.filter(o=>o.status==="met").length,OBJECTIVES.filter(o=>o.status==="watch").length,OBJECTIVES.filter(o=>o.status==="missed").length,OBJECTIVES.filter(o=>o.status==="gap").length];
   sl6obj.addShape("rect",{x:0.4,y:5.0,w:9.2,h:0.22,fill:{color:"f0fdf4"},line:{color:"86efac",width:1}});
   sl6obj.addText(`✅ ${mc} met  |  ⚠️ ${wc} monitor  |  ✗ ${xc} missed  |  📭 ${gc} data gaps (training + audit not yet loaded)`,{x:0.55,y:5.02,w:9.0,h:0.18,fontSize:9,color:C.dark,fontFace:"Calibri"});
@@ -1416,11 +1437,12 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   const sl6 = pres.addSlide();
   hdr(sl6,"Site-Level Performance Breakdown","H1 2026  ·  11 jobsites  ·  5 companies",7);
   const rCol={critical:C.red,high:C.orange,medium:C.amber,low:C.green,clear:C.green};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl6.addTable([
     [{text:"SITE",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"COMPANY",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"EVENTS",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"INC",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"NM",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"SIF",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"OVERDUE",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}},{text:"RISK",options:{bold:true,color:C.white,fill:{color:C.navy},align:"center" as const}}],
     ...SITES.map((s,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";const rc=rCol[s.risk];return[{text:s.name,options:{color:C.dark,bold:true,fill:{color:rf}}},{text:s.company,options:{color:C.muted,fill:{color:rf}}},{text:String(s.events),options:{bold:true,fontSize:13,color:s.events>4?C.red:s.events>2?C.orange:C.dark,align:"center" as const,fill:{color:rf}}},{text:String(s.incidents),options:{bold:true,color:C.mid,align:"center" as const,fill:{color:rf}}},{text:String(s.nearMisses),options:{bold:true,color:"8b5cf6",align:"center" as const,fill:{color:rf}}},{text:s.sif>0?String(s.sif):"—",options:{bold:true,color:s.sif>0?C.red:C.green,align:"center" as const,fill:{color:rf}}},{text:s.overdueCAs>0?String(s.overdueCAs):"—",options:{bold:true,color:s.overdueCAs>0?C.orange:C.green,align:"center" as const,fill:{color:rf}}},{text:s.risk.toUpperCase(),options:{bold:true,color:rc,align:"center" as const,fill:{color:rf}}}];}),
   ] as any,{x:0.3,y:0.73,w:9.4,h:4.6,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[2.4,1.5,0.75,0.6,0.6,0.6,0.8,0.95],fontFace:"Calibri",fontSize:10,rowH:0.4});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // ── Slide 7 — LEADING INDICATORS ─────────────────────────────────────────────
   const sl7 = pres.addSlide();
@@ -1477,7 +1499,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     sl8.addText(ev.tags.join("  ·  "),{x:5.1,y:y+0.34,w:4.5,h:0.18,fontSize:8,color:ev.ai?"7c3aed":C.muted,fontFace:"Calibri"});
   });
   sl8.addShape("rect",{x:5.0,y:4.82,w:4.7,h:0.35,fill:{color:"f0fdf4"},line:{color:"bbf7d0",width:1}});
-  sl8.addText("Gus AI auto-flagged 2 of 6 notable events (energised panel + O₂ deficiency) before human report.",{x:5.1,y:4.86,w:4.5,h:0.24,fontSize:8.5,color:"166534",fontFace:"Calibri"});
+  sl8.addText("Gus AI auto-flagged 2 of 6 notable events (energised panel + O₂ deficiency) before human report.",{x:5.1,y:4.86,w:4.5,h:0.24,fontSize:9,color:"166534",fontFace:"Calibri"});
 
   // ── Slide 9 — COMPLIANCE ─────────────────────────────────────────────────────
   const sl9 = pres.addSlide();
@@ -1506,20 +1528,22 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   sl11leg.addText("Jurisdiction",{x:0.4,y:1.16,w:1.6,h:0.22,fontSize:10,bold:true,color:C.muted,fontFace:"Calibri"});
   sl11leg.addText(LEGAL.jurisdiction,{x:0.4,y:1.38,w:3.8,h:0.3,fontSize:10,color:C.dark,fontFace:"Calibri"});
   sl11leg.addText("CERTIFICATIONS",{x:0.4,y:1.78,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl11leg.addTable([
     [{text:"Certification",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Expiry",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...LEGAL.certifications.map((c,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:c.name,options:{color:C.dark,fill:{color:rf}}},{text:c.status,options:{color:c.ok?C.green:C.red,fill:{color:rf}}},{text:c.expiry,options:{color:C.muted,fill:{color:rf}}}];}),
   ] as any,{x:0.4,y:2.04,w:3.8,h:1.0,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[1.9,1.1,0.8],fontFace:"Calibri",fontSize:10,rowH:0.25});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   sl11leg.addText("UPCOMING OBLIGATIONS",{x:0.4,y:3.14,w:3.8,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
   LEGAL.upcoming.forEach((u,i)=>{sl11leg.addText(`• ${u}`,{x:0.4,y:3.4+i*0.35,w:3.8,h:0.3,fontSize:10,color:"9a3412",fontFace:"Calibri"});});
   sl11leg.addText("REGULATORY UPDATES — H1 2026",{x:4.5,y:0.72,w:5.1,h:0.22,fontSize:10,bold:true,color:C.navy,fontFace:"Calibri"});
   const statusColor = (s:string) => s==="overdue"?C.red:s==="in-progress"?C.amber:"94a3b8";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   sl11leg.addTable([
     [{text:"Date",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Update / Obligation",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Action Required",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Due",options:{bold:true,color:C.white,fill:{color:C.navy}}},{text:"Status",options:{bold:true,color:C.white,fill:{color:C.navy}}}],
     ...LEGAL.updates.map((u,i)=>{const rf=i%2===0?"FFFFFF":"f8fafc";return[{text:u.date,options:{color:C.muted,fill:{color:rf}}},{text:u.item,options:{color:C.dark,fill:{color:rf}}},{text:u.action,options:{color:C.muted,fill:{color:rf}}},{text:u.due,options:{color:C.muted,fill:{color:rf}}},{text:u.status.toUpperCase(),options:{bold:true,color:statusColor(u.status),fill:{color:rf}}}];}),
   ] as any,{x:4.5,y:1.0,w:5.1,h:1.3,border:{type:"solid",color:"e2e8f0",pt:0.5},colW:[0.6,1.9,1.5,0.6,0.5],fontFace:"Calibri",fontSize:9,rowH:0.33});
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   sl11leg.addText("KEY COMPLIANCE RISK — PRIORITY ACTION",{x:4.5,y:2.4,w:5.1,h:0.22,fontSize:10,bold:true,color:C.red,fontFace:"Calibri"});
   sl11leg.addShape("rect",{x:4.5,y:2.66,w:5.1,h:1.6,fill:{color:"fef2f2"},line:{color:"fca5a5",width:1}});
   sl11leg.addText("Confined Space Regulations (Feb 2026 update) — OVERDUE\n\nState regulator revised atmospheric monitoring requirements. Site procedures must be updated and all affected personnel retrained before new confined space regulations take effect in Q3 2026.\n\nResponsible: HSE Manager  |  Deadline: Q2 2026 (OVERDUE)  |  Escalate immediately.",{x:4.6,y:2.72,w:4.9,h:1.48,fontSize:10,color:"9a3412",fontFace:"Calibri"});
@@ -1554,7 +1578,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
   sl11.addText("TOTAL\nCORRECTIVE\nACTIONS",{x:0.4,y:0.9,w:2.0,h:0.65,fontSize:9,bold:true,color:"888888",align:"center",fontFace:"Calibri"});
   sl11.addText("54",{x:0.4,y:1.62,w:2.0,h:1.0,fontSize:58,bold:true,color:C.amber,align:"center",fontFace:"Calibri"});
   sl11.addText("78% actioned",{x:0.4,y:2.72,w:2.0,h:0.32,fontSize:11,bold:true,color:"fbbf24",align:"center",fontFace:"Calibri"});
-  sl11.addText("42 of 54 actioned.\nVerification & overdue\nclosure is the bottleneck.",{x:0.4,y:3.1,w:2.0,h:0.7,fontSize:8.5,color:"888888",align:"center",fontFace:"Calibri"});
+  sl11.addText("42 of 54 actioned.\nVerification & overdue\nclosure is the bottleneck.",{x:0.4,y:3.1,w:2.0,h:0.7,fontSize:9,color:"888888",align:"center",fontFace:"Calibri"});
   ([{l:"Verified closed",v:25,c:C.green},{l:"Corrected",v:17,c:"3b82f6"},{l:"Open",v:12,c:C.amber},{l:"Overdue",v:6,c:C.red}]).forEach((s,i)=>{
     const y=0.82+i*0.6; const bw=(s.v/25)*2.8;
     sl11.addText(s.l,{x:2.6,y,w:1.5,h:0.28,fontSize:10,color:C.dark,fontFace:"Calibri"});
@@ -1573,10 +1597,10 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     const y=0.82+i*0.95;
     sl11.addShape("rect",{x:7.5,y,w:2.15,h:0.85,fill:{color:bg},line:{color:"e2e8f0",width:0.5}});
     sl11.addText(t,{x:7.62,y:y+0.08,w:1.9,h:0.28,fontSize:9.5,bold:true,color:C.dark,fontFace:"Calibri"});
-    sl11.addText(d,{x:7.62,y:y+0.38,w:1.9,h:0.35,fontSize:8.5,color:c,fontFace:"Calibri"});
+    sl11.addText(d,{x:7.62,y:y+0.38,w:1.9,h:0.35,fontSize:9,color:c,fontFace:"Calibri"});
   });
   sl11.addShape("rect",{x:7.5,y:4.65,w:2.15,h:0.52,fill:{color:"fef9c3"},line:{color:"fde047",width:1}});
-  sl11.addText("Critical CAs (8) include SIF-related incidents. Prioritise for closure.",{x:7.62,y:4.68,w:1.9,h:0.4,fontSize:8.5,color:"854d0e",fontFace:"Calibri"});
+  sl11.addText("Critical CAs (8) include SIF-related incidents. Prioritise for closure.",{x:7.62,y:4.68,w:1.9,h:0.4,fontSize:9,color:"854d0e",fontFace:"Calibri"});
 
   // ── Slide 12 — ASKS & DECISIONS ──────────────────────────────────────────────
   const sl12 = pres.addSlide();
@@ -1594,7 +1618,7 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     sl12.addText(body, {x:1.2,y:y+0.5,w:8.2,h:0.68,fontSize:10.5,color:C.mid,fontFace:"Calibri"});
   });
   sl12.addShape("rect",{x:0.4,y:4.95,w:9.2,h:0.22,fill:{color:"f0fdf4"},line:{color:"86efac",width:1}});
-  sl12.addText("✅  Each ask is tied to specific numbers. Decisions and owners should be recorded in minutes before this meeting closes.",{x:0.55,y:4.97,w:9.0,h:0.18,fontSize:8.5,color:C.green,fontFace:"Calibri"});
+  sl12.addText("✅  Each ask is tied to specific numbers. Decisions and owners should be recorded in minutes before this meeting closes.",{x:0.55,y:4.97,w:9.0,h:0.18,fontSize:9,color:C.green,fontFace:"Calibri"});
 
   // ── Slide 13 — OPEN ISSUES & GAPS ───────────────────────────────────────────
   const sl13 = pres.addSlide();
@@ -1626,10 +1650,8 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
 
   // ── Slide 14 — NEXT STEPS ────────────────────────────────────────────────────
   const sl14 = pres.addSlide();
-  sl14.addShape("rect",{x:0,y:0,w:10,h:5.625,fill:{color:C.navy}});
-  sl14.addShape("rect",{x:0,y:0,w:10,h:0.68,fill:{color:"0c2244"}});
-  sl14.addText("Next Steps & Priorities",{x:0.5,y:0.1,w:9,h:0.34,fontSize:16,bold:true,color:C.white,fontFace:"Calibri"});
-  sl14.addText("Actions to carry forward from this review",{x:0.5,y:0.44,w:9,h:0.22,fontSize:9,color:"888888",fontFace:"Calibri"});
+  hdr(sl14,"Next Steps & Priorities","Actions to carry forward from this review",16);
+  sl14.addShape("rect",{x:0,y:0.65,w:10,h:4.63,fill:{color:C.navy}});
   ([
     ["🔴","SIF prevention — immediate","Targeted reviews of the 4 SIF hazard types: crane picks, arc flash, chemical exposure, work-at-height. Implement or verify engineered controls before next period."],
     ["📋","Weekly overdue-CA review","Establish a weekly standing agenda item to review the 6 overdue + 17 pending-verification CAs. Assign a CA owner for each item today."],
@@ -1642,10 +1664,8 @@ async function generatePptx(exportDate: string, checkedItems: Set<number>) {
     sl14.addText(t, {x:x+0.15,y:y+0.67,w:4.22,h:0.3,fontSize:11,bold:true,color:C.white,fontFace:"Calibri"});
     sl14.addText(d, {x:x+0.15,y:y+1.03,w:4.22,h:0.78,fontSize:9.5,color:"aaaaaa",fontFace:"Calibri"});
   });
-  sl14.addShape("rect",{x:0,y:5.28,w:10,h:0.345,fill:{color:"0c2244"}});
-  sl14.addText(`Generated by SafePredict · Safety Docs 360 · ${exportDate} · Confidential  |  ${checkedItems.size}/${AGENDA_ITEMS.length} agenda items reviewed  |  16 / 16`,{x:0.4,y:5.3,w:9.4,h:0.2,fontSize:7.5,color:"444444",fontFace:"Calibri"});
 
-  await pres.writeFile({ fileName: `safepredict-review-h1-2026-${new Date().toISOString().split("T")[0] ?? "export"}.pptx` });
+  await pres.writeFile({ fileName: `safepredict-review-${REVIEW_SLUG}-${new Date().toISOString().split("T")[0] ?? "export"}.pptx` });
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -1726,7 +1746,7 @@ export default function ManagementReviewPage() {
     const blob = new Blob([html], { type:"text/html;charset=utf-8" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
-    a.href = url; a.download = `safepredict-review-h1-2026-${new Date().toISOString().split("T")[0] ?? "export"}.html`;
+    a.href = url; a.download = `safepredict-review-${REVIEW_SLUG}-${new Date().toISOString().split("T")[0] ?? "export"}.html`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     setSaved(true); setTimeout(() => setSaved(false), 3000);
   }

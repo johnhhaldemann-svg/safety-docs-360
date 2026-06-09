@@ -902,7 +902,7 @@ export default function SafePredictInductionsPage() {
                 <p className="text-xs font-bold text-violet-800">How the AI uses this data</p>
                 <p className="mt-1 text-[11px] text-violet-700 leading-relaxed">
                   Induction programs, requirements, and completions are indexed in the AI Knowledge Map under the
-                  <strong> "training"</strong> node type. The AI links them to active risk patterns using the
+                  <strong> &quot;training&quot;</strong> node type. The AI links them to active risk patterns using the
                   <strong> risk_increased_by_training_gap</strong> relationship — so when you generate Risk Memory
                   recommendations, gaps here will surface as prioritised action items. Click <strong>Sync to AI</strong> after
                   any changes to ensure the index is current.
