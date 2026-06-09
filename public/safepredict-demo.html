@@ -1135,6 +1135,153 @@
       </div>
     </div>
 
+    <!-- PAGE: OBSERVATIONS -->
+    <div id="page-observations" class="page px-7 py-6">
+      <div class="flex flex-col gap-4 pb-5 xl:flex-row xl:items-start xl:justify-between">
+        <div><h1 class="text-3xl font-black text-slate-950">Observations</h1><p class="mt-1 text-slate-600">Field observations logged by workers and supervisors — unsafe acts, unsafe conditions, near-misses, and positive practices.</p></div>
+        <div class="flex flex-wrap gap-2">
+          <select class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none"><option>All Sites</option><option>Riverside Tower</option><option>Harbor Bridge</option><option>Metro Rail</option><option>Downtown Rehab</option><option>Eastside Mixed-Use</option><option>Lakefront Data Center</option></select>
+          <button class="flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-500 transition shadow-sm">+ Log Observation</button>
+        </div>
+      </div>
+      <!-- KPI Band -->
+      <div class="grid gap-4 xl:grid-cols-5 mb-5">
+        <div class="kpi-card"><p class="text-[10px] font-black uppercase tracking-wider text-slate-500">Total Q2</p><p class="mt-2 text-3xl font-black text-slate-950">74</p><p class="mt-1 text-xs font-bold text-slate-500">All types</p></div>
+        <div class="kpi-card border-red-200 bg-red-50"><p class="text-[10px] font-black uppercase tracking-wider text-red-700">Unsafe Acts</p><p class="mt-2 text-3xl font-black text-slate-950">22</p><p class="mt-1 text-xs font-bold text-red-600">8 unaddressed</p></div>
+        <div class="kpi-card border-orange-200 bg-orange-50"><p class="text-[10px] font-black uppercase tracking-wider text-orange-700">Unsafe Conditions</p><p class="mt-2 text-3xl font-black text-slate-950">19</p><p class="mt-1 text-xs font-bold text-orange-600">5 open</p></div>
+        <div class="kpi-card border-amber-200 bg-amber-50"><p class="text-[10px] font-black uppercase tracking-wider text-amber-700">Near-Miss</p><p class="mt-2 text-3xl font-black text-slate-950">9</p><p class="mt-1 text-xs font-bold text-amber-600">All escalated</p></div>
+        <div class="kpi-card border-emerald-200 bg-emerald-50"><p class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Positive / Good Catch</p><p class="mt-2 text-3xl font-black text-slate-950">24</p><p class="mt-1 text-xs font-bold text-emerald-600">Strong culture signal</p></div>
+      </div>
+      <!-- Category filter + log -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <span class="chip bg-slate-900 text-white cursor-pointer">All (74)</span>
+        <span class="chip bg-red-100 text-red-700 cursor-pointer hover:bg-red-200">Unsafe Act (22)</span>
+        <span class="chip bg-orange-100 text-orange-700 cursor-pointer hover:bg-orange-200">Unsafe Condition (19)</span>
+        <span class="chip bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200">Near-Miss (9)</span>
+        <span class="chip bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200">Positive Practice (24)</span>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-4">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500"><th class="px-5 py-3 text-left">Observation</th><th class="px-4 py-3 text-left">Type</th><th class="px-4 py-3 text-left">Site</th><th class="px-4 py-3 text-left">Reported By</th><th class="px-4 py-3 text-left">Date</th><th class="px-4 py-3 text-left">Status</th><th class="px-4 py-3 text-left">Action</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Worker not wearing harness — Level 13 beam walk</p><p class="text-xs text-slate-500">OSHA 1926.502 · Photo logged</p></td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Unsafe Act</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">R. Fuentes</td><td class="px-4 py-3 text-slate-500">May 15</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">CA Open</span></td><td class="px-4 py-3"><button onclick="showPage('corrective')" class="text-xs font-bold text-blue-600 hover:underline">View CA</button></td></tr>
+              <tr class="hover:bg-orange-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Exposed rebar ends — no mushroom caps, Zone 2</p><p class="text-xs text-slate-500">Impalement hazard · Flagged</p></td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Unsafe Condition</span></td><td class="px-4 py-3 font-semibold text-slate-600">Metro Rail</td><td class="px-4 py-3 text-slate-500">Ops Lead</td><td class="px-4 py-3 text-slate-500">May 15</td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Open</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Assign</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Near-miss: crane load drifted over occupied area</p><p class="text-xs text-slate-500">Escalated to RCA · No injury</p></td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Near-Miss</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">M. Reyes</td><td class="px-4 py-3 text-slate-500">May 14</td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">RCA Open</span></td><td class="px-4 py-3"><button onclick="showPage('rca')" class="text-xs font-bold text-blue-600 hover:underline">View RCA</button></td></tr>
+              <tr class="hover:bg-emerald-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Good Catch: worker spotted missing guardrail before shift</p><p class="text-xs text-slate-500">Prevented potential fall · Recognized</p></td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Positive Practice</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">D. Park</td><td class="px-4 py-3 text-slate-500">May 14</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Closed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">No spotter during heavy equipment reversal</p><p class="text-xs text-slate-500">Struck-by risk · OSHA 1926.602</p></td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Unsafe Act</span></td><td class="px-4 py-3 font-semibold text-slate-600">Downtown Rehab</td><td class="px-4 py-3 text-slate-500">Crew Lead</td><td class="px-4 py-3 text-slate-500">May 13</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">CA Open</span></td><td class="px-4 py-3"><button onclick="showPage('corrective')" class="text-xs font-bold text-blue-600 hover:underline">View CA</button></td></tr>
+              <tr class="hover:bg-orange-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Standing water pooled at electrical panel base</p><p class="text-xs text-slate-500">Electrocution risk · Hazmat flagged</p></td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Unsafe Condition</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">S. Okafor</td><td class="px-4 py-3 text-slate-500">May 13</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Resolved</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-emerald-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Worker proactively cleared debris from stairwell</p><p class="text-xs text-slate-500">Housekeeping initiative</p></td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Positive Practice</span></td><td class="px-4 py-3 font-semibold text-slate-600">Eastside Mixed</td><td class="px-4 py-3 text-slate-500">D. Tran</td><td class="px-4 py-3 text-slate-500">May 12</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Closed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">PPE non-compliance: 3 workers without hard hats in active zone</p><p class="text-xs text-slate-500">Verbal warning issued</p></td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Unsafe Act</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">M. Reyes</td><td class="px-4 py-3 text-slate-500">May 11</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Closed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs font-bold text-slate-500">
+          <span>Showing 8 of 74 observations · Q2 2025</span>
+          <div class="flex gap-2"><button class="rounded px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-100 text-slate-600">← Prev</button><button class="rounded px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-100 text-slate-600">Next →</button></div>
+        </div>
+      </div>
+      <!-- Trends + Site breakdown -->
+      <div class="grid xl:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+          <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">Observation Trend — Q2 2025</p>
+          <div class="flex items-end gap-2 h-24 mb-3">
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-red-400" style="height:45%"></div><p class="text-[10px] font-bold text-slate-500">Apr W1</p></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-red-400" style="height:60%"></div><p class="text-[10px] font-bold text-slate-500">Apr W2</p></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-orange-400" style="height:70%"></div><p class="text-[10px] font-bold text-slate-500">Apr W3</p></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-amber-400" style="height:80%"></div><p class="text-[10px] font-bold text-slate-500">Apr W4</p></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-emerald-400" style="height:100%"></div><p class="text-[10px] font-bold text-slate-500">May W1</p></div>
+            <div class="flex flex-col items-center gap-1 flex-1"><div class="w-full rounded-t bg-emerald-400" style="height:85%"></div><p class="text-[10px] font-bold text-slate-500">May W2</p></div>
+          </div>
+          <p class="text-xs font-bold text-emerald-600">↑ Observation rate improving — 32% increase vs. last quarter. Strong safety culture signal.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+          <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">By Site — Unsafe Observations</p>
+          <div class="grid gap-3 text-sm">
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Riverside Tower</span><span class="font-black text-red-600">14</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-red-500" style="width:70%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Harbor Bridge</span><span class="font-black text-orange-600">9</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-orange-400" style="width:45%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Metro Rail</span><span class="font-black text-orange-600">7</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-orange-400" style="width:35%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Downtown Rehab</span><span class="font-black text-amber-600">6</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-amber-400" style="width:30%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Eastside Mixed-Use</span><span class="font-black text-amber-600">4</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-amber-400" style="width:20%"></div></div></div>
+            <div><div class="flex justify-between mb-1"><span class="font-bold text-slate-700">Lakefront Data Center</span><span class="font-black text-emerald-600">1</span></div><div class="h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-emerald-400" style="width:5%"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: ROOT CAUSE ANALYSIS -->
+    <div id="page-rca" class="page px-7 py-6">
+      <div class="flex flex-col gap-4 pb-5 xl:flex-row xl:items-start xl:justify-between">
+        <div><h1 class="text-3xl font-black text-slate-950">Root Cause Analysis</h1><p class="mt-1 text-slate-600">Structured investigations into recordable incidents and high-severity near-misses — 5-Why, Fishbone, and Fault Tree methods.</p></div>
+        <button class="flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-500 transition shadow-sm">+ Start RCA</button>
+      </div>
+      <!-- KPI Band -->
+      <div class="grid gap-4 xl:grid-cols-4 mb-5">
+        <div class="kpi-card"><p class="text-[10px] font-black uppercase tracking-wider text-slate-500">Total RCAs</p><p class="mt-2 text-3xl font-black text-slate-950">6</p><p class="mt-1 text-xs font-bold text-slate-500">Q2 2025</p></div>
+        <div class="kpi-card border-amber-200 bg-amber-50"><p class="text-[10px] font-black uppercase tracking-wider text-amber-700">In Progress</p><p class="mt-2 text-3xl font-black text-slate-950">2</p><p class="mt-1 text-xs font-bold text-amber-600">Awaiting findings</p></div>
+        <div class="kpi-card border-emerald-200 bg-emerald-50"><p class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Completed</p><p class="mt-2 text-3xl font-black text-slate-950">4</p><p class="mt-1 text-xs font-bold text-emerald-600">CAs generated: 11</p></div>
+        <div class="kpi-card border-blue-200 bg-blue-50"><p class="text-[10px] font-black uppercase tracking-wider text-blue-700">Avg. Days to Close</p><p class="mt-2 text-3xl font-black text-slate-950">4.2</p><p class="mt-1 text-xs font-bold text-blue-600">Target: 5 days</p></div>
+      </div>
+      <!-- RCA list -->
+      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-5">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <p class="font-black text-slate-950">Investigation Log</p>
+          <div class="flex gap-2"><span class="chip bg-slate-900 text-white">All</span><span class="chip bg-amber-100 text-amber-800 cursor-pointer">In Progress</span><span class="chip bg-emerald-100 text-emerald-700 cursor-pointer">Completed</span></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500"><th class="px-5 py-3 text-left">Incident</th><th class="px-4 py-3 text-left">Site</th><th class="px-4 py-3 text-left">Method</th><th class="px-4 py-3 text-left">Lead</th><th class="px-4 py-3 text-left">Opened</th><th class="px-4 py-3 text-left">CAs</th><th class="px-4 py-3 text-left">Status</th><th class="px-4 py-3"></th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Debris strike — Carlos Mendes (Recordable)</p><p class="text-xs text-slate-500">Zone B · Lost time: 3 days</p></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">5-Why</span></td><td class="px-4 py-3 text-slate-500">M. Reyes</td><td class="px-4 py-3 text-slate-500">May 14</td><td class="px-4 py-3 font-black text-orange-600">3 open</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">In Progress</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Open</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Heat exhaustion — 3 roofing crew (Recordable)</p><p class="text-xs text-slate-500">Roof Level · Heat index 104°F</p></td><td class="px-4 py-3 font-semibold text-slate-600">Downtown Rehab</td><td class="px-4 py-3"><span class="chip bg-purple-100 text-purple-700">Fishbone</span></td><td class="px-4 py-3 text-slate-500">Safety Off.</td><td class="px-4 py-3 text-slate-500">May 7</td><td class="px-4 py-3 font-black text-orange-600">2 open</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">In Progress</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Open</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Electrical arc flash — LOTO not applied</p><p class="text-xs text-slate-500">Panel Room 2 · Minor burn</p></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">5-Why</span></td><td class="px-4 py-3 text-slate-500">D. Park</td><td class="px-4 py-3 text-slate-500">May 5</td><td class="px-4 py-3 font-black text-emerald-600">All closed</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Completed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Near-miss: crane load swing — unsecured tag line</p><p class="text-xs text-slate-500">Level 10 · High-severity</p></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Fault Tree</span></td><td class="px-4 py-3 text-slate-500">M. Reyes</td><td class="px-4 py-3 text-slate-500">May 3</td><td class="px-4 py-3 font-black text-emerald-600">All closed</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Completed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Forklift / pedestrian proximity — 1m clearance</p><p class="text-xs text-slate-500">Tunnel A · Near-miss</p></td><td class="px-4 py-3 font-semibold text-slate-600">Metro Rail</td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">5-Why</span></td><td class="px-4 py-3 text-slate-500">Ops Lead</td><td class="px-4 py-3 text-slate-500">Apr 30</td><td class="px-4 py-3 font-black text-emerald-600">All closed</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Completed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Laceration — circular saw, guard missing</p><p class="text-xs text-slate-500">Carpentry bay · First Aid</p></td><td class="px-4 py-3 font-semibold text-slate-600">Eastside Mixed</td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">5-Why</span></td><td class="px-4 py-3 text-slate-500">J. Kim</td><td class="px-4 py-3 text-slate-500">Apr 25</td><td class="px-4 py-3 font-black text-emerald-600">All closed</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Completed</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- RCA Detail: Debris Strike -->
+      <div class="rounded-xl border border-amber-200 bg-white shadow-lg overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-amber-100 bg-amber-50">
+          <div><p class="font-black text-slate-950">RCA Detail — Debris Strike · Riverside Tower · May 14</p><p class="text-xs text-slate-500 mt-0.5">Method: 5-Why · Lead: Marcus Reyes · Status: In Progress</p></div>
+          <span class="chip bg-amber-100 text-amber-800">In Progress</span>
+        </div>
+        <div class="grid xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-slate-100">
+          <div class="p-5">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">5-Why Analysis</p>
+            <div class="grid gap-3">
+              <div class="flex gap-3 items-start"><div class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-red-100 text-red-700 text-xs font-black">1</div><div><p class="text-sm font-black text-slate-900">Why did debris strike Carlos Mendes?</p><p class="text-sm text-slate-600 mt-0.5">Unsecured material fell from Level 12 perimeter</p></div></div>
+              <div class="flex gap-3 items-start"><div class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-orange-100 text-orange-700 text-xs font-black">2</div><div><p class="text-sm font-black text-slate-900">Why was material unsecured?</p><p class="text-sm text-slate-600 mt-0.5">No debris netting installed at Level 12 overhang</p></div></div>
+              <div class="flex gap-3 items-start"><div class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700 text-xs font-black">3</div><div><p class="text-sm font-black text-slate-900">Why was netting not installed?</p><p class="text-sm text-slate-600 mt-0.5">Netting subcontractor delayed — not communicated to site lead</p></div></div>
+              <div class="flex gap-3 items-start"><div class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-700 text-xs font-black">4</div><div><p class="text-sm font-black text-slate-900">Why was the delay not communicated?</p><p class="text-sm text-slate-600 mt-0.5">No formal subcontractor check-in process in place</p></div></div>
+              <div class="flex gap-3 items-start"><div class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-200 text-slate-700 text-xs font-black">5</div><div><p class="text-sm font-black text-slate-900">Why does no check-in process exist?</p><p class="text-sm text-slate-600 mt-0.5">Gap in site coordination procedure — not addressed in safety plan Rev 4.0</p></div></div>
+            </div>
+            <div class="mt-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3"><p class="text-xs font-black text-red-700">Root Cause: Absence of subcontractor coordination procedure in the site safety plan</p></div>
+          </div>
+          <div class="p-5">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">Contributing Factors</p>
+            <div class="grid gap-2 mb-5">
+              <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3"><span class="chip bg-orange-100 text-orange-700 shrink-0">Systemic</span><p class="text-sm text-slate-700">No formal subcontractor daily check-in or pre-task coordination</p></div>
+              <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3"><span class="chip bg-red-100 text-red-700 shrink-0">Behavioral</span><p class="text-sm text-slate-700">Exclusion zone beneath overhead work not enforced during active hoisting</p></div>
+              <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3"><span class="chip bg-blue-100 text-blue-700 shrink-0">Environmental</span><p class="text-sm text-slate-700">High winds forecast — no weather delay protocol triggered</p></div>
+            </div>
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-3">Corrective Actions Generated</p>
+            <div class="grid gap-2 text-sm">
+              <div class="flex justify-between items-center py-2 border-b border-slate-100"><span class="font-semibold text-slate-700">Install debris netting — Level 12</span><span class="chip bg-red-100 text-red-700">Overdue</span></div>
+              <div class="flex justify-between items-center py-2 border-b border-slate-100"><span class="font-semibold text-slate-700">Create subcontractor check-in SOP</span><span class="chip bg-amber-100 text-amber-800">In Progress</span></div>
+              <div class="flex justify-between items-center py-2"><span class="font-semibold text-slate-700">Update safety plan — overhead exclusion zones</span><span class="chip bg-red-100 text-red-700">New</span></div>
+            </div>
+            <div class="flex gap-2 mt-4">
+              <button onclick="showPage('corrective')" class="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-black text-white hover:bg-blue-500 transition">View All CAs</button>
+              <button class="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-black text-slate-700 hover:bg-slate-50 transition">Export Report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- PAGE: TRAINING MATRIX -->
     <div id="page-training" class="page px-7 py-6">
       <div class="flex flex-col gap-4 pb-5 xl:flex-row xl:items-start xl:justify-between">
@@ -1990,11 +2137,9 @@ const navConfig = [
   ]},
   { id:"safety-mgmt", label:"Safety Management", items:[
     { label:"Incidents", page:"incidents" },
-    { label:"Observations", page:"incidents" },
+    { label:"Observations", page:"observations" },
     { label:"Corrective Actions", page:"corrective" },
-    { label:"Root Cause Analysis", page:"incidents" },
-    { label:"Toolbox Talks", page:"incidents" },
-    { label:"JSA Builder", page:"incidents" },
+    { label:"Root Cause Analysis", page:"rca" },
   ]},
   { id:"compliance", label:"Compliance & Assurance", items:[
     { label:"Permits", page:"jobsites" },
@@ -2033,6 +2178,8 @@ const pageLabels = {
   risk: "Risk Intelligence",
   predictive: "Predictive Risk",
   incidents: "Incidents",
+  observations: "Observations",
+  rca: "Root Cause Analysis",
   inspections: "Jobsite Audits",
   workforce: "Workforce",
   training: "Workforce Readiness & Training",
