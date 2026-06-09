@@ -1,7 +1,7 @@
 "use client";
 
 import { deferEffect } from "@/lib/deferredEffect";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, TriangleAlert, Zap } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
@@ -200,6 +200,15 @@ function InlineBtn({
 }
 
 export default function SafePredictIncidentsPage() {
+  // useSearchParams() requires a Suspense boundary for static prerendering (CSR bailout).
+  return (
+    <Suspense fallback={null}>
+      <SafePredictIncidentsPageContent />
+    </Suspense>
+  );
+}
+
+function SafePredictIncidentsPageContent() {
   const searchParams = useSearchParams();
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);

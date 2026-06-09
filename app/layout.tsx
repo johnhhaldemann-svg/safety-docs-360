@@ -6,7 +6,10 @@ import Script from "next/script";
 import { APP_BRAND, productSentence } from "@/lib/appBrand";
 import "./globals.css";
 
-export const dynamic = "force-dynamic";
+// NOTE: No root-level `force-dynamic`. Public pages (marketing, legal, login
+// shell, the safe-predict demo) carry no request-time data, so they render
+// statically/CDN-cached. The authed `(app)` segment sets its own
+// `force-dynamic`, so per-user pages remain dynamic.
 
 const inter = Inter({
   subsets: ["latin"],
