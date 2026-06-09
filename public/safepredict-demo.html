@@ -1135,6 +1135,83 @@
       </div>
     </div>
 
+    <!-- PAGE: PERMITS -->
+    <div id="page-permits" class="page px-7 py-6">
+      <div class="flex flex-col gap-4 pb-5 xl:flex-row xl:items-start xl:justify-between">
+        <div><h1 class="text-3xl font-black text-slate-950">Permits</h1><p class="mt-1 text-slate-600">All active work permits across sites — hot work, electrical, excavation, height, crane, and confined space.</p></div>
+        <div class="flex flex-wrap gap-2">
+          <select class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none"><option>All Sites</option><option>Riverside Tower</option><option>Harbor Bridge</option><option>Metro Rail</option><option>Downtown Rehab</option><option>Eastside Mixed-Use</option><option>Lakefront Data Center</option></select>
+          <select class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm outline-none"><option>All Types</option><option>Hot Work</option><option>Electrical / LOTO</option><option>Work at Height</option><option>Excavation</option><option>Crane Operations</option><option>Confined Space</option></select>
+          <button class="flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-500 transition shadow-sm">+ Issue Permit</button>
+        </div>
+      </div>
+      <!-- KPI band -->
+      <div class="grid gap-4 xl:grid-cols-4 mb-5">
+        <div class="kpi-card border-emerald-200 bg-emerald-50"><p class="text-[10px] font-black uppercase tracking-wider text-emerald-700">Active Permits</p><p class="mt-2 text-3xl font-black text-slate-950">24</p><p class="mt-1 text-xs font-bold text-emerald-600">Across all 6 sites</p></div>
+        <div class="kpi-card border-amber-200 bg-amber-50"><p class="text-[10px] font-black uppercase tracking-wider text-amber-700">Expiring This Week</p><p class="mt-2 text-3xl font-black text-slate-950">5</p><p class="mt-1 text-xs font-bold text-amber-600">Renewal required</p></div>
+        <div class="kpi-card border-red-200 bg-red-50"><p class="text-[10px] font-black uppercase tracking-wider text-red-700">Expired / Overdue</p><p class="mt-2 text-3xl font-black text-slate-950">3</p><p class="mt-1 text-xs font-bold text-red-600">Work must stop</p></div>
+        <div class="kpi-card border-slate-200"><p class="text-[10px] font-black uppercase tracking-wider text-slate-500">Issued This Month</p><p class="mt-2 text-3xl font-black text-slate-950">41</p><p class="mt-1 text-xs font-bold text-slate-500">+6 vs. last month</p></div>
+      </div>
+      <!-- Status filter chips -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        <span class="chip bg-slate-900 text-white cursor-pointer">All (24)</span>
+        <span class="chip bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200">Active (16)</span>
+        <span class="chip bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200">Expiring (5)</span>
+        <span class="chip bg-red-100 text-red-700 cursor-pointer hover:bg-red-200">Expired (3)</span>
+      </div>
+      <!-- Permit log table -->
+      <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-5">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500"><th class="px-5 py-3 text-left">Permit</th><th class="px-4 py-3 text-left">Type</th><th class="px-4 py-3 text-left">Site</th><th class="px-4 py-3 text-left">Issued To</th><th class="px-4 py-3 text-left">Issued</th><th class="px-4 py-3 text-left">Expires</th><th class="px-4 py-3 text-left">Status</th><th class="px-4 py-3"></th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Electrical / LOTO — Panel Room B</p><p class="text-xs text-slate-500">PMT-2025-041</p></td><td class="px-4 py-3"><span class="chip bg-yellow-100 text-yellow-800">Electrical</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">S. Okafor</td><td class="px-4 py-3 text-slate-500">May 8</td><td class="px-4 py-3 font-black text-red-600">May 14 ✕</td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Expired</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Hot Work — Welding Zone C</p><p class="text-xs text-slate-500">PMT-2025-037</p></td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Hot Work</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">L. Hernandez</td><td class="px-4 py-3 text-slate-500">Apr 30</td><td class="px-4 py-3 font-black text-red-600">May 10 ✕</td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Expired</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-red-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Confined Space Entry — Tunnel A</p><p class="text-xs text-slate-500">PMT-2025-029</p></td><td class="px-4 py-3"><span class="chip bg-slate-200 text-slate-700">Confined Space</span></td><td class="px-4 py-3 font-semibold text-slate-600">Metro Rail</td><td class="px-4 py-3 text-slate-500">Ops Lead</td><td class="px-4 py-3 text-slate-500">Apr 22</td><td class="px-4 py-3 font-black text-red-600">May 12 ✕</td><td class="px-4 py-3"><span class="chip bg-red-100 text-red-700">Expired</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Electrical / LOTO — Level 8 panel</p><p class="text-xs text-slate-500">PMT-2025-048</p></td><td class="px-4 py-3"><span class="chip bg-yellow-100 text-yellow-800">Electrical</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">Site Lead</td><td class="px-4 py-3 text-slate-500">May 11</td><td class="px-4 py-3 font-black text-amber-600">May 18</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Expiring</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Excavation — Area C trench works</p><p class="text-xs text-slate-500">PMT-2025-044</p></td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Excavation</span></td><td class="px-4 py-3 font-semibold text-slate-600">Metro Rail</td><td class="px-4 py-3 text-slate-500">Ops Lead</td><td class="px-4 py-3 text-slate-500">May 9</td><td class="px-4 py-3 font-black text-amber-600">May 19</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Expiring</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Hot Work — Welding Bay 4</p><p class="text-xs text-slate-500">PMT-2025-052</p></td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Hot Work</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">L. Hernandez</td><td class="px-4 py-3 text-slate-500">May 13</td><td class="px-4 py-3 font-black text-amber-600">May 20</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Expiring</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-amber-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Confined Space — MEP vault access</p><p class="text-xs text-slate-500">PMT-2025-049</p></td><td class="px-4 py-3"><span class="chip bg-slate-200 text-slate-700">Confined Space</span></td><td class="px-4 py-3 font-semibold text-slate-600">Lakefront Data</td><td class="px-4 py-3 text-slate-500">P. Nair</td><td class="px-4 py-3 text-slate-500">May 12</td><td class="px-4 py-3 font-black text-amber-600">May 21</td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Expiring</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">Renew</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Work at Height — Levels 10–15</p><p class="text-xs text-slate-500">PMT-2025-053</p></td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">Work at Height</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">M. Reyes</td><td class="px-4 py-3 text-slate-500">May 14</td><td class="px-4 py-3 text-slate-500">May 28</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Active</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Crane Operations — Tower Crane TC-1</p><p class="text-xs text-slate-500">PMT-2025-051</p></td><td class="px-4 py-3"><span class="chip bg-purple-100 text-purple-700">Crane</span></td><td class="px-4 py-3 font-semibold text-slate-600">Riverside Tower</td><td class="px-4 py-3 text-slate-500">R. Fuentes</td><td class="px-4 py-3 text-slate-500">May 13</td><td class="px-4 py-3 text-slate-500">Jun 13</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Active</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Excavation — Bridge pier footings</p><p class="text-xs text-slate-500">PMT-2025-046</p></td><td class="px-4 py-3"><span class="chip bg-amber-100 text-amber-800">Excavation</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">D. Park</td><td class="px-4 py-3 text-slate-500">May 10</td><td class="px-4 py-3 text-slate-500">May 24</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Active</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Hot Work — Pipe welding, Level 3</p><p class="text-xs text-slate-500">PMT-2025-055</p></td><td class="px-4 py-3"><span class="chip bg-orange-100 text-orange-700">Hot Work</span></td><td class="px-4 py-3 font-semibold text-slate-600">Downtown Rehab</td><td class="px-4 py-3 text-slate-500">Crew Lead</td><td class="px-4 py-3 text-slate-500">May 15</td><td class="px-4 py-3 text-slate-500">May 22</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Active</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+              <tr class="hover:bg-slate-50 transition"><td class="px-5 py-3"><p class="font-black text-slate-950">Work at Height — Scaffold Zone B</p><p class="text-xs text-slate-500">PMT-2025-047</p></td><td class="px-4 py-3"><span class="chip bg-blue-100 text-blue-700">Work at Height</span></td><td class="px-4 py-3 font-semibold text-slate-600">Harbor Bridge</td><td class="px-4 py-3 text-slate-500">D. Park</td><td class="px-4 py-3 text-slate-500">May 11</td><td class="px-4 py-3 text-slate-500">May 25</td><td class="px-4 py-3"><span class="chip bg-emerald-100 text-emerald-700">Active</span></td><td class="px-4 py-3"><button class="text-xs font-bold text-blue-600 hover:underline">View</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs font-bold text-slate-500">
+          <span>Showing 12 of 24 permits</span>
+          <div class="flex gap-2"><button class="rounded px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-100 text-slate-600">← Prev</button><button class="rounded px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-100 text-slate-600">Next →</button></div>
+        </div>
+      </div>
+      <!-- By site summary + permit type breakdown -->
+      <div class="grid xl:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+          <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">Permits by Site</p>
+          <div class="grid gap-3 text-sm">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Riverside Tower</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-blue-500" style="width:71%"></div></div></div><span class="font-black text-slate-950 ml-3">7</span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Harbor Bridge</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-red-400" style="width:40%"></div></div></div><span class="font-black text-slate-950 ml-3">4 <span class="text-xs text-red-600">(1 expired)</span></span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Metro Rail</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-orange-400" style="width:50%"></div></div></div><span class="font-black text-slate-950 ml-3">5 <span class="text-xs text-red-600">(1 expired)</span></span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Downtown Rehab</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-blue-400" style="width:30%"></div></div></div><span class="font-black text-slate-950 ml-3">3</span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Eastside Mixed-Use</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-blue-400" style="width:30%"></div></div></div><span class="font-black text-slate-950 ml-3">3</span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-3 flex-1"><span class="font-bold text-slate-700 w-40">Lakefront Data Center</span><div class="flex-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-emerald-400" style="width:20%"></div></div></div><span class="font-black text-slate-950 ml-3">2</span></div>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+          <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">Permits by Type</p>
+          <div class="grid gap-3 text-sm">
+            <div class="flex justify-between items-center py-2 border-b border-slate-100"><div class="flex items-center gap-2"><span class="chip bg-orange-100 text-orange-700">Hot Work</span></div><div class="flex items-center gap-3"><span class="text-slate-500">6 active</span><span class="font-black text-red-600">2 expired</span></div></div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100"><div class="flex items-center gap-2"><span class="chip bg-blue-100 text-blue-700">Work at Height</span></div><div class="flex items-center gap-3"><span class="text-slate-500">5 active</span><span class="font-black text-emerald-600">all current</span></div></div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100"><div class="flex items-center gap-2"><span class="chip bg-yellow-100 text-yellow-800">Electrical / LOTO</span></div><div class="flex items-center gap-3"><span class="text-slate-500">4 active</span><span class="font-black text-red-600">1 expired</span></div></div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100"><div class="flex items-center gap-2"><span class="chip bg-amber-100 text-amber-800">Excavation</span></div><div class="flex items-center gap-3"><span class="text-slate-500">4 active</span><span class="font-black text-emerald-600">all current</span></div></div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100"><div class="flex items-center gap-2"><span class="chip bg-purple-100 text-purple-700">Crane Operations</span></div><div class="flex items-center gap-3"><span class="text-slate-500">3 active</span><span class="font-black text-emerald-600">all current</span></div></div>
+            <div class="flex justify-between items-center py-2"><div class="flex items-center gap-2"><span class="chip bg-slate-200 text-slate-700">Confined Space</span></div><div class="flex items-center gap-3"><span class="text-slate-500">2 active</span><span class="font-black text-red-600">1 expired</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- PAGE: OBSERVATIONS -->
     <div id="page-observations" class="page px-7 py-6">
       <div class="flex flex-col gap-4 pb-5 xl:flex-row xl:items-start xl:justify-between">
@@ -2124,7 +2201,6 @@ function showToast(msg, type) {
 const navConfig = [
   { id:"command-center", label:"Command Center", items:[
     { label:"Executive Overview", page:"dashboard" },
-    { label:"Gus AI Coach", page:"dashboard" },
   ]},
   { id:"sites-ops", label:"Sites & Operations", items:[
     { label:"Jobsites", page:"jobsites" },
@@ -2142,7 +2218,7 @@ const navConfig = [
     { label:"Root Cause Analysis", page:"rca" },
   ]},
   { id:"compliance", label:"Compliance & Assurance", items:[
-    { label:"Permits", page:"jobsites" },
+    { label:"Permits", page:"permits" },
     { label:"OSHA 300 Log", page:"incidents" },
     { label:"Training", page:"training" },
     { label:"Training Tracker", page:"training" },
@@ -2184,6 +2260,7 @@ const pageLabels = {
   workforce: "Workforce",
   training: "Workforce Readiness & Training",
   corrective: "Corrective Actions",
+  permits: "Permits",
   management: "Management Review",
   profile: "Profile",
   settings: "Settings",
