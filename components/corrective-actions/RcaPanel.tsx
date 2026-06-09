@@ -697,7 +697,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
                       onChange={(e) => setAdvanceStep(e.target.checked)}
                       className="rounded border-slate-600 bg-slate-800"
                     />
-                    I'm ready to move to the next step
+                    I&apos;m ready to move to the next step
                   </label>
                   <div className="flex gap-2">
                     <textarea
