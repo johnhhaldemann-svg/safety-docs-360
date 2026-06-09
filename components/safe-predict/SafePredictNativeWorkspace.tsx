@@ -35,7 +35,6 @@ import {
   CorrectiveActionCard,
   EventTimeline,
   ExportButton,
-  ForecastTrendChart,
   MetricCard,
   NextStepRow,
   RiskBadge,
@@ -44,6 +43,7 @@ import {
   SelectShell,
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
+import { ForecastTrendChart } from "@/components/safe-predict/SafePredictCharts";
 import { SafePredictOriginalSystemLinks } from "@/components/safe-predict/SafePredictOriginalSystemLinks";
 import {
   riskForecastForSite,

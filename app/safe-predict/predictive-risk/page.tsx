@@ -9,12 +9,12 @@ import {
   ConfidenceGauge,
   DriverDots,
   ExportButton,
-  ForecastTrendChart,
   PageHeader,
   SelectShell,
   SectionTitle,
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
+import { ForecastTrendChart } from "@/components/safe-predict/SafePredictCharts";
 import {
   forecastConfidenceForSite,
   forecastReasonsForSite,

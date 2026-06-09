@@ -11,13 +11,13 @@ import {
   ExportButton,
   InsightWorkflow,
   MetricCard,
-  MiniSparkline,
   PageHeader,
   RiskHeatMap,
   SectionTitle,
   SelectShell,
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
+import { MiniSparkline } from "@/components/safe-predict/SafePredictCharts";
 import {
   filterAlertsByRisk,
   summarizeActions,

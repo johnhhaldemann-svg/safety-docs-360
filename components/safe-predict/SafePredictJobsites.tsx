@@ -43,7 +43,6 @@ import {
   CorrectiveActionCard,
   EventTimeline,
   ExportButton,
-  ForecastTrendChart,
   MetricCard,
   PageHeader,
   RiskBadge,
@@ -52,6 +51,7 @@ import {
   SelectShell,
   cx,
 } from "@/components/safe-predict/SafePredictPrimitives";
+import { ForecastTrendChart } from "@/components/safe-predict/SafePredictCharts";
 import {
   jobsiteById,
   clampRiskScore,
