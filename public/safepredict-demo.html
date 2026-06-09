@@ -2815,5 +2815,32 @@ document.addEventListener("click", function(e) {
   }
 });
 </script>
+<script>
+// -- SafePredict Demo Protection --
+// Disable right-click context menu
+document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// Disable keyboard shortcuts that expose source or save the file
+document.addEventListener('keydown', function(e) {
+  var k = e.key.toLowerCase();
+  // Ctrl/Cmd + U (view source), S (save), A (select all), P (print)
+  if ((e.ctrlKey || e.metaKey) && ['u','s','a','p'].includes(k)) {
+    e.preventDefault(); return false;
+  }
+  // F12, Ctrl+Shift+I/J/C (DevTools)
+  if (k === 'f12') { e.preventDefault(); return false; }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].includes(k)) {
+    e.preventDefault(); return false;
+  }
+});
+
+// Disable text selection and drag on non-input elements
+document.addEventListener('selectstart', function(e) {
+  if (!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+    e.preventDefault();
+  }
+});
+document.addEventListener('dragstart', function(e) { e.preventDefault(); });
+</script>
 </body>
 </html>
