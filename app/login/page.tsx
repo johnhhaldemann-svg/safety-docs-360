@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
@@ -228,18 +228,8 @@ function LoginPageContent() {
                 </div>
 
                 <div className="mt-3 overflow-hidden rounded-[1.45rem] border border-[rgba(111,138,177,0.24)] bg-white/86 p-2 shadow-[0_16px_34px_rgba(38,64,106,0.12)]">
-                  <video
-                    aria-hidden="true"
-                    autoPlay
-                    loop
-                    muted
-                    poster="/brand/safepredict-risk-poster.png"
-                    playsInline
-                    preload="metadata"
-                    className="aspect-square w-full rounded-[1.05rem] bg-[rgba(234,241,255,0.82)] object-contain"
-                  >
-                    <source src="/brand/safepredict-login-loop.mp4" type="video/mp4" />
-                  </video>
+                  <DeferredLoopVideo />
+
                 </div>
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -593,6 +583,46 @@ function IconEye() {
       <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
       <circle cx="12" cy="12" r="2.5" />
     </svg>
+  );
+}
+
+/**
+ * Decorative looping hero clip. The lightweight WebP poster paints immediately;
+ * the ~4MB MP4 is loaded only once the browser is idle so it never competes with
+ * the login form on the critical path.
+ */
+function DeferredLoopVideo() {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = window as typeof window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const start = () => {
+      el.src = "/brand/safepredict-login-loop.mp4";
+      el.load();
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(start, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(start, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <video
+      ref={ref}
+      aria-hidden="true"
+      autoPlay
+      loop
+      muted
+      poster="/brand/safepredict-risk-poster.webp"
+      playsInline
+      preload="none"
+      className="aspect-square w-full rounded-[1.05rem] bg-[rgba(234,241,255,0.82)] object-contain"
+    />
   );
 }
 

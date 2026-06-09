@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: projectRoot,
   /** Lets Playwright open `http://127.0.0.1:3000` while Next dev listens on `localhost` (HMR / dev resources). */
   allowedDevOrigins: ["127.0.0.1"],
+  /** Tree-shake large icon/chart barrels so pages only ship the symbols they use. */
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
   async headers() {
     return [
       {
