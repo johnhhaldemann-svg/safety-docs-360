@@ -440,7 +440,7 @@ export default function SuperadminOnboardingPage() {
               body: "Create a workspace and assign the owner without waiting for a request.",
             },
             {
-              href: "/get-started",
+              href: "/safe-predict/get-started",
               title: "Customer setup guide",
               body: "See the guided wizard and data-upload templates customers use.",
             },

@@ -33,6 +33,7 @@ export const SAFE_PREDICT_WORKSPACE_ROUTES = [
   "/safe-predict/csep",
   "/safe-predict/documents",
   "/safe-predict/emergency-action-plan",
+  "/safe-predict/get-started",
   "/safe-predict/gus-coaching",
   "/safe-predict/hazards",
   "/safe-predict/incidents",

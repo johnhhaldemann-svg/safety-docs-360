@@ -577,7 +577,7 @@ export function AppWorkspaceLayout({
       // the dashboard landing is gated (checked before the SafePredict remap so it actually
       // fires) — every setup page stays reachable so they can complete the steps.
       if (mustOnboard && pathname === "/dashboard") {
-        router.replace("/get-started");
+        router.replace("/safe-predict/get-started");
         return;
       }
 

@@ -1667,7 +1667,7 @@ export function CommandCenterWorkspace() {
         aside={<StatusBadge label={adoptionChecklist.nextItem ? `Next: ${adoptionChecklist.nextItem.label}` : "Launch complete"} tone={adoptionChecklist.nextItem ? "warning" : "success"} />}
         actions={
           <Link
-            href="/get-started"
+            href="/safe-predict/get-started"
             className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
           >
             Open guided setup

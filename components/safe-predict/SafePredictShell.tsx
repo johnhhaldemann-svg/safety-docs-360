@@ -59,6 +59,7 @@ const navGroups: NavGroup[] = [
     icon: Home,
     items: [
       { href: "/safe-predict", label: "Executive Overview", icon: Home },
+      { href: "/safe-predict/get-started", label: "Get Started", icon: Lightbulb },
       { href: "/safe-predict/gus-coaching", label: "Gus Coaching Tutor", icon: GraduationCap },
     ],
   },
