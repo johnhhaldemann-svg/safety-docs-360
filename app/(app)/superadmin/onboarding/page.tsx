@@ -139,6 +139,7 @@ export default function SuperadminOnboardingPage() {
   const [processingId, setProcessingId] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
+  const [resendingId, setResendingId] = useState("");
   const [message, setMessage] = useState<{
     tone: "success" | "error" | "warning";
     text: string;
@@ -227,6 +228,35 @@ export default function SuperadminOnboardingPage() {
     });
   }, []);
 
+  const handleResendInvite = useCallback(async (companyId: string) => {
+    setResendingId(companyId);
+    setMessage(null);
+    try {
+      const token = await getSupabaseAccessToken();
+      if (!token) throw new Error("Sign in as a superadmin to resend invites.");
+      const res = await fetch("/api/admin/companies", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, action: "resend_invite" }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; message?: string; warning?: string | null }
+        | null;
+      if (!res.ok) throw new Error(data?.error || "Failed to resend the invite.");
+      setMessage({
+        tone: data?.warning ? "warning" : "success",
+        text: data?.warning || data?.message || "Invite re-sent.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Failed to resend the invite.",
+      });
+    } finally {
+      setResendingId("");
+    }
+  }, []);
+
   const handleBulkApprove = useCallback(
     async (ids: string[]) => {
       if (ids.length === 0) return;
@@ -288,17 +318,19 @@ export default function SuperadminOnboardingPage() {
 
   const funnel = useMemo(() => {
     const buckets = [0, 0, 0, 0]; // index = steps complete (0..3)
+    const age = { fresh: 0, week: 0, stale: 0 }; // incomplete companies by days since signup
     let incompleteAgeDays = 0;
     let incompleteCount = 0;
     for (const company of activeCompanies) {
       const setup = deriveSetup(company);
       buckets[setup.completed] += 1;
       if (setup.completed < 3 && company.createdAt) {
-        incompleteAgeDays += Math.max(
-          0,
-          (Date.now() - new Date(company.createdAt).getTime()) / 86_400_000
-        );
+        const days = Math.max(0, (Date.now() - new Date(company.createdAt).getTime()) / 86_400_000);
+        incompleteAgeDays += days;
         incompleteCount += 1;
+        if (days <= 3) age.fresh += 1;
+        else if (days <= 7) age.week += 1;
+        else age.stale += 1;
       }
     }
     const total = activeCompanies.length || 1;
@@ -309,6 +341,7 @@ export default function SuperadminOnboardingPage() {
         { label: "Fully set up", value: buckets[3], pct: Math.round((buckets[3] / total) * 100) },
         { label: "Not started", value: buckets[0], pct: Math.round((buckets[0] / total) * 100) },
       ],
+      age,
       avgIncompleteAgeDays: incompleteCount
         ? Math.round(incompleteAgeDays / incompleteCount)
         : null,
@@ -544,6 +577,14 @@ export default function SuperadminOnboardingPage() {
                     <Pill label="Profile" on={setup.profile} />
                     <Pill label="Team" on={setup.team} />
                     <Pill label="Documents" on={setup.documents} />
+                    <button
+                      type="button"
+                      onClick={() => void handleResendInvite(company.id)}
+                      disabled={resendingId === company.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {resendingId === company.id ? "Sending…" : "Resend invite"}
+                    </button>
                     <Link
                       href={`/admin/companies/${company.id}`}
                       className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/30 hover:text-cyan-200"
@@ -590,6 +631,23 @@ export default function SuperadminOnboardingPage() {
                 </span>
               </div>
             ))}
+            <div className="mt-1 grid grid-cols-3 gap-2 border-t border-white/5 pt-3">
+              {[
+                { label: "Stalled ≤3d", value: funnel.age.fresh, accent: "text-cyan-300" },
+                { label: "Stalled 4–7d", value: funnel.age.week, accent: "text-amber-300" },
+                { label: "Stalled 8d+", value: funnel.age.stale, accent: "text-rose-300" },
+              ].map((bucket) => (
+                <div
+                  key={bucket.label}
+                  className="rounded-lg border border-[var(--sa-border)] bg-[var(--sa-panel-soft)] px-3 py-2 text-center"
+                >
+                  <p className={cx("sa-nums text-lg font-black", bucket.accent)}>{bucket.value}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {bucket.label}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </Panel>

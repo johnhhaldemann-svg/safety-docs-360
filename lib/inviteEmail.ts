@@ -189,6 +189,40 @@ export async function sendCompanyRejectionEmail(params: {
   });
 }
 
+/** Nudge sent to an owner who hasn't finished workspace setup. */
+export async function sendOnboardingReminderEmail(params: {
+  toEmail: string;
+  companyName: string;
+}): Promise<SendResult> {
+  const company = params.companyName.trim() || "your workspace";
+  const baseUrl = getBaseUrl();
+  const setupUrl = baseUrl ? `${baseUrl}/safe-predict/get-started` : null;
+  const linkLine = setupUrl
+    ? `<p style="margin:0 0 24px;"><a href="${escapeHtml(setupUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:14px;font-weight:700;">Finish setup</a></p>`
+    : "";
+  const bodyParagraphs = [
+    `You're partway through setting up <strong>${escapeHtml(company)}</strong> on SafePredict.`,
+    "A few quick steps — add your team, a jobsite, and your first document — get the predictive risk engine working for you.",
+    linkLine,
+  ].filter(Boolean);
+  return sendResendEmail({
+    toEmail: params.toEmail,
+    subject: `Finish setting up ${company} on SafePredict`,
+    html: onboardingEmailShell({
+      eyebrow: "Finish setup",
+      heading: `Pick up where you left off`,
+      bodyParagraphs,
+    }),
+    text: [
+      `You're partway through setting up ${company} on SafePredict.`,
+      "Add your team, a jobsite, and your first document to get the predictive risk engine working.",
+      setupUrl ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  });
+}
+
 export async function sendCompanyInviteEmail(params: {
   toEmail: string;
   companyName: string;

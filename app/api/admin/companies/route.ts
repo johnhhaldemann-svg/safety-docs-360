@@ -787,6 +787,66 @@ export async function PATCH(request: Request) {
     });
   }
 
+  if (action === "resend_invite") {
+    if (!companyId) {
+      return NextResponse.json(
+        { error: "A valid company is required to resend the invite." },
+        { status: 400 }
+      );
+    }
+
+    const companyLookup = await supabase
+      .from("companies")
+      .select("id, name, primary_contact_email")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (companyLookup.error) {
+      return NextResponse.json(
+        { error: companyLookup.error.message || "Failed to load company workspace." },
+        { status: 500 }
+      );
+    }
+
+    const company = companyLookup.data as
+      | { id?: string | null; name?: string | null; primary_contact_email?: string | null }
+      | null;
+    const ownerEmail = company?.primary_contact_email?.trim().toLowerCase() || "";
+
+    if (!company?.id || !ownerEmail) {
+      return NextResponse.json(
+        { error: "That company has no owner email on file to resend to." },
+        { status: 400 }
+      );
+    }
+
+    // Unconsumed invite ⇒ the owner still needs to create an account (signup mode);
+    // otherwise the account already exists and should just sign in (login mode).
+    const pendingInviteResult = await supabase
+      .from("company_invites")
+      .select("id")
+      .eq("company_id", companyId)
+      .is("consumed_at", null)
+      .limit(1);
+    const hasPendingInvite = ((pendingInviteResult.data as Array<{ id: string }> | null) ?? []).length > 0;
+
+    const emailResult = await sendCompanyInviteEmail({
+      toEmail: ownerEmail,
+      companyName: company.name?.trim() || "Your company",
+      roleLabel: "Company Owner",
+      invitedByName: auth.user.email?.trim() || "Internal Admin",
+      mode: hasPendingInvite ? "signup" : "login",
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: emailResult.sent
+        ? `Invite re-sent to ${ownerEmail}.`
+        : "Could not resend the invite email.",
+      warning: emailResult.sent ? null : emailResult.warning,
+    });
+  }
+
   if (!requestId || (action !== "approve" && action !== "reject")) {
     return NextResponse.json(
       { error: "A valid company signup request action is required." },
