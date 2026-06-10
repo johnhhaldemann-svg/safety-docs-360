@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   const { data, error } = await admin
     .from("companies")
     .select(
-      "name, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email"
+      "name, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email, logo_data_url, logo_file_name, pilot_trial_ends_at, pilot_converted_at"
     )
     .eq("id", companyScope.companyId)
     .maybeSingle();
@@ -77,6 +77,12 @@ export async function GET(request: Request) {
       country: row.country ?? "",
       primaryContactName: row.primary_contact_name ?? "",
       primaryContactEmail: row.primary_contact_email ?? "",
+      logoDataUrl: row.logo_data_url ?? "",
+      logoFileName: row.logo_file_name ?? "",
+    },
+    pilot: {
+      trialEndsAt: row.pilot_trial_ends_at ?? null,
+      convertedAt: row.pilot_converted_at ?? null,
     },
   });
 }

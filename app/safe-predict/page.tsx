@@ -19,6 +19,7 @@ import {
   type SafePredictForecastPoint,
 } from "@/lib/safePredictMockData";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
+import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import {
   forecastReasonsForSite,
   hasSafePredictForecastInputs,
@@ -1412,6 +1413,9 @@ export default function SafePredictDashboardPage() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)] bg-[linear-gradient(180deg,#f5f9ff_0%,#eef4fb_58%,#f8fbff_100%)] px-4 pb-8 sm:px-7">
+      <div className="pt-4">
+        <OnboardingBanner />
+      </div>
       <div className="flex flex-col gap-4 py-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
         <div className="min-w-0">
           <h1 className="font-app-display text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl">SafePredict Command Center</h1>

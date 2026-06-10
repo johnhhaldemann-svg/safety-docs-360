@@ -160,6 +160,10 @@ export function AppWorkspaceLayout({
    * company admins/managers are routed to /get-started so onboarding happens upon sign-up.
    */
   const [mustOnboard, setMustOnboard] = useState(false);
+  const [rejectionNotice, setRejectionNotice] = useState<{
+    companyName: string;
+    reason: string;
+  } | null>(null);
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
     getDefaultAgreementConfig()
   );
@@ -410,6 +414,7 @@ export function AppWorkspaceLayout({
                 profileComplete?: boolean;
                 profile?: ProfileSummary | null;
                 pendingCompanySignupRequest?: { id?: string; companyName?: string } | null;
+                rejectedCompanySignupRequest?: { companyName?: string; reason?: string } | null;
               };
           }
           | null;
@@ -432,6 +437,15 @@ export function AppWorkspaceLayout({
         setWorkspaceProduct(data?.user?.workspaceProduct === "csep" ? "csep" : "full");
         setProfileComplete(Boolean(data?.user?.profileComplete));
         setProfileSummary(data?.user?.profile ?? null);
+        const rejected = data?.user?.rejectedCompanySignupRequest ?? null;
+        setRejectionNotice(
+          rejected
+            ? {
+                companyName: rejected.companyName?.trim() || "",
+                reason: rejected.reason?.trim() || "",
+              }
+            : null
+        );
         setAccountStatus(nextAccountStatus);
         setAcceptedTerms(serverAcceptedTerms || cachedAcceptedTerms);
         if (email && (serverAcceptedTerms || cachedAcceptedTerms)) {
@@ -450,6 +464,7 @@ export function AppWorkspaceLayout({
         setWorkspaceProduct("full");
         setProfileComplete(false);
         setProfileSummary(null);
+        setRejectionNotice(null);
         setAccountStatus("active");
         setAcceptedTerms(
           fallbackEmail ? readAcceptedTermsCache(fallbackEmail, agreementConfig.version) : false
@@ -926,6 +941,42 @@ export function AppWorkspaceLayout({
               "We'll open the full workspace as soon as your account status is changed from pending to active."
             }
           </div>
+          <button
+            onClick={handleLogout}
+            className="app-btn-primary mt-6 px-5 py-3 text-sm app-shadow-action transition"
+          >
+            Log out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (rejectionNotice && accountStatus !== "pending") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-app-canvas px-6 py-10">
+        <div className="w-full max-w-xl rounded-[1.9rem] border border-slate-700/80 bg-slate-900/90 p-8 shadow-lg">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-rose-300">
+            Request Update
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+            Your workspace request wasn&apos;t approved
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-400">
+            {rejectionNotice.companyName
+              ? `The request for ${rejectionNotice.companyName} was reviewed and declined.`
+              : "Your workspace request was reviewed and declined."}
+          </p>
+          {rejectionNotice.reason ? (
+            <div className="mt-6 rounded-2xl border border-rose-500/35 bg-rose-950/40 px-4 py-3 text-sm text-rose-100/95">
+              <span className="font-semibold">Reason: </span>
+              {rejectionNotice.reason}
+            </div>
+          ) : null}
+          <p className="mt-6 text-sm leading-6 text-slate-400">
+            Think this was a mistake? Reply to the email we sent, or reach out to our team and
+            we&apos;ll help.
+          </p>
           <button
             onClick={handleLogout}
             className="app-btn-primary mt-6 px-5 py-3 text-sm app-shadow-action transition"

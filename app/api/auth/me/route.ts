@@ -416,6 +416,63 @@ async function getPendingCompanySignupRequest(params: {
   return ((emailResult.data as CompanySignupRequestLookupRow[] | null) ?? [])[0] ?? null;
 }
 
+type RejectedSignupRow = {
+  id: string;
+  company_name: string | null;
+  notes: string | null;
+};
+
+/** Latest rejected workspace request for this owner/email, so we can show a decline notice. */
+async function getLatestRejectedSignupRequest(params: {
+  supabase: { from: (table: string) => unknown };
+  adminClient: ReturnType<typeof createSupabaseAdminClient>;
+  userId: string;
+  email: string;
+}): Promise<RejectedSignupRow | null> {
+  const lookupClient = params.adminClient ?? params.supabase;
+  type RejectedQuery = {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => {
+          order: (
+            column: string,
+            options?: Record<string, unknown>
+          ) => {
+            limit: (count: number) => Promise<{
+              data: unknown;
+              error: { message?: string | null } | null;
+            }>;
+          };
+        };
+      };
+    };
+  };
+  const columns = "id, company_name, notes, status, created_at";
+
+  const byOwner = await (lookupClient.from("company_signup_requests") as RejectedQuery)
+    .select(columns)
+    .eq("owner_user_id", params.userId)
+    .eq("status", "rejected")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const ownerRow = ((byOwner.data as RejectedSignupRow[] | null) ?? [])[0] ?? null;
+  if (!byOwner.error && ownerRow) return ownerRow;
+
+  const normalizedEmail = params.email.trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const byEmail = await (lookupClient.from("company_signup_requests") as RejectedQuery)
+    .select(columns)
+    .eq("primary_contact_email", normalizedEmail)
+    .eq("status", "rejected")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const emailRow = ((byEmail.data as RejectedSignupRow[] | null) ?? [])[0] ?? null;
+  if (!byEmail.error && emailRow) return emailRow;
+
+  return null;
+}
+
 function getFallbackFullName(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown>;
@@ -613,6 +670,17 @@ async function handleAuthMeGet(request: Request) {
           email: auth.user.email ?? "",
         })
       : null;
+  const rejectedCompanySignupRequest =
+    !companyScope.companyId &&
+    !isAdminRole(refreshedRoleContext.role) &&
+    !pendingCompanySignupRequest
+      ? await getLatestRejectedSignupRequest({
+          supabase: (requestScopedSupabase ?? auth.supabase) as never,
+          adminClient,
+          userId: auth.user.id,
+          email: auth.user.email ?? "",
+        })
+      : null;
   const companyProfile =
     companyScope.companyId
       ? await auth.supabase
@@ -736,6 +804,13 @@ async function handleAuthMeGet(request: Request) {
               id: pendingCompanySignupRequest.id,
               companyName: pendingCompanySignupRequest.company_name?.trim() || "",
               status: pendingCompanySignupRequest.status?.trim() || "pending",
+            }
+          : null,
+      rejectedCompanySignupRequest:
+        rejectedCompanySignupRequest && !companyScope.companyId
+          ? {
+              companyName: rejectedCompanySignupRequest.company_name?.trim() || "",
+              reason: rejectedCompanySignupRequest.notes?.trim() || "",
             }
           : null,
       acceptedTerms,
