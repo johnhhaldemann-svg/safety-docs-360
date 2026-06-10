@@ -33,6 +33,22 @@ export const superadminToolGroups: SuperadminNavSection[] = [
     ],
   },
   {
+    title: "Customers & Onboarding",
+    description: "Approve new company workspaces and track customer setup progress.",
+    audience: "admin",
+    items: [
+      {
+        href: "/superadmin/onboarding",
+        label: "Onboarding Control",
+        short: "OB",
+        description: "Approve new company workspace requests and track onboarding setup progress.",
+        keywords: ["onboarding", "companies", "approve", "signup", "requests", "setup", "activation", "pipeline", "customers"],
+        primaryActionLabel: "Open onboarding",
+        audience: "admin",
+      },
+    ],
+  },
+  {
     title: "Monitor",
     description: "Platform health, diagnostics, and end-to-end operating checks.",
     audience: "admin",

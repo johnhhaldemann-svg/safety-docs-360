@@ -15,6 +15,7 @@ import {
   LibraryBig,
   LockKeyhole,
   Map as MapIcon,
+  Rocket,
   Scale,
   ShieldCheck,
   Sparkles,
@@ -53,6 +54,7 @@ export const commandCenterNav: CommandCenterNavSection[] = [
   {
     title: "Operations",
     items: [
+      { href: "/superadmin/onboarding", label: "Onboarding", icon: Rocket },
       { href: "/superadmin/owner-validation", label: "Owner Validation", icon: ClipboardCheck, badge: "pendingOwners" },
       { href: "/superadmin/users", label: "User Management", icon: Users },
       { href: "/superadmin/organizations", label: "Organizations", icon: Building2 },
