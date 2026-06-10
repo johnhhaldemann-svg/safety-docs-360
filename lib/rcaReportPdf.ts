@@ -80,13 +80,6 @@ function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " ");
 }
 
-const SEVERITY_TONE = {
-  critical: "critical",
-  high: "warning",
-  medium: "warning",
-  low: "neutral",
-} as const;
-
 function drawCapaRow(
   writer: AuditPdfWriter,
   item: RcaReportCapaItem,

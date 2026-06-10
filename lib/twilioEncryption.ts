@@ -11,7 +11,6 @@ import crypto from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12; // 96-bit IV — standard for GCM
-const TAG_BYTES = 16;
 
 function getEncryptionKey(): Buffer | null {
   const hex = process.env.TWILIO_SETTINGS_ENCRYPTION_KEY?.trim();

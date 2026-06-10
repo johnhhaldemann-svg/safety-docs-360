@@ -645,7 +645,6 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
                       }`}
                     >
                       <div
-                        // eslint-disable-next-line react/no-danger
                         dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
                       />
                     </div>
