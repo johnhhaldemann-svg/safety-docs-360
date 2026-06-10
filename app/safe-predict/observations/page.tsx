@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Eye, RefreshCw, ShieldAlert, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
+import { Eye, RefreshCw, ShieldAlert, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { Card, PageHeader, SectionTitle, cx } from "@/components/safe-predict/SafePredictPrimitives";
 

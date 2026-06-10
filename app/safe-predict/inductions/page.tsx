@@ -71,7 +71,6 @@ export default function SafePredictInductionsPage() {
 
   // All completions (loaded once for gap analysis)
   const [allCompletions, setAllCompletions] = useState<Completion[]>([]);
-  const [loadingAllCompletions, setLoadingAllCompletions] = useState(false);
   // AI sync
   const [syncingAI, setSyncingAI] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);

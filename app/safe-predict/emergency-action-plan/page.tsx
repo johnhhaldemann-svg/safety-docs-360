@@ -7,13 +7,6 @@ import { Card, PageHeader, SectionTitle, cx } from "@/components/safe-predict/Sa
 
 const supabase = getSupabaseBrowserClient();
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Not authenticated");
-  return { Authorization: `Bearer ${token}` };
-}
-
 type EmergencyContact = {
   name: string;
   phone: string;
@@ -209,11 +202,10 @@ export default function EmergencyActionPlanPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
-  const load = useCallback(async (forceRefresh = false) => {
+  const load = useCallback(async (_forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const headers = await getAuthHeaders();
       const { data, error: dbErr } = await supabase
         .from("jobsite_emergency_plans")
         .select("*")

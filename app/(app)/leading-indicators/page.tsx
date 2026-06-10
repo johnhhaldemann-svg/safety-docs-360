@@ -28,7 +28,7 @@ type Metrics = {
   trend: Array<{ week: string; nearMiss: number; incident: number; firstAid: number }>;
 };
 
-function ScoreRing({ score, label, color }: { score: number | null; label: string; color: string }) {
+function ScoreRing({ score, label }: { score: number | null; label: string; color?: string }) {
   if (score === null) {
     return (
       <div className="flex flex-col items-center gap-1">
