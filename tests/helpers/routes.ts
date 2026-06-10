@@ -28,6 +28,7 @@ export const SAFE_PREDICT_WORKSPACE_ROUTES = [
   "/safe-predict/analytics",
   "/safe-predict/apps-integrations",
   "/safe-predict/billing",
+  "/safe-predict/company-profile",
   "/safe-predict/contractors",
   "/safe-predict/corrective-actions",
   "/safe-predict/csep",

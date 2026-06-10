@@ -58,6 +58,137 @@ export function buildCompanyInviteLoginUrl(email: string) {
   return url.toString();
 }
 
+type SendResult = { sent: boolean; warning?: string };
+
+/** Shared Resend sender used by the onboarding lifecycle emails below. */
+async function sendResendEmail(params: {
+  toEmail: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<SendResult> {
+  const resendApiKey = readEnv("RESEND_API_KEY");
+  const fromEmail = getInviteFromEmail();
+
+  if (!resendApiKey || !fromEmail) {
+    return {
+      sent: false,
+      warning:
+        "Email delivery is not configured yet. Add RESEND_API_KEY and COMPANY_INVITE_FROM_EMAIL in Vercel to send onboarding emails automatically.",
+    };
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [params.toEmail],
+      subject: params.subject,
+      html: params.html,
+      text: params.text,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    return {
+      sent: false,
+      warning: errorText.trim() || "The email provider rejected the outgoing message.",
+    };
+  }
+
+  return { sent: true };
+}
+
+function onboardingEmailShell(params: {
+  eyebrow: string;
+  heading: string;
+  bodyParagraphs: string[];
+}) {
+  const paragraphs = params.bodyParagraphs
+    .map(
+      (p) => `<p style="margin:0 0 16px;color:#475569;">${p}</p>`
+    )
+    .join("");
+  return `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;max-width:640px;margin:0 auto;padding:24px;">
+      <div style="border:1px solid #dbeafe;border-radius:24px;padding:32px;background:#ffffff;">
+        <p style="font-size:12px;letter-spacing:0.24em;text-transform:uppercase;color:#0369a1;font-weight:700;margin:0 0 12px;">${escapeHtml(
+          params.eyebrow
+        )}</p>
+        <h1 style="font-size:26px;line-height:1.15;margin:0 0 16px;">${escapeHtml(params.heading)}</h1>
+        ${paragraphs}
+      </div>
+    </div>
+  `.trim();
+}
+
+/** Confirmation sent to the applicant immediately after they submit a workspace request. */
+export async function sendCompanySignupReceivedEmail(params: {
+  toEmail: string;
+  companyName: string;
+  contactName?: string;
+}): Promise<SendResult> {
+  const greeting = params.contactName?.trim() ? `Hi ${params.contactName.trim()},` : "Hi there,";
+  const company = params.companyName.trim() || "your company";
+  const bodyParagraphs = [
+    escapeHtml(greeting),
+    `Thanks for requesting a SafePredict workspace for <strong>${escapeHtml(company)}</strong>. Our team is reviewing it now.`,
+    "Once it's approved you'll get a follow-up email with sign-in instructions, then you can sign in with this same email address to open your workspace and finish setup.",
+    "No action is needed from you right now.",
+  ];
+  return sendResendEmail({
+    toEmail: params.toEmail,
+    subject: `We received your SafePredict workspace request`,
+    html: onboardingEmailShell({
+      eyebrow: "Request received",
+      heading: `Your workspace request is in review`,
+      bodyParagraphs,
+    }),
+    text: [
+      greeting,
+      `Thanks for requesting a SafePredict workspace for ${company}. Our team is reviewing it now.`,
+      "Once it's approved you'll get a follow-up email with sign-in instructions.",
+      "No action is needed right now.",
+    ].join("\n\n"),
+  });
+}
+
+/** Notice sent to the applicant when a workspace request is declined, including the reason. */
+export async function sendCompanyRejectionEmail(params: {
+  toEmail: string;
+  companyName: string;
+  reason?: string | null;
+}): Promise<SendResult> {
+  const company = params.companyName.trim() || "your company";
+  const reason = params.reason?.trim();
+  const bodyParagraphs = [
+    `We reviewed the SafePredict workspace request for <strong>${escapeHtml(company)}</strong> and weren't able to approve it at this time.`,
+    reason ? `<strong>Reason:</strong> ${escapeHtml(reason)}` : "",
+    "If you think this was a mistake or you'd like to discuss it, just reply to this email and our team will help.",
+  ].filter(Boolean);
+  return sendResendEmail({
+    toEmail: params.toEmail,
+    subject: `Update on your SafePredict workspace request`,
+    html: onboardingEmailShell({
+      eyebrow: "Request update",
+      heading: `About your workspace request`,
+      bodyParagraphs,
+    }),
+    text: [
+      `We reviewed the SafePredict workspace request for ${company} and weren't able to approve it at this time.`,
+      reason ? `Reason: ${reason}` : "",
+      "If you think this was a mistake, reply to this email and our team will help.",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  });
+}
+
 export async function sendCompanyInviteEmail(params: {
   toEmail: string;
   companyName: string;

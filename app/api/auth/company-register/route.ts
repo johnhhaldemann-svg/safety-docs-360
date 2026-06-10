@@ -5,6 +5,7 @@ import {
   getDefaultAgreementConfig,
 } from "@/lib/legal";
 import { getAgreementConfig } from "@/lib/legalSettings";
+import { sendCompanySignupReceivedEmail } from "@/lib/inviteEmail";
 import {
   createSupabaseAdminClient,
   getSupabaseServerEnvStatus,
@@ -193,6 +194,14 @@ export async function POST(request: Request) {
     ipAddress: getClientIpAddress(request),
     termsVersion: agreementConfig.version,
   });
+
+  // Best-effort confirmation email so the applicant knows the request was received.
+  // Never block signup on email delivery.
+  await sendCompanySignupReceivedEmail({
+    toEmail: email,
+    companyName,
+    contactName: fullName,
+  }).catch(() => undefined);
 
   return NextResponse.json({
     success: true,

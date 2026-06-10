@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
-import { sendCompanyInviteEmail } from "@/lib/inviteEmail";
+import { sendCompanyInviteEmail, sendCompanyRejectionEmail } from "@/lib/inviteEmail";
 import { authorizeRequest, normalizePermissionOverrides } from "@/lib/rbac";
 import { normalizeApprovalPlanName } from "@/lib/workspaceProduct";
 import {
@@ -851,9 +851,26 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // Best-effort notice to the applicant with the reason; never block the rejection on email.
+    const rejectionEmail = signupRequest.primary_contact_email?.trim();
+    let rejectionEmailWarning: string | null = null;
+    if (rejectionEmail) {
+      const emailResult = await sendCompanyRejectionEmail({
+        toEmail: rejectionEmail,
+        companyName: signupRequest.company_name?.trim() || "your company",
+        reason: notes,
+      }).catch(() => ({ sent: false, warning: "Rejection email could not be sent." }));
+      if (!emailResult.sent) {
+        rejectionEmailWarning = emailResult.warning ?? null;
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Workspace request rejected.",
+      message: rejectionEmail
+        ? "Workspace request rejected and the applicant was notified."
+        : "Workspace request rejected.",
+      warning: rejectionEmailWarning,
     });
   }
 

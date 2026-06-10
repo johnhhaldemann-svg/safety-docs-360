@@ -124,6 +124,7 @@ const navGroups: NavGroup[] = [
     label: "Workforce & Access",
     icon: Users,
     items: [
+      { href: "/safe-predict/company-profile", label: "Company Profile", icon: Building2 },
       { href: "/safe-predict/workforce", label: "Workforce", icon: Users },
       { href: "/safe-predict/team-access", label: "Team Access", icon: Users },
       { href: "/safe-predict/onboarding-import", label: "Onboarding Import", icon: Users },

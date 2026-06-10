@@ -43,9 +43,9 @@ const emptyAdoptionData = (): AdoptionData => ({
  * wrong page. Keyed by checklist item id.
  */
 const STEP_DESTINATION: Record<string, string> = {
-  company_profile: "/safe-predict/settings",
-  team_invites: "/safe-predict/onboarding-import",
-  first_jobsite: "/safe-predict/jobsites",
+  company_profile: "/safe-predict/company-profile",
+  team_invites: "/safe-predict/onboarding-import?tab=employees",
+  first_jobsite: "/safe-predict/jobsites?new=1",
   first_document: "/safe-predict/documents",
   command_center: "/safe-predict",
 };

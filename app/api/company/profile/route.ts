@@ -21,6 +21,67 @@ function logoDataUrl(v: unknown): string | undefined {
 }
 
 /**
+ * Returns the current company identity fields for the editor (company admins / managers).
+ */
+export async function GET(request: Request) {
+  const auth = await authorizeRequest(request, {
+    requirePermission: "can_manage_company_users",
+  });
+
+  if ("error" in auth) {
+    return auth.error;
+  }
+
+  const companyScope = await getCompanyScope({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    fallbackTeam: auth.team,
+    authUser: auth.user,
+  });
+
+  if (!companyScope.companyId) {
+    return NextResponse.json(
+      { error: "No company workspace is linked to this account." },
+      { status: 400 }
+    );
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "Server configuration error." }, { status: 500 });
+  }
+
+  const { data, error } = await admin
+    .from("companies")
+    .select(
+      "name, industry, phone, website, address_line_1, city, state_region, postal_code, country, primary_contact_name, primary_contact_email"
+    )
+    .eq("id", companyScope.companyId)
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const row = (data ?? {}) as Record<string, string | null>;
+  return NextResponse.json({
+    profile: {
+      name: row.name ?? "",
+      industry: row.industry ?? "",
+      phone: row.phone ?? "",
+      website: row.website ?? "",
+      addressLine1: row.address_line_1 ?? "",
+      city: row.city ?? "",
+      stateRegion: row.state_region ?? "",
+      postalCode: row.postal_code ?? "",
+      country: row.country ?? "",
+      primaryContactName: row.primary_contact_name ?? "",
+      primaryContactEmail: row.primary_contact_email ?? "",
+    },
+  });
+}
+
+/**
  * Company admins / managers update company profile fields and can complete pilot trial
  * (companies table updates are admin-only in RLS; this route uses service role after auth checks).
  */
