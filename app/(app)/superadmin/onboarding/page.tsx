@@ -75,6 +75,25 @@ function deriveSetup(company: CompanySummary): SetupState {
   };
 }
 
+/** Default approval terms shared by single Quick Approve and bulk approve. */
+function buildApprovePayload(requestId: string) {
+  const tier = getEnterpriseTier("professional_network");
+  return {
+    requestId,
+    action: "approve" as const,
+    planName: "Enterprise",
+    pilotTrial: true,
+    planTierKey: tier.key,
+    annualPlatformPriceCents: tier.annualPriceCents,
+    includedJobsiteLimit: tier.includedJobsites,
+    includedUserLimit: tier.includedUsers,
+    onboardingFeeCents: null,
+    enabledFeatureKeys: PLATFORM_FEATURES.map((feature) => feature.key),
+    selectedAddons: [],
+    commercialNotes: null,
+  };
+}
+
 function Panel({
   title,
   description,
@@ -118,6 +137,8 @@ export default function SuperadminOnboardingPage() {
   const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
   const [message, setMessage] = useState<{
     tone: "success" | "error" | "warning";
     text: string;
@@ -163,24 +184,7 @@ export default function SuperadminOnboardingPage() {
         const token = await getSupabaseAccessToken();
         if (!token) throw new Error("Sign in as a superadmin to manage onboarding.");
 
-        const tier = getEnterpriseTier("professional_network");
-        const body =
-          action === "approve"
-            ? {
-                requestId,
-                action,
-                planName: "Enterprise",
-                pilotTrial: true,
-                planTierKey: tier.key,
-                annualPlatformPriceCents: tier.annualPriceCents,
-                includedJobsiteLimit: tier.includedJobsites,
-                includedUserLimit: tier.includedUsers,
-                onboardingFeeCents: null,
-                enabledFeatureKeys: PLATFORM_FEATURES.map((feature) => feature.key),
-                selectedAddons: [],
-                commercialNotes: null,
-              }
-            : { requestId, action };
+        const body = action === "approve" ? buildApprovePayload(requestId) : { requestId, action };
 
         const res = await fetch("/api/admin/companies", {
           method: "PATCH",
@@ -214,6 +218,58 @@ export default function SuperadminOnboardingPage() {
     [load]
   );
 
+  const toggleSelected = useCallback((requestId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(requestId)) next.delete(requestId);
+      else next.add(requestId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkApprove = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      setBulkRunning(true);
+      setMessage(null);
+      let approved = 0;
+      const failures: string[] = [];
+      try {
+        const token = await getSupabaseAccessToken();
+        if (!token) throw new Error("Sign in as a superadmin to manage onboarding.");
+        for (const id of ids) {
+          try {
+            const res = await fetch("/api/admin/companies", {
+              method: "PATCH",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify(buildApprovePayload(id)),
+            });
+            if (res.ok) approved += 1;
+            else failures.push(id);
+          } catch {
+            failures.push(id);
+          }
+        }
+        setMessage({
+          tone: failures.length ? "warning" : "success",
+          text: failures.length
+            ? `Approved ${approved} of ${ids.length}. ${failures.length} could not be approved — try those individually.`
+            : `Approved ${approved} workspace${approved === 1 ? "" : "s"} with default terms and a 30-day pilot trial.`,
+        });
+        setSelectedIds(new Set());
+        await load();
+      } catch (error) {
+        setMessage({
+          tone: "error",
+          text: error instanceof Error ? error.message : "Bulk approve failed.",
+        });
+      } finally {
+        setBulkRunning(false);
+      }
+    },
+    [load]
+  );
+
   const activeCompanies = useMemo(
     () => companies.filter((company) => company.status.trim().toLowerCase() !== "archived"),
     [companies]
@@ -229,6 +285,42 @@ export default function SuperadminOnboardingPage() {
       { label: "Setup Incomplete", value: needsSetup, accent: "text-rose-300", bar: "bg-rose-400" },
     ];
   }, [activeCompanies, signupRequests]);
+
+  const funnel = useMemo(() => {
+    const buckets = [0, 0, 0, 0]; // index = steps complete (0..3)
+    let incompleteAgeDays = 0;
+    let incompleteCount = 0;
+    for (const company of activeCompanies) {
+      const setup = deriveSetup(company);
+      buckets[setup.completed] += 1;
+      if (setup.completed < 3 && company.createdAt) {
+        incompleteAgeDays += Math.max(
+          0,
+          (Date.now() - new Date(company.createdAt).getTime()) / 86_400_000
+        );
+        incompleteCount += 1;
+      }
+    }
+    const total = activeCompanies.length || 1;
+    return {
+      rows: [
+        { label: "Profile only", value: buckets[1], pct: Math.round((buckets[1] / total) * 100) },
+        { label: "Through team", value: buckets[2], pct: Math.round((buckets[2] / total) * 100) },
+        { label: "Fully set up", value: buckets[3], pct: Math.round((buckets[3] / total) * 100) },
+        { label: "Not started", value: buckets[0], pct: Math.round((buckets[0] / total) * 100) },
+      ],
+      avgIncompleteAgeDays: incompleteCount
+        ? Math.round(incompleteAgeDays / incompleteCount)
+        : null,
+    };
+  }, [activeCompanies]);
+
+  const pendingIds = useMemo(() => signupRequests.map((r) => r.id), [signupRequests]);
+  const selectedCount = useMemo(
+    () => pendingIds.filter((id) => selectedIds.has(id)).length,
+    [pendingIds, selectedIds]
+  );
+  const allSelected = pendingIds.length > 0 && selectedCount === pendingIds.length;
 
   const messageClass =
     message?.tone === "success"
@@ -294,6 +386,36 @@ export default function SuperadminOnboardingPage() {
       <Panel
         title="Pending Workspace Requests"
         description="One click approves with Tier 2 defaults, all feature modules, and a 30-day pilot trial. Use full controls for custom pricing."
+        action={
+          signupRequests.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() =>
+                    setSelectedIds(allSelected ? new Set() : new Set(pendingIds))
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-white/[0.03]"
+                />
+                Select all
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleBulkApprove(pendingIds.filter((id) => selectedIds.has(id)))}
+                disabled={bulkRunning || selectedCount === 0}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/90 px-3.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bulkRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                )}
+                Approve {selectedCount || ""} selected
+              </button>
+            </div>
+          ) : null
+        }
       >
         {loading ? (
           <p className="py-6 text-center text-xs text-slate-500">Loading workspace requests…</p>
@@ -312,7 +434,15 @@ export default function SuperadminOnboardingPage() {
                 key={request.id}
                 className="flex flex-col gap-4 rounded-lg border border-[var(--sa-border)] bg-[var(--sa-panel-soft)] p-4 lg:flex-row lg:items-center lg:justify-between"
               >
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-3">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${request.company_name}`}
+                    checked={selectedIds.has(request.id)}
+                    onChange={() => toggleSelected(request.id)}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-white/20 bg-white/[0.03]"
+                  />
+                  <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-bold text-slate-100">{request.company_name}</p>
                     <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[11px] font-bold text-amber-300">
@@ -327,6 +457,7 @@ export default function SuperadminOnboardingPage() {
                   <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
                     Requested {formatRelative(request.created_at)}
                   </p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2 lg:shrink-0">
                   <button
@@ -424,6 +555,41 @@ export default function SuperadminOnboardingPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Setup Funnel"
+        description="Where active workspaces sit in onboarding right now."
+        action={
+          funnel.avgIncompleteAgeDays != null ? (
+            <span className="rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-slate-300">
+              Avg {funnel.avgIncompleteAgeDays}d stalled
+            </span>
+          ) : null
+        }
+      >
+        {loading ? (
+          <p className="py-6 text-center text-xs text-slate-500">Loading funnel…</p>
+        ) : activeCompanies.length === 0 ? (
+          <p className="py-6 text-center text-xs text-slate-500">No active workspaces yet.</p>
+        ) : (
+          <div className="grid gap-2.5">
+            {funnel.rows.map((row) => (
+              <div key={row.label} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-xs font-semibold text-slate-300">{row.label}</span>
+                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400"
+                    style={{ width: `${row.pct}%` }}
+                  />
+                </div>
+                <span className="sa-nums w-16 shrink-0 text-right text-xs font-bold text-slate-200">
+                  {row.value} · {row.pct}%
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </Panel>

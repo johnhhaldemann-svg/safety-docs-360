@@ -1089,6 +1089,15 @@ export function SafePredictJobsitesPortfolio() {
   const [status, setStatus] = useState<SafePredictJobsiteStatus | "all">("all");
   const [risk, setRisk] = useState<SafePredictRiskLevel | "all">("all");
   const [showCreateJobsite, setShowCreateJobsite] = useState(false);
+
+  // Deep-link support: /safe-predict/jobsites?new=1 opens the create form directly
+  // (used by the guided setup wizard "Add first jobsite" step). Read once on mount.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") !== "1") return;
+    const timer = window.setTimeout(() => setShowCreateJobsite(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const [newJobsite, setNewJobsite] = useState({
     name: "",
     code: "",

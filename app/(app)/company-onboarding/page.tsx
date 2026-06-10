@@ -135,6 +135,15 @@ export default function CompanyOnboardingPage() {
     jobsites: [],
     training_records: [],
   });
+
+  // Deep-link support: /…/onboarding-import?tab=employees opens that import tab directly
+  // (used by the guided setup wizard). Read once on mount; harmless if absent.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab !== "employees" && tab !== "jobsites" && tab !== "training_records") return;
+    const timer = window.setTimeout(() => setActiveTab(tab), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [employeeForm, setEmployeeForm] = useState(EMPTY_EMPLOYEE);
   const [jobsiteForm, setJobsiteForm] = useState(EMPTY_JOBSITE);
   const [trainingForm, setTrainingForm] = useState(EMPTY_TRAINING);
