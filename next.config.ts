@@ -15,6 +15,17 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
+  async redirects() {
+    return [
+      {
+        // The guided setup wizard moved into the native SafePredict workspace shell.
+        // Keep old links/bookmarks working.
+        source: "/get-started",
+        destination: "/safe-predict/get-started",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {
