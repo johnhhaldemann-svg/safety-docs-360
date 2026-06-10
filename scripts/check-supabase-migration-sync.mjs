@@ -46,11 +46,24 @@ function loadEnvFile(name) {
   }
 }
 
-function supabaseCliPath() {
+// Resolve how to invoke the Supabase CLI. Returns { cmd, prefix, shell } so the
+// caller can spawn `cmd [...prefix, ...args]`. Prefer invocations that run
+// without a shell so command-line args (including the DB URL) are passed safely
+// rather than concatenated into a shell string.
+function resolveSupabaseInvocation() {
   const win = process.platform === "win32";
+  // 1. Native binary bundled inside the supabase package.
   const exe = path.join(root, "node_modules", "supabase", "bin", win ? "supabase.exe" : "supabase");
-  if (fs.existsSync(exe)) return exe;
-  return win ? "npx.cmd" : "npx";
+  if (fs.existsSync(exe)) return { cmd: exe, prefix: [], shell: false };
+  // 2. JS entry shipped by the supabase npm package — run with node, no shell.
+  const js = path.join(root, "node_modules", "supabase", "dist", "supabase.js");
+  if (fs.existsSync(js)) return { cmd: process.execPath, prefix: [js], shell: false };
+  // 3. npm-generated bin shim. On Windows that is supabase.cmd, which can only be
+  //    spawned through a shell; elsewhere it is a directly-executable wrapper.
+  const shim = path.join(root, "node_modules", ".bin", win ? "supabase.cmd" : "supabase");
+  if (fs.existsSync(shim)) return { cmd: shim, prefix: [], shell: win };
+  // 4. Last resort: rely on npx to resolve it.
+  return { cmd: win ? "npx.cmd" : "npx", prefix: ["supabase"], shell: win };
 }
 
 function listLocalMigrations() {
@@ -105,23 +118,23 @@ function flattenRemoteVersionsFromJson(value, pathParts = []) {
 }
 
 function parsePrettyRemoteVersions(text) {
+  // Table layout is: Local | Remote | Time. The Remote column (index 1) is the
+  // version applied on the remote database. Split on the column delimiter WITHOUT
+  // dropping empty cells — a blank Local cell must not shift the Remote column.
   const versions = new Set();
   for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || !/\d{14}/.test(line)) continue;
+    if (/-{3,}/.test(rawLine)) continue; // separator row
+    if (!/\d{14}/.test(rawLine)) continue;
 
-    const parts = line
-      .split(/[│|]/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    if (parts.length >= 2) {
-      const remote = parts[1].match(/\d{14}/)?.[0];
+    const cols = rawLine.split(/[│|]/);
+    if (cols.length >= 2) {
+      const remote = cols[1].trim().match(/^\d{14}$/)?.[0];
       if (remote) versions.add(remote);
       continue;
     }
 
-    const all = line.match(/\d{14}/g) ?? [];
+    // No column delimiter (unexpected format): grab any version tokens present.
+    const all = rawLine.match(/\d{14}/g) ?? [];
     for (const version of all) versions.add(version);
   }
   return versions;
@@ -135,7 +148,7 @@ function listRemoteMigrations() {
     };
   }
 
-  const cli = supabaseCliPath();
+  const { cmd, prefix, shell } = resolveSupabaseInvocation();
   const dbUrl =
     process.env.SUPABASE_MIGRATION_CHECK_DB_URL ||
     process.env.SUPABASE_DB_PUSH_URL ||
@@ -145,20 +158,18 @@ function listRemoteMigrations() {
   if (dbUrl) migrationArgs.push("--db-url", dbUrl);
   else migrationArgs.push("--linked");
 
-  const args =
-    cli.endsWith("supabase") || cli.endsWith("supabase.exe")
-      ? migrationArgs
-      : ["supabase", ...migrationArgs];
+  const args = [...prefix, ...migrationArgs];
 
-  let result = spawnSync(cli, args, {
+  let result = spawnSync(cmd, args, {
     cwd: root,
     env: process.env,
     encoding: "utf8",
-    shell: false,
+    shell,
   });
 
-  if (process.platform === "win32" && result.error?.code === "EPERM") {
-    result = spawnSync(cli, args, {
+  // Windows occasionally throws EPERM spawning shims; retry through a shell.
+  if (process.platform === "win32" && !shell && result.error?.code === "EPERM") {
+    result = spawnSync(cmd, args, {
       cwd: root,
       env: process.env,
       encoding: "utf8",
