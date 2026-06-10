@@ -91,12 +91,15 @@ jobs:
           [ -n "$E2E_NEXT_PUBLIC_SUPABASE_URL" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_URL")
           [ -n "$E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY" ] || missing+=("E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY")
           if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing required full E2E secrets: %s\n' "${missing[*]}"
-            exit 1
+            printf 'Skipping full E2E — secrets not configured: %s\n' "${missing[*]}"
+            echo "SKIP_FULL_E2E=true" >> "$GITHUB_ENV"
           fi
       - run: npm ci
+        if: env.SKIP_FULL_E2E != 'true'
       - run: npx playwright install chromium --with-deps
+        if: env.SKIP_FULL_E2E != 'true'
       - name: Full E2E (requires E2E_USER_* and E2E_NEXT_PUBLIC_* secrets)
+        if: env.SKIP_FULL_E2E != 'true'
         run: npm run test:e2e:ci
         env:
           CI: true
