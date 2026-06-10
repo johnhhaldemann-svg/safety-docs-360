@@ -140,6 +140,7 @@ export default function SuperadminOnboardingPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [resendingId, setResendingId] = useState("");
+  const [nowMs, setNowMs] = useState(0);
   const [message, setMessage] = useState<{
     tone: "success" | "error" | "warning";
     text: string;
@@ -158,6 +159,8 @@ export default function SuperadminOnboardingPage() {
         | { companies?: CompanySummary[]; signupRequests?: SignupRequest[]; error?: string }
         | null;
       if (!res.ok) throw new Error(data?.error || "Could not load onboarding data.");
+      // Stamp "now" in callback context (not render) so the age funnel stays pure.
+      setNowMs(Date.now());
       setCompanies(data?.companies ?? []);
       setSignupRequests(data?.signupRequests ?? []);
     } catch (error) {
@@ -324,8 +327,8 @@ export default function SuperadminOnboardingPage() {
     for (const company of activeCompanies) {
       const setup = deriveSetup(company);
       buckets[setup.completed] += 1;
-      if (setup.completed < 3 && company.createdAt) {
-        const days = Math.max(0, (Date.now() - new Date(company.createdAt).getTime()) / 86_400_000);
+      if (setup.completed < 3 && company.createdAt && nowMs > 0) {
+        const days = Math.max(0, (nowMs - new Date(company.createdAt).getTime()) / 86_400_000);
         incompleteAgeDays += days;
         incompleteCount += 1;
         if (days <= 3) age.fresh += 1;
@@ -346,7 +349,7 @@ export default function SuperadminOnboardingPage() {
         ? Math.round(incompleteAgeDays / incompleteCount)
         : null,
     };
-  }, [activeCompanies]);
+  }, [activeCompanies, nowMs]);
 
   const pendingIds = useMemo(() => signupRequests.map((r) => r.id), [signupRequests]);
   const selectedCount = useMemo(

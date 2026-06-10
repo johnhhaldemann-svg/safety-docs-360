@@ -34,17 +34,36 @@ export function OnboardingBanner() {
           const token = session?.access_token;
           if (!token) return;
           const headers = { Authorization: `Bearer ${token}` };
-          const [meRes, usersRes, documentsRes, workspaceRes, onboardingRes] = await Promise.all([
+
+          // Cheap first check: once dismissed (or auto-dismissed on completion) we never
+          // load the heavier adoption endpoints again.
+          const onboardingRes = await fetch("/api/onboarding/state", { headers });
+          const onboarding =
+            ((await onboardingRes.json().catch(() => null)) as OnboardingState | null) ??
+            emptyOnboardingState();
+          if (cancelled) return;
+          if (onboarding.dismissedAt) {
+            setDismissed(true);
+            return;
+          }
+
+          const [meRes, usersRes, documentsRes, workspaceRes] = await Promise.all([
             fetch("/api/auth/me", { headers }),
             fetch("/api/company/users", { headers }),
             fetch("/api/workspace/documents", { headers }),
             fetch("/api/company/workspace/summary", { headers }),
-            fetch("/api/onboarding/state", { headers }),
           ]);
           if (cancelled) return;
           const me = (await meRes.json().catch(() => null)) as
             | { user?: { companyProfile?: AdoptionChecklistInput["companyProfile"] } }
             | null;
+
+          // No company linked (internal admin / superadmin viewing the workspace) → no banner.
+          if (meRes.ok && !me?.user?.companyProfile) {
+            setDismissed(true);
+            return;
+          }
+
           const users = (await usersRes.json().catch(() => null)) as
             | { users?: AdoptionChecklistInput["companyUsers"]; invites?: AdoptionChecklistInput["companyInvites"] }
             | null;
@@ -54,14 +73,6 @@ export function OnboardingBanner() {
           const workspace = (await workspaceRes.json().catch(() => null)) as
             | { jobsites?: AdoptionChecklistInput["jobsites"] }
             | null;
-          const onboarding =
-            ((await onboardingRes.json().catch(() => null)) as OnboardingState | null) ??
-            emptyOnboardingState();
-
-          if (onboarding.dismissedAt) {
-            setDismissed(true);
-            return;
-          }
 
           const checklist = buildAdoptionChecklist({
             companyProfile: meRes.ok ? me?.user?.companyProfile ?? null : null,
@@ -75,6 +86,18 @@ export function OnboardingBanner() {
           });
 
           if (cancelled) return;
+
+          // Setup finished → persist a dismiss so future home loads short-circuit after one call.
+          if (checklist.totalCount > 0 && checklist.completedCount >= checklist.totalCount) {
+            setDismissed(true);
+            await fetch("/api/onboarding/state", {
+              method: "PATCH",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ dismissed: true }),
+            }).catch(() => undefined);
+            return;
+          }
+
           setSummary({
             completed: checklist.completedCount,
             total: checklist.totalCount,
