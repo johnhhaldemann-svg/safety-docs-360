@@ -309,6 +309,7 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Start Here",
     items: [
+      { href: "/get-started", label: "Get Started", short: "GS" },
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/purchases", label: "Purchases", short: "PU" },
       { href: "/support", label: "Help & Support", short: "HS" },
@@ -395,6 +396,7 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Start Here",
     items: [
+      { href: "/get-started", label: "Get Started", short: "GS" },
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/training", label: "Platform Training", short: "PT" },

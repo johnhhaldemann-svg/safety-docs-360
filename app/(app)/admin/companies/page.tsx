@@ -357,6 +357,79 @@ export default function AdminCompaniesPage() {
     [getApprovalDraft, loadCompanies, pilotTrialByRequestId]
   );
 
+  const handleQuickApprove = useCallback(
+    async (requestId: string) => {
+      setProcessingRequestId(requestId);
+      setMessage("");
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error || !session?.access_token) {
+          setMessageTone("error");
+          setMessage("You must be logged in as an internal admin.");
+          setProcessingRequestId("");
+          return;
+        }
+
+        // Sensible defaults: Tier 2 (Professional Network), all feature modules on,
+        // 30-day pilot trial. The owner can refine details from their dashboard afterward.
+        const tier = getEnterpriseTier("professional_network");
+        const res = await fetch("/api/admin/companies", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            requestId,
+            action: "approve",
+            planName: "Enterprise",
+            pilotTrial: true,
+            planTierKey: tier.key,
+            annualPlatformPriceCents: tier.annualPriceCents,
+            includedJobsiteLimit: tier.includedJobsites,
+            includedUserLimit: tier.includedUsers,
+            onboardingFeeCents: null,
+            enabledFeatureKeys: PLATFORM_FEATURES.map((feature) => feature.key),
+            selectedAddons: [],
+            commercialNotes: null,
+          }),
+        });
+
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string; message?: string; warning?: string | null }
+          | null;
+
+        if (!res.ok) {
+          setMessageTone("error");
+          setMessage(data?.error || "Failed to approve the company workspace.");
+          setProcessingRequestId("");
+          return;
+        }
+
+        setMessageTone(data?.warning ? "warning" : "success");
+        setMessage(
+          data?.warning ||
+            data?.message ||
+            "Company workspace approved with default terms and a 30-day pilot trial."
+        );
+        await loadCompanies();
+      } catch (error) {
+        setMessageTone("error");
+        setMessage(
+          error instanceof Error ? error.message : "Failed to approve the company workspace."
+        );
+      }
+
+      setProcessingRequestId("");
+    },
+    [loadCompanies]
+  );
+
   const handleCreateManualCompany = useCallback(async () => {
     setCreatingManualCompany(true);
     setMessage("");
@@ -966,6 +1039,27 @@ export default function AdminCompaniesPage() {
                   <div className="flex flex-col gap-3 lg:min-w-[360px]">
                     <div className="rounded-xl border border-amber-500/35 bg-amber-950/40 px-4 py-3 text-sm text-amber-100">
                       Approve this request to activate the workspace. After approval, the owner signs in again with the same email and the company workspace opens on that account.
+                    </div>
+                    <div className="rounded-2xl border border-emerald-500/35 bg-emerald-950/30 p-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-bold text-emerald-100">Fastest path</span>
+                        <span className="text-sm text-emerald-200/90">
+                          One click approves with Tier 2 defaults, all feature modules on, and a 30-day pilot trial. The owner can refine details later.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuickApprove(request.id)}
+                        disabled={processingRequestId === request.id}
+                        className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {processingRequestId === request.id ? "Approving..." : "⚡ Quick Approve (defaults + pilot)"}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <span className="h-px flex-1 bg-slate-700/70" />
+                      Or customize terms
+                      <span className="h-px flex-1 bg-slate-700/70" />
                     </div>
                     {(() => {
                       const draft = getApprovalDraft(request.id);

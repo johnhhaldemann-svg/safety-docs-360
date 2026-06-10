@@ -1665,6 +1665,14 @@ export function CommandCenterWorkspace() {
         title="Workspace launch checklist"
         description={`${adoptionChecklist.completedCount} of ${adoptionChecklist.totalCount} adoption milestones complete. Keep setup progress close to the operating hub.`}
         aside={<StatusBadge label={adoptionChecklist.nextItem ? `Next: ${adoptionChecklist.nextItem.label}` : "Launch complete"} tone={adoptionChecklist.nextItem ? "warning" : "success"} />}
+        actions={
+          <Link
+            href="/get-started"
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            Open guided setup
+          </Link>
+        }
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {adoptionChecklist.items.map((item) => (
