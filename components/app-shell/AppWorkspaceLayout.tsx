@@ -565,6 +565,22 @@ export function AppWorkspaceLayout({
     }
 
     if (isCompanyScopedUser) {
+      // SafePredict pages are a self-contained segment with their own auth/shell — never
+      // bounce a valid /safe-predict route from here (prevents flicker/bounce when the
+      // guided wizard links into the native workspace).
+      if (pathname === "/safe-predict" || pathname.startsWith("/safe-predict/")) {
+        return;
+      }
+
+      // First-run onboarding: route company leadership into the guided wizard when they land
+      // on the home dashboard before finishing setup, so onboarding happens on sign-up. Only
+      // the dashboard landing is gated (checked before the SafePredict remap so it actually
+      // fires) — every setup page stays reachable so they can complete the steps.
+      if (mustOnboard && pathname === "/dashboard") {
+        router.replace("/get-started");
+        return;
+      }
+
       const safePredictRoute = mapSafePredictOperationHref(pathname);
       if (safePredictRoute !== pathname) {
         router.replace(safePredictRoute);
@@ -635,15 +651,6 @@ export function AppWorkspaceLayout({
         if (!inCsepRoute || !inGatedCsepRoute) {
           router.replace(gatedCsepRoutes[0] ?? "/profile");
         }
-        return;
-      }
-
-      // First-run onboarding: when company leadership lands on the home dashboard before
-      // finishing setup, route them into the guided wizard so onboarding happens on sign-up.
-      // We only gate the dashboard landing — every actual setup page (jobsites, documents,
-      // team import) stays reachable so they can complete the steps without being trapped.
-      if (mustOnboard && pathname === "/dashboard") {
-        router.replace("/get-started");
         return;
       }
 

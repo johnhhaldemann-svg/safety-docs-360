@@ -36,6 +36,26 @@ const emptyAdoptionData = (): AdoptionData => ({
   onboardingState: emptyOnboardingState(),
 });
 
+/**
+ * Company users live in the native /safe-predict workspace, so each step links straight to the
+ * real destination there. The shared checklist's legacy hrefs (e.g. /company-onboarding) are
+ * surfaces the app shell does not auto-remap, which is why linking them raw sent users to the
+ * wrong page. Keyed by checklist item id.
+ */
+const STEP_DESTINATION: Record<string, string> = {
+  company_profile: "/safe-predict/settings",
+  team_invites: "/safe-predict/onboarding-import",
+  first_jobsite: "/safe-predict/jobsites",
+  first_document: "/safe-predict/documents",
+  command_center: "/safe-predict",
+};
+
+function stepHref(id: string, fallback: string) {
+  return STEP_DESTINATION[id] ?? fallback;
+}
+
+const COMMAND_CENTER_HREF = "/safe-predict";
+
 type ImportGuide = {
   type: "employees" | "jobsites" | "training_records";
   title: string;
@@ -262,7 +282,7 @@ export default function GetStartedPage() {
               {loading ? "Refreshing..." : "Refresh progress"}
             </button>
             <Link
-              href="/command-center"
+              href={COMMAND_CENTER_HREF}
               className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Open Command Center
@@ -341,7 +361,7 @@ export default function GetStartedPage() {
                   </div>
                   <div className="sm:shrink-0">
                     <Link
-                      href={item.href}
+                      href={stepHref(item.id, item.href)}
                       className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                         item.complete
                           ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
@@ -362,7 +382,7 @@ export default function GetStartedPage() {
             eyebrow="Launch complete"
             title="Your workspace is ready"
             description="Head to the Command Center to monitor risk, open work, and recommended actions every day."
-            actionHref="/command-center"
+            actionHref={COMMAND_CENTER_HREF}
             actionLabel="Open Command Center"
           />
         ) : null}
@@ -409,7 +429,7 @@ export default function GetStartedPage() {
         description="Download a template, fill in your data, then upload it. CSV or Excel (.xlsx / .xls) both work. Dates use YYYY-MM-DD. The first row is the header — keep the column names as shown."
         actions={
           <Link
-            href="/company-onboarding"
+            href="/safe-predict/onboarding-import"
             className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
           >
             Go to import page
@@ -465,7 +485,7 @@ export default function GetStartedPage() {
                   Download template
                 </a>
                 <Link
-                  href="/company-onboarding"
+                  href="/safe-predict/onboarding-import"
                   className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-3.5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                 >
                   Upload
