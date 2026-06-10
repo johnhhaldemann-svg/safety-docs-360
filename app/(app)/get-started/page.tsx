@@ -36,6 +36,89 @@ const emptyAdoptionData = (): AdoptionData => ({
   onboardingState: emptyOnboardingState(),
 });
 
+type ImportGuide = {
+  type: "employees" | "jobsites" | "training_records";
+  title: string;
+  purpose: string;
+  required: string[];
+  columns: string[];
+};
+
+// Column names mirror lib/companyOnboardingImport.ts so the guidance matches the
+// real parser and the downloadable templates served by
+// /api/company/onboarding/import/template.
+const IMPORT_GUIDES: ImportGuide[] = [
+  {
+    type: "employees",
+    title: "Employees / Team roster",
+    purpose:
+      "Your people. Lets safety managers track training and site assignments — tracked employees do not use paid seats.",
+    required: ["full_name"],
+    columns: [
+      "employee_id",
+      "full_name",
+      "email",
+      "phone",
+      "job_title",
+      "trade_specialty",
+      "status",
+      "jobsite_names",
+      "certifications",
+      "certification_expirations",
+    ],
+  },
+  {
+    type: "jobsites",
+    title: "Jobsites / Projects",
+    purpose: "Your active sites. These anchor JSAs, permits, incidents, reports, and risk signals.",
+    required: ["name", "jobsite_number"],
+    columns: [
+      "name",
+      "jobsite_number",
+      "project_number",
+      "location",
+      "status",
+      "project_manager",
+      "safety_lead",
+      "start_date",
+      "end_date",
+      "notes",
+    ],
+  },
+  {
+    type: "training_records",
+    title: "Training Matrix / Records",
+    purpose:
+      "Who completed which training and when it expires. Powers the Training Tracker and expiry alerts.",
+    required: ["employee_id, email, or full_name", "training_title"],
+    columns: [
+      "employee_id",
+      "email",
+      "full_name",
+      "requirement_title",
+      "training_title",
+      "completed_on",
+      "expires_on",
+      "provider",
+      "notes",
+    ],
+  },
+];
+
+const PROVIDED_BY_COMPANY = [
+  "Three spreadsheets below: employees, jobsites, training records (CSV or Excel).",
+  "Company profile details: legal name, industry, phone, address.",
+  "Company logo (optional, for branded documents and reports).",
+  "Names/emails of any teammates who need a licensed login seat.",
+];
+
+const SET_UP_BY_PLATFORM = [
+  "Workspace activation and owner access (done at approval).",
+  "Plan tier, feature modules, and your 30-day pilot trial.",
+  "Predictive risk engine, dashboards, and Command Center.",
+  "Document templates, marketplace, and AI safety rules.",
+];
+
 export default function GetStartedPage() {
   const [data, setData] = useState<AdoptionData>(emptyAdoptionData);
   const [loading, setLoading] = useState(true);
@@ -253,6 +336,114 @@ export default function GetStartedPage() {
             actionLabel="Open Command Center"
           />
         ) : null}
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="Who does what"
+        title="What you provide vs. what we set up"
+        description="You bring your people and project data. We handle the platform, the risk engine, and the configuration."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--app-accent-border-28)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
+            <div className="flex items-center gap-2">
+              <StatusBadge label="You provide" tone="warning" />
+            </div>
+            <ul className="mt-3 space-y-2">
+              {PROVIDED_BY_COMPANY.map((item) => (
+                <li key={item} className="flex gap-2 text-sm leading-6 text-[var(--app-text)]">
+                  <span className="mt-1 text-[var(--app-accent-primary)]">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-5 shadow-[var(--app-shadow-soft)]">
+            <div className="flex items-center gap-2">
+              <StatusBadge label="We set up" tone="success" />
+            </div>
+            <ul className="mt-3 space-y-2">
+              {SET_UP_BY_PLATFORM.map((item) => (
+                <li key={item} className="flex gap-2 text-sm leading-6 text-[var(--app-text)]">
+                  <span className="mt-1 text-[var(--semantic-success)]">✓</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="Prepare your data"
+        title="Spreadsheets to upload"
+        description="Download a template, fill in your data, then upload it. CSV or Excel (.xlsx / .xls) both work. Dates use YYYY-MM-DD. The first row is the header — keep the column names as shown."
+        actions={
+          <Link
+            href="/company-onboarding"
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            Go to import page
+          </Link>
+        }
+      >
+        <div className="grid gap-4 xl:grid-cols-3">
+          {IMPORT_GUIDES.map((guide) => (
+            <div
+              key={guide.type}
+              className="flex flex-col rounded-2xl border border-[var(--app-border)] bg-white/95 p-5 shadow-[var(--app-shadow-soft)]"
+            >
+              <p className="text-sm font-bold text-[var(--app-text-strong)]">{guide.title}</p>
+              <p className="mt-1.5 text-sm leading-6 text-[var(--app-text)]">{guide.purpose}</p>
+
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  Required
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {guide.required.map((field) => (
+                    <span
+                      key={field}
+                      className="rounded-md border border-[rgba(217,164,65,0.4)] bg-[var(--semantic-warning-bg)] px-2 py-1 text-xs font-semibold text-[var(--semantic-warning)]"
+                    >
+                      {field}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">
+                  All columns
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {guide.columns.map((column) => (
+                    <span
+                      key={column}
+                      className="rounded-md border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-2 py-1 font-mono text-[11px] text-[var(--app-text)]"
+                    >
+                      {column}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-auto flex flex-wrap gap-2 pt-5">
+                <a
+                  href={`/api/company/onboarding/import/template?type=${guide.type}`}
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--app-border)] bg-white px-3.5 py-2 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)]"
+                >
+                  Download template
+                </a>
+                <Link
+                  href="/company-onboarding"
+                  className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-3.5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                >
+                  Upload
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
       </SectionCard>
     </div>
   );
