@@ -123,6 +123,7 @@ export default function GetStartedPage() {
   const [data, setData] = useState<AdoptionData>(emptyAdoptionData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [skipping, setSkipping] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,6 +195,27 @@ export default function GetStartedPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const handleSkip = useCallback(async () => {
+    setSkipping(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        await fetch("/api/onboarding/state", {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ dismissed: true }),
+        });
+      }
+    } catch {
+      // Non-blocking: fall through to the dashboard regardless.
+    }
+    // Hard navigation so the app shell re-reads onboarding state and clears the first-run gate.
+    window.location.assign("/dashboard");
+  }, []);
+
   const checklist = useMemo(
     () =>
       buildAdoptionChecklist({
@@ -223,6 +245,14 @@ export default function GetStartedPage() {
         description="Follow these five steps to get your company live. Each step opens the right page — finish them in any order and your progress saves automatically."
         actions={
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleSkip()}
+              disabled={skipping}
+              className="rounded-xl border border-[var(--app-border)] bg-white/80 px-5 py-3 text-sm font-semibold text-[var(--app-muted)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {skipping ? "Skipping..." : "Skip for now"}
+            </button>
             <button
               type="button"
               onClick={() => void load()}

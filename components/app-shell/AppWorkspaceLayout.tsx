@@ -154,6 +154,12 @@ export function AppWorkspaceLayout({
   const [workspaceProduct, setWorkspaceProduct] = useState<WorkspaceProduct>("full");
   const [profileComplete, setProfileComplete] = useState(false);
   const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
+  /**
+   * First-run onboarding gate for company leadership. True until the owner either opens the
+   * Command Center (final guided-setup step) or explicitly skips on /get-started. While true,
+   * company admins/managers are routed to /get-started so onboarding happens upon sign-up.
+   */
+  const [mustOnboard, setMustOnboard] = useState(false);
   const [agreementConfig, setAgreementConfig] = useState<AgreementConfig>(
     getDefaultAgreementConfig()
   );
@@ -499,6 +505,43 @@ export function AppWorkspaceLayout({
     };
   }, [router, syncSession]);
 
+  // Load the first-run onboarding signal for company leadership. We force the guided setup
+  // until they open the Command Center or skip it; failures never trap the user.
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    const isLeadership =
+      userRole === "company_admin" || userRole === "manager" || userRole === "safety_manager";
+    if (!isLeadership || workspaceProduct === "csep" || accountStatus !== "active" || !acceptedTerms) {
+      const handle = window.setTimeout(() => setMustOnboard(false), 0);
+      return () => window.clearTimeout(handle);
+    }
+    void (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+        const res = await fetchWithTimeout(
+          "/api/onboarding/state",
+          { headers: { Authorization: `Bearer ${token}` } },
+          10000
+        );
+        const data = (await res.json().catch(() => null)) as
+          | { dismissedAt?: string | null; lastSeenCommandCenterAt?: string | null }
+          | null;
+        if (cancelled || !res.ok || !data) return;
+        setMustOnboard(!data.dismissedAt && !data.lastSeenCommandCenterAt);
+      } catch {
+        if (!cancelled) setMustOnboard(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, userRole, workspaceProduct, accountStatus, acceptedTerms]);
+
   useEffect(() => {
     if (loading) return;
 
@@ -595,7 +638,16 @@ export function AppWorkspaceLayout({
         return;
       }
 
-      const companyAllowedRoutes = ["/dashboard", "/training", "/documents", "/library", "/search", "/profile", "/support"];
+      // First-run onboarding: when company leadership lands on the home dashboard before
+      // finishing setup, route them into the guided wizard so onboarding happens on sign-up.
+      // We only gate the dashboard landing — every actual setup page (jobsites, documents,
+      // team import) stays reachable so they can complete the steps without being trapped.
+      if (mustOnboard && pathname === "/dashboard") {
+        router.replace("/get-started");
+        return;
+      }
+
+      const companyAllowedRoutes = ["/dashboard", "/training", "/documents", "/library", "/search", "/profile", "/support", "/get-started"];
 
       if (companyId) {
         companyAllowedRoutes.push("/customer/billing");
@@ -716,6 +768,7 @@ export function AppWorkspaceLayout({
     isSuperadminCyberSecurityRoute,
     isSuperadminRoute,
     loading,
+    mustOnboard,
     needsCompanySetup,
     needsProfileSetup,
     pathname,
