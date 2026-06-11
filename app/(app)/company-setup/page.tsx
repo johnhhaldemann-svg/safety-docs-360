@@ -209,15 +209,15 @@ export default function CompanySetupPage() {
         ].map((item) => (
           <div
             key={item.step}
-            className="rounded-3xl border border-slate-700/80 bg-slate-900/90 p-5 shadow-sm"
+            className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-5 shadow-sm"
           >
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sm font-black text-sky-300">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-accent-primary-10,rgba(37,99,235,0.10))] text-sm font-black text-[var(--app-accent-primary)]">
                 {item.step}
               </div>
               <div>
-                <div className="text-base font-bold text-white">{item.title}</div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">{item.body}</p>
+                <div className="text-base font-bold text-[var(--app-text-strong)]">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text)]">{item.body}</p>
               </div>
             </div>
           </div>
@@ -230,20 +230,20 @@ export default function CompanySetupPage() {
       >
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 px-4 py-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 Company Owner
               </div>
-              <div className="mt-2 text-sm font-semibold text-slate-100">{contactName || "Account owner"}</div>
-              <div className="mt-1 text-sm text-slate-500">{contactEmail || "Signed-in account"}</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--app-text-strong)]">{contactName || "Account owner"}</div>
+              <div className="mt-1 text-sm text-[var(--app-text)]">{contactEmail || "Signed-in account"}</div>
             </div>
 
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-900/90 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 Step 1
               </div>
-              <div className="mt-2 text-base font-bold text-slate-100">Company details</div>
-              <p className="mt-1 text-sm text-slate-500">
+              <div className="mt-2 text-base font-bold text-[var(--app-text-strong)]">Company details</div>
+              <p className="mt-1 text-sm text-[var(--app-text)]">
                 These details will appear across the company workspace, internal admin views, and employee invites.
               </p>
             </div>
@@ -254,7 +254,7 @@ export default function CompanySetupPage() {
               placeholder="Company name"
               value={companyName}
               onChange={(event) => setCompanyName(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
             />
             <input
               type="text"
@@ -262,7 +262,7 @@ export default function CompanySetupPage() {
               placeholder="Industry"
               value={industry}
               onChange={(event) => setIndustry(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
             />
             <input
               type="tel"
@@ -270,7 +270,7 @@ export default function CompanySetupPage() {
               placeholder="Company phone"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
             />
             <input
               type="url"
@@ -278,7 +278,7 @@ export default function CompanySetupPage() {
               placeholder="Website (optional)"
               value={website}
               onChange={(event) => setWebsite(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
             />
             <input
               type="text"
@@ -286,7 +286,7 @@ export default function CompanySetupPage() {
               placeholder="Address line 1"
               value={addressLine1}
               onChange={(event) => setAddressLine1(event.target.value)}
-              className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+              className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <input
@@ -295,7 +295,7 @@ export default function CompanySetupPage() {
                 placeholder="City"
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
               />
               <input
                 type="text"
@@ -303,7 +303,7 @@ export default function CompanySetupPage() {
                 placeholder="State / Region"
                 value={stateRegion}
                 onChange={(event) => setStateRegion(event.target.value)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
               />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -313,7 +313,7 @@ export default function CompanySetupPage() {
                 placeholder="Postal code"
                 value={postalCode}
                 onChange={(event) => setPostalCode(event.target.value)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
               />
               <input
                 type="text"
@@ -321,29 +321,29 @@ export default function CompanySetupPage() {
                 placeholder="Country"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}
-                className="rounded-xl border border-slate-600 px-4 py-3 text-sm text-slate-300 outline-none placeholder:text-slate-400 focus:border-sky-500"
+                className="rounded-xl border border-[var(--app-border)] bg-white px-4 py-3 text-sm text-[var(--app-text-strong)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent-primary)]"
               />
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 Step 2
               </div>
-              <div className="mt-2 text-base font-bold text-slate-100">Internal onboarding terms</div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
+              <div className="mt-2 text-base font-bold text-[var(--app-text-strong)]">Internal onboarding terms</div>
+              <p className="mt-3 text-sm leading-6 text-[var(--app-text)]">
                 A Platform Admin will assign the internal tier, price, included jobsites, users,
                 enabled feature modules, add-ons, and draft invoice after this request is submitted.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel-soft)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--app-muted)]">
                 Step 3
               </div>
-              <div className="mt-2 text-base font-bold text-slate-100">Launch workspace</div>
-              <div className="mt-3 space-y-3 text-sm leading-6 text-slate-500">
+              <div className="mt-2 text-base font-bold text-[var(--app-text-strong)]">Launch workspace</div>
+              <div className="mt-3 space-y-3 text-sm leading-6 text-[var(--app-text)]">
                 <p>1. Your company workspace request is submitted under the signed-in account.</p>
                 <p>2. Internal admin approves the company and activates the workspace.</p>
                 <p>3. You sign back in with this same email and the company workspace opens on that account.</p>
@@ -357,9 +357,9 @@ export default function CompanySetupPage() {
             {message ? <InlineMessage tone={messageTone}>{message}</InlineMessage> : null}
 
             {launchMode === "request" ? (
-              <div className="rounded-2xl border border-amber-500/35 bg-amber-950/40 px-4 py-4 text-sm text-amber-900">
+              <div className="rounded-2xl border border-[var(--semantic-warning-border,rgba(217,164,65,0.35))] bg-[var(--semantic-warning-bg)] px-4 py-4 text-sm text-[var(--app-text-strong)]">
                 <div className="font-semibold">What happens next</div>
-                <div className="mt-2 space-y-2 leading-6">
+                <div className="mt-2 space-y-2 leading-6 text-[var(--app-text)]">
                   <p>1. Your company setup request is now waiting for internal approval.</p>
                   <p>2. Your personal account stays on file under this same email.</p>
                   <p>3. After approval, sign back in with this same email and the company workspace will attach automatically.</p>
@@ -372,7 +372,7 @@ export default function CompanySetupPage() {
               type="button"
               onClick={() => void handleCreateWorkspace()}
               disabled={loading || launchMode === "request"}
-              className="w-full rounded-2xl bg-sky-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:opacity-60"
+              className="w-full rounded-2xl bg-[var(--app-accent-primary)] px-5 py-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
             >
               {loading
                 ? "Submitting company workspace request..."

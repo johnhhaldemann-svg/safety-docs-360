@@ -22,6 +22,7 @@ type AdoptionData = {
   companyProfile: AdoptionChecklistInput["companyProfile"];
   companyUsers: NonNullable<AdoptionChecklistInput["companyUsers"]>;
   companyInvites: NonNullable<AdoptionChecklistInput["companyInvites"]>;
+  trackedEmployees: NonNullable<AdoptionChecklistInput["trackedEmployees"]>;
   jobsites: NonNullable<AdoptionChecklistInput["jobsites"]>;
   documents: NonNullable<AdoptionChecklistInput["documents"]>;
   onboardingState: OnboardingState;
@@ -31,6 +32,7 @@ const emptyAdoptionData = (): AdoptionData => ({
   companyProfile: null,
   companyUsers: [],
   companyInvites: [],
+  trackedEmployees: [],
   jobsites: [],
   documents: [],
   onboardingState: emptyOnboardingState(),
@@ -164,12 +166,13 @@ export function GetStartedWizard() {
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      const [meRes, usersRes, documentsRes, workspaceRes, onboardingRes] = await Promise.all([
+      const [meRes, usersRes, documentsRes, workspaceRes, onboardingRes, trackedRes] = await Promise.all([
         fetch("/api/auth/me", { headers }),
         fetch("/api/company/users", { headers }),
         fetch("/api/workspace/documents", { headers }),
         fetch("/api/company/workspace/summary", { headers }),
         fetch("/api/onboarding/state", { headers }),
+        fetch("/api/company/tracked-employees", { headers }),
       ]);
 
       const meJson = (await meRes.json().catch(() => null)) as
@@ -188,11 +191,15 @@ export function GetStartedWizard() {
         | { jobsites?: AdoptionChecklistInput["jobsites"] }
         | null;
       const onboardingJson = (await onboardingRes.json().catch(() => null)) as OnboardingState | null;
+      const trackedJson = (await trackedRes.json().catch(() => null)) as
+        | { employees?: AdoptionChecklistInput["trackedEmployees"] }
+        | null;
 
       setData({
         companyProfile: meRes.ok ? meJson?.user?.companyProfile ?? null : null,
         companyUsers: usersRes.ok ? usersJson?.users ?? [] : [],
         companyInvites: usersRes.ok ? usersJson?.invites ?? [] : [],
+        trackedEmployees: trackedRes.ok ? trackedJson?.employees ?? [] : [],
         jobsites: workspaceRes.ok ? workspaceJson?.jobsites ?? [] : [],
         documents: documentsRes.ok ? documentsJson?.documents ?? [] : [],
         onboardingState:
@@ -214,6 +221,24 @@ export function GetStartedWizard() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const handleOpenCommandCenter = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await fetch("/api/onboarding/state", {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ markCommandCenterViewed: true }),
+        }).catch(() => undefined);
+      }
+    } catch {
+      // Non-blocking.
+    }
+    window.location.assign("/safe-predict");
+  }, []);
 
   const handleSkip = useCallback(async () => {
     setSkipping(true);
@@ -242,6 +267,7 @@ export function GetStartedWizard() {
         companyProfile: data.companyProfile,
         companyUsers: data.companyUsers,
         companyInvites: data.companyInvites,
+        trackedEmployees: data.trackedEmployees,
         jobsites: data.jobsites,
         documents: data.documents,
         commandCenterViewed:
@@ -281,12 +307,13 @@ export function GetStartedWizard() {
             >
               {loading ? "Refreshing..." : "Refresh progress"}
             </button>
-            <Link
-              href={COMMAND_CENTER_HREF}
+            <button
+              type="button"
+              onClick={() => void handleOpenCommandCenter()}
               className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Open Command Center
-            </Link>
+            </button>
           </div>
         }
       />
@@ -360,16 +387,30 @@ export function GetStartedWizard() {
                     </div>
                   </div>
                   <div className="sm:shrink-0">
-                    <Link
-                      href={stepHref(item.id, item.href)}
-                      className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                        item.complete
-                          ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
-                          : "bg-[var(--app-accent-primary)] text-white hover:opacity-90"
-                      }`}
-                    >
-                      {item.complete ? "Review" : "Start"}
-                    </Link>
+                    {item.id === "command_center" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenCommandCenter()}
+                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                          item.complete
+                            ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
+                            : "bg-[var(--app-accent-primary)] text-white hover:opacity-90"
+                        }`}
+                      >
+                        {item.complete ? "Review" : "Start"}
+                      </button>
+                    ) : (
+                      <Link
+                        href={stepHref(item.id, item.href)}
+                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                          item.complete
+                            ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
+                            : "bg-[var(--app-accent-primary)] text-white hover:opacity-90"
+                        }`}
+                      >
+                        {item.complete ? "Review" : "Start"}
+                      </Link>
+                    )}
                   </div>
                 </li>
               );

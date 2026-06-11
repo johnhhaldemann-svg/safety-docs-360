@@ -47,11 +47,12 @@ export function OnboardingBanner() {
             return;
           }
 
-          const [meRes, usersRes, documentsRes, workspaceRes] = await Promise.all([
+          const [meRes, usersRes, documentsRes, workspaceRes, trackedRes] = await Promise.all([
             fetch("/api/auth/me", { headers }),
             fetch("/api/company/users", { headers }),
             fetch("/api/workspace/documents", { headers }),
             fetch("/api/company/workspace/summary", { headers }),
+            fetch("/api/company/tracked-employees", { headers }),
           ]);
           if (cancelled) return;
           const me = (await meRes.json().catch(() => null)) as
@@ -73,11 +74,15 @@ export function OnboardingBanner() {
           const workspace = (await workspaceRes.json().catch(() => null)) as
             | { jobsites?: AdoptionChecklistInput["jobsites"] }
             | null;
+          const tracked = (await trackedRes.json().catch(() => null)) as
+            | { employees?: AdoptionChecklistInput["trackedEmployees"] }
+            | null;
 
           const checklist = buildAdoptionChecklist({
             companyProfile: meRes.ok ? me?.user?.companyProfile ?? null : null,
             companyUsers: usersRes.ok ? users?.users ?? [] : [],
             companyInvites: usersRes.ok ? users?.invites ?? [] : [],
+            trackedEmployees: trackedRes.ok ? tracked?.employees ?? [] : [],
             jobsites: workspaceRes.ok ? workspace?.jobsites ?? [] : [],
             documents: documentsRes.ok ? documents?.documents ?? [] : [],
             commandCenterViewed:

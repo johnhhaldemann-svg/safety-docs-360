@@ -314,6 +314,35 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!viewerRole || pathname !== "/safe-predict") return;
+    const adminRoles = new Set(["super_admin", "superadmin", "platform_admin", "admin"]);
+    if (adminRoles.has(viewerRole.toLowerCase()) || canAccessInternalAdmin) return;
+
+    let cancelled = false;
+    void (async () => {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token || cancelled) return;
+      const res = await fetch("/api/onboarding/state", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (cancelled || !res.ok) return;
+      const state = (await res.json().catch(() => null)) as
+        | { dismissedAt?: string | null; lastSeenCommandCenterAt?: string | null }
+        | null;
+      if (cancelled || !state) return;
+      if (!state.dismissedAt && !state.lastSeenCommandCenterAt) {
+        router.replace("/safe-predict/get-started");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerRole, canAccessInternalAdmin, pathname, router]);
+
   async function handleSignOut() {
     setSigningOut(true);
     const supabase = getSupabaseBrowserClient();

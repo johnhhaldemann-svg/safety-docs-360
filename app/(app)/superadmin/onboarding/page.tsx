@@ -672,7 +672,7 @@ export default function SuperadminOnboardingPage() {
               body: "See the guided wizard and data-upload templates customers use.",
             },
             {
-              href: "/company-onboarding",
+              href: "/safe-predict/onboarding-import",
               title: "Import templates",
               body: "Employees, jobsites, and training-record spreadsheet templates.",
             },
