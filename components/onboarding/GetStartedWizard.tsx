@@ -78,7 +78,7 @@ const UPLOAD_CARDS = [
     title: "Training Matrix / Records",
     description:
       "Upload who completed which training and when it expires. Powers the Training Tracker, compliance reports, and expiry alerts.",
-    href: "/safe-predict/onboarding-import?tab=training",
+    href: "/safe-predict/onboarding-import?tab=training_records",
   },
 ];
 

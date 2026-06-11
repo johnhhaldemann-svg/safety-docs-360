@@ -331,12 +331,12 @@ export default function CompanyOnboardingPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <PageHero
-        eyebrow="Company onboarding"
-        title="Import roster, jobsites, and training without adding licenses"
-        description="Build the company safety file after approval with manual entry or CSV/XLSX imports. Tracked employees stay separate from login users, invites, memberships, and seat counts."
+        eyebrow="Data Import"
+        title="Upload your employees, jobsites, and training records"
+        description="Add your roster, project sites, and training history using manual entry or by uploading a CSV or Excel file. Tracked employees don't use paid seats — they're separate from workspace login users."
         actions={
           <>
-            <Link href="/training-matrix" className={appButtonSecondaryClassName}>
+            <Link href="/safe-predict/training-tracker" className={appButtonSecondaryClassName}>
               <GraduationCap className="h-4 w-4" aria-hidden />
               Training Matrix
             </Link>
@@ -558,46 +558,86 @@ export default function CompanyOnboardingPage() {
         </SectionCard>
       </div>
 
-      <SectionCard
-        title="Tracked roster"
-        description={`These ${activeEmployees.length} people are available in the Training Matrix as tracked employees with no license usage.`}
-      >
-        {activeEmployees.length > 0 ? (
-          <div className="overflow-x-auto" role="region" aria-label="Tracked roster table" tabIndex={0}>
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-[var(--app-border)] text-xs uppercase tracking-wide text-[var(--app-muted)]">
-                <tr>
-                  <th className="py-3 pr-4">Employee</th>
-                  <th className="py-3 pr-4">Position</th>
-                  <th className="py-3 pr-4">Trade</th>
-                  <th className="py-3 pr-4">Records</th>
-                  <th className="py-3 pr-4">License</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--app-border)]">
-                {activeEmployees.map((employee) => (
-                  <tr key={employee.id}>
-                    <td className="py-3 pr-4">
-                      <div className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</div>
-                      <div className="text-xs text-[var(--app-muted)]">{employee.email || employee.external_employee_id || employee.id}</div>
-                    </td>
-                    <td className="py-3 pr-4">{employee.job_title || "-"}</td>
-                    <td className="py-3 pr-4">{employee.trade_specialty || "-"}</td>
-                    <td className="py-3 pr-4">{employee.trainingRecords?.length ?? 0}</td>
-                    <td className="py-3 pr-4">
-                      <StatusBadge label="Tracked employee, no license" tone="info" />
-                    </td>
+      {activeTab === "employees" || activeTab === "training_records" ? (
+        <SectionCard
+          title={activeTab === "training_records" ? `Tracked employees (${activeEmployees.length}) — training records` : `Tracked employees (${activeEmployees.length})`}
+          description={
+            activeTab === "training_records"
+              ? "Training records are tied to tracked employees. Add employees first, then add their records above."
+              : "These people are available in the Training Matrix as tracked employees with no license usage."
+          }
+        >
+          {activeEmployees.length > 0 ? (
+            <div className="overflow-x-auto" role="region" aria-label="Tracked roster table" tabIndex={0}>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-[var(--app-border)] text-xs uppercase tracking-wide text-[var(--app-muted)]">
+                  <tr>
+                    <th className="py-3 pr-4">Employee</th>
+                    <th className="py-3 pr-4">Position</th>
+                    <th className="py-3 pr-4">Trade</th>
+                    <th className="py-3 pr-4">Training records</th>
+                    {activeTab === "employees" ? <th className="py-3 pr-4">License</th> : null}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-6 text-sm text-[var(--app-muted)]">
-            No tracked employees yet. Add one manually or import an employee template.
-          </div>
-        )}
-      </SectionCard>
+                </thead>
+                <tbody className="divide-y divide-[var(--app-border)]">
+                  {activeEmployees.map((employee) => (
+                    <tr key={employee.id}>
+                      <td className="py-3 pr-4">
+                        <div className="font-semibold text-[var(--app-text-strong)]">{employee.full_name}</div>
+                        <div className="text-xs text-[var(--app-muted)]">{employee.email || employee.external_employee_id || employee.id}</div>
+                      </td>
+                      <td className="py-3 pr-4">{employee.job_title || "-"}</td>
+                      <td className="py-3 pr-4">{employee.trade_specialty || "-"}</td>
+                      <td className="py-3 pr-4">{employee.trainingRecords?.length ?? 0}</td>
+                      {activeTab === "employees" ? (
+                        <td className="py-3 pr-4">
+                          <StatusBadge label="No license" tone="info" />
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-6 text-sm text-[var(--app-muted)]">
+              No tracked employees yet. Add one manually above or upload an employee file.
+            </div>
+          )}
+        </SectionCard>
+      ) : (
+        <SectionCard
+          title={`Jobsites (${jobsites.length})`}
+          description="These project sites can be assigned to employees during import and are used across JSAs, permits, incidents, and risk scores."
+        >
+          {jobsites.length > 0 ? (
+            <div className="overflow-x-auto" role="region" aria-label="Jobsites table" tabIndex={0}>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-[var(--app-border)] text-xs uppercase tracking-wide text-[var(--app-muted)]">
+                  <tr>
+                    <th className="py-3 pr-4">Jobsite name</th>
+                    <th className="py-3 pr-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--app-border)]">
+                  {jobsites.map((jobsite) => (
+                    <tr key={jobsite.id}>
+                      <td className="py-3 pr-4 font-semibold text-[var(--app-text-strong)]">{jobsite.name}</td>
+                      <td className="py-3 pr-4">
+                        <StatusBadge label={jobsite.status ?? "active"} tone={jobsite.status === "archived" ? "neutral" : "success"} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] p-6 text-sm text-[var(--app-muted)]">
+              No jobsites yet. Add one manually above or upload a jobsites file.
+            </div>
+          )}
+        </SectionCard>
+      )}
     </div>
   );
 }
