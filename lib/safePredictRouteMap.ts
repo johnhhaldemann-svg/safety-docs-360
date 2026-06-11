@@ -20,7 +20,7 @@ const nativeOperationRouteMap: Record<string, string> = {
   "/company-inductions": "/safe-predict/inductions",
   "/company-safety-forms": "/safe-predict/safety-forms",
   "/permits": "/safe-predict/permits",
-  "/jsa": "/safe-predict/permits",
+  "/jsa": "/safe-predict/jsa",
   "/search": "/safe-predict/reports",
   "/submit": "/safe-predict/reports",
   "/upload": "/safe-predict/reports",
