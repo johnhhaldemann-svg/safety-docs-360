@@ -94,11 +94,11 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
     },
     {
       id: "first_document",
-      label: "Upload or generate first document",
+      label: "Create your first JSA or safety form",
       note: hasDocument
-        ? "The document workflow has started."
-        : "Upload a file, submit a package, or generate a safety document to create the first workspace record.",
-      href: "/safe-predict/documents",
+        ? "At least one safety document or form record exists in the workspace."
+        : "Create a Job Safety Analysis, fill out a safety form, or start a toolbox talk to begin the document workflow.",
+      href: "/safe-predict/jsa",
       complete: hasDocument,
     },
     {

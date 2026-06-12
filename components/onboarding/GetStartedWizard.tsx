@@ -48,7 +48,7 @@ const STEP_DESTINATION: Record<string, string> = {
   company_profile: "/safe-predict/company-profile",
   team_invites: "/safe-predict/onboarding-import?tab=employees",
   first_jobsite: "/safe-predict/jobsites?new=1",
-  first_document: "/safe-predict/documents",
+  first_document: "/safe-predict/jsa",
   command_center: "/safe-predict",
 };
 
