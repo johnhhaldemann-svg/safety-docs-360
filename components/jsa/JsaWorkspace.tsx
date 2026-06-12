@@ -781,8 +781,8 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
         headers,
         body: JSON.stringify({
           surface: "jsa",
-          userMessage: `Analyze this work step and return a JSON object with hazard analysis. Step: "${step.activity_name || "work step"}". Trade: "${step.trade || overlay.trade || "general"}". Area: "${step.area || overlay.workArea || "site"}". Return ONLY a valid JSON object with keys: hazard_category (comma-separated from: Fall, Electrical, Struck-by, Caught-in, Heat, Chemical, Ergonomic, Mechanical), hazard_description (1-2 sentences), mitigation (specific controls, 1-2 sentences), planned_risk_level (one of: low, medium, high, critical), permit_required (boolean), permit_type (permit name or empty string). Raw JSON only — no markdown, no extra text.`,
-          structuredContext: JSON.stringify({
+          message: `Analyze this work step and return a JSON object with hazard analysis. Step: "${step.activity_name || "work step"}". Trade: "${step.trade || overlay.trade || "general"}". Area: "${step.area || overlay.workArea || "site"}". Return ONLY a valid JSON object with keys: hazard_category (comma-separated from: Fall, Electrical, Struck-by, Caught-in, Heat, Chemical, Ergonomic, Mechanical), hazard_description (1-2 sentences), mitigation (specific controls, 1-2 sentences), planned_risk_level (one of: low, medium, high, critical), permit_required (boolean), permit_type (permit name or empty string). Raw JSON only — no markdown, no extra text.`,
+          context: JSON.stringify({
             jobsite: jobSiteName.trim() || undefined,
             activeJsaId: selectedId || undefined,
             stepTitle: step.activity_name,
@@ -791,9 +791,9 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
           }),
         }),
       });
-      const data = (await res.json().catch(() => null)) as { reply?: string; error?: string } | null;
+      const data = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "AI request failed.");
-      const reply = (data?.reply ?? "").trim();
+      const reply = (data?.text ?? "").trim();
       const jsonMatch = reply.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
