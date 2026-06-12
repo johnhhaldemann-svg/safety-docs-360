@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   AlertTriangle,
+  Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -13,12 +14,14 @@ import {
   FileText,
   Glasses,
   HardHat,
+  Loader2,
   Plus,
   Printer,
   Save,
   ScrollText,
   Send,
   Shield,
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -319,6 +322,9 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
   const [memoryLessonNudge, setMemoryLessonNudge] = useState(false);
   const [mainTab, setMainTab] = useState("setup");
   const [hazardSubTab, setHazardSubTab] = useState("steps");
+  const [suggestingStepId, setSuggestingStepId] = useState<string | null>(null);
+  const [schedulePushing, setSchedulePushing] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState("");
 
   const selected = useMemo(
     () => records.find((r) => r.id === selectedId) ?? null,
@@ -761,6 +767,104 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
     }
   }
 
+  async function aiSuggestStep(stepId: string) {
+    const step = steps.find((s) => s.id === stepId);
+    if (!step) return;
+    setSuggestingStepId(stepId);
+    setMessage("");
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/company/ai/assist", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          surface: "jsa",
+          userMessage: `Analyze this work step and return a JSON object with hazard analysis. Step: "${step.activity_name || "work step"}". Trade: "${step.trade || overlay.trade || "general"}". Area: "${step.area || overlay.workArea || "site"}". Return ONLY a valid JSON object with keys: hazard_category (comma-separated from: Fall, Electrical, Struck-by, Caught-in, Heat, Chemical, Ergonomic, Mechanical), hazard_description (1-2 sentences), mitigation (specific controls, 1-2 sentences), planned_risk_level (one of: low, medium, high, critical), permit_required (boolean), permit_type (permit name or empty string). Raw JSON only — no markdown, no extra text.`,
+          structuredContext: JSON.stringify({
+            jobsite: jobSiteName.trim() || undefined,
+            activeJsaId: selectedId || undefined,
+            stepTitle: step.activity_name,
+            trade: step.trade || overlay.trade || undefined,
+            area: step.area || overlay.workArea || undefined,
+          }),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { reply?: string; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "AI request failed.");
+      const reply = (data?.reply ?? "").trim();
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+        const patch: Partial<StepForm> = {};
+        if (typeof parsed.hazard_category === "string" && parsed.hazard_category) patch.hazard_category = parsed.hazard_category;
+        if (typeof parsed.hazard_description === "string" && parsed.hazard_description) patch.hazard_description = parsed.hazard_description;
+        if (typeof parsed.mitigation === "string" && parsed.mitigation) patch.mitigation = parsed.mitigation;
+        const rl = typeof parsed.planned_risk_level === "string" ? parsed.planned_risk_level.toLowerCase() : "";
+        if ((RISK_LEVELS as readonly string[]).includes(rl)) patch.planned_risk_level = rl;
+        if (typeof parsed.permit_required === "boolean") patch.permit_required = parsed.permit_required;
+        if (typeof parsed.permit_type === "string") patch.permit_type = parsed.permit_type;
+        updateStep(stepId, patch);
+      } else {
+        setMessage("AI could not suggest hazard fields for this step. Try adding more detail to the step title.");
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "AI suggestion failed.");
+    } finally {
+      setSuggestingStepId(null);
+    }
+  }
+
+  async function pushToSchedule() {
+    const targetJobsiteId = selectedJobsiteId.trim() || newJobsiteId.trim() || (jobsiteId ?? "");
+    if (!targetJobsiteId) {
+      setScheduleMsg("Select a jobsite for this JSA before pushing to schedule.");
+      return;
+    }
+    if (!steps.length) {
+      setScheduleMsg("Add at least one work step before pushing to the jobsite schedule.");
+      return;
+    }
+    setSchedulePushing(true);
+    setScheduleMsg("");
+    try {
+      const headers = await getAuthHeaders();
+      const permitTriggers = steps.filter((s) => s.permit_required).map((s) => s.permit_type.trim() || "Permit required");
+      const hazardCategories = [
+        ...new Set(
+          steps.flatMap((s) =>
+            s.hazard_category.split(",").map((x) => x.trim()).filter(Boolean)
+          )
+        ),
+      ];
+      const highRisk = summary.topRisk === "critical" || summary.topRisk === "high";
+      const topTrade = overlay.trade.trim() || steps.find((s) => s.trade.trim())?.trade.trim() || undefined;
+      const res = await fetch(`/api/company/jobsites/${encodeURIComponent(targetJobsiteId)}/schedule`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: jobSiteName.trim() || selected?.title || "JSA Work Block",
+          workStartDate: auditDate,
+          trade: topTrade,
+          riskLevel: summary.topRisk || "medium",
+          isHighRisk: highRisk,
+          hazardCategories: hazardCategories.length ? hazardCategories : undefined,
+          permitTriggers: permitTriggers.length ? permitTriggers : undefined,
+          requiredControls: steps.map((s) => s.mitigation.trim()).filter(Boolean).slice(0, 6),
+          status: "planned",
+          notes: `JSA: ${selected?.title || jobSiteName.trim() || "Untitled"}. ${summary.totalSteps} work steps, ${summary.highRisk} high/critical risk steps.`,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Failed to add to schedule.");
+      const permitNote = permitTriggers.length ? ` ${permitTriggers.length} permit(s) flagged.` : "";
+      setScheduleMsg(`Added to jobsite schedule!${permitNote}`);
+    } catch (e) {
+      setScheduleMsg(e instanceof Error ? e.message : "Failed to push to schedule.");
+    } finally {
+      setSchedulePushing(false);
+    }
+  }
+
   const inputClass =
     "w-full rounded-xl border border-slate-600/90 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 [color-scheme:dark] placeholder:text-slate-500 shadow-inner outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30";
 
@@ -849,6 +953,27 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
         </button>
         <div className={`border-t border-slate-700/60 px-4 pb-4 pt-3 print:block ${open ? "" : "hidden"}`}>
           <div className="space-y-4">
+            <div className="flex items-center justify-between print:hidden">
+              <p className="text-[11px] text-slate-500">Enter a step title, then let AI suggest hazard details.</p>
+              <button
+                type="button"
+                disabled={suggestingStepId === s.id}
+                onClick={() => void aiSuggestStep(s.id)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-950/50 px-3 py-1.5 text-xs font-semibold text-violet-200 transition hover:border-violet-400/60 hover:bg-violet-900/40 disabled:opacity-50"
+              >
+                {suggestingStepId === s.id ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    Analyzing…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    AI Fill
+                  </>
+                )}
+              </button>
+            </div>
             <label className="block text-xs font-bold uppercase tracking-wide text-slate-400">
               Step title
               <input
@@ -1077,7 +1202,23 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
 
   const actionBar = (
     <div className="fixed bottom-4 left-4 right-4 z-50 rounded-2xl border border-slate-700/80 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-md print:hidden lg:bottom-5 lg:left-6 lg:right-6">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+      <div className="mx-auto max-w-6xl space-y-2">
+        {scheduleMsg ? (
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-xs font-semibold ${scheduleMsg.startsWith("Added") ? "text-emerald-300" : "text-red-300"}`}>
+              {scheduleMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => setScheduleMsg("")}
+              className="text-xs text-slate-500 hover:text-slate-300"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -1107,6 +1248,19 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
             <Send className="h-4 w-4" aria-hidden />
             Submit
           </button>
+          <button
+            type="button"
+            onClick={() => void pushToSchedule()}
+            disabled={schedulePushing || saving}
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-500/40 bg-sky-950/30 px-3 py-2 text-sm font-bold text-sky-100 hover:bg-sky-950/50 disabled:opacity-50"
+          >
+            {schedulePushing ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Calendar className="h-4 w-4 text-sky-400" aria-hidden />
+            )}
+            Add to schedule
+          </button>
         </div>
         <button
           type="button"
@@ -1117,6 +1271,7 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
           <CheckCircle2 className="h-5 w-5" aria-hidden />
           Submit JSA
         </button>
+        </div>
       </div>
     </div>
   );
@@ -1495,6 +1650,39 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
                   ) : (
                     steps.map((s, idx) => renderStepEditor(s, idx))
                   )}
+                  {(steps.some((s) => s.permit_required) || summary.highRisk > 0) ? (
+                    <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4 space-y-3 print:hidden">
+                      <div className="flex items-center gap-2 border-b border-amber-500/20 pb-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-400" aria-hidden />
+                        <h3 className="text-sm font-bold text-amber-100">Permits &amp; Risk Review</h3>
+                      </div>
+                      {summary.highRisk > 0 ? (
+                        <p className="text-sm text-slate-300">
+                          <span className="font-semibold text-red-200">{summary.highRisk} high/critical risk step{summary.highRisk !== 1 ? "s" : ""}</span>
+                          {" "}— verify all mitigations are in place before work begins.
+                        </p>
+                      ) : null}
+                      {steps.filter((s) => s.permit_required).length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold uppercase tracking-wide text-amber-300/80">Required permits</p>
+                          {steps.filter((s) => s.permit_required).map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-slate-900/60 px-3 py-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-100 truncate">{s.activity_name || "Unnamed step"}</p>
+                                <p className="text-xs text-amber-200/80">{s.permit_type || "Permit required"}</p>
+                              </div>
+                              <Link
+                                href={`${bp}/permits?jsaActivityId=${encodeURIComponent(s.id)}`}
+                                className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-950/50 transition"
+                              >
+                                Create permit →
+                              </Link>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
                 </div>
                 {renderRightRail()}
               </div>
