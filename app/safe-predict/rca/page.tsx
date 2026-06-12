@@ -265,7 +265,7 @@ export default function SafePredictRCAPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const load = useCallback(async (forceRefresh = false) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -349,7 +349,7 @@ export default function SafePredictRCAPage() {
       setShowForm(false);
       setSubmitSuccess(true);
       setTimeout(() => setSubmitSuccess(false), 3000);
-      void load(true);
+      void load();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to create RCA.");
     } finally {
@@ -396,7 +396,7 @@ export default function SafePredictRCAPage() {
             </InlineBtn>
             <button
               type="button"
-              onClick={() => void load(true)}
+              onClick={() => void load()}
               disabled={loading}
               className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
             >

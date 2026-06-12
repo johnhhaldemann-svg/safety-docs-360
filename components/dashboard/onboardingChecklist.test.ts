@@ -67,6 +67,6 @@ describe("buildAdoptionChecklist", () => {
 
     const teamStep = summary.items.find((item) => item.id === "team_invites");
     expect(teamStep?.complete).toBe(true);
-    expect(teamStep?.href).toBe("/company-onboarding");
+    expect(teamStep?.href).toBe("/safe-predict/onboarding-import?tab=employees");
   });
 });
