@@ -4,6 +4,8 @@ import { deferEffect } from "@/lib/deferredEffect";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
   GraduationCap,
   MapPin,
@@ -130,6 +132,7 @@ export default function CompanyOnboardingPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "warning" | "error">("neutral");
   const [rowErrors, setRowErrors] = useState<ImportRowError[]>([]);
+  const [guideOpen, setGuideOpen] = useState(true);
   const [preview, setPreview] = useState<Record<TabId, Array<Record<string, unknown>>>>({
     employees: [],
     jobsites: [],
@@ -181,6 +184,15 @@ export default function CompanyOnboardingPage() {
   useEffect(() => deferEffect(() => {
     void loadWorkspaceData();
   }), [loadWorkspaceData]);
+
+  // Auto-collapse the guide once all three datasets have at least one record.
+  useEffect(() => {
+    const activeCount = employees.filter((e) => e.status !== "archived").length;
+    const trainingCount = employees.reduce((n, e) => n + (e.trainingRecords?.length ?? 0), 0);
+    if (!loading && activeCount > 0 && jobsites.length > 0 && trainingCount > 0) {
+      setGuideOpen(false);
+    }
+  }, [loading, employees, jobsites.length]);
 
   const activeRows = preview[activeTab];
   const activeValidation = useMemo(
@@ -367,6 +379,104 @@ export default function CompanyOnboardingPage() {
           detail="Training history tied to tracked employees, not licensed users."
         />
       </div>
+
+      {/* Getting started guide — collapses once all three data types have records */}
+      {(!loading || guideOpen) ? (
+        <div className="rounded-2xl border border-[var(--app-accent-border-28)] bg-white shadow-[var(--app-shadow-soft)]">
+          <button
+            type="button"
+            onClick={() => setGuideOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--app-accent-primary)] text-xs font-black text-white">?</div>
+              <div>
+                <div className="text-sm font-bold text-[var(--app-text-strong)]">How to set up your data — do these 3 steps in order</div>
+                <div className="text-xs text-[var(--app-muted)]">
+                  {activeEmployees.length > 0 && jobsites.length > 0 && trainingRecordCount > 0
+                    ? "All three datasets have records. You're ready."
+                    : "Employees → Jobsites → Training Records. Training records require employees to exist first."}
+                </div>
+              </div>
+            </div>
+            {guideOpen ? (
+              <ChevronUp className="h-4 w-4 shrink-0 text-[var(--app-muted)]" aria-hidden />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 text-[var(--app-muted)]" aria-hidden />
+            )}
+          </button>
+
+          {guideOpen ? (
+            <div className="grid gap-px border-t border-[var(--app-border)] md:grid-cols-3">
+              {[
+                {
+                  step: "1",
+                  tab: "employees" as TabId,
+                  icon: Users,
+                  title: "Upload employees first",
+                  body: "Add your full workforce roster — name, employee ID, job title, trade. Training records are linked to employees, so this must come first.",
+                  tip: "Required: full_name or employee_id. Everything else is optional.",
+                  done: activeEmployees.length > 0,
+                },
+                {
+                  step: "2",
+                  tab: "jobsites" as TabId,
+                  icon: MapPin,
+                  title: "Then add jobsites",
+                  body: "Create your active project sites. Jobsites are used for JSAs, permits, incidents, and predictive risk scores across the platform.",
+                  tip: "Required: name. Jobsite number and location are optional but recommended.",
+                  done: jobsites.length > 0,
+                },
+                {
+                  step: "3",
+                  tab: "training_records" as TabId,
+                  icon: GraduationCap,
+                  title: "Finally, add training records",
+                  body: "Upload who completed which training and when it expires. Each record links to an employee you already imported. Skip this if you have no history yet.",
+                  tip: "Required: employee_id or employee name + training_title + completed_on.",
+                  done: trainingRecordCount > 0,
+                },
+              ].map((guide) => {
+                const Icon = guide.icon;
+                return (
+                  <div
+                    key={guide.step}
+                    className={`flex flex-col gap-3 p-5 ${guide.done ? "bg-[var(--semantic-success-bg)]" : "bg-white"} first:rounded-bl-2xl last:rounded-br-2xl md:first:rounded-bl-2xl md:last:rounded-br-2xl`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${guide.done ? "bg-[var(--semantic-success)] text-white" : "bg-[var(--app-accent-primary)] text-white"}`}
+                      >
+                        {guide.done ? "✓" : guide.step}
+                      </div>
+                      <Icon className="h-4 w-4 text-[var(--app-muted)]" aria-hidden />
+                      <span className="text-sm font-bold text-[var(--app-text-strong)]">{guide.title}</span>
+                    </div>
+                    <p className="text-sm leading-6 text-[var(--app-text)]">{guide.body}</p>
+                    <p className="rounded-lg bg-[var(--app-panel-soft)] px-3 py-2 text-xs text-[var(--app-muted)]">{guide.tip}</p>
+                    <div className="mt-auto flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab(guide.tab); setGuideOpen(false); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-accent-primary)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+                      >
+                        {guide.done ? "Review" : "Go to tab"} →
+                      </button>
+                      <a
+                        href={`/api/company/onboarding/import/template?type=${guide.tab}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text-strong)] transition hover:bg-[var(--app-panel-soft)]"
+                      >
+                        <Download className="h-3 w-3" aria-hidden />
+                        Template
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-[var(--app-border)] bg-white p-2 shadow-[var(--app-shadow-soft)]">
         {TABS.map((tab) => {
