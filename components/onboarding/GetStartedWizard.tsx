@@ -4,12 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
-  EmptyState,
-  InlineMessage,
-  PageHero,
-  SectionCard,
-  StatusBadge,
-} from "@/components/WorkspacePrimitives";
+  Building2,
+  CalendarCheck,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  ExternalLink,
+  HardHat,
+  LayoutDashboard,
+  MapPin,
+  RefreshCw,
+  Users,
+} from "lucide-react";
 import {
   buildAdoptionChecklist,
   type AdoptionChecklistInput,
@@ -38,72 +45,106 @@ const emptyAdoptionData = (): AdoptionData => ({
   onboardingState: emptyOnboardingState(),
 });
 
-/**
- * Company users live in the native /safe-predict workspace, so each step links straight to the
- * real destination there. The shared checklist's legacy hrefs (e.g. /company-onboarding) are
- * surfaces the app shell does not auto-remap, which is why linking them raw sent users to the
- * wrong page. Keyed by checklist item id.
- */
-const STEP_DESTINATION: Record<string, string> = {
-  company_profile: "/safe-predict/company-profile",
-  team_invites: "/safe-predict/onboarding-import?tab=employees",
-  first_jobsite: "/safe-predict/jobsites?new=1",
-  first_document: "/safe-predict/jsa",
-  command_center: "/safe-predict",
+type WizardStep = {
+  id: "company_profile" | "team_invites" | "first_jobsite" | "first_document" | "command_center";
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  what: string[];
+  ctaLabel: string;
+  ctaHref: string;
+  newTab: boolean;
 };
 
-function stepHref(id: string, fallback: string) {
-  return STEP_DESTINATION[id] ?? fallback;
-}
-
-const COMMAND_CENTER_HREF = "/safe-predict";
-
-const UPLOAD_CARDS = [
+const WIZARD_STEPS: WizardStep[] = [
   {
-    type: "employees" as const,
-    title: "Employees / Team roster",
+    id: "company_profile",
+    icon: Building2,
+    title: "Set up your company profile",
     description:
-      "Upload your workforce list. Tracked employees let safety managers assign training, certifications, and site access without using paid seats.",
-    href: "/safe-predict/onboarding-import?tab=employees",
+      "Your company name, industry, and contact details power the whole workspace. They appear on safety documents, reports, and help the AI understand your industry context.",
+    what: [
+      "Legal company name",
+      "Industry type (construction, oil & gas, utilities, etc.)",
+      "Phone number and address",
+    ],
+    ctaLabel: "Open Company Profile",
+    ctaHref: "/safe-predict/company-profile",
+    newTab: true,
   },
   {
-    type: "jobsites" as const,
-    title: "Jobsites / Projects",
+    id: "team_invites",
+    icon: Users,
+    title: "Add your team roster",
     description:
-      "Upload your active sites. Jobsites anchor JSAs, permits, incidents, corrective actions, and predictive risk scores.",
-    href: "/safe-predict/onboarding-import?tab=jobsites",
+      "Import your employee list so safety managers can assign training, certifications, and site access. Employees on the roster don't need paid login seats — only users who log in daily do.",
+    what: [
+      "Employee names, roles, and trade info (CSV or Excel)",
+      "OR type an email address to invite a teammate directly",
+      "You can upload the full roster or start with just a few",
+    ],
+    ctaLabel: "Open Data Import",
+    ctaHref: "/safe-predict/onboarding-import?tab=employees",
+    newTab: true,
   },
   {
-    type: "training_records" as const,
-    title: "Training Matrix / Records",
+    id: "first_jobsite",
+    icon: MapPin,
+    title: "Add your first jobsite",
     description:
-      "Upload who completed which training and when it expires. Powers the Training Tracker, compliance reports, and expiry alerts.",
-    href: "/safe-predict/onboarding-import?tab=training_records",
+      "Every JSA, incident, permit, and risk score is anchored to a jobsite. Add your most active project or location first — you can add more any time.",
+    what: [
+      "Site name or project number",
+      "Site address or location description",
+      "Type of work being performed",
+    ],
+    ctaLabel: "Open Jobsites",
+    ctaHref: "/safe-predict/jobsites?new=1",
+    newTab: true,
   },
-];
-
-const PROVIDED_BY_COMPANY = [
-  "Employee roster, jobsite list, and training records (CSV or Excel) — upload via the Data Import page.",
-  "Company profile details: legal name, industry, phone, address.",
-  "Company logo (optional, for branded documents and reports).",
-  "Names/emails of any teammates who need a licensed login seat.",
-];
-
-const SET_UP_BY_PLATFORM = [
-  "Workspace activation and owner access (done at approval).",
-  "Plan tier, feature modules, and your 30-day pilot trial.",
-  "Predictive risk engine, dashboards, and Command Center.",
-  "Document templates, marketplace, and AI safety rules.",
+  {
+    id: "first_document",
+    icon: ClipboardCheck,
+    title: "Create your first Job Safety Analysis",
+    description:
+      "A JSA breaks work into steps, identifies hazards, and documents controls before work begins. Use the AI Fill button on any step — just type the task name and AI suggests the hazard, mitigation, and permit requirements.",
+    what: [
+      "Job or task name (e.g. \"Trenching\" or \"Overhead welding\")",
+      "Select the jobsite this JSA applies to",
+      "Add one work step to get started — you can add more as you go",
+    ],
+    ctaLabel: "Open JSA Builder",
+    ctaHref: "/safe-predict/jsa",
+    newTab: true,
+  },
+  {
+    id: "command_center",
+    icon: LayoutDashboard,
+    title: "Your Command Center is ready",
+    description:
+      "The Command Center is your daily operating hub. It shows risk indicators, open corrective actions, permit status, and team activity — everything you need to start the day. Bookmark it.",
+    what: [
+      "Daily risk dashboard for all active jobsites",
+      "Open actions, permits, and JSAs at a glance",
+      "Team activity and upcoming safety events",
+    ],
+    ctaLabel: "Open Command Center",
+    ctaHref: "/safe-predict",
+    newTab: false,
+  },
 ];
 
 export function GetStartedWizard() {
   const [data, setData] = useState<AdoptionData>(emptyAdoptionData);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [currentStep, setCurrentStep] = useState(0);
   const [skipping, setSkipping] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
     setError("");
 
     try {
@@ -116,19 +157,21 @@ export function GetStartedWizard() {
       if (sessionError || !token) {
         setError("Sign in to view your setup checklist.");
         setData(emptyAdoptionData());
-        setLoading(false);
+        if (!silent) setLoading(false);
+        else setRefreshing(false);
         return;
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      const [meRes, usersRes, documentsRes, workspaceRes, onboardingRes, trackedRes] = await Promise.all([
-        fetch("/api/auth/me", { headers }),
-        fetch("/api/company/users", { headers }),
-        fetch("/api/workspace/documents", { headers }),
-        fetch("/api/company/workspace/summary", { headers }),
-        fetch("/api/onboarding/state", { headers }),
-        fetch("/api/company/tracked-employees", { headers }),
-      ]);
+      const [meRes, usersRes, documentsRes, workspaceRes, onboardingRes, trackedRes] =
+        await Promise.all([
+          fetch("/api/auth/me", { headers }),
+          fetch("/api/company/users", { headers }),
+          fetch("/api/workspace/documents", { headers }),
+          fetch("/api/company/workspace/summary", { headers }),
+          fetch("/api/onboarding/state", { headers }),
+          fetch("/api/company/tracked-employees", { headers }),
+        ]);
 
       const meJson = (await meRes.json().catch(() => null)) as
         | { user?: { companyProfile?: AdoptionChecklistInput["companyProfile"] } }
@@ -145,7 +188,9 @@ export function GetStartedWizard() {
       const workspaceJson = (await workspaceRes.json().catch(() => null)) as
         | { jobsites?: AdoptionChecklistInput["jobsites"] }
         | null;
-      const onboardingJson = (await onboardingRes.json().catch(() => null)) as OnboardingState | null;
+      const onboardingJson = (await onboardingRes.json().catch(
+        () => null
+      )) as OnboardingState | null;
       const trackedJson = (await trackedRes.json().catch(() => null)) as
         | { employees?: AdoptionChecklistInput["trackedEmployees"] }
         | null;
@@ -167,7 +212,8 @@ export function GetStartedWizard() {
       setData(emptyAdoptionData());
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
+    else setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -185,7 +231,10 @@ export function GetStartedWizard() {
       if (session?.access_token) {
         await fetch("/api/onboarding/state", {
           method: "PATCH",
-          headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ markCommandCenterViewed: true }),
         }).catch(() => undefined);
       }
@@ -210,9 +259,8 @@ export function GetStartedWizard() {
         });
       }
     } catch {
-      // Non-blocking: fall through to the workspace home regardless.
+      // Non-blocking.
     }
-    // Hard navigation so the app shell re-reads onboarding state and clears the first-run gate.
     window.location.assign("/safe-predict");
   }, []);
 
@@ -232,222 +280,261 @@ export function GetStartedWizard() {
     [data]
   );
 
-  const progressPct =
-    checklist.totalCount > 0
-      ? Math.round((checklist.completedCount / checklist.totalCount) * 100)
-      : 0;
-  const allComplete = checklist.completedCount === checklist.totalCount && checklist.totalCount > 0;
+  const completionMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const item of checklist.items) {
+      map[item.id] = item.complete;
+    }
+    return map;
+  }, [checklist]);
+
+  const allComplete =
+    checklist.completedCount === checklist.totalCount && checklist.totalCount > 0;
+  const step = WIZARD_STEPS[currentStep];
+  const isComplete = completionMap[step.id] ?? false;
+  const isLastStep = currentStep === WIZARD_STEPS.length - 1;
+  const isFirstStep = currentStep === 0;
+
+  const handleNext = useCallback(() => {
+    if (isLastStep) {
+      void handleOpenCommandCenter();
+    } else {
+      setCurrentStep((s) => Math.min(s + 1, WIZARD_STEPS.length - 1));
+    }
+  }, [isLastStep, handleOpenCommandCenter]);
+
+  const handleBack = useCallback(() => {
+    setCurrentStep((s) => Math.max(s - 1, 0));
+  }, []);
+
+  const StepIcon = step.icon;
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--app-accent-primary-soft)]">
+            <HardHat className="h-6 w-6 text-[var(--app-accent-primary)] animate-pulse" />
+          </div>
+          <p className="text-sm font-semibold text-[var(--app-text)]">Loading your workspace setup…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <PageHero
-        eyebrow="Getting Started"
-        title="Set up your workspace"
-        description="Follow these five steps to get your company live. Each step opens the right page — finish them in any order and your progress saves automatically."
-        actions={
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleSkip()}
-              disabled={skipping}
-              className="rounded-xl border border-[var(--app-border)] bg-white/80 px-5 py-3 text-sm font-semibold text-[var(--app-muted)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {skipping ? "Skipping..." : "Skip for now"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="rounded-xl border border-[var(--app-border)] bg-white/80 px-5 py-3 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Refreshing..." : "Refresh progress"}
-            </button>
+    <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 py-10">
+      <div className="w-full max-w-2xl space-y-6">
+
+        {/* Header */}
+        <div className="text-center space-y-1">
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--app-muted)]">
+            Getting Started
+          </p>
+          <h1 className="text-2xl font-black text-[var(--app-text-strong)]">
+            Set up your workspace
+          </h1>
+          <p className="text-sm text-[var(--app-text)]">
+            Step {currentStep + 1} of {WIZARD_STEPS.length}
+          </p>
+        </div>
+
+        {/* Step dots */}
+        <div className="flex items-center justify-center gap-2">
+          {WIZARD_STEPS.map((s, i) => {
+            const done = completionMap[s.id] ?? false;
+            const active = i === currentStep;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setCurrentStep(i)}
+                aria-label={`Go to step ${i + 1}`}
+                className={`flex items-center justify-center rounded-full transition-all ${
+                  done
+                    ? "h-8 w-8 bg-emerald-500 text-white shadow-sm"
+                    : active
+                    ? "h-8 w-8 bg-[var(--app-accent-primary)] text-white shadow-sm"
+                    : "h-8 w-8 border-2 border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:border-[var(--app-accent-primary)]"
+                }`}
+              >
+                {done ? (
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                ) : (
+                  <span className="text-xs font-bold">{i + 1}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Main step card */}
+        <div className="rounded-3xl border border-[var(--app-border-strong)] bg-white shadow-[var(--app-shadow-medium)] overflow-hidden">
+
+          {/* Card top accent */}
+          <div className={`h-1.5 w-full ${isComplete ? "bg-emerald-400" : "bg-[var(--app-accent-primary)]"}`} />
+
+          <div className="p-8 space-y-6">
+
+            {/* Icon + title */}
+            <div className="flex items-start gap-5">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${
+                isComplete
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-[var(--app-accent-primary-soft)] text-[var(--app-accent-primary)]"
+              }`}>
+                <StepIcon className="h-7 w-7" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-black text-[var(--app-text-strong)]">{step.title}</h2>
+                  {isComplete && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                      <CheckCircle2 className="h-3 w-3" aria-hidden />
+                      Done
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-sm leading-7 text-[var(--app-text)]">{step.description}</p>
+              </div>
+            </div>
+
+            {/* What you need */}
+            <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-bg-subtle,#f8fafc)] p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)]">
+                What you need
+              </p>
+              <ul className="space-y-1.5">
+                {step.what.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-[var(--app-text)]">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--app-accent-primary)]" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Status + CTA */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                {isComplete ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden />
+                    Step complete — ready to move on
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void load(true)}
+                    disabled={refreshing}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-bg-subtle)] disabled:opacity-50 transition"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                    {refreshing ? "Checking…" : "Check status"}
+                  </button>
+                )}
+              </div>
+
+              {step.id === "command_center" ? (
+                <button
+                  type="button"
+                  onClick={() => void handleOpenCommandCenter()}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
+                >
+                  <CalendarCheck className="h-4 w-4" aria-hidden />
+                  {step.ctaLabel}
+                </button>
+              ) : (
+                <a
+                  href={step.ctaHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--app-accent-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden />
+                  {step.ctaLabel}
+                </a>
+              )}
+            </div>
+
+            {!isComplete && step.id !== "command_center" && (
+              <p className="text-[11px] text-[var(--app-muted)] leading-5">
+                The page opens in a new tab so you can come back here when done.
+                Hit <strong>Check status</strong> to update your progress, then click <strong>Next</strong>.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={isFirstStep}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--app-text-strong)] transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+            Back
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void handleSkip()}
+            disabled={skipping}
+            className="text-xs font-medium text-[var(--app-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            {skipping ? "Skipping…" : "Skip setup for now"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNext}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 ${
+              isComplete
+                ? "bg-emerald-500"
+                : "bg-[var(--app-accent-primary)]"
+            }`}
+          >
+            {isLastStep ? (
+              <>
+                <CalendarCheck className="h-4 w-4" aria-hidden />
+                Finish setup
+              </>
+            ) : (
+              <>
+                {isComplete ? "Next step" : "Skip this step"}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* All complete banner */}
+        {allComplete && (
+          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-5 text-center space-y-3">
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" aria-hidden />
+            <p className="text-base font-black text-emerald-800">All steps complete!</p>
+            <p className="text-sm text-emerald-700">
+              Your workspace is ready. Open the Command Center to start your first day.
+            </p>
             <button
               type="button"
               onClick={() => void handleOpenCommandCenter()}
-              className="rounded-xl bg-[var(--app-accent-primary)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-500"
             >
+              <LayoutDashboard className="h-4 w-4" aria-hidden />
               Open Command Center
             </button>
           </div>
-        }
-      />
-
-      {error ? (
-        <InlineMessage tone="error" onRetry={() => void load()}>
-          {error}
-        </InlineMessage>
-      ) : null}
-
-      <SectionCard
-        eyebrow="Progress"
-        title={allComplete ? "You're all set" : `${checklist.completedCount} of ${checklist.totalCount} steps complete`}
-        description={
-          allComplete
-            ? "Every setup milestone is done. Your team can now run daily safety operations from the Command Center."
-            : checklist.nextItem
-              ? `Next up: ${checklist.nextItem.label}.`
-              : "Loading your progress..."
-        }
-        aside={
-          <StatusBadge
-            label={allComplete ? "Complete" : `${progressPct}%`}
-            tone={allComplete ? "success" : "warning"}
-          />
-        }
-      >
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--semantic-neutral-bg)]">
-          <div
-            className="h-full rounded-full bg-[linear-gradient(90deg,_var(--app-accent-primary)_0%,_var(--semantic-success)_100%)] transition-all"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-
-        {loading ? (
-          <InlineMessage>Loading your setup checklist...</InlineMessage>
-        ) : (
-          <ol className="grid gap-3">
-            {checklist.items.map((item, index) => {
-              const isNext = !item.complete && checklist.nextItem?.id === item.id;
-              return (
-                <li
-                  key={item.id}
-                  className={`flex flex-col gap-4 rounded-2xl border px-5 py-4 shadow-[var(--app-shadow-soft)] sm:flex-row sm:items-center sm:justify-between ${
-                    item.complete
-                      ? "border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)]"
-                      : isNext
-                        ? "border-[var(--app-accent-border-28)] bg-white"
-                        : "border-[var(--app-border)] bg-white/90"
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${
-                        item.complete
-                          ? "bg-[var(--semantic-success)] text-white"
-                          : "bg-[var(--app-accent-primary)] text-white"
-                      }`}
-                    >
-                      {item.complete ? "✓" : index + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-bold text-[var(--app-text-strong)]">{item.label}</p>
-                        <StatusBadge
-                          label={item.complete ? "Done" : isNext ? "Do this next" : "To do"}
-                          tone={item.complete ? "success" : isNext ? "warning" : "neutral"}
-                        />
-                      </div>
-                      <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[var(--app-text)]">{item.note}</p>
-                    </div>
-                  </div>
-                  <div className="sm:shrink-0">
-                    {item.id === "command_center" ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenCommandCenter()}
-                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                          item.complete
-                            ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
-                            : "bg-[var(--app-accent-primary)] text-white hover:opacity-90"
-                        }`}
-                      >
-                        {item.complete ? "Review" : "Start"}
-                      </button>
-                    ) : (
-                      <Link
-                        href={stepHref(item.id, item.href)}
-                        className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                          item.complete
-                            ? "border border-[var(--app-border)] bg-white/70 text-[var(--app-text-strong)] hover:bg-white"
-                            : "bg-[var(--app-accent-primary)] text-white hover:opacity-90"
-                        }`}
-                      >
-                        {item.complete ? "Review" : "Start"}
-                      </Link>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
         )}
 
-        {allComplete && !loading ? (
-          <EmptyState
-            eyebrow="Launch complete"
-            title="Your workspace is ready"
-            description="Head to the Command Center to monitor risk, open work, and recommended actions every day."
-            actionHref={COMMAND_CENTER_HREF}
-            actionLabel="Open Command Center"
-          />
-        ) : null}
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Who does what"
-        title="What you provide vs. what we set up"
-        description="You bring your people and project data. We handle the platform, the risk engine, and the configuration."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--app-accent-border-28)] bg-white p-5 shadow-[var(--app-shadow-soft)]">
-            <div className="flex items-center gap-2">
-              <StatusBadge label="You provide" tone="warning" />
-            </div>
-            <ul className="mt-3 space-y-2">
-              {PROVIDED_BY_COMPANY.map((item) => (
-                <li key={item} className="flex gap-2 text-sm leading-6 text-[var(--app-text)]">
-                  <span className="mt-1 text-[var(--app-accent-primary)]">•</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
-          <div className="rounded-2xl border border-[rgba(46,158,91,0.28)] bg-[var(--semantic-success-bg)] p-5 shadow-[var(--app-shadow-soft)]">
-            <div className="flex items-center gap-2">
-              <StatusBadge label="We set up" tone="success" />
-            </div>
-            <ul className="mt-3 space-y-2">
-              {SET_UP_BY_PLATFORM.map((item) => (
-                <li key={item} className="flex gap-2 text-sm leading-6 text-[var(--app-text)]">
-                  <span className="mt-1 text-[var(--semantic-success)]">✓</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        eyebrow="Upload your company data"
-        title="Where to upload your files"
-        description="Head to the Data Import page to upload your employee roster, jobsite list, and training records. CSV and Excel both work — no specific column order required."
-        actions={
-          <Link
-            href="/safe-predict/onboarding-import"
-            className="inline-flex items-center justify-center rounded-xl bg-[var(--app-accent-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            Go to Data Import
-          </Link>
-        }
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          {UPLOAD_CARDS.map((card) => (
-            <Link
-              key={card.type}
-              href={card.href}
-              className="flex flex-col rounded-2xl border border-[var(--app-border)] bg-white/95 p-5 shadow-[var(--app-shadow-soft)] transition hover:border-[var(--app-accent-border-28)] hover:shadow-md"
-            >
-              <p className="text-sm font-bold text-[var(--app-text-strong)]">{card.title}</p>
-              <p className="mt-2 flex-1 text-sm leading-6 text-[var(--app-text)]">{card.description}</p>
-              <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--app-accent-primary)]">
-                Upload now →
-              </span>
-            </Link>
-          ))}
-        </div>
-      </SectionCard>
+        )}
+      </div>
     </div>
   );
 }
