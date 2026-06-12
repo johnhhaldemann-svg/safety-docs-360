@@ -745,6 +745,8 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
       if (!res.ok) throw new Error(data?.error || "Submit failed.");
       await loadRecords();
       setMemoryLessonNudge(true);
+      setMessage("JSA submitted — all steps saved and marked active.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Submit failed.");
     } finally {
@@ -1338,7 +1340,11 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
 
         {message ? (
           <div
-            className="rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-100 print:hidden"
+            className={`rounded-xl border px-4 py-3 text-sm print:hidden ${
+              message.startsWith("JSA submitted") || message.startsWith("Draft saved")
+                ? "border-emerald-500/40 bg-emerald-950/40 text-emerald-100"
+                : "border-red-500/40 bg-red-950/40 text-red-100"
+            }`}
             role="alert"
           >
             {message}
