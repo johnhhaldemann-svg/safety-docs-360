@@ -71,7 +71,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: companyProfileComplete
         ? "Company identity is ready for invites, billing, and workspace records."
         : "Add company identity, contact, and address details so the workspace feels ready for the team.",
-      href: "/company-setup",
+      href: "/safe-predict/company-profile",
       complete: companyProfileComplete,
     },
     {
@@ -80,7 +80,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: hasTeamRoster
         ? "Team access or tracked roster setup has started."
         : "Invite licensed workspace users or add tracked employees for safety managers to manage training without using seats.",
-      href: "/company-onboarding",
+      href: "/safe-predict/onboarding-import?tab=employees",
       complete: hasTeamRoster,
     },
     {
@@ -89,7 +89,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: hasJobsite
         ? "At least one jobsite is available for field workflows."
         : "Create a jobsite to anchor JSAs, permits, incidents, reports, and risk signals.",
-      href: "/jobsites",
+      href: "/safe-predict/jobsites",
       complete: hasJobsite,
     },
     {
@@ -98,7 +98,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: hasDocument
         ? "The document workflow has started."
         : "Upload a file, submit a package, or generate a safety document to create the first workspace record.",
-      href: "/documents",
+      href: "/safe-predict/documents",
       complete: hasDocument,
     },
     {
@@ -107,7 +107,7 @@ export function buildAdoptionChecklist(input: AdoptionChecklistInput): AdoptionC
       note: input.commandCenterViewed
         ? "The operating hub is now part of the workflow."
         : "Use the Command Center as the daily start point for risk, open work, and recommended actions.",
-      href: "/command-center",
+      href: "/safe-predict",
       complete: Boolean(input.commandCenterViewed),
     },
   ];
