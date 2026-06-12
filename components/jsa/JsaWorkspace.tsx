@@ -21,6 +21,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { CompanyAiAssistPanel } from "@/components/company-ai/CompanyAiAssistPanel";
 import { CompanyMemoryLessonPrompt } from "@/components/company-ai/CompanyMemoryLessonPrompt";
 import { CompanyMemoryBankPanel } from "@/components/company-ai/CompanyMemoryBankPanel";
@@ -295,6 +296,10 @@ function formatUserPickLabel(u: CompanyUserPickRow) {
 }
 
 export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
+  const pathname = usePathname();
+  const isSafePredict = pathname.startsWith("/safe-predict");
+  const bp = isSafePredict ? "/safe-predict" : "";
+
   const [records, setRecords] = useState<JsaRecordRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [newTitle, setNewTitle] = useState("");
@@ -970,13 +975,13 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <Link
-                href={`/field-id-exchange?jsaActivityId=${encodeURIComponent(s.id)}`}
+                href={`${bp}${isSafePredict ? "/observations" : "/field-id-exchange"}?jsaActivityId=${encodeURIComponent(s.id)}`}
                 className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
               >
                 Log observation
               </Link>
               <Link
-                href={`/permits?jsaActivityId=${encodeURIComponent(s.id)}`}
+                href={`${bp}/permits?jsaActivityId=${encodeURIComponent(s.id)}`}
                 className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-sky-500/40"
               >
                 Create permit
@@ -1134,7 +1139,7 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
               </p>
               <div className="mt-4">
                 <Link
-                  href={jobsiteId ? `/jobsites/${encodeURIComponent(jobsiteId)}` : "/dashboard"}
+                  href={jobsiteId ? `${bp}/jobsites/${encodeURIComponent(jobsiteId)}` : `${bp || "/"}`}
                   className="inline-flex rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
                 >
                   {jobsiteId ? "Back to jobsite" : "Back to dashboard"}
@@ -1172,7 +1177,7 @@ export function JsaWorkspace({ jobsiteId }: { jobsiteId?: string }) {
           <CompanyMemoryLessonPrompt
             visible={memoryLessonNudge}
             onDismiss={() => setMemoryLessonNudge(false)}
-            href="/jsa#company-knowledge"
+            href={`${bp}/jsa#company-knowledge`}
           />
         </div>
 
