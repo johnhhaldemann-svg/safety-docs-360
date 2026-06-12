@@ -1,4 +1,6 @@
+"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   ArrowRight,
   BookOpen,
@@ -24,6 +26,8 @@ const totalEstimatedMinutes = trainingResources.reduce((total, resource) => {
 }, 0);
 
 export default function TrainingPage() {
+  const pathname = usePathname();
+  const bp = pathname.startsWith("/safe-predict") ? "/safe-predict" : "";
   return (
     <div className="space-y-8 pb-10">
       <PageHero
@@ -40,7 +44,7 @@ export default function TrainingPage() {
               <Download aria-hidden="true" className="h-4 w-4" />
               Start With Deck 1
             </a>
-            <Link href="/dashboard" className={appButtonSecondaryClassName}>
+            <Link href={bp || "/"} className={appButtonSecondaryClassName}>
               Open Dashboard
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>

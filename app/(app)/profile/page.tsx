@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Save } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { type ChangeEvent, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import {
   appButtonPrimaryClassName,
@@ -215,6 +216,9 @@ function initProfileSelect(
 }
 
 export default function ProfilePage() {
+  const pathname = usePathname();
+  const bp = pathname.startsWith("/safe-predict") ? "/safe-predict" : "";
+  const isSP = Boolean(bp);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -689,7 +693,7 @@ export default function ProfilePage() {
       {managedProfile ? (
         <InlineMessage tone="neutral">
           You are editing the construction profile for <strong>{managedProfileLabel}</strong> (jobsite title, trade, photo—what others see in the field). Workspace permissions are managed under{" "}
-          <Link href="/company-users" className="font-semibold text-[var(--app-accent-primary)] underline-offset-2 hover:underline">
+          <Link href={isSP ? `${bp}/team-access` : "/company-users"} className="font-semibold text-[var(--app-accent-primary)] underline-offset-2 hover:underline">
             Team access
           </Link>
           .
@@ -796,7 +800,7 @@ export default function ProfilePage() {
               </p>
               {canManageTeamUsers ? (
                 <Link
-                  href="/company-users"
+                  href={isSP ? `${bp}/team-access` : "/company-users"}
                   className={`mt-4 ${appButtonSecondaryClassName}`}
                 >
                   Open team &amp; roles

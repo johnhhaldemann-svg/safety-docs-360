@@ -4,6 +4,7 @@ import { deferEffect } from "@/lib/deferredEffect";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   appNativeSelectClassName,
   InlineMessage,
@@ -29,6 +30,8 @@ async function getAuthHeaders() {
 }
 
 export default function RiskMemorySettingsPage() {
+  const pathname = usePathname();
+  const bp = pathname.startsWith("/safe-predict") ? "/safe-predict" : "";
   const [contractors, setContractors] = useState<ContractorRow[]>([]);
   const [crews, setCrews] = useState<CrewRow[]>([]);
   const [jobsites, setJobsites] = useState<JobsiteRow[]>([]);
@@ -138,7 +141,7 @@ export default function RiskMemorySettingsPage() {
 
       <p className="text-sm text-[var(--app-text)]">
         <Link
-          href="/analytics#safety-risk-memory"
+          href={`${bp}/analytics#safety-risk-memory`}
           className="font-semibold text-[var(--app-accent-primary)] underline-offset-2 hover:underline"
         >
           Open Analytics · Risk Memory

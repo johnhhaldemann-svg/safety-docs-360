@@ -4,6 +4,7 @@ import { deferEffect } from "@/lib/deferredEffect";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   InlineMessage,
   PageHero,
@@ -77,6 +78,9 @@ async function getAuthHeaders() {
 }
 
 export default function ReportsPage() {
+  const pathname = usePathname();
+  const bp = pathname.startsWith("/safe-predict") ? "/safe-predict" : "";
+  const isSP = Boolean(bp);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [latestGenerated, setLatestGenerated] = useState<GeneratedReportPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -315,13 +319,13 @@ export default function ReportsPage() {
               {loading ? "Refreshing..." : "Refresh Reports"}
             </button>
             <Link
-              href="/analytics"
+              href={`${bp}/analytics`}
               className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
             >
               Open Analytics
             </Link>
             <Link
-              href="/field-id-exchange"
+              href={isSP ? `${bp}/corrective-actions` : "/field-id-exchange"}
               className="rounded-xl border border-slate-600 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-950/50"
             >
               Open Field iD Exchange

@@ -45,6 +45,8 @@ async function getAuthHeaders() {
 function AnalyticsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
+  const bp = pathname.startsWith("/safe-predict") ? "/safe-predict" : "";
+  const isSP = Boolean(bp);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [injuryLikelihood, setInjuryLikelihood] = useState<LikelyInjuryInsightPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -852,7 +854,7 @@ function AnalyticsPageInner() {
                 {riskSnapWorking ? "Saving…" : "Save today’s rollup snapshot"}
               </button>
               <Link
-                href="/settings/risk-memory"
+                href={isSP ? `${bp}/risk-memory` : "/settings/risk-memory"}
                 className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 shadow-[0_10px_22px_rgba(255,255,255,0.12)] transition hover:bg-slate-100"
               >
                 Manage contractors & crews
@@ -1261,13 +1263,13 @@ function AnalyticsPageInner() {
         <div className="rounded-2xl border border-[var(--app-accent-border-24)] bg-gradient-to-r from-[var(--app-accent-surface-12)] to-white px-5 py-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--app-accent-primary)]">Actions</p>
           <div className="mt-3 flex flex-wrap gap-3">
-            <Link href="/analytics/safety-intelligence" className="analytics-action-primary px-4 py-2 text-xs uppercase tracking-wide">
+            <Link href={isSP ? `${bp}/analytics` : "/analytics/safety-intelligence"} className="analytics-action-primary px-4 py-2 text-xs uppercase tracking-wide">
               Deep dive
             </Link>
-            <Link href="/analytics/predictive-model" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+            <Link href={isSP ? `${bp}/predictive-risk` : "/analytics/predictive-model"} className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
               Predictive model
             </Link>
-            <Link href="/reports" className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
+            <Link href={`${bp}/reports`} className="rounded-xl border border-[var(--app-accent-border-24)] bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)]">
               Reports
             </Link>
             <button
@@ -1283,27 +1285,27 @@ function AnalyticsPageInner() {
         <div className="analytics-panel flex flex-col gap-4 px-5 py-4 shadow-[var(--app-shadow-primary-panel)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-3 text-slate-500">
             <Link
-              href="/dashboard"
+              href={bp || "/"}
               className="text-sm font-semibold text-[var(--app-muted)] underline-offset-4 hover:text-[var(--app-accent-primary)] hover:underline"
             >
               Dashboard
             </Link>
             <Link
-              href="/search"
+              href={isSP ? `${bp}/reports` : "/search"}
               className="text-sm font-semibold text-[var(--app-muted)] underline-offset-4 hover:text-[var(--app-accent-primary)] hover:underline"
             >
-              Search
+              {isSP ? "Reports" : "Search"}
             </Link>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/dashboard"
+              href={bp || "/"}
               className="rounded-xl border border-[rgba(198,212,236,0.9)] px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-[var(--app-text-strong)] transition hover:bg-[var(--app-accent-surface-08)]"
             >
               Open dashboard
             </Link>
             <Link
-              href="/reports"
+              href={`${bp}/reports`}
               className="analytics-action-primary px-4 py-2.5 text-xs uppercase tracking-wide transition"
             >
               Open reports
