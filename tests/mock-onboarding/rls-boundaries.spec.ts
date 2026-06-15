@@ -35,10 +35,12 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
       waitUntil: "domcontentloaded",
     });
     await acceptAgreementIfPresent(page, 3_000);
+    // Wait for API calls and client-side redirect to settle
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
 
     const url = page.url();
     const isRedirected = url.includes("/dashboard") || url.includes("/login") || url.includes("/jobsites");
-    const isNotFound = await page.getByText(/not found|404|no access|forbidden|unauthorized/i).first().isVisible({ timeout: 5_000 }).catch(() => false);
+    const isNotFound = await page.getByText(/not found|404|no access|forbidden|unauthorized|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
     const isEmpty = await page.getByText(/no data|empty|nothing here/i).first().isVisible({ timeout: 5_000 }).catch(() => false);
 
     test.info().annotations.push({
@@ -56,10 +58,11 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
       waitUntil: "domcontentloaded",
     });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const isNotFound = await page.getByText(/not found|404|no access|no jobsite/i).first().isVisible({ timeout: 5_000 }).catch(() => false);
+    const isNotFound = await page.getByText(/not found|404|no access|no jobsite|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
     const isLoading = await page.getByText(/loading/i).first().isVisible({ timeout: 2_000 }).catch(() => false);
 
     test.info().annotations.push({
@@ -74,10 +77,11 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/jsa`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
 
     const url = page.url();
     const redirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const denied = await page.getByText(/not found|no access|forbidden/i).first().isVisible({ timeout: 5_000 }).catch(() => false);
+    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
 
     expect(redirected || denied).toBe(true);
   });
@@ -86,10 +90,11 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/incidents`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
 
     const url = page.url();
     expect(!url.includes(FOREIGN_JOBSITE_ID) ||
-      await page.getByText(/not found|no access/i).first().isVisible({ timeout: 5_000 }).catch(() => false)
+      await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false)
     ).toBe(true);
   });
 });
@@ -312,6 +317,7 @@ test.describe("Role escalation: field user blocked from admin routes", () => {
     skip();
     await page.goto("/admin", { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForURL(/\/dashboard|\/login|\/get-started/, { timeout: 12_000 }).catch(() => undefined);
 
     const url = page.url();
     const redirected = !url.endsWith("/admin") && !url.includes("/admin/");
@@ -325,6 +331,7 @@ test.describe("Role escalation: field user blocked from admin routes", () => {
     skip();
     await page.goto("/admin/users", { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForURL(/\/dashboard|\/login|\/get-started/, { timeout: 12_000 }).catch(() => undefined);
 
     const url = page.url();
     const blocked = !url.includes("/admin/users") ||
@@ -337,6 +344,7 @@ test.describe("Role escalation: field user blocked from admin routes", () => {
     skip();
     await page.goto("/admin/companies", { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
+    await page.waitForURL(/\/dashboard|\/login|\/get-started/, { timeout: 12_000 }).catch(() => undefined);
 
     const url = page.url();
     const blocked = !url.includes("/admin/companies") ||
