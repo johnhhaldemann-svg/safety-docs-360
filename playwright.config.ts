@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { config as dotenvConfig } from "dotenv";
+
+// Load .env.local so E2E_* and NEXT_PUBLIC_* vars are available in the test process
+dotenvConfig({ path: ".env.local" });
 
 /**
  * Playwright E2E — production-style defaults.

@@ -349,15 +349,17 @@ async function provisionAdminUser(companyId) {
   await upsertRoleAndMembership(userId, companyId, "company_admin", COMPANY_NAME);
 
   // Accept agreement for this user
-  await supabase.from("user_agreements").upsert(
-    {
-      user_id: userId,
-      agreement_version: "v1",
-      accepted_at: new Date().toISOString(),
-      ip_address: "127.0.0.1",
-    },
-    { onConflict: "user_id,agreement_version" }
-  ).catch(() => undefined);
+  try {
+    await supabase.from("user_agreements").upsert(
+      {
+        user_id: userId,
+        agreement_version: "v1",
+        accepted_at: new Date().toISOString(),
+        ip_address: "127.0.0.1",
+      },
+      { onConflict: "user_id,agreement_version" }
+    );
+  } catch {}
 
   log(`  ✓ Admin user: ${userId}`);
   return userId;
@@ -370,15 +372,17 @@ async function provisionFieldUser(companyId) {
   await upsertRoleAndMembership(userId, companyId, "company_user", COMPANY_NAME);
 
   // Accept agreement
-  await supabase.from("user_agreements").upsert(
-    {
-      user_id: userId,
-      agreement_version: "v1",
-      accepted_at: new Date().toISOString(),
-      ip_address: "127.0.0.1",
-    },
-    { onConflict: "user_id,agreement_version" }
-  ).catch(() => undefined);
+  try {
+    await supabase.from("user_agreements").upsert(
+      {
+        user_id: userId,
+        agreement_version: "v1",
+        accepted_at: new Date().toISOString(),
+        ip_address: "127.0.0.1",
+      },
+      { onConflict: "user_id,agreement_version" }
+    );
+  } catch {}
 
   log(`  ✓ Field user: ${userId}`);
   return userId;
@@ -421,10 +425,12 @@ async function provisionJobsite(companyId) {
 async function provisionJobsiteAssignments(companyId, jobsiteId, adminId, fieldId) {
   log("Step 7: Assigning users to jobsite…");
   for (const userId of [adminId, fieldId]) {
-    await supabase.from("company_jobsite_assignments").upsert(
-      { company_id: companyId, jobsite_id: jobsiteId, user_id: userId, status: "active" },
-      { onConflict: "company_id,jobsite_id,user_id" }
-    ).catch(() => undefined);
+    try {
+      await supabase.from("company_jobsite_assignments").upsert(
+        { company_id: companyId, jobsite_id: jobsiteId, user_id: userId, status: "active" },
+        { onConflict: "company_id,jobsite_id,user_id" }
+      );
+    } catch {}
   }
   log("  ✓ Both users assigned to jobsite");
 }
