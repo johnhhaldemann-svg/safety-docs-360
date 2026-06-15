@@ -144,7 +144,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
         const body = await res.json();
         return { status: res.status, count: Array.isArray(body) ? body.length : -1 };
       },
-      { url: supabaseUrl, key: anonKey, token: jwt, foreignId: FOREIGN_COMPANY_ID }
+      { url: supabaseUrl!, key: anonKey!, token: jwt, foreignId: FOREIGN_COMPANY_ID }
     );
 
     test.info().annotations.push({
@@ -190,7 +190,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
         const body = await res.json();
         return { status: res.status, count: Array.isArray(body) ? body.length : -1 };
       },
-      { url: supabaseUrl, key: anonKey, token: jwt, foreignId: FOREIGN_COMPANY_ID }
+      { url: supabaseUrl!, key: anonKey!, token: jwt, foreignId: FOREIGN_COMPANY_ID }
     );
 
     test.info().annotations.push({
@@ -231,7 +231,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
         const body = await res.json();
         return { status: res.status, count: Array.isArray(body) ? body.length : -1 };
       },
-      { url: supabaseUrl, key: anonKey, token: jwt, ownCompanyId: companyId }
+      { url: supabaseUrl!, key: anonKey!, token: jwt, ownCompanyId: companyId }
     );
 
     test.info().annotations.push({
@@ -270,7 +270,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
         const body = await res.json();
         return { count: Array.isArray(body) ? body.length : -1 };
       },
-      { url: supabaseUrl, key: anonKey, token: jwt, foreignId: FOREIGN_COMPANY_ID }
+      { url: supabaseUrl!, key: anonKey!, token: jwt, foreignId: FOREIGN_COMPANY_ID }
     );
 
     expect(result.count).toBe(0);
@@ -304,7 +304,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
         const body = await res.json();
         return { count: Array.isArray(body) ? body.length : -1 };
       },
-      { url: supabaseUrl, key: anonKey, token: jwt, foreignId: FOREIGN_COMPANY_ID }
+      { url: supabaseUrl!, key: anonKey!, token: jwt, foreignId: FOREIGN_COMPANY_ID }
     );
 
     expect(result.count).toBe(0);
