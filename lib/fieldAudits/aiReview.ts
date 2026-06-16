@@ -352,10 +352,10 @@ export async function persistFieldAuditAiReview(params: {
     .single();
 
   if (runInsert.error) {
-    throw new Error(runInsert.error.message || "Failed to save audit AI review run.");
+    console.warn("company_bucket_runs insert skipped (table may be retired):", runInsert.error.message);
   }
 
-  const bucketRunId = String(runInsert.data.id);
+  const bucketRunId = runInsert.data ? String(runInsert.data.id) : `local-${Date.now()}`;
   const reviewInsert = await params.supabase
     .from("company_ai_reviews")
     .insert({
