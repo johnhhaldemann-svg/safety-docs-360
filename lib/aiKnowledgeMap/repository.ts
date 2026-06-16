@@ -1167,6 +1167,34 @@ function trustedPromotionMetadata(candidate: AiKnowledgeIngestCandidate, base: R
 }
 
 async function promoteNodeCandidate(client: DbClient, candidate: AiKnowledgeIngestCandidate, certificate: ReturnType<typeof buildKnowledgeProvenanceCertificate>) {
+  if (candidate.sourceTable === "documents" && typeof candidate.sourceId === "string" && candidate.sourceId) {
+    const { error: docError } = await client
+      .from("documents")
+      .update({ status: "submitted" })
+      .eq("id", candidate.sourceId)
+      .eq("status", "pending_gateway");
+    if (docError) throw new Error(`Gateway promotion failed to activate document: ${docError.message}`);
+  }
+
+  if (candidate.metadata.gatewaySubmission === true) {
+    const targetTable = typeof candidate.metadata.targetTable === "string" ? candidate.metadata.targetTable : null;
+    const proposedRow = candidate.metadata.proposedRow && typeof candidate.metadata.proposedRow === "object" && !Array.isArray(candidate.metadata.proposedRow)
+      ? (candidate.metadata.proposedRow as Record<string, unknown>)
+      : null;
+    if (targetTable && proposedRow) {
+      // Blueprints already have a row — update it to activate. All other tables use insert.
+      const isBlueprintUpdate = targetTable === "company_jobsite_site_blueprints" && typeof proposedRow.id !== "undefined";
+      if (isBlueprintUpdate) {
+        const { id: blueprintId, ...blueprintPatch } = proposedRow;
+        const { error: rowError } = await client.from(targetTable).update(blueprintPatch).eq("id", blueprintId);
+        if (rowError) throw new Error(`Gateway promotion failed to activate ${targetTable}: ${rowError.message}`);
+      } else {
+        const { error: rowError } = await client.from(targetTable).insert(proposedRow);
+        if (rowError) throw new Error(`Gateway promotion failed to write to ${targetTable}: ${rowError.message}`);
+      }
+    }
+  }
+
   const node = candidateNodePayload(candidate);
   if (!node) throw new Error("Candidate does not contain a valid node payload.");
   const [promoted] = await upsertNodes(client, [{

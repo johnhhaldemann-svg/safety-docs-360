@@ -111,7 +111,7 @@ export async function POST(
     .from("company_jobsite_site_blueprints")
     .update({
       source_file_path: sourcePath,
-      processing_status: "uploaded",
+      processing_status: "pending_gateway",
       updated_by: auth.user.id,
     })
     .eq("id", insert.data.id)
@@ -120,6 +120,78 @@ export async function POST(
     .single();
   if (update.error) {
     return NextResponse.json({ error: update.error.message || "Failed to prepare blueprint upload." }, { status: 500 });
+  }
+
+  const { error: candidateError } = await admin.from("ai_knowledge_ingest_candidates").insert({
+    company_id: companyScope.companyId,
+    candidate_type: "node",
+    source_table: "company_jobsite_site_blueprints",
+    source_id: String(insert.data.id),
+    source_record_id: String(insert.data.id),
+    title: `Blueprint — ${upload.fileName}`,
+    semantic_summary: `Site visual blueprint "${upload.fileName}" for jobsite ${jobsiteId} pending gateway review.`,
+    reason: "Jobsite blueprint upload queued for Super Admin gateway review before activation.",
+    source_evidence: [
+      {
+        sourceTable: "company_jobsite_site_blueprints",
+        sourceRecordId: String(insert.data.id),
+        label: "Site blueprint",
+        detail: `Blueprint "${upload.fileName}" uploaded for jobsite ${jobsiteId}. Storage: ${sourcePath}`,
+      },
+    ],
+    proposed_payload: {
+      sourceTable: "company_jobsite_site_blueprints",
+      sourceId: String(insert.data.id),
+      sourceRecordId: String(insert.data.id),
+      companyId: companyScope.companyId,
+      title: `Blueprint — ${upload.fileName}`,
+      nodeType: "document",
+      type: "document",
+      category: "site blueprint",
+      description: `Site visual blueprint for jobsite ${jobsiteId}.`,
+      semanticSummary: `Blueprint "${upload.fileName}" pending gateway activation.`,
+      riskLevel: "unknown",
+      riskScore: null,
+      trade: null,
+      project: null,
+      sourceUrl: null,
+      sourceDocument: sourcePath,
+      metadata: {},
+      vectorStatus: "pending",
+      vectorCoordinates: { x: 0, y: 0, z: 0, cluster: "document" },
+      confidenceScore: null,
+      validationStatus: "pending_review",
+      createdByType: "user",
+    },
+    confidence_score: null,
+    validation_status: "pending_review",
+    metadata: {
+      evidenceText: `Site blueprint "${upload.fileName}" for jobsite ${jobsiteId} pending gateway review.`,
+      requiresHumanReview: true,
+      trustedMemoryWrite: false,
+      doesNotProveCompliance: true,
+      gatewaySubmission: true,
+      targetTable: "company_jobsite_site_blueprints",
+      proposedRow: {
+        id: insert.data.id,
+        processing_status: "uploaded",
+        updated_by: auth.user.id,
+      },
+      blueprintId: insert.data.id,
+      jobsiteId,
+      sourcePath,
+      submittedBy: auth.user.id,
+    },
+    created_by_type: "user",
+  });
+
+  if (candidateError) {
+    await auth.supabase
+      .from("company_jobsite_site_blueprints")
+      .update({ processing_status: "failed", processing_error: "Gateway candidate creation failed." })
+      .eq("id", insert.data.id)
+      .eq("company_id", companyScope.companyId);
+    return NextResponse.json({ error: "Failed to queue blueprint for gateway review." }, { status: 500 });
   }
 
   return NextResponse.json({

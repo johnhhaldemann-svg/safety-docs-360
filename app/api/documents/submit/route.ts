@@ -15,6 +15,7 @@ import { syncGeneratedTrainingRequirements } from "@/lib/safety-intelligence/tra
 import { generateCsepDocx } from "@/app/api/csep/export/route";
 import { generatePshsepDocx } from "@/app/api/pshsep/export/route";
 import type { GeneratedSafetyPlanDraft, JsonObject } from "@/types/safety-intelligence";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -229,6 +230,7 @@ function withSubmittedCsepLogo(
 
 export async function POST(request: Request) {
   let createdDocumentId: string | null = null;
+  let createdCandidateId: string | null = null;
   try {
     const auth = await authorizeRequest(request, {
       requirePermission: "can_submit_documents",
@@ -428,7 +430,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         project_name,
         document_type,
-        status: "submitted",
+        status: "pending_gateway",
         company_id: companyScope.companyId,
         draft_file_path: filePath,
         file_name: draftFileName,
@@ -570,9 +572,95 @@ export async function POST(request: Request) {
       );
     }
 
+    const adminClient = createSupabaseAdminClient();
+    if (!adminClient) {
+      await supabase.from("documents").delete().eq("id", insertedDoc.id);
+      await supabase.storage.from("documents").remove([filePath]).catch(() => undefined);
+      return NextResponse.json({ error: "Gateway service unavailable." }, { status: 500 });
+    }
+
+    const { data: candidateData, error: candidateError } = await adminClient
+      .from("ai_knowledge_ingest_candidates")
+      .insert({
+        company_id: companyScope.companyId,
+        candidate_type: "node",
+        source_table: "documents",
+        source_id: insertedDoc.id,
+        source_record_id: insertedDoc.id,
+        title: `${document_type} — ${project_name}`,
+        semantic_summary: `${document_type} safety document for project "${project_name}" queued for gateway review.`,
+        reason: "User-submitted document queued for Super Admin gateway review before database activation.",
+        source_evidence: [
+          {
+            sourceTable: "documents",
+            sourceRecordId: insertedDoc.id,
+            label: "Draft document",
+            detail: `${document_type} submitted for project "${project_name}". Draft: ${filePath}`,
+          },
+        ],
+        proposed_payload: {
+          sourceTable: "documents",
+          sourceId: insertedDoc.id,
+          sourceRecordId: insertedDoc.id,
+          projectId: null,
+          companyId: companyScope.companyId,
+          jobsiteId: null,
+          title: `${document_type} — ${project_name}`,
+          nodeType: "document",
+          type: "document",
+          category: document_type,
+          description: `${document_type} draft for project "${project_name}".`,
+          semanticSummary: `${document_type} document for "${project_name}" pending gateway activation.`,
+          riskLevel: "unknown",
+          riskScore: null,
+          trade: null,
+          project: project_name,
+          sourceUrl: null,
+          sourceDocument: filePath,
+          metadata: {},
+          vectorStatus: "pending",
+          vectorCoordinates: { x: 0, y: 0, z: 0, cluster: "document" },
+          confidenceScore: null,
+          validationStatus: "pending_review",
+          createdByType: "user",
+        },
+        confidence_score: null,
+        validation_status: "pending_review",
+        metadata: {
+          evidenceText: `${document_type} document for project "${project_name}" pending gateway review.`,
+          requiresHumanReview: true,
+          trustedMemoryWrite: false,
+          doesNotProveCompliance: true,
+          submittedBy: user.id,
+          documentId: insertedDoc.id,
+          draftFilePath: filePath,
+          documentType: document_type,
+          projectName: project_name,
+          generatedDocumentId: generatedDocumentId ?? null,
+          bucketRunId: bucketRunId ?? null,
+        },
+        created_by_type: "user",
+      })
+      .select("id")
+      .single();
+
+    if (candidateError || !candidateData) {
+      serverLog("error", "document_submit_candidate_creation_failed", {
+        userId: user.id,
+        documentId: insertedDoc.id,
+        error: candidateError?.message?.slice(0, 200),
+      });
+      await supabase.from("documents").delete().eq("id", insertedDoc.id);
+      await adminClient.storage.from("documents").remove([filePath]).catch(() => undefined);
+      return NextResponse.json({ error: "Failed to queue document for gateway review." }, { status: 500 });
+    }
+
+    createdCandidateId = candidateData.id as string;
+
     return NextResponse.json({
       success: true,
       document_id: insertedDoc.id,
+      candidate_id: createdCandidateId,
       draft_file_path: filePath,
       generated_document_id: generatedDocumentId,
       bucket_run_id: bucketRunId,
@@ -587,6 +675,12 @@ export async function POST(request: Request) {
           await auth.supabase.from("documents").delete().eq("id", createdDocumentId);
         })
         .catch(() => undefined);
+    }
+    if (createdCandidateId) {
+      const adminClient = createSupabaseAdminClient();
+      if (adminClient) {
+        await adminClient.from("ai_knowledge_ingest_candidates").delete().eq("id", createdCandidateId).then(() => undefined, () => undefined);
+      }
     }
     if (error instanceof PublicRouteError) {
       serverLog("warn", "document_submit_public_error", {

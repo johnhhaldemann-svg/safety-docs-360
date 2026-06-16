@@ -6,6 +6,7 @@ import { insertCompanyMemoryItem } from "@/lib/companyMemory";
 import { extractGcProgramDocumentText } from "@/lib/gcProgramAiReview";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -109,35 +110,103 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Storage upload failed: ${upErr.message}` }, { status: 500 });
   }
 
-  const { id, error: insErr } = await insertCompanyMemoryItem(auth.supabase, {
-    companyId: companyScope.companyId,
-    source: "document_upload",
-    title: title.slice(0, 500),
-    body: bodyText,
-    metadata: {
-      storagePath,
-      originalFileName: originalName,
-      mimeType: file.type || null,
-      extractionTruncated: extracted.truncated,
-      extractionMethod: extracted.method,
-    },
-    userId: auth.user.id,
-    embed: true,
-  });
-
-  if (insErr || !id) {
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
     await auth.supabase.storage.from("documents").remove([storagePath]).catch(() => undefined);
-    return NextResponse.json({ error: insErr ?? "Failed to save memory item." }, { status: 500 });
+    return NextResponse.json({ error: "Gateway service unavailable." }, { status: 500 });
   }
 
-  serverLog("info", "company_memory_upload", {
+  const candidateId = crypto.randomUUID();
+  const { error: candidateError } = await adminClient
+    .from("ai_knowledge_ingest_candidates")
+    .insert({
+      id: candidateId,
+      company_id: companyScope.companyId,
+      candidate_type: "node",
+      source_table: "company_memory_items",
+      source_id: candidateId,
+      source_record_id: candidateId,
+      title: title.slice(0, 500),
+      semantic_summary: `Company memory item "${title.slice(0, 120)}" extracted from uploaded document, pending gateway review.`,
+      reason: "Company memory bank upload queued for Super Admin gateway review before insertion.",
+      source_evidence: [
+        {
+          sourceTable: "company_memory_items",
+          sourceRecordId: candidateId,
+          label: "Memory bank document",
+          detail: `Document "${originalName}" uploaded by ${auth.user.id}. Extracted ${bodyText.length} characters. Storage: ${storagePath}`,
+        },
+      ],
+      proposed_payload: {
+        sourceTable: "company_memory_items",
+        sourceId: candidateId,
+        sourceRecordId: candidateId,
+        companyId: companyScope.companyId,
+        title: title.slice(0, 500),
+        nodeType: "document",
+        type: "document",
+        category: "company memory",
+        description: bodyText.slice(0, 500),
+        semanticSummary: bodyText.slice(0, 500),
+        riskLevel: "unknown",
+        riskScore: null,
+        trade: null,
+        project: null,
+        sourceUrl: null,
+        sourceDocument: storagePath,
+        metadata: {},
+        vectorStatus: "pending",
+        vectorCoordinates: { x: 0, y: 0, z: 0, cluster: "memory" },
+        confidenceScore: null,
+        validationStatus: "pending_review",
+        createdByType: "user",
+      },
+      confidence_score: null,
+      validation_status: "pending_review",
+      metadata: {
+        evidenceText: `Company memory document "${title.slice(0, 120)}" pending gateway review.`,
+        requiresHumanReview: true,
+        trustedMemoryWrite: false,
+        doesNotProveCompliance: true,
+        gatewaySubmission: true,
+        targetTable: "company_memory_items",
+        proposedRow: {
+          company_id: companyScope.companyId,
+          source: "document_upload",
+          title: title.slice(0, 500),
+          body: bodyText,
+          metadata: {
+            storagePath,
+            originalFileName: originalName,
+            mimeType: file.type || null,
+            extractionTruncated: extracted.truncated,
+            extractionMethod: extracted.method,
+          },
+          user_id: auth.user.id,
+        },
+        submittedBy: auth.user.id,
+        storagePath,
+        originalFileName: originalName,
+        extractionTruncated: extracted.truncated,
+        extractionMethod: extracted.method,
+      },
+      created_by_type: "user",
+    });
+
+  if (candidateError) {
+    await auth.supabase.storage.from("documents").remove([storagePath]).catch(() => undefined);
+    return NextResponse.json({ error: "Failed to queue memory item for gateway review." }, { status: 500 });
+  }
+
+  serverLog("info", "company_memory_upload_gateway", {
     companyId: companyScope.companyId,
     userId: auth.user.id,
-    memoryItemId: id,
+    candidateId,
   });
 
   return NextResponse.json({
-    id,
+    id: candidateId,
+    pendingGateway: true,
     extraction: { truncated: extracted.truncated, method: extracted.method },
   });
 }

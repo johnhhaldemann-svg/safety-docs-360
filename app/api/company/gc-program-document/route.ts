@@ -7,6 +7,7 @@ import {
   canReviewGcProgramDocumentRole,
 } from "@/lib/gcRequiredProgram";
 import { isApprovedDocumentStatus } from "@/lib/documentStatus";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -185,7 +186,7 @@ export async function POST(request: Request) {
       title: documentTitle,
       document_type: GC_REQUIRED_PROGRAM_DOCUMENT_TYPE,
       category: "GC Compliance",
-      status: "submitted",
+      status: "pending_gateway",
       notes:
         "Document required by the General Contractor for this company to follow on the project, in addition to OSHA and other regulatory requirements.",
       company_id: companyId,
@@ -204,6 +205,78 @@ export async function POST(request: Request) {
       { error: insertError?.message || "Failed to save document record." },
       { status: 500 }
     );
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  if (!adminClient) {
+    await auth.supabase.from("documents").delete().eq("id", (inserted as { id: string }).id);
+    await auth.supabase.storage.from("documents").remove([storagePath]);
+    return NextResponse.json({ error: "Gateway service unavailable." }, { status: 500 });
+  }
+
+  const { error: candidateError } = await adminClient
+    .from("ai_knowledge_ingest_candidates")
+    .insert({
+      company_id: companyId,
+      candidate_type: "node",
+      source_table: "documents",
+      source_id: (inserted as { id: string }).id,
+      source_record_id: (inserted as { id: string }).id,
+      title: `${GC_REQUIRED_PROGRAM_DOCUMENT_TYPE} — ${documentTitle}`,
+      semantic_summary: `GC-required program document "${documentTitle}" queued for gateway review.`,
+      reason: "GC-required program document queued for Super Admin gateway review before database activation.",
+      source_evidence: [
+        {
+          sourceTable: "documents",
+          sourceRecordId: (inserted as { id: string }).id,
+          label: "GC program document",
+          detail: `GC-required program document "${documentTitle}" uploaded by ${auth.user.email ?? auth.user.id}. File: ${storagePath}`,
+        },
+      ],
+      proposed_payload: {
+        sourceTable: "documents",
+        sourceId: (inserted as { id: string }).id,
+        sourceRecordId: (inserted as { id: string }).id,
+        companyId,
+        title: documentTitle,
+        nodeType: "document",
+        type: "document",
+        category: "GC Compliance",
+        description: `GC-required program document: ${documentTitle}`,
+        semanticSummary: `GC-required program document "${documentTitle}" pending gateway activation.`,
+        riskLevel: "moderate",
+        riskScore: null,
+        trade: null,
+        project: projectName,
+        sourceUrl: null,
+        sourceDocument: storagePath,
+        metadata: {},
+        vectorStatus: "pending",
+        vectorCoordinates: { x: 0, y: 0, z: 0, cluster: "document" },
+        confidenceScore: null,
+        validationStatus: "pending_review",
+        createdByType: "user",
+      },
+      confidence_score: null,
+      validation_status: "pending_review",
+      metadata: {
+        evidenceText: `GC-required program document "${documentTitle}" pending gateway review.`,
+        requiresHumanReview: true,
+        trustedMemoryWrite: false,
+        doesNotProveCompliance: true,
+        submittedBy: auth.user.id,
+        documentId: (inserted as { id: string }).id,
+        storagePath,
+        documentTitle,
+        projectName,
+      },
+      created_by_type: "user",
+    });
+
+  if (candidateError) {
+    await auth.supabase.from("documents").delete().eq("id", (inserted as { id: string }).id);
+    await auth.supabase.storage.from("documents").remove([storagePath]);
+    return NextResponse.json({ error: "Failed to queue document for gateway review." }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -250,8 +323,10 @@ export async function DELETE(request: Request) {
   }>;
 
   const pendingOnly = list.filter(
-    (row) =>
-      (row.status ?? "").trim().toLowerCase() === "submitted" && !row.final_file_path
+    (row) => {
+      const s = (row.status ?? "").trim().toLowerCase();
+      return (s === "submitted" || s === "pending_gateway") && !row.final_file_path;
+    }
   );
 
   if (pendingOnly.length === 0) {
@@ -275,7 +350,7 @@ export async function DELETE(request: Request) {
     .delete()
     .eq("company_id", companyScope.companyId)
     .eq("document_type", GC_REQUIRED_PROGRAM_DOCUMENT_TYPE)
-    .eq("status", "submitted");
+    .in("status", ["submitted", "pending_gateway"]);
 
   if (delError) {
     return NextResponse.json({ error: delError.message || "Failed to remove records." }, { status: 500 });
