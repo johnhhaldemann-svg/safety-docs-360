@@ -90,7 +90,15 @@ function createOfflineClient() {
   } as unknown as SupabaseClient;
 }
 
+const CONFIG_ERROR = {
+  name: "AuthApiError" as const,
+  message:
+    "Authentication service is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to Vercel Environment Variables, then redeploy.",
+  status: 500,
+};
+
 function createSsrStubClient(): SupabaseClient {
+  // Silent stub for SSR prerendering — event handlers never fire server-side.
   return {
     auth: {
       getUser: async () => ({ data: { user: null }, error: null }),
@@ -98,6 +106,22 @@ function createSsrStubClient(): SupabaseClient {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
       signOut: async () => ({ error: null }),
       signInWithPassword: async () => ({ data: null, error: null }),
+    },
+    from: () => ({ select: () => ({}) }),
+    storage: { from: () => ({}) },
+  } as unknown as SupabaseClient;
+}
+
+function createBrowserErrorStub(): SupabaseClient {
+  // Visible error stub for browser context when env vars are missing.
+  // signInWithPassword returns an error the login form will display.
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: CONFIG_ERROR }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      signOut: async () => ({ error: null }),
+      signInWithPassword: async () => ({ data: null, error: CONFIG_ERROR }),
     },
     from: () => ({ select: () => ({}) }),
     storage: { from: () => ({}) },
@@ -114,14 +138,20 @@ export function getSupabaseBrowserClient() {
     return browserClient;
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Try NEXT_PUBLIC_ prefix first (browser bundle), then unprefixed (build-time
+  // availability via Turbopack when both names are set in Vercel env vars).
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // NEXT_PUBLIC_ vars may be absent during SSR prerendering or if not set
-    // as build-time env vars in Vercel. Return a stub so the page renders
-    // without crashing; auth calls will fail gracefully rather than exploding.
-    return createSsrStubClient();
+    // During SSR prerendering: return silent stub (event handlers don't fire).
+    // In browser: return visible error stub so login shows a clear message.
+    if (typeof window === "undefined") return createSsrStubClient();
+    return createBrowserErrorStub();
   }
 
   browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
