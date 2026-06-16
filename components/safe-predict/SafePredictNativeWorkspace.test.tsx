@@ -12,6 +12,18 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("@/lib/supabaseBrowser", () => ({
+  getSupabaseBrowserClient: vi.fn(() => ({
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      signOut: vi.fn().mockResolvedValue({ error: null }),
+      onAuthStateChange: vi.fn().mockReturnValue({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      }),
+    },
+  })),
+}));
+
 vi.mock("@/components/safe-predict/SafePredictDataProvider", async () => {
   const { buildSafePredictDataset } = await import("@/lib/safePredictData");
   const dataset = buildSafePredictDataset({
