@@ -8,7 +8,7 @@ export async function buildSafetyIntelligenceSummary(
   companyId: string,
   jobsiteId?: string | null
 ): Promise<SafetyIntelligenceDashboardSummary> {
-  let bucketRunsQuery = supabase.from("company_bucket_runs").select("id", { count: "exact", head: true }).eq("company_id", companyId);
+  const batchesQuery = supabase.from("ai_knowledge_ingest_batches").select("id", { count: "exact", head: true }).eq("company_id", companyId);
   let aiReviewsQuery = supabase.from("company_ai_reviews").select("id", { count: "exact", head: true }).eq("company_id", companyId);
   let conflictsQuery = supabase
     .from("company_conflict_pairs")
@@ -26,15 +26,14 @@ export async function buildSafetyIntelligenceSummary(
     .limit(50);
 
   if (jobsiteId) {
-    bucketRunsQuery = bucketRunsQuery.eq("jobsite_id", jobsiteId);
     aiReviewsQuery = aiReviewsQuery.eq("jobsite_id", jobsiteId);
     conflictsQuery = conflictsQuery.eq("jobsite_id", jobsiteId);
     docsQuery = docsQuery.eq("jobsite_id", jobsiteId);
     tasksQuery = tasksQuery.eq("jobsite_id", jobsiteId);
   }
 
-  const [bucketRuns, aiReviews, conflicts, docs, tasks] = await Promise.all([
-    bucketRunsQuery,
+  const [batches, aiReviews, conflicts, docs, tasks] = await Promise.all([
+    batchesQuery,
     aiReviewsQuery,
     conflictsQuery,
     docsQuery,
@@ -54,7 +53,7 @@ export async function buildSafetyIntelligenceSummary(
 
   return {
     totals: {
-      bucketRuns: bucketRuns.count ?? 0,
+      bucketRuns: batches.count ?? 0,
       aiReviews: aiReviews.count ?? 0,
       openConflicts: conflicts.count ?? 0,
       generatedDocuments: docs.count ?? 0,

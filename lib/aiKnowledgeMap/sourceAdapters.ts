@@ -49,7 +49,6 @@ export const AI_KNOWLEDGE_SOURCE_ADAPTERS = [
   source("company_employee_profiles", "workforce_equipment", "user_role", ["id", "company_id"], ["risk_level", "severity", "priority"], ["full_name", "trade", "certifications"], true),
   source("company_employee_jobsite_assignments", "workforce_equipment", "task", ["id", "company_id"], ["risk_level", "severity", "priority"], ["employee_id", "jobsite_id", "role"], true),
   source("company_jobsites", "jobsites_context", "project", ["id", "company_id"], ["risk_level", "severity", "priority"], ["name", "address", "safety_lead"], false),
-  source("safety_data_bucket", "risk_intelligence", "risk_record", ["id", "company_id"], ["severity", "hazard_category_code", "category_code"], ["title", "summary", "normalized_payload"], true, ["ai_ready"]),
   source("documents", "documents", "document", ["id", "company_id"], ["risk_level", "severity", "priority"], ["document_title", "notes", "document_type"], true),
   source("company_generated_documents", "documents", "document", ["id", "company_id"], ["risk_level", "severity", "priority"], ["title", "document_type", "final_file_path"], true),
   source("company_risk_ai_recommendations", "risk_intelligence", "risk_record", ["id", "company_id"], ["severity", "kind", "confidence"], ["title", "body", "kind"], true),
@@ -95,7 +94,7 @@ function source(
 ): AiKnowledgeSourceAdapter {
   return {
     table,
-    owner: table === "documents" || table === "safety_data_bucket" ? "platform" : "company",
+    owner: table === "documents" ? "platform" : "company",
     domain,
     nodeType,
     requiredFields,
