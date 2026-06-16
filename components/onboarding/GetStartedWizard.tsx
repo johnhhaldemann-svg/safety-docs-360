@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
+  AlertTriangle,
   BookOpen,
   Building2,
   CalendarCheck,
@@ -13,6 +14,7 @@ import {
   ExternalLink,
   FileCheck2,
   FileText,
+  GraduationCap,
   HardHat,
   LayoutDashboard,
   Lightbulb,
@@ -20,6 +22,7 @@ import {
   RefreshCw,
   ShieldAlert,
   Sparkles,
+  TrendingUp,
   Users,
   Zap,
 } from "lucide-react";
@@ -60,6 +63,8 @@ type WizardStep = {
     | "first_document"
     | "first_permit"
     | "first_toolbox_talk"
+    | "first_training"
+    | "incident_awareness"
     | "command_center";
   icon: React.ElementType;
   title: string;
@@ -221,6 +226,58 @@ const WIZARD_STEPS: WizardStep[] = [
     timeEstimate: "~5 min",
     ctaLabel: "Open Toolbox Talks",
     ctaHref: "/safe-predict/toolbox-talks",
+    newTab: true,
+  },
+  {
+    id: "first_training",
+    icon: GraduationCap,
+    title: "Set up Training & Certifications",
+    tracked: false,
+    description:
+      "The Training Tracker gives you a live matrix of every worker's certifications and required training — who's current, who's expiring this month, and who's missing required credentials for their assigned work. Upload existing certificates now; the permit system cross-checks them automatically when issuing confined space, LOTO, and other high-risk permits.",
+    what: [
+      "Upload existing worker certifications: OSHA 10/30, first aid/CPR, forklift, crane operator, confined space rescue",
+      "Assign required training courses to individual workers or entire job classifications",
+      "Set expiry reminders — the system alerts you before a cert lapses so work authorization isn't interrupted",
+      "Flag which certifications are required for specific permit types (e.g. confined space rescue required for CS entry)",
+      "Run the Training Matrix view to see your entire crew's compliance status in a single grid",
+    ],
+    tip: "When you issue a confined space or LOTO permit, the system checks the Training Tracker for valid certifications on the listed workers. If a cert is missing or expired, the permit is flagged before sign-off. Upload existing certs first so the automatic check actually works from day one.",
+    unlocks: [
+      "Permit system validates worker certs at sign-off",
+      "Expiry alerts before certs lapse",
+      "Training compliance matrix for audits and management review",
+      "OSHA audit-ready certification records for every worker",
+    ],
+    timeEstimate: "~10 min",
+    ctaLabel: "Open Training Tracker",
+    ctaHref: "/safe-predict/training-tracker",
+    newTab: true,
+  },
+  {
+    id: "incident_awareness",
+    icon: AlertTriangle,
+    title: "Know how to report an incident",
+    tracked: false,
+    description:
+      "This is the one workflow you need to know before you need it — because when an incident happens, you won't have time to learn the system. Log incidents the same day (within 24 hours while details are fresh), classify the injury, and assign corrective actions. The system auto-evaluates OSHA 300 recordability and immediately alerts you if the incident requires an 8-hour OSHA notification.",
+    what: [
+      "Go to Incidents → Log New Incident: enter date, time, your jobsite, and a plain-English description of what happened",
+      "Classify the event: injury type and body part, near-miss, property damage, or first-aid-only (no lost time)",
+      "OSHA recordability check — the system evaluates 29 CFR 1904 criteria and tells you whether it belongs on the OSHA 300 log",
+      "Assign corrective actions directly from the incident record — links the fix to the root cause automatically",
+      "For fatalities or in-patient hospitalizations: OSHA requires notification within 8 hours — the system flags this immediately with the correct reporting phone number",
+    ],
+    tip: "Log near-misses too — not just injuries. Near-misses show you where the hazards are before someone gets hurt. Corrective actions generated from near-miss reports are the strongest evidence of a proactive safety program when OSHA visits your site.",
+    unlocks: [
+      "OSHA 300/300A log pre-populated from incident records",
+      "Corrective actions linked directly to root causes",
+      "Incident frequency trends on the Analytics dashboard",
+      "Root Cause Analysis tools available from each incident record",
+    ],
+    timeEstimate: "~5 min to familiarize",
+    ctaLabel: "Open Incidents",
+    ctaHref: "/safe-predict/incidents",
     newTab: true,
   },
   {
@@ -668,39 +725,76 @@ export function GetStartedWizard() {
           </button>
         </div>
 
-        {/* All complete banner */}
+        {/* All complete banner — first-week action plan */}
         {allComplete && (
-          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-6 space-y-5">
+          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-6 space-y-6">
             <div className="text-center space-y-2">
               <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" aria-hidden />
-              <p className="text-lg font-black text-emerald-800">Your workspace is ready!</p>
-              <p className="text-sm text-emerald-700">
-                All 5 steps complete. Here&apos;s what to do on your first day:
+              <p className="text-lg font-black text-emerald-800">Core setup complete — workspace is live!</p>
+              <p className="text-sm text-emerald-700 max-w-md mx-auto">
+                Your account is ready to use. Here&apos;s a structured first-week plan to get
+                your team fully operational.
               </p>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <a
-                href="/safe-predict/jsa"
-                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
-              >
-                <ClipboardCheck className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                Create a second JSA
-              </a>
-              <a
-                href="/safe-predict/onboarding-import?tab=employees"
-                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
-              >
-                <Users className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                Invite your site supervisor
-              </a>
-              <a
-                href="/safe-predict/documents"
-                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
-              >
-                <FileText className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                Browse all document types
-              </a>
+
+            {/* Day 1 */}
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">1</span>
+                Day 1 — Get your crew started
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <a href="/safe-predict/toolbox-talks" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <BookOpen className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Run a Toolbox Talk</span>Pick a topic from the library and present it at pre-shift</span>
+                </a>
+                <a href="/safe-predict/permits" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Issue your first work permit</span>Authorize any active hot work, confined space, or LOTO</span>
+                </a>
+              </div>
             </div>
+
+            {/* Days 2–3 */}
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">2</span>
+                Days 2–3 — Build the habit
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <a href="/safe-predict/observations" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Log your first observation</span>Walk the site and note any unsafe condition or near-miss</span>
+                </a>
+                <a href="/safe-predict/inspections" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <ClipboardCheck className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Run a Jobsite Audit</span>Walk through the inspection checklist for your active site</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Week 1 */}
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-black">3</span>
+                Week 1 — Close the loop
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <a href="/safe-predict/training-tracker" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <GraduationCap className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Check expiring certs</span>Training Matrix — flag anyone expiring this month</span>
+                </a>
+                <a href="/safe-predict/corrective-actions" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <ShieldAlert className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Review open CAs</span>Assign due dates and owners to any open corrective actions</span>
+                </a>
+                <a href="/safe-predict/analytics" className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-emerald-50 transition">
+                  <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span><span className="block font-bold text-slate-900">Review your metrics</span>Check the Analytics dashboard for early trend signals</span>
+                </a>
+              </div>
+            </div>
+
             <div className="pt-1 text-center">
               <button
                 type="button"
