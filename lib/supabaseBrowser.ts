@@ -138,14 +138,21 @@ export function getSupabaseBrowserClient() {
     return browserClient;
   }
 
-  // Try NEXT_PUBLIC_ prefix first (browser bundle), then unprefixed (build-time
-  // availability via Turbopack when both names are set in Vercel env vars).
+  // Priority: NEXT_PUBLIC_ build-time vars → unprefixed Turbopack vars →
+  // window.__sbcfg__ injected by the server layout at runtime.
+  type SbCfg = { u?: string; k?: string };
+  const sbCfg: SbCfg =
+    typeof window !== "undefined"
+      ? ((window as unknown as { __sbcfg__?: SbCfg }).__sbcfg__ ?? {})
+      : {};
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL;
+    process.env.SUPABASE_URL ||
+    sbCfg.u;
   const supabaseAnonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+    process.env.SUPABASE_ANON_KEY ||
+    sbCfg.k;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     // During SSR prerendering: return silent stub (event handlers don't fire).

@@ -35,6 +35,17 @@ export const metadata: Metadata = {
 const tableDensityStorageKey = "safepredict:tableDensity";
 const legacyTableDensityStorageKey = "safety360:tableDensity";
 
+// Read Supabase config server-side (available in Vercel runtime env even
+// without the NEXT_PUBLIC_ prefix) and embed it for the browser client.
+const sbUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  "";
+const sbAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  "";
+
 export default function RootLayout({
   children,
 }: {
@@ -43,6 +54,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`}>
       <body>
+        {/* Inject Supabase config before any client JS runs so the browser
+            Supabase client can initialise without NEXT_PUBLIC_ build-time vars. */}
+        <Script
+          id="sb-cfg"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.__sbcfg__=${JSON.stringify({ u: sbUrl, k: sbAnonKey })};`,
+          }}
+        />
         {/* Sync table density before React so `useTableDensity` + first paint align with localStorage */}
         <Script
           id="table-density-init"
