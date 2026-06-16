@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
   AlertTriangle,
+  BarChart3,
   BookOpen,
   Building2,
   CalendarCheck,
@@ -11,18 +12,25 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Eye,
   ExternalLink,
   FileCheck2,
   FileText,
+  GitBranch,
   GraduationCap,
   HardHat,
   LayoutDashboard,
+  LayoutGrid,
   Lightbulb,
+  Mail,
   MapPin,
   RefreshCw,
+  Search,
+  Settings,
   ShieldAlert,
   Sparkles,
   TrendingUp,
+  Upload,
   Users,
   Zap,
 } from "lucide-react";
@@ -54,6 +62,8 @@ const emptyAdoptionData = (): AdoptionData => ({
   onboardingState: emptyOnboardingState(),
 });
 
+type QuickLink = { label: string; href: string; icon: React.ElementType };
+
 type WizardStep = {
   id:
     | "company_profile"
@@ -73,6 +83,7 @@ type WizardStep = {
   tip: string;
   unlocks: string[];
   timeEstimate: string;
+  quickLinks: QuickLink[];
   ctaLabel: string;
   ctaHref: string;
   newTab: boolean;
@@ -98,6 +109,12 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "The industry you pick here trains the AI hazard engine. 'Electrical Contractor' will suggest arc flash controls and LOTO procedures, while 'General Construction' gives broader suggestions. You can change it at any time.",
     unlocks: ["AI hazard suggestions tuned to your trade", "Branded PDFs & reports with your logo", "Industry-specific compliance references", "Emergency contact auto-fills on every permit"],
     timeEstimate: "~3 min",
+    quickLinks: [
+      { label: "Company Profile", href: "/safe-predict/company-profile", icon: Building2 },
+      { label: "Workspace Settings", href: "/safe-predict/settings", icon: Settings },
+      { label: "Apps & Integrations", href: "/safe-predict/apps-integrations", icon: LayoutGrid },
+      { label: "Your User Profile", href: "/safe-predict/profile", icon: Users },
+    ],
     ctaLabel: "Open Company Profile",
     ctaHref: "/safe-predict/company-profile",
     newTab: true,
@@ -118,6 +135,13 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Start with 2-3 safety managers first — they need daily access. Your full crew roster (50, 200, 500 workers) can be imported later without affecting your seat count. Workers only need a seat if they'll log in themselves.",
     unlocks: ["Assign training & certifications to any worker", "Track site access and induction status", "Named workers appear on JSA sign-off sheets", "Permit approver drop-down pulls from this list"],
     timeEstimate: "~5 min",
+    quickLinks: [
+      { label: "Import CSV / Excel", href: "/safe-predict/onboarding-import?tab=employees", icon: Upload },
+      { label: "Invite by Email", href: "/safe-predict/team-access", icon: Mail },
+      { label: "Manage User Roles", href: "/safe-predict/team-access", icon: Settings },
+      { label: "Workforce Dashboard", href: "/safe-predict/workforce", icon: Users },
+      { label: "Add Contractors", href: "/safe-predict/contractors", icon: HardHat },
+    ],
     ctaLabel: "Open Team Setup",
     ctaHref: "/safe-predict/onboarding-import?tab=employees",
     newTab: true,
@@ -139,6 +163,12 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Even a rough address works to start. The system pulls daily weather data by location to flag heat stress, lightning, high-wind, and freeze days as risk factors on the dashboard. Refine the address later if needed.",
     unlocks: ["Site-specific risk score on the dashboard", "Weather-aware daily risk alerts", "Permits and JSAs anchored to a named location", "Site-level safety reports for management review"],
     timeEstimate: "~2 min",
+    quickLinks: [
+      { label: "All Jobsites", href: "/safe-predict/jobsites", icon: MapPin },
+      { label: "Jobsite Audits & Inspections", href: "/safe-predict/inspections", icon: Search },
+      { label: "Add Contractors to Site", href: "/safe-predict/contractors", icon: HardHat },
+      { label: "Predictive Risk by Site", href: "/safe-predict/predictive-risk", icon: BarChart3 },
+    ],
     ctaLabel: "Add First Jobsite",
     ctaHref: "/safe-predict/jobsites?new=1",
     newTab: true,
@@ -161,6 +191,12 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Info entered here auto-populates the Emergency Response section on hot work, confined space, and excavation permit templates — you won't re-enter it on every permit. It also appears on the printed JSA cover page.",
     unlocks: ["OSHA 29 CFR 1910.38 compliance documentation", "Emergency info pre-fills on all permit types", "Workers access the EAP on their phone anytime", "EAP included in management review reports"],
     timeEstimate: "~5 min",
+    quickLinks: [
+      { label: "Emergency Action Plan", href: "/safe-predict/emergency-action-plan", icon: ShieldAlert },
+      { label: "Hazards Library", href: "/safe-predict/hazards", icon: AlertTriangle },
+      { label: "Safety Forms Builder", href: "/safe-predict/safety-forms", icon: FileText },
+      { label: "CSEP (Site Safety Plan)", href: "/safe-predict/csep", icon: ClipboardCheck },
+    ],
     ctaLabel: "Open Emergency Action Plan",
     ctaHref: "/safe-predict/emergency-action-plan",
     newTab: true,
@@ -182,6 +218,13 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Click 'AI Fill' on any work step and type a plain-English task description. AI will write the hazard, severity rating, mitigation control, and required PPE automatically. Edit to match your specific site conditions, then save. A 10-step JSA takes about 3 minutes with AI Fill.",
     unlocks: ["PDF export with your company logo and branding", "Worker sign-off and digital acknowledgment tracking", "JSA risk score factored into site dashboard", "Permit system links back to the relevant JSA"],
     timeEstimate: "~5 min",
+    quickLinks: [
+      { label: "All Documents", href: "/safe-predict/documents", icon: FileText },
+      { label: "Safety Forms Builder", href: "/safe-predict/safety-forms", icon: ClipboardCheck },
+      { label: "Hazards Library", href: "/safe-predict/hazards", icon: AlertTriangle },
+      { label: "CSEP / Site Safety Plan", href: "/safe-predict/csep", icon: ShieldAlert },
+      { label: "PESHEP Documents", href: "/safe-predict/peshep", icon: FileCheck2 },
+    ],
     ctaLabel: "Open JSA Builder",
     ctaHref: "/safe-predict/jsa",
     newTab: true,
@@ -203,6 +246,12 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Start with the permit type your site uses most. Hot work is the most common in construction and manufacturing. Once you create one, it becomes a reusable template for that work type — future permits take under 2 minutes to issue.",
     unlocks: ["OSHA permit-required confined space & hot work compliance", "Permit linked directly to your JSA hazard controls", "Digital sign-off replaces paper forms", "Permit history searchable for any audit or inspection"],
     timeEstimate: "~3 min",
+    quickLinks: [
+      { label: "All Permits", href: "/safe-predict/permits", icon: FileCheck2 },
+      { label: "Corrective Actions", href: "/safe-predict/corrective-actions", icon: ClipboardCheck },
+      { label: "Risk Mitigation", href: "/safe-predict/risk-mitigation", icon: ShieldAlert },
+      { label: "Hazards Library", href: "/safe-predict/hazards", icon: AlertTriangle },
+    ],
     ctaLabel: "Open Permits",
     ctaHref: "/safe-predict/permits",
     newTab: true,
@@ -224,6 +273,12 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "OSHA inspectors frequently ask for safety meeting records during site visits. Every toolbox talk in Safety360 is timestamped, signed, and searchable — no more chasing paper sign-in sheets. Run one today even if it's just with your supervisor.",
     unlocks: ["OSHA-ready timestamped attendance records", "50+ pre-written topic library with new topics added monthly", "AI-suggested topics based on your site's current hazard profile", "Monthly safety meeting history in management review reports"],
     timeEstimate: "~5 min",
+    quickLinks: [
+      { label: "Toolbox Talks Library", href: "/safe-predict/toolbox-talks", icon: BookOpen },
+      { label: "Induction Programs", href: "/safe-predict/inductions", icon: GraduationCap },
+      { label: "Safety Forms", href: "/safe-predict/safety-forms", icon: ClipboardCheck },
+      { label: "PESHEP Documents", href: "/safe-predict/peshep", icon: FileText },
+    ],
     ctaLabel: "Open Toolbox Talks",
     ctaHref: "/safe-predict/toolbox-talks",
     newTab: true,
@@ -250,6 +305,12 @@ const WIZARD_STEPS: WizardStep[] = [
       "OSHA audit-ready certification records for every worker",
     ],
     timeEstimate: "~10 min",
+    quickLinks: [
+      { label: "Training Matrix", href: "/safe-predict/training-tracker", icon: GraduationCap },
+      { label: "Assign Training Courses", href: "/safe-predict/training", icon: BookOpen },
+      { label: "Induction Programs", href: "/safe-predict/inductions", icon: ClipboardCheck },
+      { label: "Workforce Overview", href: "/safe-predict/workforce", icon: Users },
+    ],
     ctaLabel: "Open Training Tracker",
     ctaHref: "/safe-predict/training-tracker",
     newTab: true,
@@ -276,6 +337,14 @@ const WIZARD_STEPS: WizardStep[] = [
       "Root Cause Analysis tools available from each incident record",
     ],
     timeEstimate: "~5 min to familiarize",
+    quickLinks: [
+      { label: "Log New Incident", href: "/safe-predict/incidents", icon: AlertTriangle },
+      { label: "OSHA 300 Log", href: "/safe-predict/osha-300", icon: FileText },
+      { label: "Corrective Actions", href: "/safe-predict/corrective-actions", icon: ClipboardCheck },
+      { label: "Root Cause Analysis", href: "/safe-predict/rca", icon: GitBranch },
+      { label: "Observations", href: "/safe-predict/observations", icon: Eye },
+      { label: "Lessons Learned", href: "/safe-predict/lessons-learned", icon: Lightbulb },
+    ],
     ctaLabel: "Open Incidents",
     ctaHref: "/safe-predict/incidents",
     newTab: true,
@@ -297,6 +366,14 @@ const WIZARD_STEPS: WizardStep[] = [
     tip: "Bookmark the Command Center and make it your browser homepage for work. The GUS bot in the bottom-right corner can answer OSHA questions, explain regulations, and help you write corrective actions — just type your question in plain English.",
     unlocks: ["Live risk overview across all your jobsites", "One-click access to every open action and permit", "AI-powered daily safety recommendations", "Team activity and compliance status at a glance"],
     timeEstimate: "< 1 min",
+    quickLinks: [
+      { label: "Predictive Risk", href: "/safe-predict/predictive-risk", icon: BarChart3 },
+      { label: "Leading Indicators", href: "/safe-predict/leading-indicators", icon: TrendingUp },
+      { label: "Analytics Dashboard", href: "/safe-predict/analytics", icon: BarChart3 },
+      { label: "Management Review", href: "/safe-predict/management-review", icon: FileText },
+      { label: "Lessons Learned", href: "/safe-predict/lessons-learned", icon: Lightbulb },
+      { label: "GUS Coaching", href: "/safe-predict/gus-coaching", icon: Lightbulb },
+    ],
     ctaLabel: "Open Command Center",
     ctaHref: "/safe-predict",
     newTab: false,
@@ -616,6 +693,33 @@ export function GetStartedWizard() {
                 ))}
               </div>
             </div>
+
+            {/* Quick links */}
+            {step.quickLinks.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)] flex items-center gap-1.5">
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  Jump directly to
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {step.quickLinks.map((ql) => {
+                    const QlIcon = ql.icon;
+                    return (
+                      <a
+                        key={ql.href + ql.label}
+                        href={ql.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--app-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--app-text)] transition hover:border-[var(--app-accent-primary)] hover:text-[var(--app-accent-primary)] hover:bg-[var(--app-accent-primary-soft,#eff6ff)]"
+                      >
+                        <QlIcon className="h-3 w-3 shrink-0" aria-hidden />
+                        {ql.label}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Status + CTA */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
