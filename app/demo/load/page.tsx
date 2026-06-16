@@ -12,9 +12,8 @@ import {
 } from "@/components/WorkspacePrimitives";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-const supabase = getSupabaseBrowserClient();
-
 async function accessToken() {
+  const supabase = getSupabaseBrowserClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
