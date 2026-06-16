@@ -57,8 +57,6 @@ function isMissingSafetyIntelligenceSchemaError(error: unknown) {
   if (!message) return false;
 
   const schemaTokens = [
-    "company_bucket_runs",
-    "company_bucket_items",
     "company_ai_reviews",
     "company_generated_documents",
     "company_conflict_pairs",
@@ -138,8 +136,6 @@ function isRecoverableSafetyPlanPipelineError(error: unknown) {
   ];
 
   const pipelineTokens = [
-    "company_bucket_runs",
-    "company_bucket_items",
     "company_conflict_pairs",
     "company_ai_reviews",
     "company_generated_documents",

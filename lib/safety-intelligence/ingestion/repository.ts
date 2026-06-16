@@ -111,7 +111,7 @@ export async function insertSafetyDataBucket(
   };
 
   // Write directly to the AI knowledge gateway for new ingestion
-  void supabase.from("ai_knowledge_ingest_candidates").insert({
+  supabase.from("ai_knowledge_ingest_candidates").insert({
     company_id: record.companyId,
     jobsite_id: record.jobsiteId ?? null,
     source_table: "ingestion",
@@ -137,6 +137,8 @@ export async function insertSafetyDataBucket(
       sourceRecordId: record.sourceRecordId ?? null,
     },
     created_by: params.actorUserId ?? null,
+  }).then(({ error }) => {
+    if (error) console.warn("ai_knowledge_ingest_candidates insert failed:", error.message);
   });
 
   // Legacy write — graceful while table is being phased out
