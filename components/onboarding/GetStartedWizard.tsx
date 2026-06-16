@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 import {
+  BookOpen,
   Building2,
   CalendarCheck,
   CheckCircle2,
@@ -11,12 +11,14 @@ import {
   ChevronRight,
   ClipboardCheck,
   ExternalLink,
+  FileCheck2,
   FileText,
   HardHat,
   LayoutDashboard,
   Lightbulb,
   MapPin,
   RefreshCw,
+  ShieldAlert,
   Sparkles,
   Users,
   Zap,
@@ -50,7 +52,15 @@ const emptyAdoptionData = (): AdoptionData => ({
 });
 
 type WizardStep = {
-  id: "company_profile" | "team_invites" | "first_jobsite" | "first_document" | "command_center";
+  id:
+    | "company_profile"
+    | "team_invites"
+    | "first_jobsite"
+    | "emergency_action_plan"
+    | "first_document"
+    | "first_permit"
+    | "first_toolbox_talk"
+    | "command_center";
   icon: React.ElementType;
   title: string;
   description: string;
@@ -61,6 +71,8 @@ type WizardStep = {
   ctaLabel: string;
   ctaHref: string;
   newTab: boolean;
+  /** true = completion auto-detected from workspace data; false = guided tour step, no check needed */
+  tracked: boolean;
 };
 
 const WIZARD_STEPS: WizardStep[] = [
@@ -68,16 +80,19 @@ const WIZARD_STEPS: WizardStep[] = [
     id: "company_profile",
     icon: Building2,
     title: "Set up your company profile",
+    tracked: true,
     description:
-      "Your company name, industry, and contact details power the whole workspace. They appear on safety documents, reports, and help the AI understand your industry context.",
+      "Your company name, industry, and contact details power every corner of the workspace — safety documents, AI suggestions, branded reports, and regulatory compliance logs all pull from this record.",
     what: [
-      "Legal company name",
-      "Industry type (construction, oil & gas, utilities, etc.)",
-      "Phone number and address",
+      "Legal company name and primary business address",
+      "Industry type — pick the most specific option (e.g. 'Electrical Contractor' not just 'Construction')",
+      "Office phone number and primary safety contact email",
+      "Company logo (appears on all PDF exports and worker-facing documents)",
+      "Emergency contact name and direct phone number",
     ],
-    tip: "Pick the most specific industry available — 'Electrical Contractor' trains the AI better than just 'Construction'. It affects every hazard suggestion and JSA template you generate.",
-    unlocks: ["AI-tailored hazard suggestions", "Branded PDFs & reports", "Industry compliance checks"],
-    timeEstimate: "~2 min",
+    tip: "The industry you pick here trains the AI hazard engine. 'Electrical Contractor' will suggest arc flash controls and LOTO procedures, while 'General Construction' gives broader suggestions. You can change it at any time.",
+    unlocks: ["AI hazard suggestions tuned to your trade", "Branded PDFs & reports with your logo", "Industry-specific compliance references", "Emergency contact auto-fills on every permit"],
+    timeEstimate: "~3 min",
     ctaLabel: "Open Company Profile",
     ctaHref: "/safe-predict/company-profile",
     newTab: true,
@@ -86,17 +101,19 @@ const WIZARD_STEPS: WizardStep[] = [
     id: "team_invites",
     icon: Users,
     title: "Add your team roster",
+    tracked: true,
     description:
-      "Import your employee list so safety managers can assign training, certifications, and site access. Employees on the roster don't need paid login seats — only users who log in daily do.",
+      "There are two types of people in Safety360: logged-in users (safety managers, supervisors) who get a workspace seat, and tracked employees (your full crew) who appear on rosters, training records, and permits but don't need a login.",
     what: [
-      "Employee names, roles, and trade info (CSV or Excel)",
-      "OR type an email address to invite a teammate directly",
-      "You can upload the full roster or start with just a few",
+      "Invite safety managers and supervisors by email — they get full workspace access",
+      "Assign roles: Admin (can edit all data), Member (day-to-day use), Viewer (read-only for executives)",
+      "Bulk-import your full crew from a CSV/Excel file (name, trade, hire date, certifications)",
+      "Add subcontractors separately under the Contractors section once your own crew is in",
     ],
-    tip: "Start with your safety managers and site supervisors first — they're the ones who assign training, sign permits, and need daily access. You can bulk-import the rest of the crew later.",
-    unlocks: ["Assign training & certifications", "Track site access by worker", "Send sign-off requests"],
-    timeEstimate: "~3 min",
-    ctaLabel: "Open Data Import",
+    tip: "Start with 2-3 safety managers first — they need daily access. Your full crew roster (50, 200, 500 workers) can be imported later without affecting your seat count. Workers only need a seat if they'll log in themselves.",
+    unlocks: ["Assign training & certifications to any worker", "Track site access and induction status", "Named workers appear on JSA sign-off sheets", "Permit approver drop-down pulls from this list"],
+    timeEstimate: "~5 min",
+    ctaLabel: "Open Team Setup",
     ctaHref: "/safe-predict/onboarding-import?tab=employees",
     newTab: true,
   },
@@ -104,51 +121,124 @@ const WIZARD_STEPS: WizardStep[] = [
     id: "first_jobsite",
     icon: MapPin,
     title: "Add your first jobsite",
+    tracked: true,
     description:
-      "Every JSA, incident, permit, and risk score is anchored to a jobsite. Add your most active project or location first — you can add more any time.",
+      "Jobsites are the anchor point for everything operational — every JSA, permit, incident, inspection, and risk score is tied to a site. Add your most active location first; you can add the rest of your portfolio any time.",
     what: [
-      "Site name or project number",
-      "Site address or location description",
-      "Type of work being performed",
+      "Site name or project number (e.g. 'Bayview Tower — Phase 2')",
+      "Full site address — used for weather-based risk scoring and permit location auto-fill",
+      "Primary work scope (excavation, structural steel, electrical, etc.)",
+      "Designated site safety officer — their name appears on permits and inspection reports",
+      "Expected project start and end dates (used for risk forecasting timeline)",
     ],
-    tip: "Even an approximate address helps — it's used to pull live weather data for risk scoring and to auto-populate permit forms. You can refine it later.",
-    unlocks: ["Risk scores per site", "Site-specific safety reports", "Weather-aware risk alerts"],
-    timeEstimate: "~1 min",
-    ctaLabel: "Open Jobsites",
+    tip: "Even a rough address works to start. The system pulls daily weather data by location to flag heat stress, lightning, high-wind, and freeze days as risk factors on the dashboard. Refine the address later if needed.",
+    unlocks: ["Site-specific risk score on the dashboard", "Weather-aware daily risk alerts", "Permits and JSAs anchored to a named location", "Site-level safety reports for management review"],
+    timeEstimate: "~2 min",
+    ctaLabel: "Add First Jobsite",
     ctaHref: "/safe-predict/jobsites?new=1",
+    newTab: true,
+  },
+  {
+    id: "emergency_action_plan",
+    icon: ShieldAlert,
+    title: "Build your Emergency Action Plan",
+    tracked: false,
+    description:
+      "OSHA 29 CFR 1910.38 requires every employer to have a written Emergency Action Plan that is accessible to all employees. In Safety360 it lives on the site record — every worker can pull it up on their phone at any time, even offline.",
+    what: [
+      "Emergency coordinator: name, title, and direct mobile number",
+      "Primary and secondary evacuation routes for the site",
+      "Assembly area / muster point — exact location workers go after evacuation",
+      "Emergency services contacts: local fire, EMS, nearest trauma hospital, poison control",
+      "Procedures for employees with mobility limitations or special needs (if applicable)",
+      "Utility shutoff locations: gas, electric, water main valves",
+    ],
+    tip: "Info entered here auto-populates the Emergency Response section on hot work, confined space, and excavation permit templates — you won't re-enter it on every permit. It also appears on the printed JSA cover page.",
+    unlocks: ["OSHA 29 CFR 1910.38 compliance documentation", "Emergency info pre-fills on all permit types", "Workers access the EAP on their phone anytime", "EAP included in management review reports"],
+    timeEstimate: "~5 min",
+    ctaLabel: "Open Emergency Action Plan",
+    ctaHref: "/safe-predict/emergency-action-plan",
     newTab: true,
   },
   {
     id: "first_document",
     icon: ClipboardCheck,
     title: "Create your first Job Safety Analysis",
+    tracked: true,
     description:
-      "A JSA breaks work into steps, identifies hazards, and documents controls before work begins. Use the AI Fill button on any step — just type the task name and AI suggests the hazard, mitigation, and permit requirements.",
+      "A JSA breaks any job into individual work steps, identifies the hazard at each step, documents the control measure, and specifies who is responsible. It's the core field document for pre-task safety planning — and the AI can write a first draft from just a task name.",
     what: [
-      "Job or task name (e.g. \"Trenching\" or \"Overhead welding\")",
-      "Select the jobsite this JSA applies to",
-      "Add one work step to get started — you can add more as you go",
+      "Job or task name (e.g. 'Overhead welding' or 'Excavation 6ft+')",
+      "Select the jobsite this JSA covers",
+      "Add at least one work step — click AI Fill, type the step description, and let AI suggest the hazard, mitigation, and required controls",
+      "Assign the responsible person or crew for this task",
+      "Set a review date — the system will remind you when it expires",
     ],
-    tip: "Try the AI Fill button on your first work step — type something like 'Welding overhead' and AI will write the hazard, mitigation, and required controls automatically. Edit to fit your site, then save.",
-    unlocks: ["PDF export with your logo", "Worker sign-off tracking", "JSA risk score"],
-    timeEstimate: "~3 min",
+    tip: "Click 'AI Fill' on any work step and type a plain-English task description. AI will write the hazard, severity rating, mitigation control, and required PPE automatically. Edit to match your specific site conditions, then save. A 10-step JSA takes about 3 minutes with AI Fill.",
+    unlocks: ["PDF export with your company logo and branding", "Worker sign-off and digital acknowledgment tracking", "JSA risk score factored into site dashboard", "Permit system links back to the relevant JSA"],
+    timeEstimate: "~5 min",
     ctaLabel: "Open JSA Builder",
     ctaHref: "/safe-predict/jsa",
+    newTab: true,
+  },
+  {
+    id: "first_permit",
+    icon: FileCheck2,
+    title: "Set up your first work permit",
+    tracked: false,
+    description:
+      "Permits are required by OSHA for high-risk work — hot work, confined space entry, energized electrical, and excavation over 5 ft. The permit system gates work until an authorized person reviews and signs off, creating a complete authorization trail.",
+    what: [
+      "Permit type: hot work, confined space, electrical isolation (LOTO), excavation, or working at heights",
+      "Work location — links to the jobsite you already created",
+      "Authorized approver: the person who signs off before work begins (usually the safety officer)",
+      "Work start time and expected end time",
+      "Hazard controls in place — the system pulls suggested controls from your matching JSA",
+    ],
+    tip: "Start with the permit type your site uses most. Hot work is the most common in construction and manufacturing. Once you create one, it becomes a reusable template for that work type — future permits take under 2 minutes to issue.",
+    unlocks: ["OSHA permit-required confined space & hot work compliance", "Permit linked directly to your JSA hazard controls", "Digital sign-off replaces paper forms", "Permit history searchable for any audit or inspection"],
+    timeEstimate: "~3 min",
+    ctaLabel: "Open Permits",
+    ctaHref: "/safe-predict/permits",
+    newTab: true,
+  },
+  {
+    id: "first_toolbox_talk",
+    icon: BookOpen,
+    title: "Run your first Toolbox Talk",
+    tracked: false,
+    description:
+      "Toolbox Talks are short 5-10 minute pre-shift safety meetings. Safety360 has a library of 50+ pre-written topics. Pick one, present it to your crew, and the system generates a digital attendance sheet — workers sign on their phone or you print it. Every talk is timestamped and stored.",
+    what: [
+      "Pick a topic from the library: fall protection, PPE, heat stress, electrical safety, trenching, crane & rigging, and more",
+      "Select the date and add attending team members from your roster",
+      "Present the talk at your next pre-shift meeting (5-10 min is all you need)",
+      "Workers sign the attendance sheet digitally on their phone — or print and scan it",
+      "The completed record is stored automatically and searchable by date, topic, or attendee",
+    ],
+    tip: "OSHA inspectors frequently ask for safety meeting records during site visits. Every toolbox talk in Safety360 is timestamped, signed, and searchable — no more chasing paper sign-in sheets. Run one today even if it's just with your supervisor.",
+    unlocks: ["OSHA-ready timestamped attendance records", "50+ pre-written topic library with new topics added monthly", "AI-suggested topics based on your site's current hazard profile", "Monthly safety meeting history in management review reports"],
+    timeEstimate: "~5 min",
+    ctaLabel: "Open Toolbox Talks",
+    ctaHref: "/safe-predict/toolbox-talks",
     newTab: true,
   },
   {
     id: "command_center",
     icon: LayoutDashboard,
     title: "Your Command Center is ready",
+    tracked: true,
     description:
-      "The Command Center is your daily operating hub. It shows risk indicators, open corrective actions, permit status, and team activity — everything you need to start the day. Bookmark it.",
+      "The Command Center is your daily operating hub. It shows live risk indicators for every active jobsite, open corrective actions, permit status, upcoming safety events, and team activity — everything you need to run the day's safety operations at a glance.",
     what: [
-      "Daily risk dashboard for all active jobsites",
-      "Open actions, permits, and JSAs at a glance",
-      "Team activity and upcoming safety events",
+      "Daily risk dashboard: site risk score, weather flags, and trending indicators",
+      "Open actions and overdue items — with one-click assignment and status updates",
+      "Active permits and JSAs awaiting sign-off",
+      "Team activity feed: who signed what, recent incidents, and training completions",
+      "GUS Smart Safety Bot (bottom-right): ask it any safety question, look up a regulation, or draft a corrective action",
     ],
-    tip: "Bookmark this page and make it your daily starting point. The GUS Smart Safety Bot (bottom-right corner) can answer safety questions, look up regulations, and help you draft corrective actions — just ask it.",
-    unlocks: ["Real-time risk overview", "One-click action tracking", "Team safety feed"],
+    tip: "Bookmark the Command Center and make it your browser homepage for work. The GUS bot in the bottom-right corner can answer OSHA questions, explain regulations, and help you write corrective actions — just type your question in plain English.",
+    unlocks: ["Live risk overview across all your jobsites", "One-click access to every open action and permit", "AI-powered daily safety recommendations", "Team activity and compliance status at a glance"],
     timeEstimate: "< 1 min",
     ctaLabel: "Open Command Center",
     ctaHref: "/safe-predict",
@@ -313,7 +403,7 @@ export function GetStartedWizard() {
   const allComplete =
     checklist.completedCount === checklist.totalCount && checklist.totalCount > 0;
   const step = WIZARD_STEPS[currentStep];
-  const isComplete = completionMap[step.id] ?? false;
+  const isComplete = step.tracked && (completionMap[step.id] ?? false);
   const isLastStep = currentStep === WIZARD_STEPS.length - 1;
   const isFirstStep = currentStep === 0;
 
@@ -362,22 +452,25 @@ export function GetStartedWizard() {
         </div>
 
         {/* Step dots */}
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2 flex-wrap">
           {WIZARD_STEPS.map((s, i) => {
-            const done = completionMap[s.id] ?? false;
+            const done = s.tracked && (completionMap[s.id] ?? false);
             const active = i === currentStep;
             return (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => setCurrentStep(i)}
-                aria-label={`Go to step ${i + 1}`}
+                aria-label={`Go to step ${i + 1}: ${s.title}`}
+                title={s.title}
                 className={`flex items-center justify-center rounded-full transition-all ${
                   done
                     ? "h-8 w-8 bg-emerald-500 text-white shadow-sm"
                     : active
                     ? "h-8 w-8 bg-[var(--app-accent-primary)] text-white shadow-sm"
-                    : "h-8 w-8 border-2 border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:border-[var(--app-accent-primary)]"
+                    : s.tracked
+                    ? "h-8 w-8 border-2 border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:border-[var(--app-accent-primary)]"
+                    : "h-8 w-8 border-2 border-dashed border-[var(--app-border)] bg-white text-[var(--app-muted)] hover:border-[var(--app-accent-primary)]"
                 }`}
               >
                 {done ? (
@@ -470,21 +563,28 @@ export function GetStartedWizard() {
             {/* Status + CTA */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                {isComplete ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden />
-                    Step complete — ready to move on
-                  </span>
+                {step.tracked ? (
+                  isComplete ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden />
+                      Step complete — ready to move on
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void load(true)}
+                      disabled={refreshing}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-bg-subtle)] disabled:opacity-50 transition"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+                      {refreshing ? "Checking…" : "Check status"}
+                    </button>
+                  )
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void load(true)}
-                    disabled={refreshing}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-bg-subtle)] disabled:opacity-50 transition"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-                    {refreshing ? "Checking…" : "Check status"}
-                  </button>
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--app-accent-primary-soft,#eff6ff)] border border-[var(--app-accent-primary-soft,#dbeafe)] px-3 py-2 text-sm font-semibold text-[var(--app-accent-primary)]">
+                    <ShieldAlert className="h-4 w-4" aria-hidden />
+                    Guided setup — explore at your own pace
+                  </span>
                 )}
               </div>
 
@@ -510,10 +610,15 @@ export function GetStartedWizard() {
               )}
             </div>
 
-            {!isComplete && step.id !== "command_center" && (
+            {step.tracked && !isComplete && step.id !== "command_center" && (
               <p className="text-[11px] text-[var(--app-muted)] leading-5">
                 The page opens in a new tab so you can come back here when done.
                 Hit <strong>Check status</strong> to update your progress, then click <strong>Next</strong>.
+              </p>
+            )}
+            {!step.tracked && (
+              <p className="text-[11px] text-[var(--app-muted)] leading-5">
+                This page opens in a new tab. Take a few minutes to explore and set it up, then come back and click <strong>Next step</strong> to continue.
               </p>
             )}
           </div>
@@ -556,7 +661,7 @@ export function GetStartedWizard() {
               </>
             ) : (
               <>
-                {isComplete ? "Next step" : "Skip this step"}
+                {isComplete ? "Next step" : !step.tracked ? "Next step" : "Skip this step"}
                 <ChevronRight className="h-4 w-4" aria-hidden />
               </>
             )}
