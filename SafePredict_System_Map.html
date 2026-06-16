@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafePredict — System Map</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0f1c;--surface:#111827;--surface2:#161f33;--surface3:#1a2840;
+  --border:#1e2d45;--border2:#253553;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#475569;--text4:#334155;
+  --green:#10b981;--green-bg:rgba(16,185,129,.1);--green-dim:#0d9968;
+  --yellow:#f59e0b;--yellow-bg:rgba(245,158,11,.1);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.1);
+  --blue:#3b82f6;--blue-bg:rgba(59,130,246,.1);
+  --purple:#8b5cf6;--purple-bg:rgba(139,92,246,.1);
+  --gray:#475569;--gray-bg:rgba(71,85,105,.1);
+  --radius:8px;--radius-sm:5px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a4d6a}
+
+/* ── HEADER ── */
+.hdr{
+  background:linear-gradient(135deg,#111827 0%,#0f1a2e 100%);
+  border-bottom:1px solid var(--border);
+  padding:0 20px;height:52px;
+  display:flex;align-items:center;gap:14px;flex-shrink:0;
+  position:relative;
+}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--border2),transparent)}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,#f59e0b,#dc2626);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(245,158,11,.3)}
+.hdr h1{font-size:14px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.hdr p{font-size:11px;color:var(--text3);margin-top:1px}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.stat-pill{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px}
+.stat-pill b{color:var(--text2)}
+
+/* ── LEGEND ── */
+.legend{display:flex;align-items:center;gap:10px;padding:0 20px;height:34px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.legend-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-right:4px}
+.l-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3)}
+.l-dot{width:7px;height:7px;border-radius:50%}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{
+  padding:0 20px;height:40px;font-size:12px;font-weight:600;
+  color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;display:flex;align-items:center;gap:7px;
+  position:relative;
+}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-count{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:1px 6px;font-size:10px;color:var(--text3)}
+.tab.active .tab-count{background:var(--blue-bg);border-color:rgba(59,130,246,.3);color:var(--blue)}
+
+/* ── LAYOUT ── */
+.workspace{display:flex;height:calc(100vh - 52px - 34px - 40px);overflow:hidden}
+.view-area{flex:1;overflow:auto;position:relative}
+.view{display:none;min-height:100%}
+.view.active{display:block}
+
+/* ── DETAIL PANEL ── */
+.detail{
+  width:0;min-width:0;background:var(--surface);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:width .2s ease,min-width .2s ease;
+}
+.detail.open{width:320px;min-width:320px}
+.d-scroll{overflow-y:auto;height:100%;padding:16px}
+.d-close-btn{
+  position:absolute;top:12px;right:12px;
+  background:var(--surface3);border:1px solid var(--border);
+  color:var(--text3);width:22px;height:22px;border-radius:4px;
+  cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;
+}
+.d-close-btn:hover{background:var(--border2);color:var(--text)}
+.d-header{position:relative;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--border)}
+.d-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.d-name{font-size:16px;font-weight:700;color:var(--text);line-height:1.3}
+.d-zone{font-size:11px;color:var(--text3);margin-top:3px}
+.d-section{margin-bottom:14px}
+.d-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.d-body{font-size:12px;color:var(--text2);line-height:1.65}
+.d-list{list-style:none}
+.d-list li{font-size:12px;color:var(--text2);padding:5px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;line-height:1.5}
+.d-list li:last-child{border:none}
+.d-list li .arrow{color:var(--yellow);flex-shrink:0;font-size:11px;margin-top:1px}
+.etag{background:rgba(125,211,252,.08);border:1px solid rgba(125,211,252,.15);border-radius:3px;padding:2px 6px;font-size:10px;font-family:monospace;color:#7dd3fc;display:inline-block;margin:2px 2px 2px 0}
+.ptag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;margin:2px 2px 2px 0;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+
+/* ══════════════════════════════
+   TAB 1 — ARCHITECTURE
+══════════════════════════════ */
+#view-arch{padding:20px 24px}
+
+.arch-intro{
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 16px;margin-bottom:20px;
+  font-size:11px;color:var(--text3);
+  display:flex;align-items:center;gap:8px;
+}
+
+.swim-lane{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:8px;overflow:hidden;
+}
+.swim-lane-header{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;background:var(--surface3);
+  border-bottom:1px solid var(--border);
+}
+.swim-lane-icon{font-size:14px}
+.swim-lane-title{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.02em}
+.swim-lane-desc{font-size:10px;color:var(--text3);margin-left:auto}
+.swim-lane-body{padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
+
+.flow-sep{
+  display:flex;align-items:center;gap:8px;padding:4px 0;
+  color:var(--text4);font-size:11px;
+}
+.flow-sep::before,.flow-sep::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+
+/* node chips */
+.node{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 11px;border-radius:var(--radius-sm);
+  font-size:11px;font-weight:600;cursor:pointer;
+  transition:all .15s;border:1px solid transparent;
+  background:var(--bg);
+}
+.node:hover{transform:translateY(-1px)}
+.node .nd{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+.node.green{border-color:rgba(16,185,129,.25);color:#6ee7b7}.node.green .nd{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.5)}
+.node.yellow{border-color:rgba(245,158,11,.25);color:#fcd34d}.node.yellow .nd{background:var(--yellow)}
+.node.red{border-color:rgba(239,68,68,.25);color:#fca5a5}.node.red .nd{background:var(--red);animation:pulse 2s infinite}
+.node.blue{border-color:rgba(59,130,246,.25);color:#93c5fd}.node.blue .nd{background:var(--blue)}
+.node.purple{border-color:rgba(139,92,246,.25);color:#c4b5fd}.node.purple .nd{background:var(--purple)}
+.node.gray{border-color:rgba(71,85,105,.25);color:#94a3b8}.node.gray .nd{background:var(--gray)}
+
+.node.green:hover{background:var(--green-bg);border-color:rgba(16,185,129,.45)}
+.node.yellow:hover{background:var(--yellow-bg);border-color:rgba(245,158,11,.45)}
+.node.red:hover{background:var(--red-bg);border-color:rgba(239,68,68,.45)}
+.node.blue:hover{background:var(--blue-bg);border-color:rgba(59,130,246,.45)}
+.node.purple:hover{background:var(--purple-bg);border-color:rgba(139,92,246,.45)}
+.node.gray:hover{background:var(--gray-bg);border-color:rgba(71,85,105,.45)}
+
+/* ══════════════════════════════
+   TAB 2 — MODULES
+══════════════════════════════ */
+#view-modules{padding:20px 24px}
+
+.toolbar{display:flex;align-items:center;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tb-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text4);flex-shrink:0}
+.filter-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text3);padding:5px 12px;border-radius:20px;
+  font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.filter-btn:hover{background:var(--surface3);color:var(--text2)}
+.filter-btn.active{background:var(--blue-bg);border-color:rgba(59,130,246,.35);color:var(--blue)}
+.search-box{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:5px 12px 5px 30px;border-radius:20px;
+  font-size:11px;outline:none;transition:all .15s;
+  margin-left:auto;width:200px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:10px center;
+}
+.search-box::placeholder{color:var(--text4)}
+.search-box:focus{border-color:rgba(59,130,246,.4);background-color:var(--surface3)}
+
+.mod-section{margin-bottom:24px}
+.mod-section-header{
+  display:flex;align-items:center;gap:8px;
+  margin-bottom:10px;padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+}
+.mod-section-icon{font-size:15px}
+.mod-section-title{font-size:12px;font-weight:700;color:var(--text2)}
+.mod-section-count{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:1px 7px;font-size:10px;color:var(--text3)}
+
+.mod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.mod-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 12px;
+  cursor:pointer;transition:all .15s;
+  display:flex;align-items:flex-start;gap:9px;
+  border-left:3px solid var(--border);
+}
+.mod-card:hover{background:var(--surface3);border-color:var(--border2);transform:translateY(-1px)}
+.mod-card .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.mod-name{font-size:12px;font-weight:600;color:var(--text2);line-height:1.3}
+.mod-sub{font-size:10px;color:var(--text3);margin-top:3px;font-family:monospace}
+.mod-card.hidden{display:none}
+
+.mod-card.green{border-left-color:var(--green)}.mod-card.green .dot{background:var(--green)}
+.mod-card.yellow{border-left-color:var(--yellow)}.mod-card.yellow .dot{background:var(--yellow)}
+.mod-card.red{border-left-color:var(--red)}.mod-card.red .dot{background:var(--red)}
+.mod-card.blue{border-left-color:var(--blue)}.mod-card.blue .dot{background:var(--blue)}
+.mod-card.purple{border-left-color:var(--purple)}.mod-card.purple .dot{background:var(--purple)}
+.mod-card.gray{border-left-color:var(--gray)}.mod-card.gray .dot{background:var(--gray)}
+
+/* ══════════════════════════════
+   TAB 3 — ROLES
+══════════════════════════════ */
+#view-roles{padding:20px 24px}
+
+.roles-summary{
+  display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;
+}
+.rs-pill{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:8px 14px;
+  display:flex;align-items:center;gap:8px;
+}
+.rs-pill .rs-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+.rs-pill .rs-count{font-size:18px;font-weight:800;color:var(--text)}
+.rs-pill .rs-bar{width:3px;height:22px;border-radius:2px;flex-shrink:0}
+
+.tier-block{margin-bottom:20px}
+.tier-header{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:10px;padding:8px 14px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);
+}
+.tier-num{
+  width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;flex-shrink:0;
+}
+.tier-title{font-size:12px;font-weight:700;color:var(--text2)}
+.tier-desc{font-size:11px;color:var(--text3);margin-left:auto}
+.role-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
+
+.role-card{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px 14px;
+  cursor:pointer;transition:all .15s;position:relative;overflow:hidden;
+}
+.role-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.role-card:hover{background:var(--surface3);border-color:var(--border2);transform:translateY(-1px)}
+.role-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:monospace}
+.role-desc{font-size:11px;color:var(--text3);line-height:1.5}
+.role-pcount{
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.pcount-label{font-size:10px;color:var(--text4)}
+.pcount-val{font-size:11px;font-weight:700;color:var(--text3)}
+
+.tier-1 .role-card::before{background:var(--red)}
+.tier-2 .role-card::before{background:var(--yellow)}
+.tier-3 .role-card::before{background:var(--blue)}
+.tier-4 .role-card::before{background:var(--green)}
+.tier-5 .role-card::before{background:var(--gray)}
+
+/* ══════════════════════════════
+   TAB 4 — CRON JOBS
+══════════════════════════════ */
+#view-cron{padding:20px 24px}
+
+.cron-header-row{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.cron-stat{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:8px 14px;
+  display:flex;align-items:center;gap:8px;
+}
+.cron-stat-val{font-size:18px;font-weight:800;color:var(--text)}
+.cron-stat-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.cron-stat-dot{width:8px;height:8px;border-radius:50%}
+
+.cron-section{margin-bottom:4px}
+.cron-section-label{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--text4);padding:10px 0 6px;
+  display:flex;align-items:center;gap:8px;
+}
+.cron-section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.cron-item{
+  display:flex;align-items:stretch;margin-bottom:5px;cursor:pointer;
+  border-radius:var(--radius-sm);overflow:hidden;
+  border:1px solid var(--border);transition:all .15s;
+}
+.cron-item:hover{border-color:var(--border2);transform:translateX(2px)}
+
+.cron-time-col{
+  width:68px;min-width:68px;background:var(--surface2);
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:8px 4px;
+  border-right:1px solid var(--border);
+}
+.cron-time-val{font-size:11px;font-weight:700;color:var(--text2);font-family:monospace;text-align:center;line-height:1.3}
+
+.cron-indicator{width:4px;flex-shrink:0}
+.cron-body{flex:1;background:var(--surface2);padding:9px 12px;display:flex;flex-direction:column;gap:3px}
+.cron-name{font-size:12px;font-weight:700;color:var(--text)}
+.cron-desc{font-size:11px;color:var(--text3);line-height:1.4}
+.cron-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.cron-tag{font-size:10px;padding:1px 7px;border-radius:10px;font-weight:600}
+
+.cron-item.st-green .cron-indicator{background:var(--green)}
+.cron-item.st-yellow .cron-indicator{background:var(--yellow)}
+.cron-item.st-gray .cron-indicator{background:var(--gray)}
+
+/* ── ANIMATIONS ── */
+@keyframes pulse{0%,100%{box-shadow:0 0 4px rgba(239,68,68,.4)}50%{box-shadow:0 0 10px rgba(239,68,68,.8)}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo">S</div>
+  <div>
+    <h1>SafePredict — System Map</h1>
+    <p>Full platform architecture • click any element for details</p>
+  </div>
+  <div class="hdr-right">
+    <div class="stat-pill">🧩 <b>60+</b> modules</div>
+    <div class="stat-pill">👥 <b>17</b> roles</div>
+    <div class="stat-pill">⏰ <b>14</b> crons</div>
+    <div class="stat-pill">🔌 <b>9</b> services</div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <span class="legend-label">Status:</span>
+  <div class="l-item"><div class="l-dot" style="background:var(--green)"></div>Wired & Live</div>
+  <div class="l-item"><div class="l-dot" style="background:var(--yellow)"></div>Needs Config</div>
+  <div class="l-item"><div class="l-dot" style="background:var(--red);box-shadow:0 0 5px rgba(239,68,68,.6)"></div>Blocked</div>
+  <div class="l-item"><div class="l-dot" style="background:var(--blue)"></div>Public</div>
+  <div class="l-item"><div class="l-dot" style="background:var(--purple)"></div>Admin Only</div>
+  <div class="l-item"><div class="l-dot" style="background:var(--gray)"></div>Optional</div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" data-tab="arch">🏗️ Architecture <span class="tab-count">12 layers</span></div>
+  <div class="tab" data-tab="modules">📦 Modules <span class="tab-count">60+</span></div>
+  <div class="tab" data-tab="roles">👥 Roles <span class="tab-count">17</span></div>
+  <div class="tab" data-tab="cron">⏰ Cron Jobs <span class="tab-count">14</span></div>
+</div>
+
+<div class="workspace">
+  <div class="view-area">
+
+    <!-- ════ TAB 1: ARCHITECTURE ════ -->
+    <div id="view-arch" class="view active">
+    <div style="padding:20px 24px">
+
+      <div class="arch-intro">
+        ℹ️ &nbsp;Swim lanes represent platform layers — from public entry down to external services. Click any block to see details, status, and required env vars.
+      </div>
+
+      <!-- PUBLIC ENTRY -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🌐</span><span class="swim-lane-title">Public Entry Points</span><span class="swim-lane-desc">No auth required</span></div>
+        <div class="swim-lane-body">
+          <div class="node blue" onclick="showNode('login')"><span class="nd"></span>Login / Auth</div>
+          <div class="node blue" onclick="showNode('signup')"><span class="nd"></span>Company Signup</div>
+          <div class="node blue" onclick="showNode('demo')"><span class="nd"></span>Demo Mode</div>
+          <div class="node blue" onclick="showNode('contractor-intake')"><span class="nd"></span>Contractor Training Intake</div>
+          <div class="node blue" onclick="showNode('safety-submit')"><span class="nd"></span>Safety Submit</div>
+          <div class="node blue" onclick="showNode('marketing')"><span class="nd"></span>Marketing / Landing</div>
+          <div class="node yellow" onclick="showNode('privacy-page')"><span class="nd"></span>Privacy / Terms ⚠️</div>
+        </div>
+      </div>
+
+      <div class="flow-sep">↓ Authenticated App</div>
+
+      <!-- FIELD WORK -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🔨</span><span class="swim-lane-title">Field Work</span><span class="swim-lane-desc">field_user and above</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('jsa')"><span class="nd"></span>JSA</div>
+          <div class="node green" onclick="showNode('permits')"><span class="nd"></span>Permits</div>
+          <div class="node green" onclick="showNode('daps')"><span class="nd"></span>DAPs</div>
+          <div class="node green" onclick="showNode('incidents')"><span class="nd"></span>Incidents</div>
+          <div class="node green" onclick="showNode('observations')"><span class="nd"></span>Observations / CAPA</div>
+          <div class="node green" onclick="showNode('near-miss')"><span class="nd"></span>Near Miss</div>
+          <div class="node green" onclick="showNode('field-audits')"><span class="nd"></span>Field Audits</div>
+          <div class="node green" onclick="showNode('safety-forms')"><span class="nd"></span>Safety Forms</div>
+        </div>
+      </div>
+
+      <!-- JOBSITE HUB -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🏗️</span><span class="swim-lane-title">Jobsite Hub</span><span class="swim-lane-desc">Per-jobsite workspace</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('jobsites')"><span class="nd"></span>Jobsites</div>
+          <div class="node green" onclick="showNode('live-view')"><span class="nd"></span>Live View</div>
+          <div class="node green" onclick="showNode('team')"><span class="nd"></span>Team</div>
+          <div class="node green" onclick="showNode('schedule')"><span class="nd"></span>Schedule</div>
+          <div class="node green" onclick="showNode('chemicals')"><span class="nd"></span>Chemicals / HazCom</div>
+          <div class="node green" onclick="showNode('eap')"><span class="nd"></span>Emergency Action Plan</div>
+          <div class="node green" onclick="showNode('toolbox')"><span class="nd"></span>Toolbox Talks</div>
+          <div class="node green" onclick="showNode('inductions')"><span class="nd"></span>Inductions</div>
+          <div class="node green" onclick="showNode('site-visual')"><span class="nd"></span>Site Visual</div>
+        </div>
+      </div>
+
+      <!-- TRAINING -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">📋</span><span class="swim-lane-title">Training & Compliance</span><span class="swim-lane-desc">safety_manager and above</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('training')"><span class="nd"></span>Training Tracker</div>
+          <div class="node green" onclick="showNode('osha-300')"><span class="nd"></span>OSHA 300 Log</div>
+          <div class="node green" onclick="showNode('csep')"><span class="nd"></span>CSEP</div>
+          <div class="node green" onclick="showNode('peshep')"><span class="nd"></span>PESHEP</div>
+          <div class="node green" onclick="showNode('sor')"><span class="nd"></span>SOR Records</div>
+          <div class="node green" onclick="showNode('jurisdiction')"><span class="nd"></span>Jurisdiction Standards</div>
+        </div>
+      </div>
+
+      <!-- DOCUMENTS -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">📁</span><span class="swim-lane-title">Documents & Library</span><span class="swim-lane-desc">employee and above</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('library')"><span class="nd"></span>Library / Marketplace</div>
+          <div class="node green" onclick="showNode('documents')"><span class="nd"></span>Documents</div>
+          <div class="node green" onclick="showNode('reports')"><span class="nd"></span>Reports</div>
+          <div class="node green" onclick="showNode('my-submissions')"><span class="nd"></span>My Submissions</div>
+          <div class="node green" onclick="showNode('field-id-exchange')"><span class="nd"></span>Field ID Exchange</div>
+        </div>
+      </div>
+
+      <!-- INTELLIGENCE -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🧠</span><span class="swim-lane-title">Safety Intelligence & Analytics</span><span class="swim-lane-desc">project_manager and above</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('dashboard')"><span class="nd"></span>Dashboard</div>
+          <div class="node green" onclick="showNode('command-center')"><span class="nd"></span>Command Center</div>
+          <div class="node green" onclick="showNode('safety-intelligence')"><span class="nd"></span>Safety Intelligence</div>
+          <div class="node green" onclick="showNode('analytics')"><span class="nd"></span>Analytics</div>
+          <div class="node green" onclick="showNode('predictive-model')"><span class="nd"></span>Predictive Model</div>
+          <div class="node green" onclick="showNode('leading-indicators')"><span class="nd"></span>Leading Indicators</div>
+          <div class="node yellow" onclick="showNode('injury-weather')"><span class="nd"></span>Injury Weather ⚠️</div>
+        </div>
+      </div>
+
+      <!-- GUS AI -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🤖</span><span class="swim-lane-title">Gus AI Engine</span><span class="swim-lane-desc">Needs OpenAI key + release gate</span></div>
+        <div class="swim-lane-body">
+          <div class="node yellow" onclick="showNode('gus')"><span class="nd"></span>Gus Reviews ⚠️</div>
+          <div class="node green" onclick="showNode('risk-memory')"><span class="nd"></span>Risk Memory</div>
+          <div class="node green" onclick="showNode('company-memory')"><span class="nd"></span>Company Memory</div>
+          <div class="node green" onclick="showNode('ai-knowledge-map')"><span class="nd"></span>AI Knowledge Map</div>
+          <div class="node yellow" onclick="showNode('ai-assist')"><span class="nd"></span>AI Assist ⚠️</div>
+          <div class="node red" onclick="showNode('ai-release-gate-node')"><span class="nd"></span>Release Gate 🔴</div>
+        </div>
+      </div>
+
+      <!-- COMPANY MGMT -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🏢</span><span class="swim-lane-title">Company Management</span><span class="swim-lane-desc">company_admin and above</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('company-setup')"><span class="nd"></span>Company Setup</div>
+          <div class="node green" onclick="showNode('company-users')"><span class="nd"></span>Company Users</div>
+          <div class="node green" onclick="showNode('contractors')"><span class="nd"></span>Contractors</div>
+          <div class="node yellow" onclick="showNode('integrations')"><span class="nd"></span>Integrations ⚠️</div>
+          <div class="node green" onclick="showNode('onboarding')"><span class="nd"></span>Onboarding</div>
+          <div class="node green" onclick="showNode('settings')"><span class="nd"></span>Settings</div>
+        </div>
+      </div>
+
+      <!-- BILLING -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">💳</span><span class="swim-lane-title">Billing</span><span class="swim-lane-desc">Needs Stripe configuration</span></div>
+        <div class="swim-lane-body">
+          <div class="node yellow" onclick="showNode('billing-admin')"><span class="nd"></span>Billing Admin ⚠️</div>
+          <div class="node yellow" onclick="showNode('customer-billing')"><span class="nd"></span>Customer Billing ⚠️</div>
+          <div class="node yellow" onclick="showNode('invoices')"><span class="nd"></span>Invoices ⚠️</div>
+          <div class="node green" onclick="showNode('marketplace')"><span class="nd"></span>Marketplace</div>
+          <div class="node green" onclick="showNode('purchases')"><span class="nd"></span>Purchases</div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">👑</span><span class="swim-lane-title">Admin Panel</span><span class="swim-lane-desc">admin / super_admin / platform_admin only</span></div>
+        <div class="swim-lane-body">
+          <div class="node purple" onclick="showNode('admin-companies')"><span class="nd"></span>All Companies</div>
+          <div class="node purple" onclick="showNode('admin-users')"><span class="nd"></span>All Users</div>
+          <div class="node purple" onclick="showNode('admin-docs')"><span class="nd"></span>Document Review</div>
+          <div class="node purple" onclick="showNode('admin-marketplace')"><span class="nd"></span>Marketplace Approvals</div>
+          <div class="node purple" onclick="showNode('admin-sor')"><span class="nd"></span>SOR Audit</div>
+          <div class="node purple" onclick="showNode('admin-billing')"><span class="nd"></span>Billing / Transactions</div>
+          <div class="node purple" onclick="showNode('admin-gus-learning')"><span class="nd"></span>Gus Learning Review</div>
+          <div class="node purple" onclick="showNode('admin-agreements')"><span class="nd"></span>Legal Agreements</div>
+        </div>
+      </div>
+
+      <!-- SUPERADMIN -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🔑</span><span class="swim-lane-title">Superadmin</span><span class="swim-lane-desc">platform_admin only</span></div>
+        <div class="swim-lane-body">
+          <div class="node red" onclick="showNode('sa-ai-engine')"><span class="nd"></span>AI Engine Control</div>
+          <div class="node red" onclick="showNode('sa-system-health')"><span class="nd"></span>System Health</div>
+          <div class="node red" onclick="showNode('sa-injury-weather')"><span class="nd"></span>Injury Weather Lab</div>
+          <div class="node red" onclick="showNode('sa-orgs')"><span class="nd"></span>Organizations</div>
+          <div class="node red" onclick="showNode('sa-csep')"><span class="nd"></span>CSEP Programs</div>
+          <div class="node gray" onclick="showNode('sa-osha-lab')"><span class="nd"></span>OSHA IPA Lab ⬜</div>
+          <div class="node red" onclick="showNode('sa-what-changed')"><span class="nd"></span>What Changed</div>
+          <div class="node red" onclick="showNode('sa-cyber')"><span class="nd"></span>Cyber Security</div>
+          <div class="node red" onclick="showNode('sa-builder')"><span class="nd"></span>Builder Text</div>
+        </div>
+      </div>
+
+      <div class="flow-sep">↓ Backend Layer</div>
+
+      <!-- BACKEND / DATA -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">⚙️</span><span class="swim-lane-title">API, Cron & Data Layer</span><span class="swim-lane-desc">All require CRON_SECRET</span></div>
+        <div class="swim-lane-body">
+          <div class="node green" onclick="showNode('api-routes')"><span class="nd"></span>REST API (Next.js)</div>
+          <div class="node yellow" onclick="showNode('cron-weather')"><span class="nd"></span>Cron: Weather ⚠️</div>
+          <div class="node yellow" onclick="showNode('cron-risk')"><span class="nd"></span>Cron: Risk Rollup ⚠️</div>
+          <div class="node yellow" onclick="showNode('cron-training')"><span class="nd"></span>Cron: Training ⚠️</div>
+          <div class="node yellow" onclick="showNode('cron-billing')"><span class="nd"></span>Cron: Billing ⚠️</div>
+          <div class="node yellow" onclick="showNode('cron-ai')"><span class="nd"></span>Cron: AI Learning ⚠️</div>
+          <div class="node yellow" onclick="showNode('cron-capa')"><span class="nd"></span>Cron: CAPA ⚠️</div>
+          <div class="node gray" onclick="showNode('cron-ms')"><span class="nd"></span>Cron: MS Project ⬜</div>
+          <div class="node green" onclick="showNode('sb-db')"><span class="nd"></span>Supabase DB (245 tables)</div>
+          <div class="node green" onclick="showNode('sb-auth')"><span class="nd"></span>Supabase Auth</div>
+          <div class="node yellow" onclick="showNode('sb-storage')"><span class="nd"></span>Storage ⚠️</div>
+          <div class="node green" onclick="showNode('rls')"><span class="nd"></span>RLS (690 policies)</div>
+        </div>
+      </div>
+
+      <div class="flow-sep">↓ External Services</div>
+
+      <!-- EXTERNAL -->
+      <div class="swim-lane">
+        <div class="swim-lane-header"><span class="swim-lane-icon">🔌</span><span class="swim-lane-title">External Services</span><span class="swim-lane-desc">Require API keys in Vercel env</span></div>
+        <div class="swim-lane-body">
+          <div class="node yellow" onclick="showNode('openai-ext')"><span class="nd"></span>OpenAI ⚠️</div>
+          <div class="node yellow" onclick="showNode('stripe-ext')"><span class="nd"></span>Stripe ⚠️</div>
+          <div class="node yellow" onclick="showNode('resend-ext')"><span class="nd"></span>Resend ⚠️</div>
+          <div class="node yellow" onclick="showNode('twilio-ext')"><span class="nd"></span>Twilio ⚠️</div>
+          <div class="node yellow" onclick="showNode('nws-ext')"><span class="nd"></span>NWS Weather ⚠️</div>
+          <div class="node green" onclick="showNode('github-ext')"><span class="nd"></span>GitHub Actions ✅</div>
+          <div class="node green" onclick="showNode('vercel-ext')"><span class="nd"></span>Vercel ✅</div>
+          <div class="node gray" onclick="showNode('ms-ext')"><span class="nd"></span>Microsoft Project ⬜</div>
+          <div class="node gray" onclick="showNode('streamlit-ext')"><span class="nd"></span>Streamlit ⬜</div>
+        </div>
+      </div>
+
+    </div>
+    </div><!-- end view-arch -->
+
+
+    <!-- ════ TAB 2: MODULES ════ -->
+    <div id="view-modules" class="view">
+    <div style="padding:20px 24px">
+      <div class="toolbar">
+        <span class="tb-label">Filter by area:</span>
+        <button class="filter-btn active" data-mf="all">All</button>
+        <button class="filter-btn" data-mf="field">🔨 Field</button>
+        <button class="filter-btn" data-mf="jobsite">🏗️ Jobsite</button>
+        <button class="filter-btn" data-mf="training">📋 Training</button>
+        <button class="filter-btn" data-mf="docs">📁 Documents</button>
+        <button class="filter-btn" data-mf="intel">🧠 Intelligence</button>
+        <button class="filter-btn" data-mf="ai">🤖 AI</button>
+        <button class="filter-btn" data-mf="admin">👑 Admin</button>
+        <button class="filter-btn" data-mf="billing">💳 Billing</button>
+        <input class="search-box" type="text" id="modSearch" placeholder="Search modules…">
+      </div>
+      <div id="mod-sections"></div>
+    </div>
+    </div>
+
+
+    <!-- ════ TAB 3: ROLES ════ -->
+    <div id="view-roles" class="view">
+    <div style="padding:20px 24px">
+
+      <div class="roles-summary">
+        <div class="rs-pill"><div class="rs-bar" style="background:var(--red)"></div><div><div class="rs-count">2</div><div class="rs-label">Platform Staff</div></div></div>
+        <div class="rs-pill"><div class="rs-bar" style="background:var(--yellow)"></div><div><div class="rs-count">2</div><div class="rs-label">Special Access</div></div></div>
+        <div class="rs-pill"><div class="rs-bar" style="background:var(--blue)"></div><div><div class="rs-count">4</div><div class="rs-label">Company Mgmt</div></div></div>
+        <div class="rs-pill"><div class="rs-bar" style="background:var(--green)"></div><div><div class="rs-count">6</div><div class="rs-label">Field Roles</div></div></div>
+        <div class="rs-pill"><div class="rs-bar" style="background:var(--gray)"></div><div><div class="rs-count">3</div><div class="rs-label">View Only</div></div></div>
+        <div class="rs-pill" style="margin-left:auto"><div><div class="rs-count" style="color:var(--blue)">17</div><div class="rs-label">Total Roles</div></div></div>
+      </div>
+
+      <!-- Tier 1 -->
+      <div class="tier-block tier-1">
+        <div class="tier-header">
+          <div class="tier-num" style="background:var(--red-bg);color:var(--red)">1</div>
+          <div class="tier-title">Platform Staff (SafePredict internal only)</div>
+          <div class="tier-desc">All permissions • all companies • full system</div>
+        </div>
+        <div class="role-grid">
+          <div class="role-card" onclick="showRole('platform_admin')"><div class="role-name">platform_admin</div><div class="role-desc">Full access to everything — superadmin tools, AI controls, all companies, system health</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">ALL (28)</span></div></div>
+          <div class="role-card" onclick="showRole('super_admin')"><div class="role-name">super_admin</div><div class="role-desc">Full access identical to platform_admin — all permissions unlocked</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">ALL (28)</span></div></div>
+          <div class="role-card" onclick="showRole('admin')"><div class="role-name">admin</div><div class="role-desc">Internal admin — manages all users, companies, documents, marketplace globally</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">13 / 28</span></div></div>
+        </div>
+      </div>
+
+      <!-- Tier 2 -->
+      <div class="tier-block tier-2">
+        <div class="tier-header">
+          <div class="tier-num" style="background:var(--yellow-bg);color:var(--yellow)">2</div>
+          <div class="tier-title">Special Access</div>
+          <div class="tier-desc">Demo and internal review roles</div>
+        </div>
+        <div class="role-grid">
+          <div class="role-card" onclick="showRole('sales_demo')"><div class="role-name">sales_demo</div><div class="role-desc">Broad access for demos — field work, analytics, billing, jobsites, training, documents</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">20 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('internal_reviewer')"><div class="role-name">internal_reviewer</div><div class="role-desc">Can review and approve documents only — read-only for library and reports</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">5 / 28</span></div></div>
+        </div>
+      </div>
+
+      <!-- Tier 3 -->
+      <div class="tier-block tier-3">
+        <div class="tier-header">
+          <div class="tier-num" style="background:var(--blue-bg);color:var(--blue)">3</div>
+          <div class="tier-title">Company Management</div>
+          <div class="tier-desc">Manage their own company — users, billing, jobsites</div>
+        </div>
+        <div class="role-grid">
+          <div class="role-card" onclick="showRole('company_admin')"><div class="role-name">company_admin</div><div class="role-desc">Manages their company — users, billing, jobsites, field work, training, safety intelligence</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">20 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('manager')"><div class="role-name">manager</div><div class="role-desc">Full operational access — field work, DAPs, incidents, analytics, training, reports</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">19 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('safety_manager')"><div class="role-name">safety_manager</div><div class="role-desc">Full safety operations — same as manager but can manage company users</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">18 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('project_manager')"><div class="role-name">project_manager</div><div class="role-desc">Jobsites, field work, training, reports — cannot manage other users or billing</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">10 / 28</span></div></div>
+        </div>
+      </div>
+
+      <!-- Tier 4 -->
+      <div class="tier-block tier-4">
+        <div class="tier-header">
+          <div class="tier-num" style="background:var(--green-bg);color:var(--green)">4</div>
+          <div class="tier-title">Field Roles</div>
+          <div class="tier-desc">On-site workers and supervisors</div>
+        </div>
+        <div class="role-grid">
+          <div class="role-card" onclick="showRole('field_supervisor')"><div class="role-name">field_supervisor</div><div class="role-desc">Manages DAPs, permits, incidents, jobsites. Can escalate but not delete.</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">10 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('foreman')"><div class="role-name">foreman</div><div class="role-desc">Creates and manages DAPs, permits, incidents. Similar to field_supervisor.</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">10 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('field_user')"><div class="role-name">field_user</div><div class="role-desc">Creates JSAs, permits, incidents, observations. Cannot delete safety records.</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">8 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('employee')"><div class="role-name">employee</div><div class="role-desc">Can create, edit, and submit documents only — minimal access</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">3 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('company_user')"><div class="role-name">company_user</div><div class="role-desc">Submit observations. Minimal access — same as field_user for observations.</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">4 / 28</span></div></div>
+        </div>
+      </div>
+
+      <!-- Tier 5 -->
+      <div class="tier-block tier-5">
+        <div class="tier-header">
+          <div class="tier-num" style="background:var(--gray-bg);color:var(--gray)">5</div>
+          <div class="tier-title">Limited / View Only</div>
+          <div class="tier-desc">Read-only or minimal specialized access</div>
+        </div>
+        <div class="role-grid">
+          <div class="role-card" onclick="showRole('read_only')"><div class="role-name">read_only</div><div class="role-desc">View-only access — dashboards, reports, library</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">3 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('editor')"><div class="role-name">editor</div><div class="role-desc">Can create and edit documents only</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">3 / 28</span></div></div>
+          <div class="role-card" onclick="showRole('viewer')"><div class="role-name">viewer</div><div class="role-desc">Dashboard and reports view only</div><div class="role-pcount"><span class="pcount-label">Permissions</span><span class="pcount-val">2 / 28</span></div></div>
+        </div>
+      </div>
+
+    </div>
+    </div><!-- end view-roles -->
+
+
+    <!-- ════ TAB 4: CRON JOBS ════ -->
+    <div id="view-cron" class="view">
+    <div style="padding:20px 24px">
+
+      <div class="cron-header-row">
+        <div class="cron-stat"><div class="cron-stat-dot" style="background:var(--yellow)"></div><div><div class="cron-stat-val">14</div><div class="cron-stat-label">Total Jobs</div></div></div>
+        <div class="cron-stat"><div class="cron-stat-dot" style="background:var(--green)"></div><div><div class="cron-stat-val">0</div><div class="cron-stat-label">Fully Wired</div></div></div>
+        <div class="cron-stat"><div class="cron-stat-dot" style="background:var(--yellow)"></div><div><div class="cron-stat-val">13</div><div class="cron-stat-label">Need Config</div></div></div>
+        <div class="cron-stat"><div class="cron-stat-dot" style="background:var(--gray)"></div><div><div class="cron-stat-val">1</div><div class="cron-stat-label">Optional</div></div></div>
+        <div class="cron-stat" style="margin-left:auto">
+          <div style="font-size:11px;color:var(--text3);line-height:1.6">
+            All jobs require <span class="etag">CRON_SECRET</span> in Vercel env.<br>
+            Jobs with ⚠️ tags also need additional keys.
+          </div>
+        </div>
+      </div>
+
+      <div id="cronList"></div>
+
+    </div>
+    </div>
+
+  </div><!-- end view-area -->
+
+  <!-- DETAIL PANEL -->
+  <div class="detail" id="detailPanel">
+    <div class="d-scroll" id="detailInner">
+      <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--border2);text-align:center;padding:30px">
+        <div style="font-size:48px;opacity:.5">🔌</div>
+        <p style="font-size:12px">Click any element to see details</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── NODE DATA ────────────────────────────────────────────────────────────────
+const nodes = {
+  login:{name:'Login / Auth',status:'blue',zone:'Public Entry',desc:'Supabase Auth handles all login. Supports email/password. Leaked password protection is enabled. Session tokens stored securely. Role is assigned at login and flows into RLS policies.',actions:[],envs:['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY']},
+  signup:{name:'Company Signup',status:'blue',zone:'Public Entry',desc:'New companies sign up at /company-signup. Creates Supabase user + company record + initial company_admin role. Invite flow then adds additional users.',actions:[],envs:[]},
+  demo:{name:'Demo Mode',status:'blue',zone:'Public Entry',desc:'Full platform demo accessible at /demo. Uses seed data. The sales_demo role mirrors this access level.',actions:[],envs:[]},
+  'contractor-intake':{name:'Contractor Training Intake',status:'blue',zone:'Public Entry',desc:'Public URL where contractors submit training records and certifications without needing a company account.',actions:[],envs:[]},
+  'safety-submit':{name:'Safety Submit',status:'blue',zone:'Public Entry',desc:'Public safety observation form. Anyone with the link can submit a safety observation tied to a jobsite — no login required.',actions:[],envs:[]},
+  marketing:{name:'Marketing / Landing',status:'blue',zone:'Public Entry',desc:'Public-facing marketing pages at /safe-predict, /site, /marketing. No auth required.',actions:[],envs:[]},
+  'privacy-page':{name:'Privacy / Terms',status:'yellow',zone:'Public Entry',desc:'Privacy and terms pages exist at /privacy and /terms. The /privacy page still shows a placeholder note. Must be customized before showing to paying customers.',actions:['Replace placeholder text on /privacy page','Set NEXT_PUBLIC_SUPPORT_EMAIL in Vercel env'],envs:['NEXT_PUBLIC_SUPPORT_EMAIL']},
+  jsa:{name:'JSA',status:'green',zone:'Field Work',desc:'Job Safety Analyses per task. Supports hazard identification, control measures, and sign-off. All roles above field_user can create JSAs.',actions:[],envs:[],roles:['field_user','foreman','field_supervisor','safety_manager','manager','company_admin']},
+  permits:{name:'Permits',status:'green',zone:'Field Work',desc:'Hot work, confined space, excavation, and other work permits. Created by foreman+. Expiry tracked by cron. Gus AI can auto-assign permits.',actions:[],envs:[],roles:['foreman','field_supervisor','safety_manager','manager','company_admin']},
+  daps:{name:'DAPs',status:'green',zone:'Field Work',desc:'Daily Activity Plans — daily task-level safety planning. Required per shift. Created by foreman+. Supports attachments and sign-off.',actions:[],envs:[],roles:['foreman','field_supervisor','safety_manager','manager','company_admin']},
+  incidents:{name:'Incidents',status:'green',zone:'Field Work',desc:'Incident reporting and investigation. Submitted by field_user+. Managers and above can delete. OSHA 300 log is generated from incidents.',actions:[],envs:[],roles:['field_user','foreman','field_supervisor','safety_manager','manager','company_admin']},
+  observations:{name:'Observations / CAPA',status:'green',zone:'Field Work',desc:'Safety observations and corrective/preventive actions. Overdue CAPAs trigger cron escalation and reminders.',actions:[],envs:[],roles:['field_user','company_user','foreman','field_supervisor','safety_manager','manager','company_admin']},
+  'near-miss':{name:'Near Miss',status:'green',zone:'Field Work',desc:'Near-miss event reporting. Velocity checked daily by cron (near-miss-velocity-check) to detect unusual spikes.',actions:[],envs:[],roles:['field_user','foreman','field_supervisor','safety_manager','manager','company_admin']},
+  'field-audits':{name:'Field Audits',status:'green',zone:'Field Work',desc:'Structured jobsite safety audits. Results feed into the Safety Intelligence dashboard.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  'safety-forms':{name:'Safety Forms',status:'green',zone:'Field Work',desc:'Custom company-level safety forms. Configurable form builder. Company-specific forms managed under Company Safety Forms.',actions:[],envs:[],roles:['field_user','foreman','safety_manager','manager','company_admin']},
+  jobsites:{name:'Jobsites',status:'green',zone:'Jobsite Hub',desc:'Central hub for all jobsite data. Each jobsite has its own dashboard, team, schedule, safety records, documents, and analytics.',actions:[],envs:[],roles:['field_user and above']},
+  'live-view':{name:'Jobsite Live View',status:'green',zone:'Jobsite Hub',desc:'Real-time view of activity on a jobsite — active permits, open DAPs, recent incidents, and team presence.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  team:{name:'Jobsite Team',status:'green',zone:'Jobsite Hub',desc:'Manage who is assigned to a jobsite. Roles are scoped per jobsite. Supports induction tracking per team member.',actions:[],envs:[],roles:['field_supervisor','safety_manager','manager','company_admin']},
+  schedule:{name:'Jobsite Schedule',status:'green',zone:'Jobsite Hub',desc:'Task and crew scheduling at the jobsite level. Can sync with Microsoft Project when configured.',actions:[],envs:[],roles:['project_manager','safety_manager','manager','company_admin']},
+  chemicals:{name:'Chemicals / HazCom',status:'green',zone:'Jobsite Hub',desc:'Chemical inventory and SDS management per jobsite. Tracks hazardous materials and ensures HazCom compliance.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  eap:{name:'Emergency Action Plan',status:'green',zone:'Jobsite Hub',desc:'Per-jobsite Emergency Action Plan. Documents evacuation routes, emergency contacts, medical facilities, and response procedures.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  toolbox:{name:'Toolbox Talks',status:'green',zone:'Jobsite Hub',desc:'Daily or weekly safety meeting content. Safety managers can assign and track completion of toolbox talks per jobsite.',actions:[],envs:[],roles:['field_supervisor','safety_manager','manager','company_admin']},
+  inductions:{name:'Inductions',status:'green',zone:'Jobsite Hub',desc:'Site induction tracking — ensures every person on site has completed required inductions before working.',actions:[],envs:[],roles:['field_supervisor','safety_manager','manager','company_admin']},
+  'site-visual':{name:'Site Visual',status:'green',zone:'Jobsite Hub',desc:'Visual site map / layout view for the jobsite. Supports attaching photos and documenting site hazards spatially.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  training:{name:'Training Tracker',status:'green',zone:'Training & Compliance',desc:'Company-wide training matrix. Tracks certifications, training completions, and expiry dates. Cron sends expiration alerts.',actions:[],envs:['RESEND_API_KEY (for expiry emails)'],roles:['safety_manager','manager','company_admin']},
+  'osha-300':{name:'OSHA 300 Log',status:'green',zone:'Training & Compliance',desc:'Generates the OSHA 300/300A injury and illness log from incident records. Exportable for compliance reporting.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  csep:{name:'CSEP',status:'green',zone:'Training & Compliance',desc:'Contractor Safety and Environmental Plan builder and management. Gus AI reviews CSEP documents.',actions:[],envs:[],roles:['company_admin','safety_manager','manager']},
+  peshep:{name:'PESHEP',status:'green',zone:'Training & Compliance',desc:'Project-specific Environmental and Safety Health Plan. Similar to CSEP but project-scoped.',actions:[],envs:[],roles:['company_admin','safety_manager','manager']},
+  sor:{name:'SOR Records',status:'green',zone:'Training & Compliance',desc:'Safety Observation Records. Tracks structured safety observations at the company level. Can be imported via Excel.',actions:[],envs:[],roles:['safety_manager','manager','company_admin']},
+  jurisdiction:{name:'Jurisdiction Standards',status:'green',zone:'Training & Compliance',desc:'Reference library of jurisdiction-specific safety standards. Used by Gus AI for compliance checking.',actions:[],envs:[],roles:['super_admin','admin']},
+  library:{name:'Library / Marketplace',status:'green',zone:'Documents',desc:'Template marketplace where companies can browse, purchase, and download safety document templates. Integrates with Stripe for credit purchases.',actions:[],envs:['STRIPE_SECRET_KEY (for purchases)'],roles:['company_admin','manager','safety_manager']},
+  documents:{name:'Documents',status:'green',zone:'Documents',desc:'Core document management. Upload, version, review, and approve company safety documents. Gus AI can review documents automatically.',actions:[],envs:[],roles:['employee and above']},
+  reports:{name:'Reports',status:'green',zone:'Documents',desc:'Generate and download formatted safety reports. PDF export via Supabase Storage.',actions:[],envs:['SUPABASE_SERVICE_ROLE_KEY (for signed URLs)'],roles:['project_manager','safety_manager','manager','company_admin']},
+  'my-submissions':{name:'My Submissions',status:'green',zone:'Documents',desc:'Personal view of all documents, forms, and records a user has submitted. Tracks approval status.',actions:[],envs:[],roles:['all authenticated users']},
+  'field-id-exchange':{name:'Field ID Exchange',status:'green',zone:'Documents',desc:'Verification system for field worker identification and credential sharing across contractors and jobsites.',actions:[],envs:[],roles:['field_supervisor','safety_manager','manager','company_admin']},
+  dashboard:{name:'Dashboard',status:'green',zone:'Safety Intelligence',desc:'Main landing page after login. Shows role-specific KPIs — open incidents, pending actions, training compliance rate, active permits, and risk score.',actions:[],envs:[],roles:['all authenticated roles']},
+  'command-center':{name:'Command Center',status:'green',zone:'Safety Intelligence',desc:'Executive safety operations view. Cross-jobsite overview of active risks, open items, and safety performance.',actions:[],envs:[],roles:['company_admin','manager','safety_manager']},
+  'safety-intelligence':{name:'Safety Intelligence',status:'green',zone:'Safety Intelligence',desc:'AI-powered safety performance dashboard. Shows trends, risk scores, leading indicators, and predictive insights.',actions:[],envs:[],roles:['company_admin','manager','safety_manager','project_manager']},
+  analytics:{name:'Analytics',status:'green',zone:'Safety Intelligence',desc:'Historical analytics — incident rates, near-miss frequency, corrective action closure times, training completion trends.',actions:[],envs:[],roles:['company_admin','manager','safety_manager','project_manager']},
+  'predictive-model':{name:'Predictive Model',status:'green',zone:'Safety Intelligence',desc:'SafePredict core — uses historical data, weather, workload, and leading indicators to predict injury probability.',actions:[],envs:[],roles:['company_admin','manager','safety_manager']},
+  'leading-indicators':{name:'Leading Indicators',status:'green',zone:'Safety Intelligence',desc:'Tracks proactive safety activities — observations submitted, toolbox talks completed, inspections performed. Feeds the predictive model.',actions:[],envs:[],roles:['company_admin','manager','safety_manager']},
+  'injury-weather':{name:'Injury Weather',status:'yellow',zone:'Safety Intelligence',desc:'Visualizes injury risk as a weather forecast metaphor. Deterministic model runs without AI; AI narratives require OpenAI key.',actions:['Set OPENAI_API_KEY to unlock AI narratives'],envs:['OPENAI_API_KEY','INJURY_WEATHER_AI_FORECAST_OVERRIDE']},
+  gus:{name:'Gus AI Reviews',status:'yellow',zone:'Gus AI Engine',desc:'Gus is the AI safety intelligence engine. Reviews documents, photos, permits, and CSEPs for safety gaps. Needs OpenAI key + release gate.',actions:['Set OPENAI_API_KEY','Run AI release gate metrics — see Release Gate node'],envs:['OPENAI_API_KEY','GUS_NOTIFICATION_FROM_EMAIL']},
+  'risk-memory':{name:'Risk Memory',status:'green',zone:'Gus AI Engine',desc:'Persistent risk intelligence per company. Daily cron rolls up new data. Powers recommendations and leading indicator scoring.',actions:[],envs:['RISK_MEMORY_CRON_MAX_COMPANIES']},
+  'company-memory':{name:'Company Memory',status:'green',zone:'Gus AI Engine',desc:'Company-specific context storage. Used by Gus AI Assist to give contextual answers. Embeddings require OpenAI key.',actions:['Set OPENAI_API_KEY for embedding new memory rows'],envs:['OPENAI_API_KEY']},
+  'ai-knowledge-map':{name:'AI Knowledge Map',status:'green',zone:'Gus AI Engine',desc:'Graph of safety knowledge relationships — hazard types, controls, regulations, industries. Updated by cron 4x/day.',actions:[],envs:[]},
+  'ai-assist':{name:'AI Assist',status:'yellow',zone:'Gus AI Engine',desc:'Chat-style AI assistant embedded in the platform. Answers safety questions using company memory, risk memory, and jurisdiction standards.',actions:['Set OPENAI_API_KEY'],envs:['OPENAI_API_KEY']},
+  'ai-release-gate-node':{name:'AI Release Gate',status:'red',zone:'Gus AI Engine',desc:'BLOCKED: Must pass before Gus is shown to paying customers. Validates eval pass rate ≥95%, failure <2%, fallback <5%. Has NOT been run yet.',actions:['Set OPENAI_API_KEY in .env.local','Run: npm run test:ai-eval 2>&1 | tee tests/ai/release-gate.metrics.json','Run: npm run ai:release-gate -- --metrics tests/ai/release-gate.metrics.json'],envs:['OPENAI_API_KEY']},
+  'company-setup':{name:'Company Setup',status:'green',zone:'Company Management',desc:'Initial company configuration — name, logo, industry, safety standards, contact info, and feature flags.',actions:[],envs:[]},
+  'company-users':{name:'Company Users',status:'green',zone:'Company Management',desc:'Manage all users in the company — invite, assign roles, activate/deactivate.',actions:[],envs:['RESEND_API_KEY (for invite emails)']},
+  contractors:{name:'Contractors',status:'green',zone:'Company Management',desc:'Manage contractor companies and their employees. Track contractor certifications, inductions, and safety compliance.',actions:[],envs:[]},
+  integrations:{name:'Integrations',status:'yellow',zone:'Company Management',desc:'Third-party integrations — currently Microsoft Project / Planner for schedule sync. Requires OAuth app registration.',actions:['Register Microsoft Entra app','Set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI, MICROSOFT_TOKEN_ENCRYPTION_KEY'],envs:['MICROSOFT_CLIENT_ID','MICROSOFT_CLIENT_SECRET','MICROSOFT_TENANT_MODE','MICROSOFT_REDIRECT_URI','MICROSOFT_TOKEN_ENCRYPTION_KEY']},
+  onboarding:{name:'Onboarding',status:'green',zone:'Company Management',desc:'Step-by-step company onboarding wizard. Guides new company admins through setup. Cron sends reminders if onboarding stalls.',actions:[],envs:[]},
+  settings:{name:'Settings',status:'green',zone:'Company Management',desc:'Company-level settings including risk memory configuration, notification preferences, and feature toggles.',actions:[],envs:[]},
+  'billing-admin':{name:'Billing Admin',status:'yellow',zone:'Billing',desc:'Admin billing management — create invoices, view all transactions, manage company subscriptions. Requires Stripe keys.',actions:['Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET'],envs:['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET']},
+  'customer-billing':{name:'Customer Billing',status:'yellow',zone:'Billing',desc:'Company-facing billing view. Shows plan, invoice history, and payment status. Requires Stripe to be configured.',actions:['Set STRIPE_SECRET_KEY','Walk through test billing flow with Stripe test card'],envs:['STRIPE_SECRET_KEY','NEXT_PUBLIC_SITE_URL']},
+  invoices:{name:'Invoices',status:'yellow',zone:'Billing',desc:'Invoice creation, sending, and payment link generation. Resend sends invoice receipts. Stripe processes payments.',actions:['Set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET','Set RESEND_API_KEY for receipt emails'],envs:['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY']},
+  marketplace:{name:'Marketplace',status:'green',zone:'Billing',desc:'Document template marketplace. Companies browse and purchase safety templates using credits.',actions:[],envs:['STRIPE_SECRET_KEY (for credit purchases)']},
+  purchases:{name:'Purchases',status:'green',zone:'Billing',desc:'History of all marketplace purchases and credit transactions for a company.',actions:[],envs:[]},
+  'admin-companies':{name:'Admin: All Companies',status:'purple',zone:'Admin Panel',desc:'View of all companies — health scores, user counts, onboarding status, credit balances.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-users':{name:'Admin: All Users',status:'purple',zone:'Admin Panel',desc:'Global user management — view/edit any user across any company.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-docs':{name:'Admin: Document Review',status:'purple',zone:'Admin Panel',desc:'Queue of documents submitted for SafePredict internal review.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-marketplace':{name:'Admin: Marketplace Approvals',status:'purple',zone:'Admin Panel',desc:'Review and approve new templates before they appear in the marketplace.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-sor':{name:'Admin: SOR Audit',status:'purple',zone:'Admin Panel',desc:'Audit SOR imports and company data quality across all tenants.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-billing':{name:'Admin: Billing / Transactions',status:'purple',zone:'Admin Panel',desc:'View all billing transactions, credit usage, and Stripe activity across all companies.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-gus-learning':{name:'Admin: Gus Learning Review',status:'purple',zone:'Admin Panel',desc:'Review items that Gus AI has flagged for human review — edge cases, uncertain findings, new knowledge candidates.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'admin-agreements':{name:'Admin: Legal Agreements',status:'purple',zone:'Admin Panel',desc:'Manage platform legal agreements — terms of service, pilot contracts, and liability waivers.',actions:[],envs:[],roles:['admin','super_admin','platform_admin']},
+  'sa-ai-engine':{name:'Superadmin: AI Engine Control',status:'red',zone:'Superadmin',desc:'Full control over the Gus AI engine — model configuration, surface context policies, approval memory, call logging.',actions:[],envs:['OPENAI_API_KEY'],roles:['platform_admin']},
+  'sa-system-health':{name:'Superadmin: System Health',status:'red',zone:'Superadmin',desc:'Platform-wide health dashboard — API error rates, DB query performance, cron success rates, Supabase advisor warnings.',actions:[],envs:[],roles:['platform_admin']},
+  'sa-injury-weather':{name:'Superadmin: Injury Weather Lab',status:'red',zone:'Superadmin',desc:'Internal lab for testing and tuning the Injury Weather prediction engine.',actions:[],envs:['OPENAI_API_KEY'],roles:['platform_admin']},
+  'sa-orgs':{name:'Superadmin: Organizations',status:'red',zone:'Superadmin',desc:'Manage multi-company organizations and enterprise hierarchies. Group companies under parent organizations.',actions:[],envs:[],roles:['platform_admin']},
+  'sa-csep':{name:'Superadmin: CSEP Programs',status:'red',zone:'Superadmin',desc:'Manage CSEP program templates and completeness review logic used across the platform.',actions:[],envs:[],roles:['platform_admin']},
+  'sa-osha-lab':{name:'Superadmin: OSHA IPA Lab',status:'gray',zone:'Superadmin',desc:'Streamlit-based OSHA Injury Prevention Advisor lab. Optional — runs as a separate service.',actions:['npm run streamlit:osha:install then npm run streamlit:osha','Set NEXT_PUBLIC_STREAMLIT_OSHA_URL if embedding'],envs:['NEXT_PUBLIC_STREAMLIT_OSHA_URL'],roles:['platform_admin']},
+  'sa-what-changed':{name:'Superadmin: What Changed',status:'red',zone:'Superadmin',desc:'Changelog and diff viewer for platform updates — what changed between deployments, migration notes, feature flags.',actions:[],envs:[],roles:['platform_admin']},
+  'sa-cyber':{name:'Superadmin: Cyber Security',status:'red',zone:'Superadmin',desc:'Security monitoring — auth events, suspicious activity flags, RLS policy coverage stats, leaked credential alerts.',actions:[],envs:[],roles:['platform_admin']},
+  'sa-builder':{name:'Superadmin: Builder Text',status:'red',zone:'Superadmin',desc:'Content management for AI prompt templates and builder-level text used by Gus across the platform.',actions:[],envs:[],roles:['platform_admin']},
+  'api-routes':{name:'REST API (Next.js)',status:'green',zone:'Backend',desc:'All backend logic runs through Next.js API routes. RBAC-protected. Key groups: /api/company, /api/admin, /api/superadmin, /api/billing, /api/cron, /api/auth.',actions:[],envs:['SUPABASE_SERVICE_ROLE_KEY','CRON_SECRET']},
+  'cron-weather':{name:'Cron: Weather Alerts',status:'yellow',zone:'Cron Jobs',desc:'Two weather crons: injury-weather-refresh (4:05am) and jobsite-weather-alerts (6:25am) checks NWS for active alerts → sends Twilio SMS + email to site leads.',actions:['Set CRON_SECRET','Set NWS_USER_AGENT, FEATURE_JOBSITE_WEATHER_NOTIFICATIONS=true','Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER','Set RESEND_API_KEY + WEATHER_ALERT_FROM_EMAIL'],envs:['CRON_SECRET','FEATURE_JOBSITE_WEATHER_NOTIFICATIONS','NWS_USER_AGENT','TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER','RESEND_API_KEY']},
+  'cron-risk':{name:'Cron: Risk Memory Rollup',status:'yellow',zone:'Cron Jobs',desc:'Runs at 5:10am daily. Aggregates new incidents, observations, and field data into each company\'s risk memory.',actions:['Set CRON_SECRET'],envs:['CRON_SECRET','RISK_MEMORY_CRON_MAX_COMPANIES']},
+  'cron-training':{name:'Cron: Training Expiry',status:'yellow',zone:'Cron Jobs',desc:'Runs at 6:45am daily. Scans training matrix for expiring certifications and sends email alerts via Resend.',actions:['Set CRON_SECRET','Set RESEND_API_KEY + TRAINING_EXPIRATION_FROM_EMAIL'],envs:['CRON_SECRET','RESEND_API_KEY','TRAINING_EXPIRATION_FROM_EMAIL']},
+  'cron-billing':{name:'Cron: Billing Invoices',status:'yellow',zone:'Cron Jobs',desc:'Runs at 4:35am daily. Generates recurring invoices for pilot customers. Requires Stripe.',actions:['Set CRON_SECRET','Set STRIPE_SECRET_KEY'],envs:['CRON_SECRET','STRIPE_SECRET_KEY']},
+  'cron-ai':{name:'Cron: AI Knowledge Learning',status:'yellow',zone:'Cron Jobs',desc:'Runs 4x daily (midnight, 11am, noon, 11pm). Checks Gus AI knowledge map for new learning opportunities.',actions:['Set CRON_SECRET','Set OPENAI_API_KEY'],envs:['CRON_SECRET','OPENAI_API_KEY']},
+  'cron-capa':{name:'Cron: CAPA & Escalation',status:'yellow',zone:'Cron Jobs',desc:'Three crons: capa-due-reminders (9am), near-miss-velocity-check (9:30am), ca-escalation (10am). Track corrective actions and escalate overdue items.',actions:['Set CRON_SECRET'],envs:['CRON_SECRET']},
+  'cron-ms':{name:'Cron: MS Project Sync',status:'gray',zone:'Cron Jobs',desc:'Runs at 5:50am daily. Syncs jobsite schedules with connected Microsoft Project accounts. Only fires for companies with the integration configured.',actions:['Register Microsoft Entra app','Set CRON_SECRET'],envs:['CRON_SECRET','MICROSOFT_CLIENT_ID','MICROSOFT_CLIENT_SECRET','MICROSOFT_TOKEN_ENCRYPTION_KEY']},
+  'sb-db':{name:'Supabase Postgres',status:'green',zone:'Data Layer',desc:'245 tables across all safety domains. 3 hardening migrations applied June 3, 2026. Full multi-tenant isolation via RLS. Project ID: mdqkfbnwxrasdmbsjcqv.',actions:['Run npm run db:check-sync to verify no drift'],envs:['NEXT_PUBLIC_SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY']},
+  'sb-auth':{name:'Supabase Auth',status:'green',zone:'Data Layer',desc:'Handles all user sessions, JWT tokens, and role claims. Leaked password protection enabled.',actions:['Configure custom SMTP in Supabase Auth for branded password reset emails'],envs:['NEXT_PUBLIC_SUPABASE_ANON_KEY']},
+  'sb-storage':{name:'Supabase Storage',status:'yellow',zone:'Data Layer',desc:'Stores documents, report PDFs, evidence photos, and attachments. Uses signed URLs for access control.',actions:['Verify documents bucket is private in Supabase dashboard','Confirm signed URL expiry settings'],envs:['SUPABASE_SERVICE_ROLE_KEY']},
+  rls:{name:'RLS (690 policies)',status:'green',zone:'Data Layer',desc:'Row Level Security enforces tenant isolation. 690 policies across 245 tables. Zero unprotected tables. Policies optimized on June 3 migration.',actions:[],envs:[]},
+  'openai-ext':{name:'OpenAI',status:'yellow',zone:'External Services',desc:'Powers Gus AI reviews, company memory embeddings, injury weather narratives, AI assist, and TTS voice.',actions:['Add OPENAI_API_KEY to Vercel Production env','Redeploy after adding'],envs:['OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_TTS_API_KEY']},
+  'stripe-ext':{name:'Stripe',status:'yellow',zone:'External Services',desc:'Billing, invoices, and marketplace credit purchases. Use test mode keys for pilot.',actions:['Set STRIPE_SECRET_KEY=sk_test_… in Vercel','Set STRIPE_WEBHOOK_SECRET','Test billing flow with Stripe test card 4242…'],envs:['STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET']},
+  'resend-ext':{name:'Resend',status:'yellow',zone:'External Services',desc:'All transactional email — user invites, Gus notifications, training expiry alerts, billing receipts, weather alerts.',actions:['Set RESEND_API_KEY in Vercel env','Set all FROM_EMAIL vars'],envs:['RESEND_API_KEY','RESEND_FROM_EMAIL','GUS_NOTIFICATION_FROM_EMAIL','TRAINING_EXPIRATION_FROM_EMAIL','INCIDENT_ALERT_FROM_EMAIL','WEATHER_ALERT_FROM_EMAIL']},
+  'twilio-ext':{name:'Twilio',status:'yellow',zone:'External Services',desc:'SMS weather alerts to PMs and Site Leads. Code is ready. Keys not set in Vercel.',actions:['Create Twilio account','Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER in Vercel'],envs:['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER']},
+  'nws-ext':{name:'NWS Weather',status:'yellow',zone:'External Services',desc:'National Weather Service API for jobsite severe weather alerts. Feature flag must be enabled.',actions:['Set FEATURE_JOBSITE_WEATHER_NOTIFICATIONS=true','Set WEATHER_PROVIDER=nws','Set NWS_USER_AGENT'],envs:['FEATURE_JOBSITE_WEATHER_NOTIFICATIONS','WEATHER_PROVIDER','NWS_USER_AGENT']},
+  'github-ext':{name:'GitHub Actions',status:'green',zone:'External Services',desc:'CI workflows run on push. Covers type-check, lint, test, and Supabase DB push.',actions:[],envs:[]},
+  'vercel-ext':{name:'Vercel',status:'green',zone:'External Services',desc:'Hosting platform for the Next.js app. Node 20.x confirmed. 14 cron jobs configured. CRON_SECRET must be set.',actions:['Set CRON_SECRET in Vercel env'],envs:['CRON_SECRET','NEXT_PUBLIC_SITE_URL']},
+  'ms-ext':{name:'Microsoft Project',status:'gray',zone:'External Services',desc:'Optional integration for schedule sync. Requires registering a Microsoft Entra OAuth app.',actions:['Register Microsoft Entra app','Set all MICROSOFT_* env vars'],envs:['MICROSOFT_CLIENT_ID','MICROSOFT_CLIENT_SECRET','MICROSOFT_TENANT_MODE','MICROSOFT_REDIRECT_URI','MICROSOFT_TOKEN_ENCRYPTION_KEY']},
+  'streamlit-ext':{name:'Streamlit',status:'gray',zone:'External Services',desc:'Separate Streamlit service for the OSHA IPA Lab. Optional — not required for pilot.',actions:['npm run streamlit:osha:install then npm run streamlit:osha'],envs:['NEXT_PUBLIC_STREAMLIT_OSHA_URL']},
+};
+
+// ─── ROLE DATA ────────────────────────────────────────────────────────────────
+const rolePerms = {
+  platform_admin:['ALL PERMISSIONS — full system access (28/28)'],
+  super_admin:['ALL PERMISSIONS — full system access (28/28)'],
+  admin:['can_create_documents','can_edit_documents','can_submit_documents','can_review_documents','can_approve_documents','can_manage_users','can_assign_roles','can_view_analytics','can_access_internal_admin','can_view_all_company_data','can_manage_global_templates','can_access_document_library','can_access_template_marketplace'],
+  sales_demo:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_company_users','can_manage_billing','can_view_analytics','can_assign_roles','can_view_all_company_data','can_manage_daps','can_manage_observations','can_verify_closures','can_escalate_items','can_view_dashboards','can_view_reports','can_access_document_library','can_access_template_marketplace','can_access_jobsites','can_access_field_audits','can_access_field_work','can_access_training','can_access_safety_intelligence','can_access_billing'],
+  internal_reviewer:['can_review_documents','can_approve_documents','can_view_dashboards','can_view_reports','can_access_document_library'],
+  company_admin:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_company_users','can_manage_billing','can_view_analytics','can_assign_roles','can_manage_daps','can_manage_observations','can_verify_closures','can_escalate_items','can_view_dashboards','can_view_reports','can_access_document_library','can_access_template_marketplace','can_access_jobsites','can_access_field_audits','can_access_field_work','can_access_training','can_access_safety_intelligence','can_access_billing'],
+  manager:['can_create_documents','can_edit_documents','can_submit_documents','can_review_documents','can_approve_documents','can_view_analytics','can_manage_daps','can_manage_observations','can_verify_closures','can_escalate_items','can_view_dashboards','can_view_reports','can_access_document_library','can_access_template_marketplace','can_access_jobsites','can_access_field_audits','can_access_field_work','can_access_training','can_access_safety_intelligence'],
+  safety_manager:['can_create_documents','can_edit_documents','can_submit_documents','can_view_analytics','can_manage_daps','can_manage_observations','can_verify_closures','can_escalate_items','can_view_dashboards','can_view_reports','can_access_document_library','can_access_template_marketplace','can_access_jobsites','can_access_field_audits','can_access_field_work','can_access_training','can_access_safety_intelligence','can_access_billing'],
+  project_manager:['can_create_documents','can_edit_documents','can_submit_documents','can_view_analytics','can_manage_daps','can_view_dashboards','can_view_reports','can_access_document_library','can_access_jobsites','can_access_field_work','can_access_training'],
+  field_supervisor:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_daps','can_manage_observations','can_escalate_items','can_view_dashboards','can_access_jobsites','can_access_field_audits','can_access_field_work','can_access_training'],
+  foreman:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_daps','can_manage_observations','can_escalate_items','can_view_dashboards','can_access_jobsites','can_access_field_work','can_access_training'],
+  field_user:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_observations','can_view_dashboards','can_access_jobsites','can_access_field_work','can_access_training'],
+  employee:['can_create_documents','can_edit_documents','can_submit_documents'],
+  company_user:['can_create_documents','can_edit_documents','can_submit_documents','can_manage_observations'],
+  read_only:['can_view_dashboards','can_view_reports','can_access_document_library'],
+  editor:['can_create_documents','can_edit_documents','can_submit_documents'],
+  viewer:['can_view_dashboards','can_view_reports'],
+};
+
+// ─── MODULE SECTIONS ──────────────────────────────────────────────────────────
+const modSections=[
+  {id:'field',label:'Field Work',icon:'🔨',cards:[
+    {id:'jsa',name:'JSA',sub:'field_user+',status:'green'},{id:'permits',name:'Permits',sub:'foreman+',status:'green'},
+    {id:'daps',name:'DAPs',sub:'foreman+',status:'green'},{id:'incidents',name:'Incidents',sub:'field_user+',status:'green'},
+    {id:'observations',name:'Observations / CAPA',sub:'field_user+',status:'green'},{id:'near-miss',name:'Near Miss',sub:'field_user+',status:'green'},
+    {id:'field-audits',name:'Field Audits',sub:'safety_manager+',status:'green'},{id:'safety-forms',name:'Safety Forms',sub:'field_user+',status:'green'},
+    {id:'safety-submit',name:'Safety Submit (Public)',sub:'No login required',status:'blue'},
+  ]},
+  {id:'jobsite',label:'Jobsite Hub',icon:'🏗️',cards:[
+    {id:'jobsites',name:'Jobsites',sub:'field_user+',status:'green'},{id:'live-view',name:'Live View',sub:'safety_manager+',status:'green'},
+    {id:'team',name:'Team',sub:'field_supervisor+',status:'green'},{id:'schedule',name:'Schedule',sub:'project_manager+',status:'green'},
+    {id:'chemicals',name:'Chemicals / HazCom',sub:'safety_manager+',status:'green'},{id:'eap',name:'Emergency Action Plan',sub:'safety_manager+',status:'green'},
+    {id:'toolbox',name:'Toolbox Talks',sub:'field_supervisor+',status:'green'},{id:'inductions',name:'Inductions',sub:'field_supervisor+',status:'green'},
+    {id:'site-visual',name:'Site Visual',sub:'safety_manager+',status:'green'},
+  ]},
+  {id:'training',label:'Training & Compliance',icon:'📋',cards:[
+    {id:'training',name:'Training Tracker',sub:'safety_manager+',status:'green'},{id:'osha-300',name:'OSHA 300 Log',sub:'safety_manager+',status:'green'},
+    {id:'csep',name:'CSEP',sub:'company_admin+',status:'green'},{id:'peshep',name:'PESHEP',sub:'company_admin+',status:'green'},
+    {id:'sor',name:'SOR Records',sub:'safety_manager+',status:'green'},{id:'jurisdiction',name:'Jurisdiction Standards',sub:'admin+',status:'green'},
+    {id:'contractor-intake',name:'Contractor Training Intake',sub:'Public URL',status:'blue'},
+  ]},
+  {id:'docs',label:'Documents & Library',icon:'📁',cards:[
+    {id:'library',name:'Library / Marketplace',sub:'manager+',status:'green'},{id:'documents',name:'Documents',sub:'employee+',status:'green'},
+    {id:'reports',name:'Reports',sub:'project_manager+',status:'green'},{id:'my-submissions',name:'My Submissions',sub:'all users',status:'green'},
+    {id:'field-id-exchange',name:'Field ID Exchange',sub:'field_supervisor+',status:'green'},
+  ]},
+  {id:'intel',label:'Safety Intelligence',icon:'🧠',cards:[
+    {id:'dashboard',name:'Dashboard',sub:'all users',status:'green'},{id:'command-center',name:'Command Center',sub:'manager+',status:'green'},
+    {id:'safety-intelligence',name:'Safety Intelligence',sub:'project_manager+',status:'green'},{id:'analytics',name:'Analytics',sub:'project_manager+',status:'green'},
+    {id:'predictive-model',name:'Predictive Model',sub:'manager+',status:'green'},{id:'leading-indicators',name:'Leading Indicators',sub:'manager+',status:'green'},
+    {id:'injury-weather',name:'Injury Weather ⚠️',sub:'manager+ (AI needs key)',status:'yellow'},
+  ]},
+  {id:'ai',label:'Gus AI Engine',icon:'🤖',cards:[
+    {id:'gus',name:'Gus Reviews ⚠️',sub:'Needs OpenAI key + gate',status:'yellow'},{id:'risk-memory',name:'Risk Memory',sub:'company_admin+',status:'green'},
+    {id:'company-memory',name:'Company Memory',sub:'company_admin+ (embed needs key)',status:'green'},{id:'ai-knowledge-map',name:'AI Knowledge Map',sub:'admin+',status:'green'},
+    {id:'ai-assist',name:'AI Assist ⚠️',sub:'Needs OpenAI key',status:'yellow'},{id:'ai-release-gate-node',name:'AI Release Gate 🔴',sub:'BLOCKED — not run yet',status:'red'},
+  ]},
+  {id:'company',label:'Company Management',icon:'🏢',cards:[
+    {id:'company-setup',name:'Company Setup',sub:'company_admin+',status:'green'},{id:'company-users',name:'Company Users',sub:'company_admin+',status:'green'},
+    {id:'contractors',name:'Contractors',sub:'company_admin+',status:'green'},{id:'integrations',name:'Integrations ⚠️',sub:'company_admin+ (needs OAuth)',status:'yellow'},
+    {id:'onboarding',name:'Onboarding',sub:'company_admin+',status:'green'},{id:'settings',name:'Settings',sub:'company_admin+',status:'green'},
+  ]},
+  {id:'billing',label:'Billing',icon:'💳',cards:[
+    {id:'billing-admin',name:'Billing Admin ⚠️',sub:'admin+ (needs Stripe)',status:'yellow'},{id:'customer-billing',name:'Customer Billing ⚠️',sub:'company_admin (needs Stripe)',status:'yellow'},
+    {id:'invoices',name:'Invoices ⚠️',sub:'company_admin (needs Stripe+Resend)',status:'yellow'},{id:'marketplace',name:'Marketplace',sub:'manager+',status:'green'},
+    {id:'purchases',name:'Purchases',sub:'company_admin+',status:'green'},
+  ]},
+  {id:'admin',label:'Admin Panel (admin / super_admin)',icon:'👑',cards:[
+    {id:'admin-companies',name:'All Companies',sub:'admin+',status:'purple'},{id:'admin-users',name:'All Users',sub:'admin+',status:'purple'},
+    {id:'admin-docs',name:'Document Review',sub:'admin+',status:'purple'},{id:'admin-marketplace',name:'Marketplace Approvals',sub:'admin+',status:'purple'},
+    {id:'admin-sor',name:'SOR Audit',sub:'admin+',status:'purple'},{id:'admin-billing',name:'Billing / Transactions',sub:'admin+',status:'purple'},
+    {id:'admin-gus-learning',name:'Gus Learning Review',sub:'admin+',status:'purple'},{id:'admin-agreements',name:'Legal Agreements',sub:'admin+',status:'purple'},
+    {id:'sa-ai-engine',name:'AI Engine Control',sub:'platform_admin only',status:'red'},{id:'sa-system-health',name:'System Health',sub:'platform_admin only',status:'red'},
+    {id:'sa-injury-weather',name:'Injury Weather Lab',sub:'platform_admin only',status:'red'},{id:'sa-orgs',name:'Organizations',sub:'platform_admin only',status:'red'},
+    {id:'sa-csep',name:'CSEP Programs',sub:'platform_admin only',status:'red'},{id:'sa-osha-lab',name:'OSHA IPA Lab ⬜',sub:'Optional',status:'gray'},
+    {id:'sa-what-changed',name:'What Changed',sub:'platform_admin only',status:'red'},{id:'sa-cyber',name:'Cyber Security',sub:'platform_admin only',status:'red'},
+    {id:'sa-builder',name:'Builder Text',sub:'platform_admin only',status:'red'},
+  ]},
+];
+
+// ─── CRON DATA ────────────────────────────────────────────────────────────────
+const cronGroups=[
+  {label:'Early Morning (4–6am)',jobs:[
+    {time:'4:05 am',name:'Injury Weather Refresh',desc:'Updates risk scores per company using weather + incident data',status:'yellow',tags:['OpenAI ⚠️','CRON_SECRET ⚠️'],id:'cron-risk'},
+    {time:'4:35 am',name:'Company Billing Invoices',desc:'Generates recurring invoices for active subscriptions',status:'yellow',tags:['Stripe ⚠️','CRON_SECRET ⚠️'],id:'cron-billing'},
+    {time:'5:10 am',name:'Risk Memory Rollup',desc:'Aggregates new safety data into each company\'s risk profile',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-risk'},
+    {time:'5:50 am',name:'Microsoft Project Sync',desc:'Syncs jobsite schedules for companies with MS integration only',status:'gray',tags:['MS OAuth ⬜','CRON_SECRET ⚠️'],id:'cron-ms'},
+  ]},
+  {label:'Morning (6–10am)',jobs:[
+    {time:'6:25 am',name:'Jobsite Weather Alerts',desc:'Checks NWS for active alerts → sends Twilio SMS + email to site leads',status:'yellow',tags:['NWS ⚠️','Twilio ⚠️','Resend ⚠️'],id:'cron-weather'},
+    {time:'6:45 am',name:'Training Expiration Notifications',desc:'Finds expiring certs → sends email alerts to employees and managers',status:'yellow',tags:['Resend ⚠️','CRON_SECRET ⚠️'],id:'cron-training'},
+    {time:'7:15 am',name:'AI Engine Permit Auto-Assign',desc:'Gus AI auto-assigns open permits to appropriate workers',status:'yellow',tags:['OpenAI ⚠️','CRON_SECRET ⚠️'],id:'cron-ai'},
+    {time:'8:00 am',name:'Permit Expiry Reminders',desc:'Sends in-app and email reminders for permits expiring within 24h',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-capa'},
+    {time:'9:00 am',name:'CAPA Due Reminders',desc:'Reminds assignees of corrective actions due today or tomorrow',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-capa'},
+    {time:'9:30 am',name:'Near-Miss Velocity Check',desc:'Detects unusual spikes in near-miss reports that signal systemic risk',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-capa'},
+    {time:'10:00 am',name:'Jobsite Daily Todos',desc:'Generates daily task summaries for foremen and supervisors',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-capa'},
+    {time:'10:00 am',name:'CA Escalation',desc:'Escalates corrective actions that are overdue past threshold',status:'yellow',tags:['CRON_SECRET ⚠️'],id:'cron-capa'},
+  ]},
+  {label:'Afternoon & Night',jobs:[
+    {time:'3:00 pm',name:'Onboarding Reminders',desc:'Nudges company admins who have stalled onboarding',status:'yellow',tags:['Resend ⚠️','CRON_SECRET ⚠️'],id:'cron-training'},
+    {time:'12am/11am/12pm/11pm',name:'AI Knowledge Learning Check',desc:'Runs 4× daily — checks for new knowledge candidates, promotes approved ones to the knowledge graph',status:'yellow',tags:['OpenAI ⚠️','CRON_SECRET ⚠️'],id:'cron-ai'},
+  ]},
+];
+
+// ─── BUILD FUNCTIONS ──────────────────────────────────────────────────────────
+function buildModules(){
+  const container=document.getElementById('mod-sections');
+  modSections.forEach(sec=>{
+    const div=document.createElement('div');
+    div.className='mod-section';
+    div.dataset.cat=sec.id;
+    div.innerHTML=`<div class="mod-section-header"><span class="mod-section-icon">${sec.icon}</span><span class="mod-section-title">${sec.label}</span><span class="mod-section-count">${sec.cards.length}</span></div>
+    <div class="mod-grid">${sec.cards.map(c=>`<div class="mod-card ${c.status}" data-cat="${sec.id}" data-name="${c.name.toLowerCase()}" onclick="showNode('${c.id}')"><span class="dot"></span><div><div class="mod-name">${c.name}</div><div class="mod-sub">${c.sub}</div></div></div>`).join('')}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function buildCron(){
+  const container=document.getElementById('cronList');
+  cronGroups.forEach(group=>{
+    let html=`<div class="cron-section"><div class="cron-section-label">${group.label}</div>`;
+    group.jobs.forEach(j=>{
+      const tagColors={
+        '⚠️':'background:rgba(245,158,11,.15);color:var(--yellow)',
+        '⬜':'background:rgba(71,85,105,.15);color:var(--gray)',
+      };
+      const tags=j.tags.map(t=>{
+        const c=t.includes('⚠️')?'background:rgba(245,158,11,.12);color:#fcd34d;border:1px solid rgba(245,158,11,.2)':
+                 t.includes('⬜')?'background:rgba(71,85,105,.12);color:#94a3b8;border:1px solid rgba(71,85,105,.2)':
+                 'background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)';
+        return `<span class="cron-tag" style="${c}">${t}</span>`;
+      }).join('');
+      html+=`<div class="cron-item st-${j.status}" onclick="showNode('${j.id}')"><div class="cron-time-col"><div class="cron-time-val">${j.time}</div></div><div class="cron-indicator"></div><div class="cron-body"><div class="cron-name">${j.name}</div><div class="cron-desc">${j.desc}</div><div class="cron-tags">${tags}</div></div></div>`;
+    });
+    html+='</div>';
+    container.innerHTML+=html;
+  });
+}
+
+// ─── SHOW DETAIL ──────────────────────────────────────────────────────────────
+const statusCfg={
+  green:{color:'var(--green)',bg:'var(--green-bg)',border:'rgba(16,185,129,.3)',label:'✅ Wired & Live'},
+  yellow:{color:'var(--yellow)',bg:'var(--yellow-bg)',border:'rgba(245,158,11,.3)',label:'⚠️ Needs Config'},
+  red:{color:'var(--red)',bg:'var(--red-bg)',border:'rgba(239,68,68,.3)',label:'🔴 Blocked'},
+  blue:{color:'var(--blue)',bg:'var(--blue-bg)',border:'rgba(59,130,246,.3)',label:'🌐 Public'},
+  purple:{color:'var(--purple)',bg:'var(--purple-bg)',border:'rgba(139,92,246,.3)',label:'👑 Admin Only'},
+  gray:{color:'var(--gray)',bg:'var(--gray-bg)',border:'rgba(71,85,105,.3)',label:'⬜ Optional'},
+};
+
+function showNode(id){
+  const n=nodes[id]; if(!n) return;
+  const panel=document.getElementById('detailPanel');
+  panel.classList.add('open');
+  const s=statusCfg[n.status]||statusCfg.gray;
+  const actions=n.actions&&n.actions.length
+    ?`<div class="d-section"><div class="d-section-label">⚡ Required Actions</div><ul class="d-list">${n.actions.map(a=>`<li><span class="arrow">→</span><span>${a}</span></li>`).join('')}</ul></div>`
+    :`<div class="d-section"><div class="d-section-label">✅ Actions</div><p class="d-body" style="color:var(--green)">No action needed — this is already wired.</p></div>`;
+  const envs=n.envs&&n.envs.length?`<div class="d-section"><div class="d-section-label">🔑 Env Variables</div><div style="padding-top:4px">${n.envs.map(e=>`<span class="etag">${e}</span>`).join('')}</div></div>`:'';
+  const roles=n.roles&&n.roles.length?`<div class="d-section"><div class="d-section-label">👥 Access</div><div style="padding-top:4px">${n.roles.map(r=>`<span class="ptag">${r}</span>`).join('')}</div></div>`:'';
+  document.getElementById('detailInner').innerHTML=`
+    <div class="d-header">
+      <button class="d-close-btn" onclick="closePanel()">✕</button>
+      <div class="d-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.label}</div>
+      <div class="d-name">${n.name}</div>
+      <div class="d-zone">${n.zone}</div>
+    </div>
+    <div class="d-section"><div class="d-section-label">📌 About</div><p class="d-body">${n.desc}</p></div>
+    ${actions}${envs}${roles}`;
+}
+
+function showRole(role){
+  const perms=rolePerms[role]||[];
+  const panel=document.getElementById('detailPanel');
+  panel.classList.add('open');
+  document.getElementById('detailInner').innerHTML=`
+    <div class="d-header">
+      <button class="d-close-btn" onclick="closePanel()">✕</button>
+      <div class="d-badge" style="background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.3)">👥 Role</div>
+      <div class="d-name" style="font-family:monospace">${role}</div>
+      <div class="d-zone">${perms.length} permission${perms.length===1?'':'s'}</div>
+    </div>
+    <div class="d-section"><div class="d-section-label">🔓 Permission Set</div>
+    <ul class="d-list">${perms.map(p=>`<li><span style="color:var(--green);font-size:10px">✓</span><span style="font-family:monospace;font-size:11px">${p}</span></li>`).join('')}</ul></div>`;
+}
+
+function closePanel(){
+  document.getElementById('detailPanel').classList.remove('open');
+}
+
+// ─── FILTER & SEARCH ──────────────────────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    filterMods();
+  });
+});
+document.getElementById('modSearch').addEventListener('input',filterMods);
+function filterMods(){
+  const cat=document.querySelector('.filter-btn.active').dataset.mf;
+  const q=document.getElementById('modSearch').value.toLowerCase();
+  document.querySelectorAll('.mod-section').forEach(sec=>{
+    const catOk=cat==='all'||sec.dataset.cat===cat;
+    let vis=false;
+    sec.querySelectorAll('.mod-card').forEach(card=>{
+      const nameOk=!q||card.dataset.name.includes(q);
+      const show=catOk&&nameOk;
+      card.classList.toggle('hidden',!show);
+      if(show) vis=true;
+    });
+    sec.style.display=vis?'':'none';
+  });
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('view-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+buildModules();
+buildCron();
+</script>
+</body>
+</html>

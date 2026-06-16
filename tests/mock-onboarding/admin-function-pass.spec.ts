@@ -133,7 +133,7 @@ test.describe("Documents: admin CRUD", () => {
   test("admin can open the upload/create document flow", async ({ page }) => {
     skip();
     await gotoAndWaitForApp(page, "/documents");
-    const newBtn = page.getByRole("button", { name: /new|upload|add|create/i }).first();
+    const newBtn = page.getByRole("button", { name: /new document|upload|add document|create document/i }).first();
     const hasBtn = await newBtn.isVisible({ timeout: 10_000 }).catch(() => false);
     if (!hasBtn) {
       test.info().annotations.push({ type: "note", description: "No new/upload button visible — may be in a read-only panel view." });
@@ -147,9 +147,7 @@ test.describe("Documents: admin CRUD", () => {
       type: "note",
       description: hasForm ? "Upload form/dialog opened successfully" : "No form/dialog after click — may use non-standard drawer or data-dependent UI",
     });
-    if (hasForm) {
-      await expect(form).toBeVisible();
-    }
+    // hasForm already confirms visibility — no redundant expect needed
   });
 
   test("jobsite documents tab loads", async ({ page }) => {
@@ -231,9 +229,7 @@ test.describe("Incidents: admin create", () => {
         type: "note",
         description: hasForm ? "New incident form opened" : "No form/dialog appeared — may navigate or use non-standard UI",
       });
-      if (hasForm) {
-        await expect(form).toBeVisible();
-      }
+      // hasForm already confirms visibility — no redundant expect needed
     } else {
       test.info().annotations.push({ type: "note", description: "New incident button not found for this admin." });
     }
@@ -260,9 +256,7 @@ test.describe("Permits: admin create", () => {
         type: "note",
         description: hasForm ? "New permit form opened" : "No form/dialog appeared — may navigate or use non-standard UI",
       });
-      if (hasForm) {
-        await expect(form).toBeVisible();
-      }
+      // hasForm already confirms visibility — no redundant expect needed
     } else {
       test.info().annotations.push({ type: "note", description: "New permit button not found." });
     }

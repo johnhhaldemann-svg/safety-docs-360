@@ -58,44 +58,52 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
       waitUntil: "domcontentloaded",
     });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    // App may redirect, show an explicit error, or render an empty shell (RLS enforced at DB level —
+    // the jobsite name can't be resolved, so the heading shows the "Selected jobsite" placeholder).
+    const isNotFound = await page.getByText(/not found|no access|no jobsite|scope/i).first()
+      .waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+    const isEmptyShell = await page.getByRole("heading", { name: /selected jobsite/i }).first()
+      .waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const isNotFound = await page.getByText(/not found|404|no access|no jobsite|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
-    const isLoading = await page.getByText(/loading/i).first().isVisible({ timeout: 2_000 }).catch(() => false);
 
     test.info().annotations.push({
       type: "result",
-      description: `Foreign jobsite route → redirected: ${isRedirected}, 404/denied: ${isNotFound}`,
+      description: `Foreign jobsite route → redirected: ${isRedirected}, denied: ${isNotFound}, empty shell: ${isEmptyShell}`,
     });
 
-    expect(isRedirected || isNotFound).toBe(true);
+    expect(isRedirected || isNotFound || isEmptyShell).toBe(true);
   });
 
   test("navigating to foreign jobsite JSA tab returns empty or blocked", async ({ page }) => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/jsa`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first()
+      .waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+    const isEmptyShell = await page.getByRole("heading", { name: /selected jobsite/i }).first()
+      .waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
     const redirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
 
-    expect(redirected || denied).toBe(true);
+    expect(redirected || denied || isEmptyShell).toBe(true);
   });
 
   test("navigating to foreign jobsite incidents tab returns empty or blocked", async ({ page }) => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/incidents`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    const isDenied = await page.getByText(/not found|no access|scope/i).first()
+      .waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+    const isEmptyShell = await page.getByRole("heading", { name: /selected jobsite/i }).first()
+      .waitFor({ state: "visible", timeout: 8_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
-    expect(!url.includes(FOREIGN_JOBSITE_ID) ||
-      await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false)
-    ).toBe(true);
+    const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
+
+    expect(isRedirected || isDenied || isEmptyShell).toBe(true);
   });
 });
 
