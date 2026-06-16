@@ -21,4 +21,4 @@ Work here after **revenue pilot** is stable. Priority is **contract-driven** and
 
 ## Tracking
 
-Link each row to a ticket; when shipped, update [parity-modules-release-validation](./parity-modules-release-validation.md) and retire waivers in [pilot-sku](./pilot-sku.md).
+Link each row to a ticket; when shipped, update [parity-modules-release-validation](./parity-modules-release-validation.md).
