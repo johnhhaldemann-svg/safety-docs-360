@@ -60,7 +60,9 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     await acceptAgreementIfPresent(page, 3_000);
     // Skip networkidle — background polling keeps the network busy indefinitely.
     // Wait directly for the async API response which renders "Jobsite not found in your company scope."
-    const isNotFound = await page.getByText(/not found|no access|no jobsite|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
+    // NOTE: isVisible() does not wait — must use waitFor() to actually poll until visible.
+    const isNotFound = await page.getByText(/not found|no access|no jobsite|scope/i).first()
+      .waitFor({ state: "visible", timeout: 35_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
@@ -78,8 +80,9 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/jsa`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
     // Skip networkidle — background polling keeps the network busy indefinitely.
-    // Wait directly for the async API response which renders "Jobsite not found in your company scope."
-    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
+    // NOTE: isVisible() does not wait — must use waitFor() to actually poll until visible.
+    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first()
+      .waitFor({ state: "visible", timeout: 35_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
     const redirected = !url.includes(FOREIGN_JOBSITE_ID);
@@ -92,8 +95,9 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/incidents`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
     // Skip networkidle — background polling keeps the network busy indefinitely.
-    // Wait directly for the async API response which renders "Jobsite not found in your company scope."
-    const isDenied = await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
+    // NOTE: isVisible() does not wait — must use waitFor() to actually poll until visible.
+    const isDenied = await page.getByText(/not found|no access|scope/i).first()
+      .waitFor({ state: "visible", timeout: 35_000 }).then(() => true).catch(() => false);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);

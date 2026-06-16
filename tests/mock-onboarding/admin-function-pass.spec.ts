@@ -133,7 +133,7 @@ test.describe("Documents: admin CRUD", () => {
   test("admin can open the upload/create document flow", async ({ page }) => {
     skip();
     await gotoAndWaitForApp(page, "/documents");
-    const newBtn = page.getByRole("button", { name: /new|upload|add|create/i }).first();
+    const newBtn = page.getByRole("button", { name: /new document|upload|add document|create document/i }).first();
     const hasBtn = await newBtn.isVisible({ timeout: 10_000 }).catch(() => false);
     if (!hasBtn) {
       test.info().annotations.push({ type: "note", description: "No new/upload button visible — may be in a read-only panel view." });

@@ -22,6 +22,13 @@ export function getTestIds() {
 export async function gotoAndWaitForApp(page: Page, url: string) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await acceptAgreementIfPresent(page);
+  // Dismiss product tour overlay if it appears (intercepts pointer events)
+  const tourBtn = page.getByRole("button", { name: "Skip tour" });
+  const hasTour = await tourBtn.waitFor({ state: "visible", timeout: 3_000 }).then(() => true).catch(() => false);
+  if (hasTour) {
+    await page.keyboard.press("Escape");
+    await tourBtn.waitFor({ state: "hidden", timeout: 3_000 }).catch(() => undefined);
+  }
   // Give client-side navigation a moment to resolve
   await page.waitForLoadState("networkidle", { timeout: 25_000 }).catch(() => undefined);
 }
