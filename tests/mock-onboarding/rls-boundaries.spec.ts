@@ -58,59 +58,47 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
       waitUntil: "domcontentloaded",
     });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    // Skip networkidle — background polling keeps the network busy indefinitely.
+    // Wait directly for the async API response which renders "Jobsite not found in your company scope."
+    const isNotFound = await page.getByText(/not found|no access|no jobsite|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const isNotFound = await page.getByText(/not found|404|no access|no jobsite|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
-    // Empty content is also valid: RLS returned no data, page renders blank
-    const isEffectivelyEmpty = await page.evaluate(() => {
-      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
-      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
-    }).catch(() => false);
 
     test.info().annotations.push({
       type: "result",
-      description: `Foreign jobsite route → redirected: ${isRedirected}, 404/denied: ${isNotFound}, empty: ${isEffectivelyEmpty}`,
+      description: `Foreign jobsite route → redirected: ${isRedirected}, denied: ${isNotFound}`,
     });
 
-    expect(isRedirected || isNotFound || isEffectivelyEmpty).toBe(true);
+    expect(isRedirected || isNotFound).toBe(true);
   });
 
   test("navigating to foreign jobsite JSA tab returns empty or blocked", async ({ page }) => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/jsa`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    // Skip networkidle — background polling keeps the network busy indefinitely.
+    // Wait directly for the async API response which renders "Jobsite not found in your company scope."
+    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
 
     const url = page.url();
     const redirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
-    // Empty content is valid: RLS returned no data, page renders blank
-    const isEffectivelyEmpty = await page.evaluate(() => {
-      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
-      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
-    }).catch(() => false);
 
-    expect(redirected || denied || isEffectivelyEmpty).toBe(true);
+    expect(redirected || denied).toBe(true);
   });
 
   test("navigating to foreign jobsite incidents tab returns empty or blocked", async ({ page }) => {
     skip();
     await page.goto(`/jobsites/${FOREIGN_JOBSITE_ID}/incidents`, { waitUntil: "domcontentloaded" });
     await acceptAgreementIfPresent(page, 3_000);
-    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    // Skip networkidle — background polling keeps the network busy indefinitely.
+    // Wait directly for the async API response which renders "Jobsite not found in your company scope."
+    const isDenied = await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 35_000 }).catch(() => false);
 
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
-    const isDenied = await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
-    // Empty content is valid: RLS returned no data, page renders blank
-    const isEffectivelyEmpty = await page.evaluate(() => {
-      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
-      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
-    }).catch(() => false);
 
-    expect(isRedirected || isDenied || isEffectivelyEmpty).toBe(true);
+    expect(isRedirected || isDenied).toBe(true);
   });
 });
 
