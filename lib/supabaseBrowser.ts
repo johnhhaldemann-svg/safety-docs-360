@@ -90,6 +90,20 @@ function createOfflineClient() {
   } as unknown as SupabaseClient;
 }
 
+function createSsrStubClient(): SupabaseClient {
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: null }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      signOut: async () => ({ error: null }),
+      signInWithPassword: async () => ({ data: null, error: null }),
+    },
+    from: () => ({ select: () => ({}) }),
+    storage: { from: () => ({}) },
+  } as unknown as SupabaseClient;
+}
+
 export function getSupabaseBrowserClient() {
   if (browserClient) {
     return browserClient;
@@ -104,6 +118,10 @@ export function getSupabaseBrowserClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    // During Next.js static prerendering the browser env vars may not be
+    // substituted. Return a harmless stub — event handlers and effects only
+    // run in the browser where the module re-evaluates with the real config.
+    if (typeof window === "undefined") return createSsrStubClient();
     throw new Error("Missing Supabase browser configuration.");
   }
 
