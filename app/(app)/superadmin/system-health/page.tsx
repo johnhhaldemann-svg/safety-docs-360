@@ -45,7 +45,7 @@ import {
 
 const SECTION_LABELS: Record<string, string> = {
   data_foundation: "Data Foundation",
-  memory_buckets: "Safety Memory Buckets",
+  ai_gateway: "AI Knowledge Gateway",
   prevention_logic: "Prevention Logic Layer",
   intelligence_engine: "Smart Safety Intelligence Engine",
   protection_outputs: "Protection Outputs",
@@ -55,7 +55,7 @@ const SECTION_LABELS: Record<string, string> = {
 /** Card / diagram canonical order (bottom -> top flow, then left-to-right outputs). */
 const SECTION_DISPLAY_ORDER = [
   "data_foundation",
-  "memory_buckets",
+  "ai_gateway",
   "prevention_logic",
   "intelligence_engine",
   "protection_outputs",
@@ -492,8 +492,8 @@ function FlowDiagram({
               <LoopBackEdge
                 connections={connMap}
                 from="field_feedback_loop"
-                to="memory_buckets"
-                caption="Feedback -> memory"
+                to="ai_gateway"
+                caption="Feedback -> gateway"
                 Icon={ArrowDownLeft}
               />
             </div>
@@ -503,14 +503,14 @@ function FlowDiagram({
         <div className={spineCol}>
           <VerticalEdge connections={connMap} from="prevention_logic" to="intelligence_engine" />
           <NodeCard sections={byId} id="prevention_logic" className="w-full min-w-0" />
-          <VerticalEdge connections={connMap} from="memory_buckets" to="prevention_logic" />
-          <NodeCard sections={byId} id="memory_buckets" className="w-full min-w-0" />
-          <VerticalEdge connections={connMap} from="data_foundation" to="memory_buckets" />
+          <VerticalEdge connections={connMap} from="ai_gateway" to="prevention_logic" />
+          <NodeCard sections={byId} id="ai_gateway" className="w-full min-w-0" />
+          <VerticalEdge connections={connMap} from="data_foundation" to="ai_gateway" />
           <NodeCard sections={byId} id="data_foundation" className="w-full min-w-0" />
         </div>
       </div>
       <p className="mt-4 text-center text-xs text-[var(--app-muted)]">
-        {"Layout follows the Smart Safety architecture: foundation -> memory -> prevention -> intelligence, then deliverables"}
+        {"Layout follows the Smart Safety architecture: foundation -> AI gateway -> prevention -> intelligence, then deliverables"}
         and field feedback (dashed arrows) closing the loop. Edge colors reflect aggregated check status from the API.
       </p>
     </div>
@@ -899,8 +899,8 @@ export default function SuperadminSystemHealthPage() {
           <section className="rounded-2xl border border-[var(--app-border-strong)] bg-white/95 p-6 shadow-[var(--app-shadow-soft)]">
             <h2 className="text-lg font-bold text-[var(--app-text-strong)]">Smart Safety flow</h2>
             <p className="mt-1 text-sm text-[var(--app-text)]">
-              Vertical stack: data foundation, memory, prevention, then the intelligence engine; outputs and the field
-              feedback loop extend to the right. Dashed feedback arrows return into memory and the engine.
+              Vertical stack: data foundation, AI knowledge gateway, prevention, then the intelligence engine; outputs and
+              the field feedback loop extend to the right. Dashed feedback arrows return into the gateway and the engine.
             </p>
             <div className="mt-6">
               <FlowDiagram sections={data.sections} connections={data.connections} />

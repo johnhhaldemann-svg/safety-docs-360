@@ -69,7 +69,7 @@ function overallFromSections(sections: SystemHealthSection[]): SystemHealthStatu
 const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonly string[] }[] = [
   {
     from: "data_foundation",
-    to: "memory_buckets",
+    to: "ai_gateway",
     checkNames: [
       "Service role client",
       "Supabase database connection",
@@ -80,18 +80,18 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
       "User profiles table",
       "Risk memory facets",
       "Company memory bank",
-      "Safety data bucket (ingestion)",
-      "Company bucket items",
+      "Gateway ingest candidates",
+      "Approved knowledge nodes",
     ],
   },
   {
-    from: "memory_buckets",
+    from: "ai_gateway",
     to: "prevention_logic",
     checkNames: [
-      "Company bucket items",
+      "Approved knowledge nodes",
       "Risk memory facets",
-      "Safety data bucket (ingestion)",
-      "Prevention logic output (rule_results on bucket items)",
+      "Gateway ingest candidates",
+      "Prevention logic output (approved nodes)",
       "Permit trigger rules catalog",
     ],
   },
@@ -132,15 +132,15 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
   },
   {
     from: "field_feedback_loop",
-    to: "memory_buckets",
+    to: "ai_gateway",
     checkNames: [
       "Ingestion failures (7 days)",
       "System error log (ingestion failures, all time)",
-      "Bucket runs (feedback into SI)",
+      "Gateway ingest batches",
       "Field feedback -> Risk Memory snapshots",
       "Risk memory facets",
       "Company memory bank",
-      "Company bucket items",
+      "Gateway ingest candidates",
     ],
   },
   {
@@ -213,7 +213,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
     };
     const skippedSections: SystemHealthSection[] = [
       section,
-      ...["memory_buckets", "prevention_logic", "intelligence_engine", "protection_outputs", "field_feedback_loop"].map(
+      ...["ai_gateway", "prevention_logic", "intelligence_engine", "protection_outputs", "field_feedback_loop"].map(
         (id) =>
           ({
             id,
@@ -437,47 +437,58 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
         )
   );
 
-  const sdb = await headCount(admin, "safety_data_bucket");
-  recordsMemory += sdb.count;
+  const ingestCandidates = await headCount(admin, "ai_knowledge_ingest_candidates");
+  recordsMemory += ingestCandidates.count;
   checksMemory.push(
-    sdb.error
-      ? check("Safety data bucket (ingestion)", "unknown", sdb.error, null)
+    ingestCandidates.error
+      ? check("Gateway ingest candidates", "unknown", ingestCandidates.error, null)
       : check(
-          "Safety data bucket (ingestion)",
-          sdb.count > 0 ? "healthy" : "warning",
-          `${sdb.count} ingested safety bucket row(s).`,
-          sdb.count === 0 ? "No Smart Safety intake rows yet - pipelines may be unused." : null
+          "Gateway ingest candidates",
+          "healthy",
+          `${ingestCandidates.count} ingest candidate row(s) in the gateway queue.`,
+          ingestCandidates.count === 0 ? "No ingest candidates yet - submit documents to populate the gateway queue." : null
         )
   );
 
-  const bucketItems = await headCount(admin, "company_bucket_items");
-  recordsMemory += bucketItems.count;
+  const knowledgeNodes = await headCount(admin, "ai_knowledge_nodes");
+  recordsMemory += knowledgeNodes.count;
   checksMemory.push(
-    bucketItems.error
-      ? check("Company bucket items", "critical", bucketItems.error, "Apply safety_intelligence_platform migration.")
+    knowledgeNodes.error
+      ? check("Approved knowledge nodes", "unknown", knowledgeNodes.error, null)
       : check(
-          "Company bucket items",
-          bucketItems.count > 0 ? "healthy" : "warning",
-          `${bucketItems.count} bucket item row(s) for Safety Intelligence.`,
-          bucketItems.count === 0 ? "Run a Safety Intelligence workflow to populate bucket items." : null
+          "Approved knowledge nodes",
+          "healthy",
+          `${knowledgeNodes.count} knowledge node(s) in the AI map.`,
+          knowledgeNodes.count === 0 ? "No approved nodes yet - approve gateway candidates to build the knowledge map." : null
+        )
+  );
+
+  const knowledgeEdges = await headCount(admin, "ai_knowledge_edges");
+  recordsMemory += knowledgeEdges.count;
+  checksMemory.push(
+    knowledgeEdges.error
+      ? check("Knowledge edges", "unknown", knowledgeEdges.error, null)
+      : check(
+          "Knowledge edges",
+          "healthy",
+          `${knowledgeEdges.count} relationship edge(s) in the AI map.`,
+          null
         )
   );
 
   const checksPrevention: SystemHealthCheck[] = [];
   let recordsPrevention = 0;
-  const itemsWithRules = await headCount(admin, "company_bucket_items", (q) =>
-    q.not("rule_results", "is", null)
-  );
-  recordsPrevention += itemsWithRules.count;
+  const approvedNodes = await headCount(admin, "ai_knowledge_nodes");
+  recordsPrevention += approvedNodes.count;
   checksPrevention.push(
-    itemsWithRules.error
-      ? check("Prevention logic output (rule_results on bucket items)", "unknown", itemsWithRules.error, null)
+    approvedNodes.error
+      ? check("Prevention logic output (approved nodes)", "unknown", approvedNodes.error, null)
       : check(
-          "Prevention logic output (rule_results on bucket items)",
-          itemsWithRules.count > 0 ? "healthy" : "warning",
-          `${itemsWithRules.count} bucket item(s) carry persisted rule evaluations.`,
-          itemsWithRules.count === 0
-            ? "Generate documents or bucket runs so rule_results populate for prevention logic."
+          "Prevention logic output (approved nodes)",
+          approvedNodes.count > 0 ? "healthy" : "warning",
+          `${approvedNodes.count} approved knowledge node(s) available for prevention logic.`,
+          approvedNodes.count === 0
+            ? "Approve gateway ingest candidates to populate knowledge nodes for prevention logic."
             : null
         )
   );
@@ -661,16 +672,16 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
         )
   );
 
-  const bucketRuns = await headCount(admin, "company_bucket_runs");
-  recordsFeedback += bucketRuns.count;
+  const ingestBatches = await headCount(admin, "ai_knowledge_ingest_batches");
+  recordsFeedback += ingestBatches.count;
   checksFeedback.push(
-    bucketRuns.error
-      ? check("Bucket runs (feedback into SI)", "critical", bucketRuns.error, null)
+    ingestBatches.error
+      ? check("Gateway ingest batches", "unknown", ingestBatches.error, null)
       : check(
-          "Bucket runs (feedback into SI)",
-          bucketRuns.count > 0 ? "healthy" : "warning",
-          `${bucketRuns.count} bucket run(s) recorded.`,
-          bucketRuns.count === 0 ? "No bucket runs - Safety Intelligence may not have been exercised." : null
+          "Gateway ingest batches",
+          "healthy",
+          `${ingestBatches.count} gateway ingest batch(es) recorded.`,
+          ingestBatches.count === 0 ? "No ingest batches yet - process gateway candidates to create batch records." : null
         )
   );
 
@@ -826,7 +837,7 @@ export async function runSystemHealthScan(admin: SupabaseClient | null): Promise
 
   const sections: SystemHealthSection[] = [
     buildSection("data_foundation", "Data Foundation", checksDataFoundation, recordsDataFoundation),
-    buildSection("memory_buckets", "Safety Memory Buckets", checksMemory, recordsMemory),
+    buildSection("ai_gateway", "AI Knowledge Gateway", checksMemory, recordsMemory),
     buildSection("prevention_logic", "Prevention Logic Layer", checksPrevention, recordsPrevention),
     buildSection("intelligence_engine", "Smart Safety Intelligence Engine", checksEngine, recordsEngine),
     buildSection("protection_outputs", "Protection Outputs", checksOutputs, recordsOutputs),
