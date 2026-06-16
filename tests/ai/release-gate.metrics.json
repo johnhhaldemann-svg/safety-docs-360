@@ -1,18 +1,85 @@
 {
-  "source": "local deterministic golden evaluation run",
-  "generatedAt": "2026-05-28T00:00:00.000Z",
+  "source": "ai eval harness execution artifact",
+  "generatedAt": "2026-06-16T17:14:30.261Z",
   "evalResults": {
-    "totalFixtures": 22,
-    "executedFixtures": 8,
-    "passedFixtures": 8,
+    "totalFixtures": 23,
+    "executedFixtures": 23,
+    "passedFixtures": 23,
     "failedFixtures": 0,
-    "skippedFixtures": 14,
-    "registeredAdapters": 10,
-    "unregisteredFixtures": 0,
+    "skippedFixtures": 0,
+    "registeredAdapters": [
+      "field-audits.ai-review",
+      "gc-program.review",
+      "gus.verified-learning",
+      "injury-weather.insights",
+      "injury-weather.sparse-web-research",
+      "jobsite.site-visual.generate",
+      "responses-api.json",
+      "risk-memory.llm-recommendations",
+      "superadmin.ai-engine.recommendations",
+      "training-records.photo-extract"
+    ],
+    "registeredAdapterCount": 10,
+    "unregisteredFixtures": [],
+    "unregisteredFixtureCount": 0,
+    "adapterSurfacesWithoutFixtures": [],
+    "unreportedFixtures": [],
     "telemetryAvailable": true
   },
   "failureRate": 0,
   "fallbackRate": 0,
   "tokenCostRegression": 0,
-  "p95LatencyRegression": 0
+  "p95LatencyRegression": 0,
+  "fixtureCoverage": [
+    {
+      "surface": "field-audits.ai-review",
+      "fixtures": 1,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "gc-program.review",
+      "fixtures": 3,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "gus.verified-learning",
+      "fixtures": 8,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "injury-weather.insights",
+      "fixtures": 1,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "injury-weather.sparse-web-research",
+      "fixtures": 1,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "jobsite.site-visual.generate",
+      "fixtures": 1,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "responses-api.json",
+      "fixtures": 3,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "risk-memory.llm-recommendations",
+      "fixtures": 3,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "superadmin.ai-engine.recommendations",
+      "fixtures": 1,
+      "adapterRegistered": true
+    },
+    {
+      "surface": "training-records.photo-extract",
+      "fixtures": 1,
+      "adapterRegistered": true
+    }
+  ]
 }

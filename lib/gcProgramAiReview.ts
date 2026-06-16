@@ -283,6 +283,8 @@ export async function generateGcProgramAiReview(params: {
                 "oshaRelatedStrengths",
                 "oshaRelatedGapsOrRisks",
                 "recommendedFollowUps",
+                "documentQualityIssues",
+                "noteCoverage",
                 "overallAssessment",
               ],
             },
