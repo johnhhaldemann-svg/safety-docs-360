@@ -23,6 +23,7 @@ import {
   LogOut,
   Menu,
   PieChart,
+  PlayCircle,
   Search,
   Settings,
   ShieldCheck,
@@ -32,6 +33,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { useTour } from "@/components/guided-tour";
 import type { LucideIcon } from "lucide-react";
 import { useSafePredictData } from "@/components/safe-predict/SafePredictDataProvider";
 import { canViewSafePredictPlatformActions } from "@/lib/safePredictPlatformActions";
@@ -230,6 +232,7 @@ function SafePredictLockup({
 export function SafePredictShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { startTour } = useTour();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [canAccessInternalAdmin, setCanAccessInternalAdmin] = useState(false);
@@ -484,6 +487,18 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
               <span className="mt-1 block text-slate-200">{dataset.jobsites.length} jobsites, {dataset.employees.length} employees</span>
               <span className="mt-1 block text-xs font-bold uppercase tracking-wide text-blue-100/60">Workspace data</span>
             </Link>
+            {/* Guided Tour trigger */}
+            <button
+              type="button"
+              onClick={startTour}
+              className="flex min-h-14 w-full items-center gap-3 border-t border-white/10 pt-4 text-left text-sm text-slate-200 transition hover:text-white"
+            >
+              <PlayCircle className="h-6 w-6" aria-hidden />
+              <span>
+                <span className="block font-bold text-white">Take a Tour</span>
+                Guided platform walkthrough
+              </span>
+            </button>
             <Link href="/safe-predict/support" className="flex min-h-14 items-center gap-3 border-t border-white/10 pt-4 text-sm text-slate-200 hover:text-white">
               <HelpCircle className="h-6 w-6" aria-hidden />
               <span>
@@ -529,7 +544,15 @@ export function SafePredictShell({ children }: { children: React.ReactNode }) {
             <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
               {navList}
             </nav>
-            <div className="border-t border-white/10 p-4">
+            <div className="border-t border-white/10 p-4 space-y-1">
+              <button
+                type="button"
+                onClick={() => { setMobileMenuOpen(false); startTour(); }}
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-white/8 hover:text-white"
+              >
+                <PlayCircle className="h-5 w-5" aria-hidden />
+                Take a Tour
+              </button>
               <button
                 type="button"
                 onClick={handleSignOut}
