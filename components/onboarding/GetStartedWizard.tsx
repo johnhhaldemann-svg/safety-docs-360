@@ -11,11 +11,15 @@ import {
   ChevronRight,
   ClipboardCheck,
   ExternalLink,
+  FileText,
   HardHat,
   LayoutDashboard,
+  Lightbulb,
   MapPin,
   RefreshCw,
+  Sparkles,
   Users,
+  Zap,
 } from "lucide-react";
 import {
   buildAdoptionChecklist,
@@ -51,6 +55,9 @@ type WizardStep = {
   title: string;
   description: string;
   what: string[];
+  tip: string;
+  unlocks: string[];
+  timeEstimate: string;
   ctaLabel: string;
   ctaHref: string;
   newTab: boolean;
@@ -68,6 +75,9 @@ const WIZARD_STEPS: WizardStep[] = [
       "Industry type (construction, oil & gas, utilities, etc.)",
       "Phone number and address",
     ],
+    tip: "Pick the most specific industry available — 'Electrical Contractor' trains the AI better than just 'Construction'. It affects every hazard suggestion and JSA template you generate.",
+    unlocks: ["AI-tailored hazard suggestions", "Branded PDFs & reports", "Industry compliance checks"],
+    timeEstimate: "~2 min",
     ctaLabel: "Open Company Profile",
     ctaHref: "/safe-predict/company-profile",
     newTab: true,
@@ -83,6 +93,9 @@ const WIZARD_STEPS: WizardStep[] = [
       "OR type an email address to invite a teammate directly",
       "You can upload the full roster or start with just a few",
     ],
+    tip: "Start with your safety managers and site supervisors first — they're the ones who assign training, sign permits, and need daily access. You can bulk-import the rest of the crew later.",
+    unlocks: ["Assign training & certifications", "Track site access by worker", "Send sign-off requests"],
+    timeEstimate: "~3 min",
     ctaLabel: "Open Data Import",
     ctaHref: "/safe-predict/onboarding-import?tab=employees",
     newTab: true,
@@ -98,6 +111,9 @@ const WIZARD_STEPS: WizardStep[] = [
       "Site address or location description",
       "Type of work being performed",
     ],
+    tip: "Even an approximate address helps — it's used to pull live weather data for risk scoring and to auto-populate permit forms. You can refine it later.",
+    unlocks: ["Risk scores per site", "Site-specific safety reports", "Weather-aware risk alerts"],
+    timeEstimate: "~1 min",
     ctaLabel: "Open Jobsites",
     ctaHref: "/safe-predict/jobsites?new=1",
     newTab: true,
@@ -113,6 +129,9 @@ const WIZARD_STEPS: WizardStep[] = [
       "Select the jobsite this JSA applies to",
       "Add one work step to get started — you can add more as you go",
     ],
+    tip: "Try the AI Fill button on your first work step — type something like 'Welding overhead' and AI will write the hazard, mitigation, and required controls automatically. Edit to fit your site, then save.",
+    unlocks: ["PDF export with your logo", "Worker sign-off tracking", "JSA risk score"],
+    timeEstimate: "~3 min",
     ctaLabel: "Open JSA Builder",
     ctaHref: "/safe-predict/jsa",
     newTab: true,
@@ -128,6 +147,9 @@ const WIZARD_STEPS: WizardStep[] = [
       "Open actions, permits, and JSAs at a glance",
       "Team activity and upcoming safety events",
     ],
+    tip: "Bookmark this page and make it your daily starting point. The GUS Smart Safety Bot (bottom-right corner) can answer safety questions, look up regulations, and help you draft corrective actions — just ask it.",
+    unlocks: ["Real-time risk overview", "One-click action tracking", "Team safety feed"],
+    timeEstimate: "< 1 min",
     ctaLabel: "Open Command Center",
     ctaHref: "/safe-predict",
     newTab: false,
@@ -394,6 +416,9 @@ export function GetStartedWizard() {
                       Done
                     </span>
                   )}
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-500">
+                    {step.timeEstimate}
+                  </span>
                 </div>
                 <p className="mt-2 text-sm leading-7 text-[var(--app-text)]">{step.description}</p>
               </div>
@@ -412,6 +437,34 @@ export function GetStartedWizard() {
                   </li>
                 ))}
               </ul>
+            </div>
+
+            {/* Pro tip */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
+              <Lightbulb className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" aria-hidden />
+              <div className="space-y-2 min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-600">Pro tip</p>
+                <p className="text-sm leading-6 text-amber-900">{step.tip}</p>
+              </div>
+            </div>
+
+            {/* Unlocks */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--app-muted)] flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5" aria-hidden />
+                After this step you unlock
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {step.unlocks.map((u) => (
+                  <span
+                    key={u}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--app-accent-primary-soft,#dbeafe)] bg-[var(--app-accent-primary-soft,#eff6ff)] px-3 py-1 text-xs font-semibold text-[var(--app-accent-primary)]"
+                  >
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    {u}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {/* Status + CTA */}
@@ -512,20 +565,47 @@ export function GetStartedWizard() {
 
         {/* All complete banner */}
         {allComplete && (
-          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-5 text-center space-y-3">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" aria-hidden />
-            <p className="text-base font-black text-emerald-800">All steps complete!</p>
-            <p className="text-sm text-emerald-700">
-              Your workspace is ready. Open the Command Center to start your first day.
-            </p>
-            <button
-              type="button"
-              onClick={() => void handleOpenCommandCenter()}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-500"
-            >
-              <LayoutDashboard className="h-4 w-4" aria-hidden />
-              Open Command Center
-            </button>
+          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-6 space-y-5">
+            <div className="text-center space-y-2">
+              <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" aria-hidden />
+              <p className="text-lg font-black text-emerald-800">Your workspace is ready!</p>
+              <p className="text-sm text-emerald-700">
+                All 5 steps complete. Here&apos;s what to do on your first day:
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <a
+                href="/safe-predict/jsa"
+                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
+              >
+                <ClipboardCheck className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                Create a second JSA
+              </a>
+              <a
+                href="/safe-predict/onboarding-import?tab=employees"
+                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
+              >
+                <Users className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                Invite your site supervisor
+              </a>
+              <a
+                href="/safe-predict/documents"
+                className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                Browse all document types
+              </a>
+            </div>
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => void handleOpenCommandCenter()}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-500"
+              >
+                <LayoutDashboard className="h-4 w-4" aria-hidden />
+                Open Command Center
+              </button>
+            </div>
           </div>
         )}
 
