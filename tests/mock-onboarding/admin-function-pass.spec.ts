@@ -147,9 +147,7 @@ test.describe("Documents: admin CRUD", () => {
       type: "note",
       description: hasForm ? "Upload form/dialog opened successfully" : "No form/dialog after click — may use non-standard drawer or data-dependent UI",
     });
-    if (hasForm) {
-      await expect(form).toBeVisible();
-    }
+    // hasForm already confirms visibility — no redundant expect needed
   });
 
   test("jobsite documents tab loads", async ({ page }) => {
@@ -231,9 +229,7 @@ test.describe("Incidents: admin create", () => {
         type: "note",
         description: hasForm ? "New incident form opened" : "No form/dialog appeared — may navigate or use non-standard UI",
       });
-      if (hasForm) {
-        await expect(form).toBeVisible();
-      }
+      // hasForm already confirms visibility — no redundant expect needed
     } else {
       test.info().annotations.push({ type: "note", description: "New incident button not found for this admin." });
     }
@@ -260,9 +256,7 @@ test.describe("Permits: admin create", () => {
         type: "note",
         description: hasForm ? "New permit form opened" : "No form/dialog appeared — may navigate or use non-standard UI",
       });
-      if (hasForm) {
-        await expect(form).toBeVisible();
-      }
+      // hasForm already confirms visibility — no redundant expect needed
     } else {
       test.info().annotations.push({ type: "note", description: "New permit button not found." });
     }

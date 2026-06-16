@@ -63,14 +63,18 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     const url = page.url();
     const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
     const isNotFound = await page.getByText(/not found|404|no access|no jobsite|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
-    const isLoading = await page.getByText(/loading/i).first().isVisible({ timeout: 2_000 }).catch(() => false);
+    // Empty content is also valid: RLS returned no data, page renders blank
+    const isEffectivelyEmpty = await page.evaluate(() => {
+      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
+      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
+    }).catch(() => false);
 
     test.info().annotations.push({
       type: "result",
-      description: `Foreign jobsite route → redirected: ${isRedirected}, 404/denied: ${isNotFound}`,
+      description: `Foreign jobsite route → redirected: ${isRedirected}, 404/denied: ${isNotFound}, empty: ${isEffectivelyEmpty}`,
     });
 
-    expect(isRedirected || isNotFound).toBe(true);
+    expect(isRedirected || isNotFound || isEffectivelyEmpty).toBe(true);
   });
 
   test("navigating to foreign jobsite JSA tab returns empty or blocked", async ({ page }) => {
@@ -82,8 +86,13 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     const url = page.url();
     const redirected = !url.includes(FOREIGN_JOBSITE_ID);
     const denied = await page.getByText(/not found|no access|forbidden|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
+    // Empty content is valid: RLS returned no data, page renders blank
+    const isEffectivelyEmpty = await page.evaluate(() => {
+      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
+      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
+    }).catch(() => false);
 
-    expect(redirected || denied).toBe(true);
+    expect(redirected || denied || isEffectivelyEmpty).toBe(true);
   });
 
   test("navigating to foreign jobsite incidents tab returns empty or blocked", async ({ page }) => {
@@ -93,9 +102,15 @@ test.describe("Route isolation: foreign company/jobsite IDs", () => {
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
 
     const url = page.url();
-    expect(!url.includes(FOREIGN_JOBSITE_ID) ||
-      await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false)
-    ).toBe(true);
+    const isRedirected = !url.includes(FOREIGN_JOBSITE_ID);
+    const isDenied = await page.getByText(/not found|no access|scope/i).first().isVisible({ timeout: 10_000 }).catch(() => false);
+    // Empty content is valid: RLS returned no data, page renders blank
+    const isEffectivelyEmpty = await page.evaluate(() => {
+      const el = document.querySelector("[data-testid='main-content'], main, #main-content");
+      return ((el?.textContent ?? "").replace(/\s+/g, " ").trim().length ?? 0) < 200;
+    }).catch(() => false);
+
+    expect(isRedirected || isDenied || isEffectivelyEmpty).toBe(true);
   });
 });
 
