@@ -6,8 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LegalAcceptanceBlock } from "@/components/LegalAcceptanceBlock";
 import { resolvePostLoginRoute, type PostLoginPermissionMap } from "@/lib/postLoginRoute";
 
-const supabase = getSupabaseBrowserClient();
-
 type AuthMeResponse = {
   user?: {
     role?: string | null;
@@ -74,7 +72,7 @@ function LoginPageContent() {
     setFormMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await getSupabaseBrowserClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -94,7 +92,7 @@ function LoginPageContent() {
   }
 
   async function getPostLoginRoute() {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await getSupabaseBrowserClient().auth.getSession();
     const token = data.session?.access_token;
 
     if (!token) {

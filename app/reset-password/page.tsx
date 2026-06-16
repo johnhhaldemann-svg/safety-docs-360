@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseBrowser";
 
-const supabase = getSupabaseBrowserClient();
-
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -16,6 +14,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let mounted = true;
+    const supabase = getSupabaseBrowserClient();
 
     void supabase.auth.getSession().then(({ data }) => {
       if (mounted) {
@@ -55,7 +54,7 @@ export default function ResetPasswordPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await getSupabaseBrowserClient().auth.updateUser({ password });
     setSaving(false);
 
     if (error) {

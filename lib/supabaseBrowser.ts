@@ -118,11 +118,10 @@ export function getSupabaseBrowserClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // During Next.js static prerendering the browser env vars may not be
-    // substituted. Return a harmless stub — event handlers and effects only
-    // run in the browser where the module re-evaluates with the real config.
-    if (typeof window === "undefined") return createSsrStubClient();
-    throw new Error("Missing Supabase browser configuration.");
+    // NEXT_PUBLIC_ vars may be absent during SSR prerendering or if not set
+    // as build-time env vars in Vercel. Return a stub so the page renders
+    // without crashing; auth calls will fail gracefully rather than exploding.
+    return createSsrStubClient();
   }
 
   browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
