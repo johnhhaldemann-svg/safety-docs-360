@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafePredict — Platform Wiring Map</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #161b27;
+    border-bottom: 1px solid #1e2740;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #f59e0b, #dc2626);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 900; color: white;
+  }
+  .header h1 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+  .header p { font-size: 11px; color: #64748b; margin-top: 1px; }
+
+  /* ── Summary badges ── */
+  .summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    border: 1px solid transparent;
+  }
+  .badge:hover { opacity: 0.8; }
+  .badge.active { border-color: currentColor; }
+  .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+  .badge-yellow { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .badge-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .badge-gray { background: rgba(100,116,139,0.15); color: #94a3b8; }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  /* ── Filters ── */
+  .filter-bar {
+    background: #161b27;
+    border-bottom: 1px solid #1e2740;
+    padding: 10px 24px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .filter-btn {
+    background: #1e2740;
+    border: 1px solid #2d3a55;
+    color: #94a3b8;
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    background: #2d3a55;
+    color: #e2e8f0;
+    border-color: #3d4f73;
+  }
+  .filter-label { font-size: 12px; color: #475569; margin-right: 4px; }
+  .search-box {
+    margin-left: auto;
+    background: #1e2740;
+    border: 1px solid #2d3a55;
+    color: #e2e8f0;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    width: 200px;
+    outline: none;
+  }
+  .search-box::placeholder { color: #475569; }
+  .search-box:focus { border-color: #3b82f6; }
+
+  /* ── Main layout ── */
+  .main {
+    display: flex;
+    height: calc(100vh - 105px);
+  }
+
+  /* ── Zones panel ── */
+  .zones {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-auto-rows: min-content;
+    gap: 16px;
+    align-content: start;
+  }
+
+  .zone {
+    background: #161b27;
+    border: 1px solid #1e2740;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .zone-header {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #1e2740;
+  }
+  .zone-icon { font-size: 14px; }
+  .zone-body { padding: 6px 0; }
+
+  /* ── Wiring node ── */
+  .node {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 3px solid transparent;
+  }
+  .node:hover {
+    background: #1a2030;
+  }
+  .node.selected {
+    background: #1a2030;
+  }
+  .node-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .node.green .node-indicator  { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+  .node.yellow .node-indicator { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+  .node.red .node-indicator    { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+  .node.gray .node-indicator   { background: #475569; }
+
+  .node.green  { border-left-color: #10b981; }
+  .node.yellow { border-left-color: #f59e0b; }
+  .node.red    { border-left-color: #ef4444; }
+  .node.gray   { border-left-color: #475569; }
+
+  .node-text { flex: 1; min-width: 0; }
+  .node-name { font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.3; }
+  .node-sub  { font-size: 11px; color: #64748b; margin-top: 2px; line-height: 1.4; }
+
+  .node-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  .tag-green  { background: rgba(16,185,129,0.15);  color: #10b981; }
+  .tag-yellow { background: rgba(245,158,11,0.15);  color: #f59e0b; }
+  .tag-red    { background: rgba(239,68,68,0.15);   color: #ef4444; }
+  .tag-gray   { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+  /* ── Detail panel ── */
+  .detail-panel {
+    width: 360px;
+    min-width: 360px;
+    background: #161b27;
+    border-left: 1px solid #1e2740;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.2s;
+  }
+  .detail-panel.hidden {
+    width: 0;
+    min-width: 0;
+    border-left: none;
+  }
+  .detail-inner {
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .detail-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .detail-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .detail-status-text { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .detail-name { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .detail-zone { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+
+  .detail-section { margin-bottom: 16px; }
+  .detail-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475569;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #1e2740;
+  }
+  .detail-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+
+  .action-list { list-style: none; }
+  .action-list li {
+    font-size: 12px;
+    color: #94a3b8;
+    padding: 5px 0;
+    border-bottom: 1px solid #1a2030;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+  }
+  .action-list li:last-child { border-bottom: none; }
+  .action-list .bullet {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .env-tag {
+    background: #1e2740;
+    border: 1px solid #2d3a55;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    color: #7dd3fc;
+    display: inline-block;
+    margin: 2px 2px 2px 0;
+  }
+
+  .close-detail {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #1e2740;
+    border: none;
+    color: #64748b;
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .close-detail:hover { background: #2d3a55; color: #e2e8f0; }
+  .detail-header-row { position: relative; }
+
+  /* hidden class for filtering */
+  .node.hidden { display: none; }
+  .zone.all-hidden { display: none; }
+
+  /* pulse animation for red nodes */
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 4px rgba(239,68,68,0.5); }
+    50% { box-shadow: 0 0 10px rgba(239,68,68,0.9); }
+  }
+  .node.red .node-indicator { animation: pulse-red 2.5s ease-in-out infinite; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2d3a55; border-radius: 3px; }
+
+  .empty-detail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #2d3a55;
+    text-align: center;
+    padding: 40px;
+  }
+  .empty-detail .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-detail p { font-size: 13px; line-height: 1.5; }
+
+  .progress-bar {
+    height: 4px;
+    background: #1e2740;
+    border-radius: 2px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">S</div>
+    <div>
+      <h1>SafePredict — Platform Wiring Map</h1>
+      <p>Live view of what's connected, what's partial, and what's blocked</p>
+    </div>
+  </div>
+  <div class="summary" id="summary"></div>
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+  <span class="filter-label">Show:</span>
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="green">✅ Wired</button>
+  <button class="filter-btn" data-filter="yellow">⚠️ Needs Config</button>
+  <button class="filter-btn" data-filter="red">🔴 Not Wired</button>
+  <button class="filter-btn" data-filter="gray">⬜ Optional</button>
+  <input class="search-box" type="text" id="searchBox" placeholder="Search nodes…">
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="zones" id="zonesContainer"></div>
+  <div class="detail-panel hidden" id="detailPanel">
+    <div class="detail-inner" id="detailInner">
+      <div class="empty-detail">
+        <div class="icon">🔌</div>
+        <p>Click any node to see its wiring status, required actions, and env vars</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+// DATA — all nodes organized by zone
+// ─────────────────────────────────────────────────────
+const zones = [
+  {
+    id: "infrastructure",
+    label: "Infrastructure",
+    icon: "🏗️",
+    color: "#3b82f6",
+    nodes: [
+      {
+        id: "vercel",
+        name: "Vercel / Next.js App",
+        status: "green",
+        tag: "LIVE",
+        sub: "Deployed on Vercel, Node 20.x confirmed",
+        desc: "Next.js App Router deployed on Vercel. Build passes with 0 TypeScript errors and 0 lint errors. Node runtime confirmed as 20.x via package.json engines override.",
+        actions: [],
+        envVars: [],
+        links: ["supabase-auth", "supabase-db", "cron-jobs", "openai"]
+      },
+      {
+        id: "supabase-db",
+        name: "Supabase Postgres DB",
+        status: "green",
+        tag: "LIVE",
+        sub: "690 RLS policies across 245 tables, 3 migrations applied June 3",
+        desc: "Postgres database with full RLS coverage. Zero unprotected tables. Three hardening migrations applied on 2026-06-03. Cross-tenant isolation confirmed.",
+        actions: ["Run `supabase link` then `npm run db:check-sync` to verify no schema drift before launch."],
+        envVars: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+        links: ["supabase-auth", "vercel"]
+      },
+      {
+        id: "supabase-auth",
+        name: "Supabase Auth",
+        status: "green",
+        tag: "LIVE",
+        sub: "RLS working, leaked password protection enabled",
+        desc: "Auth handles all user sessions. RLS policies use (select auth.uid()) for performance. Leaked password protection confirmed enabled in Supabase dashboard.",
+        actions: ["Configure custom SMTP or Supabase email for password reset — must be verified before pilots sign up."],
+        envVars: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+        links: []
+      },
+      {
+        id: "supabase-storage",
+        name: "Supabase Storage",
+        status: "yellow",
+        tag: "PARTIAL",
+        sub: "Signed URLs in code — bucket policy not verified",
+        desc: "Code routes exist for signed URL uploads and document/report attachments. Bucket policy and retention settings have not been verified in the Supabase dashboard.",
+        actions: [
+          "Open Supabase Dashboard → Storage → documents bucket",
+          "Confirm bucket is private (not public)",
+          "Confirm signed URL expiry is appropriate for the pilot",
+          "Screenshot bucket policy as evidence"
+        ],
+        envVars: ["SUPABASE_SERVICE_ROLE_KEY"],
+        links: []
+      },
+      {
+        id: "github-ci",
+        name: "GitHub Actions CI",
+        status: "green",
+        tag: "LIVE",
+        sub: "Workflows exist and run on push",
+        desc: "GitHub Actions workflows are configured for CI and Supabase DB push automation. Latest run should be checked before pilot go-live.",
+        actions: ["Confirm latest CI run is green before launch."],
+        envVars: [],
+        links: ["vercel"]
+      },
+      {
+        id: "cron-jobs",
+        name: "Vercel Cron Jobs (10)",
+        status: "yellow",
+        tag: "PARTIAL",
+        sub: "10 jobs configured in vercel.json — CRON_SECRET not confirmed set",
+        desc: "10 cron endpoints are registered in vercel.json covering risk memory rollup, injury weather refresh, training expiration, Microsoft Project sync, weather notifications, and more. All require CRON_SECRET in Vercel env.",
+        actions: [
+          "Set CRON_SECRET in Vercel → Settings → Environment Variables",
+          "Confirm at least 1 successful cron run visible in Vercel logs",
+          "Check platform_job_runs table for evidence of cron execution"
+        ],
+        envVars: ["CRON_SECRET"],
+        links: ["openai", "resend", "twilio", "nws-weather"]
+      }
+    ]
+  },
+  {
+    id: "ai-engine",
+    label: "AI Engine (Gus)",
+    icon: "🤖",
+    color: "#8b5cf6",
+    nodes: [
+      {
+        id: "openai",
+        name: "OpenAI API",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code wired — API key not confirmed in Vercel env",
+        desc: "Used for Gus AI reviews, company memory embeddings, injury weather insights, AI assist, and TTS voice. Without this key, AI features degrade to fallback text.",
+        actions: [
+          "Add OPENAI_API_KEY to Vercel → Settings → Environment Variables → Production",
+          "Redeploy after adding the key",
+          "Optional: use Vercel AI Gateway (vck_… key) and set OPENAI_BASE_URL"
+        ],
+        envVars: ["OPENAI_API_KEY", "OPENAI_BASE_URL (optional)", "OPENAI_TTS_API_KEY (optional)", "OPENAI_MODEL (optional)", "COMPANY_AI_MODEL (optional)", "GUS_PHOTO_REVIEW_MODEL (optional)", "RISK_MEMORY_LLM_MODEL (optional)"],
+        links: ["gus-engine", "injury-weather"]
+      },
+      {
+        id: "gus-engine",
+        name: "Gus AI Engine",
+        status: "yellow",
+        tag: "PARTIAL",
+        sub: "Code built — release gate metrics not run",
+        desc: "Gus performs AI-powered safety document reviews, photo analysis, risk scoring, and voice responses. Fully coded but gated behind AI release gate verification.",
+        actions: [
+          "Ensure OPENAI_API_KEY is set first",
+          "Run: npm run test:ai-eval 2>&1 | tee tests/ai/release-gate.metrics.json",
+          "Run: npm run ai:release-gate -- --metrics tests/ai/release-gate.metrics.json",
+          "Gate requires: ≥95% eval pass rate, <2% failure, <5% fallback"
+        ],
+        envVars: ["OPENAI_API_KEY"],
+        links: ["openai", "ai-release-gate"]
+      },
+      {
+        id: "ai-release-gate",
+        name: "AI Release Gate",
+        status: "red",
+        tag: "BLOCKED",
+        sub: "Metrics not run — required before pilot launch",
+        desc: "The AI release gate (npm run ai:release-gate) validates that Gus meets minimum quality thresholds. It has NOT been run yet. This is a hard gate before showing Gus to paying customers.",
+        actions: [
+          "1. Set OPENAI_API_KEY in .env.local",
+          "2. Run: npm run test:ai-eval 2>&1 | tee tests/ai/release-gate.metrics.json",
+          "3. Run: npm run ai:release-gate -- --metrics tests/ai/release-gate.metrics.json",
+          "4. Fix and re-run if gate fails",
+          "Required thresholds: 95%+ eval pass, <2% failure, <5% fallback, no unregistered fixture adapters"
+        ],
+        envVars: ["OPENAI_API_KEY"],
+        links: []
+      },
+      {
+        id: "injury-weather",
+        name: "Injury Weather AI",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Deterministic model works — AI narrative layer needs OpenAI key",
+        desc: "Risk trend analysis runs deterministically without AI. The AI narrative overlay (injury weather insights, sparse web research) requires OPENAI_API_KEY. Without it, fallback text is used.",
+        actions: [
+          "Set OPENAI_API_KEY to unlock AI narratives",
+          "Optional: set INJURY_WEATHER_AI_FORECAST_OVERRIDE=1 to enable structured AI forecast patches",
+          "Optional: set INJURY_WEATHER_WEB_RESEARCH_MODEL=gpt-4o for web research supplement"
+        ],
+        envVars: ["OPENAI_API_KEY", "INJURY_WEATHER_AI_FORECAST_OVERRIDE (optional)", "INJURY_WEATHER_SPARSE_WEB_RESEARCH (optional)", "INJURY_WEATHER_WEB_RESEARCH_MODEL (optional)"],
+        links: ["openai"]
+      },
+      {
+        id: "streamlit-lab",
+        name: "Streamlit OSHA IPA Lab",
+        status: "gray",
+        tag: "OPTIONAL",
+        sub: "Separate service — not wired for pilot",
+        desc: "A Streamlit-based OSHA data lab accessible at /superadmin/osha-ipa-lab. Runs as a separate process. Not required for the pilot — this is a superadmin analytics tool.",
+        actions: [
+          "If needed: npm run streamlit:osha:install then npm run streamlit:osha",
+          "Set NEXT_PUBLIC_STREAMLIT_OSHA_URL in Vercel env if embedding"
+        ],
+        envVars: ["NEXT_PUBLIC_STREAMLIT_OSHA_URL"],
+        links: []
+      }
+    ]
+  },
+  {
+    id: "notifications",
+    label: "Notifications & Email",
+    icon: "📧",
+    color: "#06b6d4",
+    nodes: [
+      {
+        id: "resend",
+        name: "Resend (Email Service)",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code wired — API key not confirmed in Vercel",
+        desc: "Resend handles all transactional email. Multiple flows (invites, Gus notifications, billing receipts, training alerts, weather alerts) depend on this single API key. Without it, flows degrade gracefully but no emails are sent.",
+        actions: [
+          "Add RESEND_API_KEY to Vercel → Settings → Environment Variables",
+          "Set RESEND_FROM_EMAIL (company invite sender)",
+          "Set GUS_NOTIFICATION_FROM_EMAIL",
+          "Set TRAINING_ASSIGNMENT_FROM_EMAIL",
+          "Set TRAINING_EXPIRATION_FROM_EMAIL",
+          "Set INCIDENT_ALERT_FROM_EMAIL",
+          "Set WEATHER_ALERT_FROM_EMAIL"
+        ],
+        envVars: ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "GUS_NOTIFICATION_FROM_EMAIL", "TRAINING_ASSIGNMENT_FROM_EMAIL", "TRAINING_EXPIRATION_FROM_EMAIL", "INCIDENT_ALERT_FROM_EMAIL", "WEATHER_ALERT_FROM_EMAIL", "BILLING_RECEIPT_FROM_EMAIL"],
+        links: ["email-invites", "email-gus", "email-training", "email-weather"]
+      },
+      {
+        id: "email-invites",
+        name: "User Invite Emails",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "lib/inviteEmail.ts ready — needs RESEND_API_KEY",
+        desc: "Company admins can invite users. Invite emails are sent via Resend. Code is complete in lib/inviteEmail.ts. MUST work if the pilot is invite-only onboarding.",
+        actions: ["Set RESEND_API_KEY + RESEND_FROM_EMAIL in Vercel env", "Send a test invite and confirm delivery"],
+        envVars: ["RESEND_API_KEY", "RESEND_FROM_EMAIL"],
+        links: ["resend"]
+      },
+      {
+        id: "auth-email",
+        name: "Auth Emails (Password Reset)",
+        status: "yellow",
+        tag: "NEEDS CONFIG",
+        sub: "Handled by Supabase — must verify SMTP config in dashboard",
+        desc: "Password reset and magic link emails are sent by Supabase Auth (not Resend). These must be configured in the Supabase dashboard under Authentication → SMTP settings. If not configured, default Supabase branding appears.",
+        actions: [
+          "Open Supabase → Authentication → SMTP Settings",
+          "Configure custom SMTP or confirm default email works",
+          "Send a test password reset and confirm delivery"
+        ],
+        envVars: [],
+        links: ["supabase-auth"]
+      },
+      {
+        id: "email-gus",
+        name: "Gus Notification Emails",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code ready — needs RESEND_API_KEY + GUS_NOTIFICATION_FROM_EMAIL",
+        desc: "Gus sends email notifications when AI safety reviews complete or when action is required. Requires Resend API key and a configured from-address.",
+        actions: ["Set RESEND_API_KEY", "Set GUS_NOTIFICATION_FROM_EMAIL in Vercel env"],
+        envVars: ["RESEND_API_KEY", "GUS_NOTIFICATION_FROM_EMAIL"],
+        links: ["resend"]
+      },
+      {
+        id: "email-training",
+        name: "Training Expiry Alerts",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Cron job ready — needs Resend key and cron secret",
+        desc: "A Vercel cron job fires training expiration and assignment notification emails. The job is configured but requires CRON_SECRET (to authenticate) and RESEND_API_KEY (to send emails).",
+        actions: ["Set CRON_SECRET in Vercel env", "Set RESEND_API_KEY", "Set TRAINING_EXPIRATION_FROM_EMAIL", "Set TRAINING_ASSIGNMENT_FROM_EMAIL"],
+        envVars: ["CRON_SECRET", "RESEND_API_KEY", "TRAINING_EXPIRATION_FROM_EMAIL", "TRAINING_ASSIGNMENT_FROM_EMAIL"],
+        links: ["resend", "cron-jobs"]
+      },
+      {
+        id: "email-weather",
+        name: "Weather Alert Emails",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code ready — needs NWS feature flag + Resend",
+        desc: "When a severe weather alert hits a jobsite location, email notifications go to PMs and Site Leads. Requires the weather feature enabled and Resend configured.",
+        actions: ["Set FEATURE_JOBSITE_WEATHER_NOTIFICATIONS=true", "Set WEATHER_PROVIDER=nws", "Set NWS_USER_AGENT", "Set WEATHER_ALERT_FROM_EMAIL", "Set RESEND_API_KEY"],
+        envVars: ["FEATURE_JOBSITE_WEATHER_NOTIFICATIONS", "WEATHER_PROVIDER", "NWS_USER_AGENT", "WEATHER_ALERT_FROM_EMAIL", "RESEND_API_KEY"],
+        links: ["resend", "nws-weather"]
+      },
+      {
+        id: "email-corrective",
+        name: "Corrective Action Emails",
+        status: "red",
+        tag: "NOT BUILT",
+        sub: "No Resend flow exists — in-app only",
+        desc: "There is currently no email notification when a corrective action is assigned or goes overdue. Tracking is in-app only (Field Issue Log, dashboard metrics). If the pilot contract requires email on assignment, this must be built.",
+        actions: [
+          "Decide: does the pilot contract require email for corrective action events?",
+          "If yes: build a Resend flow and add a cron or route hook — this is engineering work",
+          "Document as a known gap in pilot contract"
+        ],
+        envVars: [],
+        links: []
+      },
+      {
+        id: "email-permit",
+        name: "Permit Expiry Emails",
+        status: "red",
+        tag: "NOT BUILT",
+        sub: "No Resend flow exists — in-app only",
+        desc: "No email notification flow exists for permit expiration. Permits are tracked in the UI but there is no outbound alert when one is about to expire.",
+        actions: [
+          "Decide: does the pilot require permit expiry email alerts?",
+          "If yes: create a cron job + Resend flow — engineering work"
+        ],
+        envVars: [],
+        links: []
+      },
+      {
+        id: "email-incident",
+        name: "Incident Submitted Emails",
+        status: "red",
+        tag: "NOT BUILT",
+        sub: "No dedicated Resend flow exists",
+        desc: "When a field user submits an incident report, no email notification is automatically sent to managers or safety leads. This is currently in-app visibility only.",
+        actions: [
+          "Decide: does the pilot require incident submission email alerts?",
+          "If yes: build a post-insert hook or API route trigger with Resend"
+        ],
+        envVars: [],
+        links: []
+      },
+      {
+        id: "email-document",
+        name: "Document Status Emails",
+        status: "red",
+        tag: "NOT BUILT",
+        sub: "No Resend flow for document submit/approve events",
+        desc: "No email is sent when a document is submitted for review or approved. Document status is tracked in the Library and dashboard only.",
+        actions: [
+          "Decide: does the pilot require document workflow email notifications?",
+          "If yes: engineering work required to build flow"
+        ],
+        envVars: [],
+        links: []
+      },
+      {
+        id: "support-email",
+        name: "Support Email Env Var",
+        status: "red",
+        tag: "NOT SET",
+        sub: "NEXT_PUBLIC_SUPPORT_EMAIL missing — /privacy shows placeholder",
+        desc: "The /privacy page shows a placeholder until NEXT_PUBLIC_SUPPORT_EMAIL is set. Must be fixed before showing the platform to a paying customer.",
+        actions: ["Add NEXT_PUBLIC_SUPPORT_EMAIL to Vercel → Settings → Environment Variables", "Redeploy after setting the value"],
+        envVars: ["NEXT_PUBLIC_SUPPORT_EMAIL"],
+        links: []
+      }
+    ]
+  },
+  {
+    id: "billing",
+    label: "Billing (Stripe)",
+    icon: "💳",
+    color: "#ec4899",
+    nodes: [
+      {
+        id: "stripe-keys",
+        name: "Stripe API Keys",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code built — keys not confirmed in Vercel",
+        desc: "Stripe handles subscription billing and invoice generation. Code is complete but Stripe keys have not been confirmed as set in Vercel environment variables.",
+        actions: [
+          "Add STRIPE_SECRET_KEY=sk_test_… to Vercel env (test mode for pilot)",
+          "Add STRIPE_WEBHOOK_SECRET=whsec_… to Vercel env",
+          "Confirm NEXT_PUBLIC_SITE_URL matches your Stripe Checkout redirect"
+        ],
+        envVars: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_SITE_URL"],
+        links: ["stripe-webhook", "stripe-test"]
+      },
+      {
+        id: "stripe-webhook",
+        name: "Stripe Webhook Endpoint",
+        status: "red",
+        tag: "NOT VERIFIED",
+        sub: "Endpoint exists — delivery not tested",
+        desc: "The /api/billing/stripe/webhook endpoint is coded and expects a STRIPE_WEBHOOK_SECRET. Webhook delivery from Stripe to Vercel has not been tested or confirmed.",
+        actions: [
+          "In Stripe Dashboard (Test mode): Developers → Webhooks → Add endpoint",
+          "Set URL to: https://your-domain.com/api/billing/stripe/webhook",
+          "Copy signing secret → set as STRIPE_WEBHOOK_SECRET in Vercel env",
+          "Use 'Send test webhook' in Stripe and confirm 200 response in Vercel logs"
+        ],
+        envVars: ["STRIPE_WEBHOOK_SECRET"],
+        links: ["stripe-keys"]
+      },
+      {
+        id: "stripe-test",
+        name: "Stripe Test Flow",
+        status: "red",
+        tag: "NOT DONE",
+        sub: "End-to-end billing not walked through yet",
+        desc: "No one has walked through the full billing flow with a Stripe test card. This must be verified before a pilot customer can be charged or see billing status in-app.",
+        actions: [
+          "Seed a test company: npm run seed:pilot-company",
+          "Walk through /customer/billing as a company admin",
+          "Complete a checkout with Stripe test card 4242 4242 4242 4242",
+          "Verify invoice appears in-app and in Stripe Dashboard",
+          "Confirm webhook delivery and idempotency"
+        ],
+        envVars: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+        links: ["stripe-keys", "stripe-webhook"]
+      }
+    ]
+  },
+  {
+    id: "sms",
+    label: "SMS / Telephony",
+    icon: "📱",
+    color: "#f59e0b",
+    nodes: [
+      {
+        id: "twilio",
+        name: "Twilio SMS",
+        status: "yellow",
+        tag: "NEEDS ENV",
+        sub: "Code wired for weather alerts — keys not set in Vercel",
+        desc: "Twilio sends SMS weather alerts to PMs and Site Leads when a severe weather alert hits a jobsite. All Twilio env vars need to be set in Vercel before this fires.",
+        actions: [
+          "Create Twilio account and get Account SID + Auth Token",
+          "Purchase or configure a Twilio phone number",
+          "Set TWILIO_ACCOUNT_SID in Vercel env",
+          "Set TWILIO_AUTH_TOKEN in Vercel env",
+          "Set TWILIO_FROM_NUMBER (or TWILIO_MESSAGING_SERVICE_SID)",
+          "Note: weather SMS cron requires Vercel Pro/Enterprise plan for 5-min intervals"
+        ],
+        envVars: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER", "TWILIO_MESSAGING_SERVICE_SID (optional)"],
+        links: ["nws-weather"]
+      }
+    ]
+  },
+  {
+    id: "integrations",
+    label: "Third-Party Integrations",
+    icon: "🔗",
+    color: "#10b981",
+    nodes: [
+      {
+        id: "nws-weather",
+        name: "NWS Weather Alerts",
+        status: "yellow",
+        tag: "NEEDS CONFIG",
+        sub: "Code ready — feature flag not enabled",
+        desc: "National Weather Service (NWS) integration monitors active jobsite locations for severe weather alerts. Code is complete but the feature must be explicitly enabled via env vars.",
+        actions: [
+          "Set FEATURE_JOBSITE_WEATHER_NOTIFICATIONS=true in Vercel",
+          "Set WEATHER_PROVIDER=nws",
+          "Set NWS_USER_AGENT='SafePredict/1.0 support@your-domain.com'",
+          "Set WEATHER_POLL_INTERVAL_MINUTES=5 (requires Vercel Pro for 5-min cron)",
+          "Set WEATHER_ALERT_MIN_SEVERITY=watch (or advisory, warning)",
+          "Set WEATHER_CRON_MAX_JOBSITES=500"
+        ],
+        envVars: ["FEATURE_JOBSITE_WEATHER_NOTIFICATIONS", "WEATHER_PROVIDER", "NWS_USER_AGENT", "WEATHER_POLL_INTERVAL_MINUTES", "WEATHER_ALERT_MIN_SEVERITY", "WEATHER_CRON_MAX_JOBSITES"],
+        links: ["twilio", "email-weather"]
+      },
+      {
+        id: "geocodio",
+        name: "Geocodio (ZIP Fallback)",
+        status: "gray",
+        tag: "OPTIONAL",
+        sub: "Optional ZIP geocoder — public fallback works without it",
+        desc: "Geocodio provides more reliable ZIP-to-coordinates lookup. The platform has a public ZIP fallback that works without this key. Only needed if the public geocoder is unreliable.",
+        actions: ["Set GEOCODIO_API_KEY in Vercel env if ZIP lookup is failing"],
+        envVars: ["GEOCODIO_API_KEY"],
+        links: []
+      },
+      {
+        id: "microsoft-project",
+        name: "Microsoft Project Connector",
+        status: "gray",
+        tag: "OPTIONAL",
+        sub: "OAuth app not registered — not required for pilot",
+        desc: "Connects to Microsoft Project / Planner for schedule sync. Requires registering a Microsoft Entra app with OAuth. Not required for the basic pilot — this is a premium integration.",
+        actions: [
+          "Register a Microsoft Entra web app at portal.azure.com",
+          "Set redirect URI: https://your-domain.com/api/company/integrations/microsoft-project/callback",
+          "Set MICROSOFT_CLIENT_ID in Vercel",
+          "Set MICROSOFT_CLIENT_SECRET in Vercel",
+          "Set MICROSOFT_TENANT_MODE=organizations",
+          "Set MICROSOFT_REDIRECT_URI",
+          "Set MICROSOFT_TOKEN_ENCRYPTION_KEY (long random secret)",
+          "Optional: set NEXT_PUBLIC_MICROSOFT_PROJECT_STORE_URL"
+        ],
+        envVars: ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_TENANT_MODE", "MICROSOFT_REDIRECT_URI", "MICROSOFT_TOKEN_ENCRYPTION_KEY", "MICROSOFT_PROJECT_CRON_MAX_COMPANIES (optional)", "NEXT_PUBLIC_MICROSOFT_PROJECT_STORE_URL (optional)"],
+        links: []
+      }
+    ]
+  },
+  {
+    id: "launch-gates",
+    label: "Launch Gates",
+    icon: "🚦",
+    color: "#ef4444",
+    nodes: [
+      {
+        id: "verify-pilot",
+        name: "npm run verify:pilot",
+        status: "red",
+        tag: "NOT RUN",
+        sub: "Full launch gate — must pass on Windows before going live",
+        desc: "The verify:pilot command is the single mandatory launch gate. It checks Vercel Node alignment, DB migration sync, TypeScript, lint, unit tests, navigation, link checks, and production build. Must be run on Windows.",
+        actions: [
+          "Open Terminal in project folder: C:\\Users\\johnh\\OneDrive\\Desktop\\safety_docs_360",
+          "Run: npm run test",
+          "Run: npm run build",
+          "Run: npm run test:navigation",
+          "Run: npm run test:links",
+          "Run: npm run test:ai-eval",
+          "Run: npm run verify:pilot",
+          "All must pass. Expected: 1,233 tests pass, 0 type errors, 0 lint errors"
+        ],
+        envVars: [],
+        links: []
+      },
+      {
+        id: "db-sync",
+        name: "DB Migration Sync Check",
+        status: "red",
+        tag: "NOT VERIFIED",
+        sub: "Live DB must match codebase migrations",
+        desc: "Three new migrations were applied on 2026-06-03. The live Supabase DB must be verified to have all migrations applied and match the codebase.",
+        actions: [
+          "Run: supabase login",
+          "Run: supabase link --project-ref mdqkfbnwxrasdmbsjcqv",
+          "Run: npm run db:check-sync",
+          "If fails: npm run db:push"
+        ],
+        envVars: ["DATABASE_URL or SUPABASE_MIGRATION_CHECK_DB_URL"],
+        links: ["supabase-db"]
+      },
+      {
+        id: "staging-env",
+        name: "Staging Environment",
+        status: "red",
+        tag: "NOT SET UP",
+        sub: "Dedicated staging Supabase project not created yet",
+        desc: "A dedicated staging environment (separate Supabase project + Vercel preview) must exist before running E2E tests or showing the platform to customers. All staging env vars must point at staging, not production.",
+        actions: [
+          "Create a new Supabase project for staging",
+          "Run: supabase link --project-ref <STAGING_REF>; supabase db push",
+          "Create Vercel Preview deployment with all env vars pointing at staging project",
+          "Ensure no staging env var points at production Supabase"
+        ],
+        envVars: ["NEXT_PUBLIC_SUPABASE_URL (staging)", "NEXT_PUBLIC_SUPABASE_ANON_KEY (staging)", "SUPABASE_SERVICE_ROLE_KEY (staging)", "STRIPE_SECRET_KEY (test mode)", "CRON_SECRET (staging)"],
+        links: []
+      },
+      {
+        id: "e2e-signoff",
+        name: "Staging E2E Sign-Off",
+        status: "red",
+        tag: "NOT DONE",
+        sub: "Manual role-based walkthrough required before launch",
+        desc: "A manual walkthrough of the platform as each user role (field_user, safety_manager, company_admin, super_admin) must be completed on staging before launch. Takes 1-2 hours.",
+        actions: [
+          "Set E2E credentials in .env.local (staging)",
+          "Run: npm run test:e2e",
+          "Manually walk: Dashboard, Jobsites, JSA, Permits, Incidents, Training, Safety Intelligence, Library, Company Settings",
+          "Test as: field_user, safety_manager, company_admin, super_admin/admin"
+        ],
+        envVars: ["E2E_USER_EMAIL", "E2E_USER_PASSWORD", "E2E_NEXT_PUBLIC_SUPABASE_URL", "E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+        links: ["staging-env"]
+      },
+      {
+        id: "privacy-page",
+        name: "Privacy Page Customization",
+        status: "red",
+        tag: "NOT DONE",
+        sub: "Placeholder text still shows — must update before customer sees it",
+        desc: "The /privacy page contains placeholder text stating it is a starting point, not legal advice. This must be replaced with actual privacy terms before sharing with a paying customer.",
+        actions: [
+          "Review and update /privacy page content with actual privacy terms",
+          "Set NEXT_PUBLIC_SUPPORT_EMAIL in Vercel env to remove the placeholder contact note"
+        ],
+        envVars: ["NEXT_PUBLIC_SUPPORT_EMAIL"],
+        links: ["support-email"]
+      }
+    ]
+  }
+];
+
+// ─────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────
+let selectedNode = null;
+let activeFilter = 'all';
+
+// ─────────────────────────────────────────────────────
+// BUILD SUMMARY
+// ─────────────────────────────────────────────────────
+function buildSummary() {
+  let counts = { green: 0, yellow: 0, red: 0, gray: 0 };
+  zones.forEach(z => z.nodes.forEach(n => counts[n.status]++));
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  const labels = { green: 'Wired', yellow: 'Needs Config', red: 'Blocked', gray: 'Optional' };
+  const el = document.getElementById('summary');
+  el.innerHTML = Object.entries(counts).map(([s, c]) => `
+    <div class="badge badge-${s}" data-filter="${s}">
+      <span class="dot"></span> ${c} ${labels[s]}
+    </div>
+  `).join('');
+
+  // Add progress
+  const pct = Math.round((counts.green / (total - counts.gray)) * 100);
+  el.insertAdjacentHTML('beforeend', `
+    <div style="font-size:11px;color:#64748b;margin-left:8px">${pct}% launch-ready</div>
+  `);
+}
+
+// ─────────────────────────────────────────────────────
+// BUILD ZONES
+// ─────────────────────────────────────────────────────
+function buildZones() {
+  const container = document.getElementById('zonesContainer');
+
+  zones.forEach(zone => {
+    const zoneEl = document.createElement('div');
+    zoneEl.className = 'zone';
+    zoneEl.dataset.zoneId = zone.id;
+
+    const nodeCount = zone.nodes.length;
+    const wiredCount = zone.nodes.filter(n => n.status === 'green').length;
+
+    zoneEl.innerHTML = `
+      <div class="zone-header" style="background: ${zone.color}18; color: ${zone.color}">
+        <span class="zone-icon">${zone.icon}</span>
+        ${zone.label}
+        <span style="margin-left:auto;font-size:10px;color:#475569">${wiredCount}/${nodeCount}</span>
+      </div>
+      <div class="zone-body" id="zone-body-${zone.id}"></div>
+    `;
+
+    const body = zoneEl.querySelector(`#zone-body-${zone.id}`);
+
+    zone.nodes.forEach(node => {
+      const tagClass = `tag-${node.status}`;
+      const nodeEl = document.createElement('div');
+      nodeEl.className = `node ${node.status}`;
+      nodeEl.dataset.nodeId = node.id;
+      nodeEl.dataset.status = node.status;
+      nodeEl.dataset.name = node.name.toLowerCase();
+
+      nodeEl.innerHTML = `
+        <div class="node-indicator"></div>
+        <div class="node-text">
+          <div class="node-name">${node.name}</div>
+          <div class="node-sub">${node.sub}</div>
+        </div>
+        <div class="node-tag ${tagClass}">${node.tag}</div>
+      `;
+
+      nodeEl.addEventListener('click', () => selectNode(node, nodeEl));
+      body.appendChild(nodeEl);
+    });
+
+    container.appendChild(zoneEl);
+  });
+}
+
+// ─────────────────────────────────────────────────────
+// SELECT NODE → show detail
+// ─────────────────────────────────────────────────────
+function selectNode(node, el) {
+  // Deselect previous
+  document.querySelectorAll('.node.selected').forEach(n => n.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedNode = node;
+
+  const statusColors = { green: '#10b981', yellow: '#f59e0b', red: '#ef4444', gray: '#475569' };
+  const statusLabels = { green: '✅ Wired & Live', yellow: '⚠️ Needs Configuration', red: '🔴 Not Wired / Blocked', gray: '⬜ Optional' };
+
+  const panel = document.getElementById('detailPanel');
+  panel.classList.remove('hidden');
+
+  const zoneLabel = zones.find(z => z.nodes.some(n => n.id === node.id))?.label || '';
+
+  let actionsHtml = '';
+  if (node.actions.length > 0) {
+    actionsHtml = `
+      <div class="detail-section">
+        <div class="detail-section-title">Required Actions</div>
+        <ul class="action-list">
+          ${node.actions.map(a => `<li><span class="bullet">→</span><span>${a}</span></li>`).join('')}
+        </ul>
+      </div>
+    `;
+  } else {
+    actionsHtml = `
+      <div class="detail-section">
+        <div class="detail-section-title">Actions</div>
+        <p class="detail-desc" style="color:#10b981">✅ No action needed — this is fully wired.</p>
+      </div>
+    `;
+  }
+
+  let envHtml = '';
+  if (node.envVars.length > 0) {
+    envHtml = `
+      <div class="detail-section">
+        <div class="detail-section-title">Env Variables</div>
+        <div>${node.envVars.map(e => `<span class="env-tag">${e}</span>`).join('')}</div>
+      </div>
+    `;
+  }
+
+  // Progress bar for status
+  const pctMap = { green: 100, yellow: 50, red: 0, gray: 0 };
+  const pct = pctMap[node.status];
+  const barColor = statusColors[node.status];
+
+  document.getElementById('detailInner').innerHTML = `
+    <div class="detail-header-row">
+      <button class="close-detail" onclick="closeDetail()">✕</button>
+      <div class="detail-status">
+        <div class="detail-dot" style="background:${statusColors[node.status]}"></div>
+        <div class="detail-status-text" style="color:${statusColors[node.status]}">${statusLabels[node.status]}</div>
+      </div>
+      <div class="detail-name">${node.name}</div>
+      <div class="detail-zone">${zoneLabel}</div>
+      ${node.status !== 'gray' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+    </div>
+
+    <div style="margin-top:20px">
+      <div class="detail-section">
+        <div class="detail-section-title">What Is This</div>
+        <p class="detail-desc">${node.desc}</p>
+      </div>
+      ${actionsHtml}
+      ${envHtml}
+    </div>
+  `;
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.add('hidden');
+  document.querySelectorAll('.node.selected').forEach(n => n.classList.remove('selected'));
+  selectedNode = null;
+}
+
+// ─────────────────────────────────────────────────────
+// FILTER
+// ─────────────────────────────────────────────────────
+function applyFilter() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  document.querySelectorAll('.zone').forEach(zoneEl => {
+    const nodes = zoneEl.querySelectorAll('.node');
+    let anyVisible = false;
+
+    nodes.forEach(nodeEl => {
+      const statusMatch = activeFilter === 'all' || nodeEl.dataset.status === activeFilter;
+      const searchMatch = !search || nodeEl.dataset.name.includes(search) || nodeEl.querySelector('.node-sub').textContent.toLowerCase().includes(search);
+      const visible = statusMatch && searchMatch;
+      nodeEl.classList.toggle('hidden', !visible);
+      if (visible) anyVisible = true;
+    });
+
+    zoneEl.classList.toggle('all-hidden', !anyVisible);
+  });
+}
+
+// ─────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────
+buildSummary();
+buildZones();
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    applyFilter();
+  });
+});
+
+// Search
+document.getElementById('searchBox').addEventListener('input', applyFilter);
+
+// Summary badge clicks
+document.getElementById('summary').addEventListener('click', e => {
+  const badge = e.target.closest('.badge[data-filter]');
+  if (!badge) return;
+  activeFilter = badge.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === activeFilter);
+  });
+  applyFilter();
+});
+</script>
+</body>
+</html>

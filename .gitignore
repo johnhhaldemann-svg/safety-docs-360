@@ -59,6 +59,9 @@ yarn-error.log*
 .codex-*.combined.log
 .next-dev.log
 
+# Claude Code AI memory (never commit)
+/.claude/
+
 # local Codex worktrees and generated scratch output
 /.codex_worktrees/
 /.codex-docx-review/
