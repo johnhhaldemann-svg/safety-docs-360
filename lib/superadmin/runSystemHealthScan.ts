@@ -99,7 +99,7 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
     from: "prevention_logic",
     to: "intelligence_engine",
     checkNames: [
-      "Prevention logic output (rule_results on bucket items)",
+      "Prevention logic output (approved nodes)",
       "Permit trigger rules catalog",
       "AI document review output",
       "Company risk scores (rollup)",
@@ -127,7 +127,7 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
       "Document download paths",
       "Field submissions (company_safety_submissions)",
       "Ingestion failures (7 days)",
-      "Bucket runs (feedback into SI)",
+      "Gateway ingest batches",
     ],
   },
   {
@@ -147,7 +147,7 @@ const SYSTEM_HEALTH_EDGE_CHECKS: { from: string; to: string; checkNames: readonl
     from: "field_feedback_loop",
     to: "intelligence_engine",
     checkNames: [
-      "Bucket runs (feedback into SI)",
+      "Gateway ingest batches",
       "Field feedback -> Risk Memory snapshots",
       "Admin review queue (pending submissions)",
       "Safety Intelligence audit activity (24h)",

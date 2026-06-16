@@ -468,7 +468,9 @@ async function loadLiveBucketReviewInputs(supabase: LiteClient, companyId: strin
       .eq("active", true),
   ]);
 
-  if (bucketItemsResult.error) throw new Error(bucketItemsResult.error.message || "Failed to load live work buckets.");
+  if (bucketItemsResult.error) {
+    console.warn("[safety-review] company_bucket_items unavailable (table may be retired):", bucketItemsResult.error.message);
+  }
   if (trainingMatrixResult.error) throw new Error(trainingMatrixResult.error.message || "Failed to load training matrix requirements.");
 
   return {

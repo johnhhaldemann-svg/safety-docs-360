@@ -25,7 +25,6 @@ const fixtures: Array<{ table: string; expectedType: AiKnowledgeNodeType; row: R
   { table: "company_employee_profiles", expectedType: "user_role", row: { id: "employee-profile-1", company_id: "company-1", full_name: "Worker One", trade: "Electrical", certifications: ["NFPA 70E"] } },
   { table: "company_employee_jobsite_assignments", expectedType: "task", row: { id: "assignment-1", company_id: "company-1", employee_id: "worker-1", jobsite_id: "jobsite-1", role: "spotter" } },
   { table: "company_jobsites", expectedType: "project", row: { id: "jobsite-1", company_id: "company-1", name: "Downtown tower", safety_lead: "Jane Safety" } },
-  { table: "safety_data_bucket", expectedType: "risk_record", row: { id: "bucket-1", company_id: "company-1", title: "Heat index alert", source_type: "weather", category_code: "heat", severity: "high", ai_ready: true } },
   { table: "documents", expectedType: "document", row: { id: "document-1", company_id: "company-1", document_title: "Hot Work Procedure", notes: "Procedure covers fire watch." } },
   { table: "company_risk_ai_recommendations", expectedType: "risk_record", row: { id: "risk-1", company_id: "company-1", title: "Training gap risk", body: "Training gap increases fire risk." } },
 ];

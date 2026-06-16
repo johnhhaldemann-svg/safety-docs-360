@@ -118,7 +118,6 @@ function titleFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_employee_profiles") return text(row.full_name, text(row.name, "Worker profile"));
   if (table === "company_employee_jobsite_assignments") return text(row.assignment_label, "Worker jobsite assignment");
   if (table === "company_jobsites") return text(row.name, text(row.project_name, "Jobsite"));
-  if (table === "safety_data_bucket") return text(row.title, text(row.source_type, "Safety data signal"));
   if (table === "documents") return text(row.document_title, text(row.title, text(row.file_name, "Document")));
   if (table === "company_generated_documents") return text(row.title, text(row.document_type, "Generated document"));
   if (table === "company_risk_ai_recommendations") return text(row.title, "Risk recommendation");
@@ -135,7 +134,6 @@ function categoryFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_jobsite_audits" || table === "company_jobsite_audit_observations") return text(row.category_label, text(row.category_code, "field audit"));
   if (table === "company_crews" || table === "company_employee_profiles" || table === "company_employee_jobsite_assignments") return "workforce";
   if (table === "company_jobsites") return "jobsite";
-  if (table === "safety_data_bucket") return text(row.category_code, text(row.source_type, "safety signal"));
   if (table === "company_risk_ai_recommendations") return text(row.kind, "risk");
   if (table === "documents") return text(row.category, text(row.document_type, "document"));
   return text(row.category, text(row.status, nodeTypeForSourceTable(table) ?? "record"));
@@ -160,7 +158,6 @@ function descriptionFor(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_employee_profiles") return compactSummary([row.full_name, row.name, row.trade, row.position, row.status, row.equipment, row.certifications]);
   if (table === "company_employee_jobsite_assignments") return compactSummary([row.employee_id, row.jobsite_id, row.role, row.starts_on, row.ends_on, row.status]);
   if (table === "company_jobsites") return compactSummary([row.name, row.address, row.status, row.safety_lead, row.project_type]);
-  if (table === "safety_data_bucket") return compactSummary([row.title, row.summary, row.source_type, row.category_code, row.severity, row.normalized_payload, row.sanitized_payload]);
   if (table === "documents") return compactSummary([row.notes, row.document_type, row.category, row.project_name]);
   return compactSummary([row.description, row.summary, row.notes, row.status]);
 }
@@ -168,7 +165,7 @@ function descriptionFor(table: string, row: AiKnowledgeSourceRow) {
 function riskInputs(table: string, row: AiKnowledgeSourceRow) {
   if (table === "company_permits") return [row.severity, row.stop_work_status, row.escalation_level];
   if (table === "company_incidents") return [row.severity, row.escalation_level, row.stop_work_status];
-  if (table === "company_sor_records" || table === "company_jobsite_audit_observations" || table === "safety_data_bucket") return [row.severity, row.hazard_category_code, row.category_code];
+  if (table === "company_sor_records" || table === "company_jobsite_audit_observations") return [row.severity, row.hazard_category_code, row.category_code];
   if (table === "company_corrective_actions") return [row.priority, row.severity, row.sif_potential];
   if (table === "company_risk_ai_recommendations") return [row.severity, row.kind, row.confidence];
   if (table === "company_jobsite_chemicals") return [row.risk_level, row.sds_file_path ? null : "high", row.next_review_date];
@@ -194,7 +191,6 @@ function confidenceFor(table: string, row: AiKnowledgeSourceRow, summary: string
   if (table === "company_employee_training_records" && text(row.evidence)) confidence += 0.08;
   if (table === "company_jobsite_chemicals" && text(row.sds_file_path)) confidence += 0.08;
   if (table === "company_jobsite_visual_zones") confidence += 0.04;
-  if (table === "safety_data_bucket" && row.ai_ready === true) confidence += 0.08;
   // Prediction Validation quality rating (1–5) weights records it reviews.
   if (isPredictionGatedTable(table)) confidence += predictionConfidenceDelta(row);
   if (!summary) confidence -= 0.12;

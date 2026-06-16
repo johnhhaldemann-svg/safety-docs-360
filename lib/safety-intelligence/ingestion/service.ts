@@ -54,7 +54,7 @@ export async function runSafetyIntakePipeline(params: {
     await updateIngestionAttempt(params.supabase, {
       auditLogId,
       insertStatus: "inserted",
-      bucketId: bucketRecord.id,
+      bucketId: !bucketRecord.id || bucketRecord.id.startsWith("local-") ? null : bucketRecord.id,
     });
 
     const normalized = prepared.normalizedRecord;
