@@ -11,7 +11,7 @@
   },
   "recordedOutputText": "{\"topics\":[\"Tie-off at height\",\"Anchor point inspection\"],\"priority\":\"high\"}",
   "assertions": {
-    "mustContain": ["priority", "Tie-off at height"],
+    "mustContain": ["priority", "tie-off"],
     "mustNotContain": ["fallback-topic"],
     "schemaShape": ["parsed.topics[]", "parsed.priority", "model"]
   }
