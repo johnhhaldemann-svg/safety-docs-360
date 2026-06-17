@@ -95,7 +95,9 @@ export default function Osha300Page() {
   }, [year, recordableOnly, page]);
 
   // Reset to page 1 when filters change
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [year, recordableOnly]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   async function autofillSingle(incidentId: string) {

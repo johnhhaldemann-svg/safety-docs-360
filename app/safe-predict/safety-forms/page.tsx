@@ -76,6 +76,7 @@ export default function SafePredictSafetyFormsPage() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   // ---- field builder helpers ----

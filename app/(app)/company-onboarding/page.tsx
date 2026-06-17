@@ -190,6 +190,7 @@ export default function CompanyOnboardingPage() {
     const activeCount = employees.filter((e) => e.status !== "archived").length;
     const trainingCount = employees.reduce((n, e) => n + (e.trainingRecords?.length ?? 0), 0);
     if (!loading && activeCount > 0 && jobsites.length > 0 && trainingCount > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGuideOpen(false);
     }
   }, [loading, employees, jobsites.length]);

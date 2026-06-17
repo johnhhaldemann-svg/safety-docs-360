@@ -436,11 +436,11 @@ async function provisionJobsiteAssignments(companyId, jobsiteId, adminId, fieldI
 }
 
 // ─── Step 8: Exercise the onboarding import API ───────────────────────────────
-async function exerciseOnboardingImportApi(companyId, adminId) {
+async function exerciseOnboardingImportApi(companyId, _adminId) {
   log("Step 8: Exercising onboarding import API…");
 
   // Get admin JWT for the request
-  const { data: session, error: signInErr } = await supabase.auth.admin
+  const { data: _session, error: _signInErr } = await supabase.auth.admin
     .generateLink({ type: "magiclink", email: ADMIN_EMAIL })
     .catch(() => ({ data: null, error: new Error("generateLink not available") }));
 
@@ -498,7 +498,7 @@ async function exerciseOnboardingImportApi(companyId, adminId) {
 
 async function approveSignupRequest(adminEmail) {
   log("Step 2b: Approving signup request if pending…");
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("company_signup_requests")
     .update({ status: "approved", account_status: "active" })
     .eq("primary_contact_email", adminEmail.toLowerCase())

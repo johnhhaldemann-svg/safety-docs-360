@@ -7,6 +7,8 @@ export const runtime = "nodejs";
 type Admin = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
 
 /** Best-effort exact row count with an optional query builder; null on any error. */
+// Dynamic table names require bypassing Supabase's typed client — any is intentional here.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 async function countRows(
   admin: Admin,
   table: string,
@@ -22,6 +24,7 @@ async function countRows(
     return null;
   }
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function sumDefined(values: Array<number | null>): number {
   return values.reduce<number>((total, value) => total + (value ?? 0), 0);

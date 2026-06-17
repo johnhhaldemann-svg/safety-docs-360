@@ -84,6 +84,7 @@ export default function ManagementReviewPage() {
     } finally { setLoading(false); }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void fetchMetrics(period, selectedJobsite); }, [period, selectedJobsite, fetchMetrics]);
 
   const demo = DEMO_METRICS[period];
@@ -99,7 +100,7 @@ export default function ManagementReviewPage() {
   ];
 
   function toggleItem(i: number) {
-    setCheckedItems(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+    setCheckedItems(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   }
 
   function handleExport() {

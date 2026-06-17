@@ -132,6 +132,7 @@ export default function LeadingIndicatorsPage() {
     }
   }, [days]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const trendMax = metrics
