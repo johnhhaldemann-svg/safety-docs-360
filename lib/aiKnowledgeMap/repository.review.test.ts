@@ -74,16 +74,24 @@ function fakeReviewClient(initialCandidate: Record<string, unknown>) {
         },
         update(value: Record<string, unknown>) {
           writes.push({ table, value });
-          return {
-            eq: () => ({
-              select: () => ({
-                single: async () => {
-                  candidate = { ...candidate, ...value };
-                  return { data: candidate, error: null };
-                },
-              }),
+          // Supports both the candidate status update (`.eq().select().single()`)
+          // and the gateway document activation (`.from("documents").update().eq().eq()`,
+          // which chains `.eq()` twice and is awaited directly without a `.select()`).
+          const chain: {
+            eq: () => typeof chain;
+            select: () => { single: () => Promise<{ data: Record<string, unknown>; error: null }> };
+            then: (resolve: (value: { data: Record<string, unknown>; error: null }) => unknown) => unknown;
+          } = {
+            eq: () => chain,
+            select: () => ({
+              single: async () => {
+                candidate = { ...candidate, ...value };
+                return { data: candidate, error: null };
+              },
             }),
+            then: (resolve) => resolve({ data: candidate, error: null }),
           };
+          return chain;
         },
         upsert(value: Array<Record<string, unknown>> | Record<string, unknown>) {
           writes.push({ table, value });

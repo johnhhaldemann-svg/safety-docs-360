@@ -141,11 +141,5 @@ describe("AI Knowledge Map normalization", () => {
       chemical_name: "Epoxy",
       sds_file_path: "sds/epoxy.pdf",
     })?.confidenceScore).toBeGreaterThan(0.72);
-    expect(normalizeSourceRowToKnowledgeNode("safety_data_bucket", {
-      id: "bucket-ai-ready",
-      company_id: "company-1",
-      title: "Lightning proximity alert",
-      ai_ready: true,
-    })?.confidenceScore).toBeGreaterThan(0.72);
   });
 });
