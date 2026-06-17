@@ -60,7 +60,7 @@ export async function POST(
       evaluator_id: auth.user.id,
       notes,
     })
-    .select("*")
+    .select("id, score, blocking_flags, notes, created_at")
     .single();
 
   if (ins.error) {

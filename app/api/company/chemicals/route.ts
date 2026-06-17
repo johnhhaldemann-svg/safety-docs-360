@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 
   const res = await auth.supabase
     .from("company_jobsite_chemicals")
-    .select("*")
+    .select("id, chemical_name, manufacturer, sds_file_path, sds_effective_date, next_review_date, quantity_note")
     .eq("company_id", companyScope.companyId)
     .eq("jobsite_id", jobsiteId)
     .order("chemical_name", { ascending: true });
@@ -58,7 +58,10 @@ export async function GET(request: Request) {
   if (res.error) {
     return NextResponse.json({ chemicals: [], warning: res.error.message });
   }
-  return NextResponse.json({ chemicals: res.data ?? [] });
+  return NextResponse.json(
+    { chemicals: res.data ?? [] },
+    { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=30" } }
+  );
 }
 
 export async function POST(request: Request) {
@@ -111,7 +114,7 @@ export async function POST(request: Request) {
       quantity_note: String(body?.quantityNote ?? "").trim() || null,
       created_by: auth.user.id,
     })
-    .select("*")
+    .select("id, chemical_name, manufacturer, sds_file_path, sds_effective_date, next_review_date, quantity_note, jobsite_id, company_id, created_at")
     .single();
 
   if (ins.error) {
