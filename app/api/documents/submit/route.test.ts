@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   authorizeRequest,
@@ -15,6 +15,7 @@ const {
   generatePshsepDocx,
   serverLog,
   renderGeneratedCsepDocx,
+  createSupabaseAdminClient,
 } = vi.hoisted(() => ({
   authorizeRequest: vi.fn(),
   getUserAgreementRecord: vi.fn(),
@@ -30,6 +31,7 @@ const {
   generatePshsepDocx: vi.fn(),
   serverLog: vi.fn(),
   renderGeneratedCsepDocx: vi.fn(),
+  createSupabaseAdminClient: vi.fn(),
 }));
 
 vi.mock("@/lib/rbac", () => ({ authorizeRequest }));
@@ -62,8 +64,37 @@ vi.mock("@/app/api/pshsep/export/route", () => ({
 }));
 vi.mock("@/lib/serverLog", () => ({ serverLog }));
 vi.mock("@/lib/csepDocxRenderer", () => ({ renderGeneratedCsepDocx }));
+vi.mock("@/lib/supabaseAdmin", () => ({ createSupabaseAdminClient }));
 
 import { POST } from "./route";
+
+// The submit route routes every successful submission through the AI Knowledge
+// Map gateway: it queues an `ai_knowledge_ingest_candidates` row via the service-role
+// admin client before returning 200. Provide a default fake admin client so the
+// happy-path tests reach the gateway insert instead of failing on a missing client.
+function makeAdminClient() {
+  const candidateSingle = vi
+    .fn()
+    .mockResolvedValue({ data: { id: "candidate-1" }, error: null });
+  const candidateSelect = vi.fn().mockReturnValue({ single: candidateSingle });
+  const candidateInsert = vi.fn().mockReturnValue({ select: candidateSelect });
+  const candidateDeleteEq = vi.fn().mockResolvedValue({ error: null });
+  const candidateDelete = vi.fn().mockReturnValue({ eq: candidateDeleteEq });
+  const adminRemove = vi.fn().mockResolvedValue({ error: null });
+  return {
+    from: vi.fn((table: string) => {
+      if (table === "ai_knowledge_ingest_candidates") {
+        return { insert: candidateInsert, delete: candidateDelete };
+      }
+      throw new Error(`Unexpected admin table: ${table}`);
+    }),
+    storage: { from: vi.fn().mockReturnValue({ remove: adminRemove }) },
+  };
+}
+
+beforeEach(() => {
+  createSupabaseAdminClient.mockReturnValue(makeAdminClient());
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -219,7 +250,7 @@ describe("documents submit route", () => {
       siteContext: { jobsiteId: null },
     });
     runSafetyPlanDocumentPipeline.mockRejectedValue(
-      new Error('relation "company_bucket_runs" does not exist')
+      new Error('relation "company_generated_documents" does not exist')
     );
     generateCsepDocx.mockResolvedValue(
       new Response(new Uint8Array([9, 8, 7]), {
