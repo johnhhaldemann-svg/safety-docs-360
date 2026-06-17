@@ -172,7 +172,7 @@ export function SafePredictJobsiteAudits() {
   const [companyId, setCompanyId] = useState("");
   const [auditCustomerId, setAuditCustomerId] = useState("");
   const [jobsiteId, setJobsiteId] = useState("");
-  const [auditDate, setAuditDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [auditDate, setAuditDate] = useState("");
   const [auditors, setAuditors] = useState("");
   const [selectedTrade, setSelectedTrade] = useState("general_contractor");
   const [hoursBilled, setHoursBilled] = useState("");
