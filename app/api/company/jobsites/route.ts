@@ -131,11 +131,14 @@ export async function GET(request: Request) {
         ? []
         : allJobsites;
 
-  return NextResponse.json({
-    jobsites,
-    scopeCompanyId: companyScope.companyId,
-    scopeCompanyName: companyScope.companyName,
-  });
+  return NextResponse.json(
+    {
+      jobsites,
+      scopeCompanyId: companyScope.companyId,
+      scopeCompanyName: companyScope.companyName,
+    },
+    { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=30" } }
+  );
 }
 
 export async function POST(request: Request) {
