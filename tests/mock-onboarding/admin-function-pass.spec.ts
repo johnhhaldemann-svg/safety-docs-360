@@ -12,8 +12,6 @@ import { test, expect } from "../fixtures";
 import { hasRoleE2ECredentials, E2E_ROLE_AUTH, acceptAgreementIfPresent } from "../helpers/auth";
 import { expectAuthenticatedShellUrl } from "../helpers/sessionWait";
 import {
-  TEST_COMPANY_NAME,
-  TEST_JOBSITE_NAME,
   getTestIds,
   gotoAndWaitForApp,
   expectApiCall,

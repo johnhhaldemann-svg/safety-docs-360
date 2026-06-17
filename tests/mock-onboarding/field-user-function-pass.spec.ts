@@ -17,7 +17,6 @@ import {
   TEST_JOBSITE_NAME,
   getTestIds,
   gotoAndWaitForApp,
-  expectHeading,
   expectApiCall,
 } from "./helpers";
 
@@ -373,7 +372,6 @@ test.describe("Admin routes: field user is denied", () => {
 
     // Should be redirected to /dashboard or /login, never land on /admin content
     const pathname = await page.evaluate(() => window.location.pathname);
-    const blockedOrRedirected = !pathname.startsWith("/admin") || pathname === "/admin";
 
     // Acceptable outcomes: redirect to /dashboard, /login, or a "Not authorized" message
     const notAuthorized = page.getByText(/not authorized|access denied|forbidden|no permission/i).first();

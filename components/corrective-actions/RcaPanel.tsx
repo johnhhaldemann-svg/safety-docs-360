@@ -142,6 +142,7 @@ export function RcaPanel({ action, onClose, authHeaders }: RcaPanelProps) {
   // Fetch repeat pattern data once on mount — runs independently of session state
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPatternLoading(true);
     fetch(`/api/company/corrective-actions/${action.id}/rca/patterns`, {
       headers: authHeaders,

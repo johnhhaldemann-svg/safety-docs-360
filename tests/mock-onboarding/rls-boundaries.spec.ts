@@ -119,7 +119,7 @@ test.describe("Supabase RLS: direct API calls with user JWT", () => {
     test.skip(!supabaseUrl || !anonKey, "NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set.");
 
     // Get the user's session JWT from browser storage
-    const jwt = await page.evaluate(async (url) => {
+    const jwt = await page.evaluate(async (_url) => {
       const keys = Object.keys(localStorage);
       const sessionKey = keys.find((k) => k.includes("supabase") && k.includes("auth"));
       if (!sessionKey) return null;

@@ -1,7 +1,7 @@
 /**
  * Shared helpers for the mock-onboarding E2E suite.
  */
-import type { Page, BrowserContext } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { acceptAgreementIfPresent } from "../helpers/auth";
 

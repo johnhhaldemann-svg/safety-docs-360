@@ -4894,6 +4894,7 @@ function JobsiteInductionsTab({ site, mode }: { site: SafePredictJobsiteRecord; 
     }
   }, [site.id]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   // Active requirements scoped to this site or company-wide (null jobsite_id)

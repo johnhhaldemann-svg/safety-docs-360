@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { authorizeRequest, isCompanyRole } from "@/lib/rbac";
 import { getCompanyScope } from "@/lib/companyScope";
 import { canMutateCompanyMemory } from "@/lib/companyMemoryAccess";
-import { insertCompanyMemoryItem } from "@/lib/companyMemory";
 import { extractGcProgramDocumentText } from "@/lib/gcProgramAiReview";
 import { checkFixedWindowRateLimit } from "@/lib/rateLimit";
 import { serverLog } from "@/lib/serverLog";

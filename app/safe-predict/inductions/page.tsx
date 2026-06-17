@@ -122,10 +122,12 @@ export default function SafePredictInductionsPage() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   // Keep newAudiences in sync with defaults when panel opens
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (showCreate) setNewAudiences([...defaultAudiences]);
   }, [showCreate]); // eslint-disable-line react-hooks/exhaustive-deps
 

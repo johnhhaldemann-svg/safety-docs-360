@@ -118,6 +118,7 @@ export default function SafePredictCorrectiveActionsPage() {
     }
   }, [statusFilter, overdueOnly]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const open = actions.filter((a) => a.status === "open" || a.status === "assigned" || a.status === "in_progress");
