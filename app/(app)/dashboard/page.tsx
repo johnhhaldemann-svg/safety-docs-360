@@ -12,7 +12,7 @@ export default function DashboardPage() {
       <Suspense
         fallback={
           <div className="rounded-2xl border border-dashed border-[var(--app-border-strong)] bg-[var(--app-panel-soft)] px-4 py-6 text-center text-sm text-[var(--app-muted)]">
-            Loading prevention view filters…
+            Loading your dashboard…
           </div>
         }
       >

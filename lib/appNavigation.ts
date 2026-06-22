@@ -476,16 +476,15 @@ export const companyManagerSideSections: NavSection[] = [
 export const companyUserSideSections: NavSection[] = [
   {
     title: "Start Here",
+    description: "Your dashboard and active job sites.",
     items: [
       { href: "/dashboard", label: "Dashboard", short: "HM" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
-      { href: "/purchases", label: "Purchases", short: "MP" },
-      { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
   {
     title: "Documents",
+    description: "Company documents, templates, uploads, and search.",
     items: [
       { href: "/documents", label: "Documents", short: "DC" },
       {
@@ -500,6 +499,7 @@ export const companyUserSideSections: NavSection[] = [
   },
   {
     title: "Field & Sites",
+    description: "Audits, field assignments, and job safety analyses.",
     items: [
       { href: "/auditflow", label: "AuditFlow", short: "AF" },
       { href: "/field-audits", label: "Field Audits", short: "FA" },
@@ -508,6 +508,7 @@ export const companyUserSideSections: NavSection[] = [
   },
   {
     title: "Programs & Training",
+    description: "Platform training and your training readiness.",
     items: [
       { href: "/training", label: "Platform Training", short: "PT" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
@@ -515,8 +516,11 @@ export const companyUserSideSections: NavSection[] = [
   },
   {
     title: "Account",
+    description: "Profile, billing, purchases, and help.",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/purchases", label: "Purchases", short: "PU" },
       { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },

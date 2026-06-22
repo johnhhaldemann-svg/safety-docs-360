@@ -127,6 +127,9 @@ export function AppShellHeader({
                 >
                   <Command aria-hidden="true" className="h-4 w-4" />
                   Go to
+                  <kbd className="hidden items-center rounded border border-[var(--app-border)] bg-white/70 px-1.5 py-0.5 font-mono text-[9px] text-[var(--app-muted)] sm:inline-flex">
+                    ⌘K
+                  </kbd>
                 </button>
                 {isCompanyScopedUser ? <NotificationCenter /> : null}
                 {userRole === "super_admin" ? <PlatformSupportAlert /> : null}
