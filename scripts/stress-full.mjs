@@ -80,15 +80,6 @@ async function getJson(url, token) {
   return { status: r.status, body };
 }
 
-async function postJson(url, payload, token, extraHeaders = {}) {
-  const headers = { "Content-Type": "application/json", Accept: "application/json", ...extraHeaders };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), redirect: "follow" });
-  let body = null;
-  try { body = await r.json(); } catch { /* ignore */ }
-  return { status: r.status, body };
-}
-
 // ── Phase 0: JWT auth ────────────────────────────────────────────────────────
 async function signIn(email, password) {
   if (!SB_URL || !SB_ANON) return null;

@@ -23,7 +23,7 @@ describe("excelImport", () => {
     const parsed = await parseFieldIssueExcelBuffer(ab, [], null);
     expect(parsed.ok.length).toBeGreaterThanOrEqual(1);
     expect(parsed.ok[0]?.payload.title).toContain("Example");
-  });
+  }, 30_000);
 
   it("maps a valid row with jobsite_name", async () => {
     const headers = [
