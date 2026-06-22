@@ -311,8 +311,7 @@ export const companyAdminSideSections: NavSection[] = [
     items: [
       { href: "/safe-predict/get-started", label: "Get Started", short: "GS" },
       { href: "/dashboard", label: "Dashboard", short: "HM" },
-      { href: "/purchases", label: "Purchases", short: "PU" },
-      { href: "/support", label: "Help & Support", short: "HS" },
+      { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
       { href: "/customer/billing", label: "Billing", short: "BL" },
     ],
@@ -352,7 +351,7 @@ export const companyAdminSideSections: NavSection[] = [
       { href: "/company-users", label: "Team & Access", short: "US" },
       { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
       { href: "/training", label: "Platform Training", short: "PT" },
-      { href: "/company-contractors", label: "Contractor compliance", short: "CQ" },
+      { href: "/company-contractors", label: "Contractor Compliance", short: "CQ" },
       { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/company-inductions", label: "Inductions", short: "IN" },
       { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
@@ -373,12 +372,8 @@ export const companyAdminSideSections: NavSection[] = [
   {
     title: "Insights & Reports",
     items: [
-      { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/admin/gus-learning-review", label: "Gus Learning Review", short: "GL" },
-      { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
       { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
-      { href: "/safe-predict", label: "SafePredict AI", short: "SP" },
       { href: "/analytics", label: "Safety Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
@@ -387,6 +382,7 @@ export const companyAdminSideSections: NavSection[] = [
     title: "Account",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/purchases", label: "Purchases", short: "PU" },
       { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
@@ -398,12 +394,8 @@ export const companyManagerSideSections: NavSection[] = [
     items: [
       { href: "/safe-predict/get-started", label: "Get Started", short: "GS" },
       { href: "/dashboard", label: "Dashboard", short: "HM" },
+      { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/jobsites", label: "Job Sites", short: "JS" },
-      { href: "/training", label: "Platform Training", short: "PT" },
-      { href: "/customer/billing", label: "Billing", short: "BL" },
-      { href: "/purchases", label: "Purchases", short: "MP" },
-      { href: "/support", label: "Help & Support", short: "HS" },
-      { href: "/training-matrix", label: "Training Tracker", short: "TM" },
     ],
   },
   {
@@ -449,6 +441,8 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Programs & Training",
     items: [
+      { href: "/training", label: "Platform Training", short: "PT" },
+      { href: "/training-matrix", label: "Training Tracker", short: "TM" },
       { href: "/company-onboarding", label: "Onboarding Import", short: "OI" },
       { href: "/company-inductions", label: "Inductions", short: "IN" },
       { href: "/company-safety-forms", label: "Safety Forms", short: "SF" },
@@ -458,20 +452,18 @@ export const companyManagerSideSections: NavSection[] = [
   {
     title: "Insights & Reports",
     items: [
-      { href: "/command-center", label: "Command Center", short: "CC" },
       { href: "/safety-intelligence", label: "Safety Intelligence", short: "SI" },
-      { href: "/admin/gus-learning-review", label: "Gus Learning Review", short: "GL" },
-      { href: "/analytics/safety-intelligence", label: "Workflow Activity", short: "WA" },
       { href: "/analytics/predictive-model", label: "Predictive Model", short: "PM" },
-      { href: "/safe-predict", label: "SafePredict AI", short: "SP" },
       { href: "/analytics", label: "Safety Analytics", short: "AN" },
       { href: "/reports", label: "Reports", short: "RP" },
     ],
   },
   {
-    title: "Profile",
+    title: "Account",
     items: [
       { href: "/profile", label: "My Profile", short: "CP" },
+      { href: "/customer/billing", label: "Billing", short: "BL" },
+      { href: "/purchases", label: "Purchases", short: "PU" },
       { href: "/support", label: "Help & Support", short: "HS" },
     ],
   },
