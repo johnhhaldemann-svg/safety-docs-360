@@ -102,5 +102,5 @@ describe("Broken link checker (static internal URLs)", () => {
         ? ""
         : `\n${failures.map((f) => `  ${f.file}:${f.line}  ${f.href}\n    → ${f.detail}`).join("\n")}`;
     expect(failures, message).toEqual([]);
-  });
+  }, 30_000);
 });

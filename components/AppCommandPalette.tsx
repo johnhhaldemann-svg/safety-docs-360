@@ -119,7 +119,6 @@ export function AppCommandPalette({ open, onOpenChange, items }: AppCommandPalet
                       {item.description ?? getWorkspaceNavItemMeta(item).description}
                     </span>
                   </span>
-                  <span className="truncate text-xs text-[var(--app-muted)]">{item.href}</span>
                   <ArrowRight
                     aria-hidden="true"
                     className="h-4 w-4 shrink-0 text-[var(--app-accent-primary)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"

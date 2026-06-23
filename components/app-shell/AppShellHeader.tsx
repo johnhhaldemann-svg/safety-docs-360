@@ -70,8 +70,12 @@ export function AppShellHeader({
               <div className="mb-3 flex flex-col gap-2 rounded-lg border border-[var(--app-border)] bg-white/78 px-3 py-2 shadow-[0_4px_10px_rgba(44,58,86,0.035)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--app-muted)]">
                   <span className="truncate">{workspaceLabel}</span>
-                  <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{currentNavSection?.title || currentNavItem.label}</span>
+                  {currentNavSection && currentNavSection.title !== currentNavItem.label ? (
+                    <>
+                      <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{currentNavSection.title}</span>
+                    </>
+                  ) : null}
                   <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate text-[var(--app-text-strong)]">{currentNavItem.label}</span>
                 </div>
@@ -122,7 +126,10 @@ export function AppShellHeader({
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--app-accent-primary)] shadow-[0_5px_14px_rgba(44,58,86,0.035)] transition hover:border-[var(--app-accent-border-24)] hover:bg-white"
                 >
                   <Command aria-hidden="true" className="h-4 w-4" />
-                  Menu
+                  Go to
+                  <kbd className="hidden items-center rounded border border-[var(--app-border)] bg-white/70 px-1.5 py-0.5 font-mono text-[9px] text-[var(--app-muted)] sm:inline-flex">
+                    ⌘K
+                  </kbd>
                 </button>
                 {isCompanyScopedUser ? <NotificationCenter /> : null}
                 {userRole === "super_admin" ? <PlatformSupportAlert /> : null}

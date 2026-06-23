@@ -131,7 +131,8 @@ describe("App Navigation Integrity", () => {
     }
   });
 
-  it("keeps the insights section ordering centered on Command Center first", () => {
+  it("keeps section ordering consistent with intended nav structure", () => {
+    // Quick links lead with the primary nav anchors for both roles
     expect(companyAdminQuickLinks.slice(0, 3).map((item) => item.href)).toEqual([
       "/command-center",
       "/dashboard",
@@ -143,6 +144,12 @@ describe("App Navigation Integrity", () => {
       "/jobsites",
     ]);
 
+    // Command Center lives in "Start Here", not in Insights
+    const adminStartSection = companyAdminSideSections.find((s) => s.title === "Start Here");
+    const managerStartSection = companyManagerSideSections.find((s) => s.title === "Start Here");
+    expect(adminStartSection?.items.some((i) => i.href === "/command-center")).toBe(true);
+    expect(managerStartSection?.items.some((i) => i.href === "/command-center")).toBe(true);
+
     const adminInsightsSection = companyAdminSideSections.find(
       (section) => section.title === "Insights & Reports"
     );
@@ -150,20 +157,23 @@ describe("App Navigation Integrity", () => {
       (section) => section.title === "Insights & Reports"
     );
 
+    // Insights leads with Safety Intelligence then Predictive Model
     expect(adminInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
-      "/command-center",
       "/safety-intelligence",
+      "/analytics/predictive-model",
     ]);
     expect(managerInsightsSection?.items.slice(0, 2).map((item) => item.href)).toEqual([
-      "/command-center",
       "/safety-intelligence",
+      "/analytics/predictive-model",
     ]);
 
-    const analyticsChildIdx =
-      adminInsightsSection?.items.findIndex((item) => item.href === "/analytics/safety-intelligence") ?? -1;
-    const analyticsParentIdx = adminInsightsSection?.items.findIndex((item) => item.href === "/analytics") ?? -1;
-    expect(analyticsChildIdx).toBeGreaterThan(0);
-    expect(analyticsParentIdx).toBeGreaterThan(0);
-    expect(analyticsChildIdx).toBeLessThan(analyticsParentIdx);
+    // Safety Analytics is present in the insights section
+    expect(adminInsightsSection?.items.some((i) => i.href === "/analytics")).toBe(true);
+    expect(managerInsightsSection?.items.some((i) => i.href === "/analytics")).toBe(true);
+
+    // Workflow Activity (/analytics/safety-intelligence) is intentionally absent from
+    // the sidebar — it was removed as a confusing near-duplicate of Safety Analytics
+    expect(adminInsightsSection?.items.some((i) => i.href === "/analytics/safety-intelligence")).toBe(false);
+    expect(managerInsightsSection?.items.some((i) => i.href === "/analytics/safety-intelligence")).toBe(false);
   });
 });
